@@ -1,24 +1,31 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { getCandidate } from "@/services/adminCandidates";
+import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
 import type { CandidateProfileRead } from "@/types/api";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { useToast } from "@/hooks/useToast";
 import CandidateContactInfo from "./CandidateContactInfo";
 
 interface Props {
   candidateId: number | null;
   candidate?: CandidateProfileRead;
+  onDeleted: (id: number) => void;
 }
 
-/** Right-hand record pane: breadcrumb + identity. Skeleton for #876 — applications and timeline land in follow-up slices. */
-export default function CandidateRecordPane({ candidateId, candidate }: Props) {
+/** Right-hand record pane: breadcrumb + identity header with primary actions. Applications and timeline land in follow-up slices. */
+export default function CandidateRecordPane({ candidateId, candidate, onDeleted }: Props) {
   const { t } = useTranslation(['admin', 'common']);
+  const navigate = useNavigate();
+  const toast = useToast();
   const [fetched, setFetched] = useState<CandidateProfileRead | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -74,6 +81,21 @@ export default function CandidateRecordPane({ candidateId, candidate }: Props) {
     );
   }
 
+  async function handleDeleteConfirm() {
+    setDeleting(true);
+    try {
+      await deleteCandidate(c.id);
+      toast.success(t("admin:candidates.deletedToast"));
+      setDeleteOpen(false);
+      onDeleted(c.id);
+      navigate("/admin/candidates");
+    } catch {
+      toast.error(t("admin:candidates.errors.deleteFailed"));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-white/8 bg-card p-4 sm:p-6">
       <Link
@@ -92,14 +114,41 @@ export default function CandidateRecordPane({ candidateId, candidate }: Props) {
         <span className="text-white/80">{c.full_name}</span>
       </nav>
 
-      <h2 className="text-lg font-semibold text-white/90">{c.full_name}</h2>
-      <div className="mt-2">
-        <CandidateContactInfo candidate={c} />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold text-white/90">{c.full_name}</h2>
+          <div className="mt-2">
+            <CandidateContactInfo candidate={c} />
+          </div>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            aria-label={t("admin:candidates.deleteAction")}
+            title={t("admin:candidates.deleteAction")}
+            className="group inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-danger/30 text-danger/70 transition hover:border-danger/50 hover:bg-danger/10 hover:text-danger"
+          >
+            <TrashIcon className="size-4" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 border-t border-white/8 pt-6">
         <p className="text-sm text-white/35">{t("admin:candidates.record.comingSoon")}</p>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("admin:candidates.deleteConfirmTitle", { name: c.full_name })}
+        message={t("admin:candidates.deleteConfirmMessage")}
+        confirmLabel={t("admin:candidates.deleteConfirmYes")}
+        variant="danger"
+        isPending={deleting}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }
@@ -118,6 +167,31 @@ function BackChevron() {
       aria-hidden="true"
     >
       <path d="M6 4 L10 8 L6 12" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      {/* can body — stays put */}
+      <path d="M3.75 4.5 L4.25 13 a1 1 0 0 0 1 0.9 h5.5 a1 1 0 0 0 1 -0.9 L12.25 4.5" />
+      <path d="M6.5 7.5 V11.5 M9.5 7.5 V11.5" />
+      {/* lid + handle — hinges open on hover */}
+      <g className="origin-[3px_4.5px] transition-transform duration-200 ease-out group-hover:-rotate-[25deg]">
+        <path d="M3 4.5 H13" />
+        <path d="M5.5 4.5 V3 a1 1 0 0 1 1 -1 h3 a1 1 0 0 1 1 1 V4.5" />
+      </g>
     </svg>
   );
 }

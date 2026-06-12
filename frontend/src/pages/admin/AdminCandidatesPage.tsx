@@ -149,7 +149,11 @@ export default function AdminCandidatesPage() {
             : "min-h-0 flex-1 overflow-y-auto md:min-w-0"
         }
       >
-        <CandidateRecordPane candidateId={selectedId} candidate={selectedCandidate} />
+        <CandidateRecordPane
+          candidateId={selectedId}
+          candidate={selectedCandidate}
+          onDeleted={(deletedId) => removeItem((c) => c.id === deletedId)}
+        />
       </div>
 
       <CandidateEditDialog
