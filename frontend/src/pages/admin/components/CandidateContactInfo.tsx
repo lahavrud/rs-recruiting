@@ -12,7 +12,7 @@ export default function CandidateContactInfo({
   const { t } = useTranslation('admin');
 
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[15px]">
       <a
         href={`mailto:${c.email}?subject=${encodeURIComponent(t("admin:candidates.emailSubject", { name: c.full_name }))}`}
         className="text-copper/85 transition hover:text-copper hover:underline"

@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/useToast";
 import CandidateEditDialog from "./components/CandidateEditDialog";
 import CandidateRecordPane from "./components/CandidateRecordPane";
 import CandidatesRailList from "./components/CandidatesRailList";
+import RailToggleIcon from "./components/RailToggleIcon";
 
 export default function AdminCandidatesPage() {
   const { t } = useTranslation(['admin', 'common', 'md']);
@@ -46,6 +47,7 @@ export default function AdminCandidatesPage() {
   const [editing, setEditing] = useState<CandidateProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<CandidateProfileRead | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Client-side search on the loaded candidate set.
   const [query, setQuery] = useState("");
@@ -90,12 +92,16 @@ export default function AdminCandidatesPage() {
     selectedId != null ? candidates.find((c) => c.id === selectedId) : undefined;
 
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row md:gap-6">
+    <div className="flex h-full min-h-0 flex-col md:flex-row">
       <div
         className={
           selectedId != null
-            ? "hidden min-h-0 flex-col md:flex md:w-[360px] md:flex-none"
-            : "flex min-h-0 flex-1 flex-col md:w-[360px] md:flex-none"
+            ? `hidden min-h-0 flex-col overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out md:flex md:flex-none ${
+                railCollapsed
+                  ? "md:me-0 md:w-0 md:opacity-0"
+                  : "md:me-6 md:w-[360px] md:opacity-100"
+              }`
+            : "flex min-h-0 flex-1 flex-col md:me-6 md:w-[360px] md:flex-none"
         }
       >
         <h1 data-page-heading className="sr-only">
@@ -104,6 +110,19 @@ export default function AdminCandidatesPage() {
         <PageHeader
           eyebrow={t("admin:candidates.title")}
           subtitle={t("admin:candidates.subtitle")}
+          action={
+            selectedId != null ? (
+              <button
+                type="button"
+                onClick={() => setRailCollapsed(true)}
+                aria-label={t("admin:candidates.record.hideList")}
+                title={t("admin:candidates.record.hideList")}
+                className="hidden -me-1 items-center rounded-sm p-1 text-white/40 transition hover:text-copper md:inline-flex"
+              >
+                <RailToggleIcon className="size-3.5" />
+              </button>
+            ) : undefined
+          }
         />
 
         {/* Search */}
@@ -153,6 +172,8 @@ export default function AdminCandidatesPage() {
           candidateId={selectedId}
           candidate={selectedCandidate}
           onDeleted={(deletedId) => removeItem((c) => c.id === deletedId)}
+          railCollapsed={railCollapsed}
+          onToggleRail={() => setRailCollapsed((v) => !v)}
         />
       </div>
 

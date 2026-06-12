@@ -6,18 +6,29 @@ import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
 import type { CandidateProfileRead } from "@/types/api";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
+import Eyebrow from "@/components/ui/Eyebrow";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import CandidateContactInfo from "./CandidateContactInfo";
+import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
+import RailToggleIcon from "./RailToggleIcon";
 
 interface Props {
   candidateId: number | null;
   candidate?: CandidateProfileRead;
   onDeleted: (id: number) => void;
+  railCollapsed: boolean;
+  onToggleRail: () => void;
 }
 
 /** Right-hand record pane: breadcrumb + identity header with primary actions. Applications and timeline land in follow-up slices. */
-export default function CandidateRecordPane({ candidateId, candidate, onDeleted }: Props) {
+export default function CandidateRecordPane({
+  candidateId,
+  candidate,
+  onDeleted,
+  railCollapsed,
+  onToggleRail,
+}: Props) {
   const { t } = useTranslation(['admin', 'common']);
   const navigate = useNavigate();
   const toast = useToast();
@@ -66,6 +77,18 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
         <EmptyState
           eyebrow={t("admin:candidates.title")}
           headline={t("admin:candidates.record.notFound")}
+          action={
+            railCollapsed ? (
+              <button
+                type="button"
+                onClick={onToggleRail}
+                className="hidden items-center gap-1.5 text-sm text-white/50 transition hover:text-copper md:inline-flex"
+              >
+                <RailToggleIcon className="size-3.5" />
+                {t("admin:candidates.record.showList")}
+              </button>
+            ) : undefined
+          }
         />
       );
     }
@@ -97,7 +120,7 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
   }
 
   return (
-    <div className="rounded-xl border border-white/8 bg-card p-4 sm:p-6">
+    <div className="@container rounded-xl border border-white/8 bg-card p-4 sm:p-6">
       <Link
         to="/admin/candidates"
         className="mb-4 flex items-center gap-1.5 text-sm text-white/50 transition hover:text-copper md:hidden"
@@ -107,6 +130,17 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
       </Link>
 
       <nav className="mb-4 hidden items-center gap-2 text-sm text-white/50 md:flex">
+        {railCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleRail}
+            aria-label={t("admin:candidates.record.showList")}
+            title={t("admin:candidates.record.showList")}
+            className="-ms-1 inline-flex items-center rounded-sm p-1 text-white/40 transition hover:text-copper"
+          >
+            <RailToggleIcon className="size-3.5" flipped />
+          </button>
+        )}
         <Link to="/admin/candidates" className="transition hover:text-copper">
           {t("admin:candidates.title")}
         </Link>
@@ -115,10 +149,18 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
       </nav>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-white/90">{c.full_name}</h2>
-          <div className="mt-2">
-            <CandidateContactInfo candidate={c} />
+        <div className="flex min-w-0 flex-1 items-start gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-copper/10 text-lg font-semibold text-copper @sm:size-14 @sm:text-xl">
+            {c.full_name.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <Eyebrow>{t("admin:candidates.record.eyebrow")}</Eyebrow>
+            <h2 className="mt-1 text-xl font-semibold text-white/95 @sm:text-2xl @lg:text-3xl">
+              {c.full_name}
+            </h2>
+            <div className="mt-3">
+              <CandidateContactInfo candidate={c} />
+            </div>
           </div>
         </div>
 
@@ -136,7 +178,7 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
       </div>
 
       <div className="mt-6 border-t border-white/8 pt-6">
-        <p className="text-sm text-white/35">{t("admin:candidates.record.comingSoon")}</p>
+        <CandidateApplicationsPanel candidateId={c.id} />
       </div>
 
       <ConfirmDialog

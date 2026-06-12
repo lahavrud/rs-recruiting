@@ -384,6 +384,7 @@
     "editAction": "עריכת פרופיל",
     "deleteAction": "מחיקה",
     "applicationsSection": "מועמדויות של מועמד זה",
+    "applicationsCount": "{{count}} מועמדויות",
     "noApplications": "המועמד לא הגיש מועמדויות עדיין.",
     "editModalTitle": "עריכת פרופיל מועמד",
     "fields": {
@@ -403,10 +404,12 @@
       "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה."
     },
     "record": {
+      "eyebrow": "פרופיל מועמד",
+      "showList": "הצג רשימה",
+      "hideList": "הסתר רשימה",
       "emptyHeadline": "בחר מועמד להצגה",
       "emptyDescription": "בחר מועמד מהרשימה כדי לצפות בפרטיו.",
-      "notFound": "המועמד לא נמצא.",
-      "comingSoon": "פרטי מועמדויות וציר זמן יתווספו כאן בקרוב."
+      "notFound": "המועמד לא נמצא."
     }
   }
 }
