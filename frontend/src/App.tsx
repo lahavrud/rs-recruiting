@@ -179,6 +179,14 @@ export default function App() {
                   </AdminRoute>
                 }
               />
+              <Route
+                path="/admin/candidates/:id"
+                element={
+                  <AdminRoute>
+                    <AdminCandidatesPage />
+                  </AdminRoute>
+                }
+              />
 
               {/* Company-only routes */}
               <Route

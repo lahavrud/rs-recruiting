@@ -273,6 +273,15 @@ function isPublicShellPath(pathname: string): boolean {
   );
 }
 
+// Split-pane record workspaces (e.g. /admin/candidates[/:id]) manage their
+// own scroll regions — the rail and the record pane each scroll
+// independently so a long candidate list doesn't push the record content
+// (or the rail itself) out of view. `<main>` must give them a bounded
+// height instead of being the page's scroll container.
+function isSplitPaneWorkspacePath(pathname: string): boolean {
+  return pathname.startsWith("/admin/candidates");
+}
+
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 function ShellContent({ children }: Props) {
   const { isAuthenticated } = useAuth();
@@ -300,14 +309,22 @@ function ShellContent({ children }: Props) {
   const publicShell = isPublicShellPath(pathname);
 
   if (isAuthenticated && !publicShell) {
+    // Strip a trailing numeric :id segment so a record route (e.g.
+    // /admin/candidates/123) shares its key with the list route
+    // (/admin/candidates) — switching between them shouldn't remount the
+    // page and lose list state/scroll position.
+    const pageKey = pathname.replace(/\/\d+$/, "");
+    const splitPane = isSplitPaneWorkspacePath(pathname);
     return (
       <div className="flex h-screen flex-col">
         <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <main
-            key={pathname}
-            className="page-enter flex-1 overflow-y-auto bg-page p-4 sm:p-6"
+            key={pageKey}
+            className={`page-enter flex-1 bg-page p-4 sm:p-6 ${
+              splitPane ? "flex min-h-0 flex-col overflow-hidden" : "overflow-y-auto"
+            }`}
           >
             {children}
           </main>
