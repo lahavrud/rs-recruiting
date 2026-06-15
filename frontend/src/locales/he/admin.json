@@ -385,6 +385,7 @@
     "deleteAction": "מחיקה",
     "applicationsSection": "מועמדויות של מועמד זה",
     "applicationsCount_one": "מועמדות אחת",
+    "applicationsCount_two": "{{count}} מועמדויות",
     "applicationsCount_other": "{{count}} מועמדויות",
     "noApplications": "המועמד לא הגיש מועמדויות עדיין.",
     "editModalTitle": "עריכת פרופיל מועמד",
