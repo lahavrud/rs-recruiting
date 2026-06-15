@@ -157,8 +157,13 @@ async def test_get_candidate_activity_merges_application_events(
         f"/api/admin/candidates/{candidate_profile.id}/activity"
     )
     assert response.status_code == 200
-    actions = {item["action"] for item in response.json()["items"]}
+    items = response.json()["items"]
+    actions = {item["action"] for item in items}
     assert actions == {"candidate.consent", "application.status_change"}
+    status_change = next(i for i in items if i["action"] == "application.status_change")
+    assert status_change["job_title"] == "Senior Python Developer"
+    consent = next(i for i in items if i["action"] == "candidate.consent")
+    assert consent["job_title"] is None
 
 
 @pytest.mark.asyncio

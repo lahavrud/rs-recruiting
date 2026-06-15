@@ -1,7 +1,7 @@
 import api from "@/services/api";
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import type {
-  AuditLogRead,
+  CandidateActivityEvent,
   CandidateProfileRead,
   CandidateProfileUpdate,
 } from "@/types/api";
@@ -51,11 +51,11 @@ export async function getCandidateActivity(
   id: number,
   params?: CandidateListParams,
   signal?: AbortSignal,
-): Promise<CursorPage<AuditLogRead>> {
+): Promise<CursorPage<CandidateActivityEvent>> {
   const query: Record<string, string | number> = {};
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
-  const res = await api.get<CursorPage<AuditLogRead>>(
+  const res = await api.get<CursorPage<CandidateActivityEvent>>(
     `/api/admin/candidates/${id}/activity`,
     { params: query, signal },
   );

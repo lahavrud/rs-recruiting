@@ -9,3 +9,8 @@ export interface AuditLogRead {
   ip_address: string | null;
   created_at: string;
 }
+
+/** Mirrors backend CandidateActivityEvent schema. */
+export interface CandidateActivityEvent extends AuditLogRead {
+  job_title: string | null;
+}

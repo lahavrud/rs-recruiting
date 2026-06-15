@@ -9,7 +9,11 @@ from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import User
-from src.schemas import AuditLogRead, CandidateProfileRead, CandidateProfileUpdate
+from src.schemas import (
+    CandidateActivityEvent,
+    CandidateProfileRead,
+    CandidateProfileUpdate,
+)
 from src.services.admin.candidates import (
     delete_candidate,
     get_candidate,
@@ -50,7 +54,8 @@ async def get_candidate_endpoint(
 
 
 @router.get(
-    "/candidates/{candidate_id}/activity", response_model=CursorPage[AuditLogRead]
+    "/candidates/{candidate_id}/activity",
+    response_model=CursorPage[CandidateActivityEvent],
 )
 async def get_candidate_activity(
     candidate_id: int,
@@ -58,7 +63,7 @@ async def get_candidate_activity(
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
-) -> CursorPage[AuditLogRead]:
+) -> CursorPage[CandidateActivityEvent]:
     """Activity timeline: audit rows for the candidate and their applications."""
     try:
         return await list_candidate_activity(

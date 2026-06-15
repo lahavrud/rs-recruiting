@@ -16,7 +16,11 @@ from src.core.infrastructure.pagination import (
 from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, AuditLog, CandidateProfile, Job
-from src.schemas import AuditLogRead, CandidateProfileRead, CandidateProfileUpdate
+from src.schemas import (
+    CandidateActivityEvent,
+    CandidateProfileRead,
+    CandidateProfileUpdate,
+)
 from src.services.exceptions import CandidateNotFoundError
 from src.services.utils.audit import record_audit_event
 
@@ -72,7 +76,7 @@ async def list_candidate_activity(
     *,
     cursor: str | None = None,
     limit: int | None = None,
-) -> CursorPage[AuditLogRead]:
+) -> CursorPage[CandidateActivityEvent]:
     """Activity timeline for a candidate's record pane.
 
     Aggregates audit rows for the candidate profile itself with rows for
@@ -112,9 +116,31 @@ async def list_candidate_activity(
         limit=page_size,
     )
     rows = list((await session.execute(query)).scalars().all())
+
+    application_target_ids = {
+        r.target_id for r in rows if r.target_type == "Application"
+    }
+    job_titles: dict[int, str] = {}
+    if application_target_ids:
+        job_titles = dict(
+            (
+                await session.execute(
+                    select(Application.id, Job.title)
+                    .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+                    .where(Application.id.in_(application_target_ids))  # pyright: ignore[reportArgumentType]
+                )
+            ).all()
+        )
+
+    def serialize(row: AuditLog) -> CandidateActivityEvent:
+        event = CandidateActivityEvent.model_validate(row)
+        if row.target_type == "Application":
+            event.job_title = job_titles.get(row.target_id)
+        return event
+
     return build_cursor_page(
         rows,
-        serializer=AuditLogRead.model_validate,
+        serializer=serialize,
         cursor_key=lambda a: (a.created_at, a.id),
         limit=page_size,
     )

@@ -9,7 +9,7 @@ All existing ``from src.schemas import X`` statements continue to work
 through this barrel.
 """
 
-from src.schemas.audit import AuditLogRead
+from src.schemas.audit import AuditLogRead, CandidateActivityEvent
 from src.schemas.auth import (
     AccessTokenResponse,
     CandidateRegisterRequest,
@@ -141,4 +141,5 @@ __all__ = [
     "InviteTokenRead",
     # audit
     "AuditLogRead",
+    "CandidateActivityEvent",
 ]

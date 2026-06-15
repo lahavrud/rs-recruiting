@@ -172,6 +172,8 @@ async def test_list_candidate_activity_merges_candidate_and_application_events(
         "application.status_change",
         "candidate.consent",
     ]
+    assert page.items[0].job_title == "Senior Python Developer"
+    assert page.items[1].job_title is None
 
 
 @pytest.mark.asyncio

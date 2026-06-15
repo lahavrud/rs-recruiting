@@ -18,3 +18,13 @@ class AuditLogRead(BaseModel):
     detail: str | None
     ip_address: str | None
     created_at: datetime
+
+
+class CandidateActivityEvent(AuditLogRead):
+    """Audit log entry enriched with job context for the candidate timeline.
+
+    `job_title` is populated for `target_type="Application"` rows so the
+    record pane can show which job an application event relates to.
+    """
+
+    job_title: str | None = None
