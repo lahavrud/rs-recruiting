@@ -384,7 +384,8 @@
     "editAction": "עריכת פרופיל",
     "deleteAction": "מחיקה",
     "applicationsSection": "מועמדויות של מועמד זה",
-    "applicationsCount": "{{count}} מועמדויות",
+    "applicationsCount_one": "מועמדות אחת",
+    "applicationsCount_other": "{{count}} מועמדויות",
     "noApplications": "המועמד לא הגיש מועמדויות עדיין.",
     "editModalTitle": "עריכת פרופיל מועמד",
     "fields": {
