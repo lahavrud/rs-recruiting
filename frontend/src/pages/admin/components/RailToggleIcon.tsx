@@ -12,15 +12,14 @@ export default function RailToggleIcon({
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.25"
+      strokeWidth="1.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       className={`${className ?? ""} transition-transform duration-300 ease-in-out ${flipped ? "-scale-x-100" : ""}`}
       aria-hidden="true"
     >
-      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-      <path d="M6 2.5 V13.5" />
-      <path d="M3 6 L4.5 7.5 L3 9" />
+      <path d="M6 4 L10 8 L6 12" />
+      <path d="M9.5 4 L13.5 8 L9.5 12" />
     </svg>
   );
 }

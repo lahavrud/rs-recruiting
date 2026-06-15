@@ -92,7 +92,7 @@ export default function AdminCandidatesPage() {
     selectedId != null ? candidates.find((c) => c.id === selectedId) : undefined;
 
   return (
-    <div className="flex h-full min-h-0 flex-col md:flex-row">
+    <div className="relative flex h-full min-h-0 flex-col md:flex-row">
       <div
         className={
           selectedId != null
@@ -110,19 +110,6 @@ export default function AdminCandidatesPage() {
         <PageHeader
           eyebrow={t("admin:candidates.title")}
           subtitle={t("admin:candidates.subtitle")}
-          action={
-            selectedId != null ? (
-              <button
-                type="button"
-                onClick={() => setRailCollapsed(true)}
-                aria-label={t("admin:candidates.record.hideList")}
-                title={t("admin:candidates.record.hideList")}
-                className="hidden -me-1 items-center rounded-sm p-1 text-white/40 transition hover:text-copper md:inline-flex"
-              >
-                <RailToggleIcon className="size-3.5" />
-              </button>
-            ) : undefined
-          }
         />
 
         {/* Search */}
@@ -172,10 +159,26 @@ export default function AdminCandidatesPage() {
           candidateId={selectedId}
           candidate={selectedCandidate}
           onDeleted={(deletedId) => removeItem((c) => c.id === deletedId)}
-          railCollapsed={railCollapsed}
-          onToggleRail={() => setRailCollapsed((v) => !v)}
         />
       </div>
+
+      {selectedId != null && (
+        <button
+          type="button"
+          onClick={() => setRailCollapsed((v) => !v)}
+          aria-label={t(
+            railCollapsed ? "admin:candidates.record.showList" : "admin:candidates.record.hideList",
+          )}
+          title={t(
+            railCollapsed ? "admin:candidates.record.showList" : "admin:candidates.record.hideList",
+          )}
+          className={`absolute top-1/2 z-20 hidden size-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-card-raised text-white/40 transition-all duration-300 ease-in-out hover:border-copper/30 hover:text-copper md:flex ${
+            railCollapsed ? "start-0" : "start-[384px]"
+          }`}
+        >
+          <RailToggleIcon className="size-4" flipped={railCollapsed} />
+        </button>
+      )}
 
       <CandidateEditDialog
         candidate={editing}

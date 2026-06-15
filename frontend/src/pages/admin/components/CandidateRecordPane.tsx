@@ -11,24 +11,15 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import CandidateContactInfo from "./CandidateContactInfo";
 import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
-import RailToggleIcon from "./RailToggleIcon";
 
 interface Props {
   candidateId: number | null;
   candidate?: CandidateProfileRead;
   onDeleted: (id: number) => void;
-  railCollapsed: boolean;
-  onToggleRail: () => void;
 }
 
 /** Right-hand record pane: breadcrumb + identity header with primary actions. Applications and timeline land in follow-up slices. */
-export default function CandidateRecordPane({
-  candidateId,
-  candidate,
-  onDeleted,
-  railCollapsed,
-  onToggleRail,
-}: Props) {
+export default function CandidateRecordPane({ candidateId, candidate, onDeleted }: Props) {
   const { t } = useTranslation(['admin', 'common']);
   const navigate = useNavigate();
   const toast = useToast();
@@ -77,18 +68,6 @@ export default function CandidateRecordPane({
         <EmptyState
           eyebrow={t("admin:candidates.title")}
           headline={t("admin:candidates.record.notFound")}
-          action={
-            railCollapsed ? (
-              <button
-                type="button"
-                onClick={onToggleRail}
-                className="hidden items-center gap-1.5 text-sm text-white/50 transition hover:text-copper md:inline-flex"
-              >
-                <RailToggleIcon className="size-3.5" />
-                {t("admin:candidates.record.showList")}
-              </button>
-            ) : undefined
-          }
         />
       );
     }
@@ -130,17 +109,6 @@ export default function CandidateRecordPane({
       </Link>
 
       <nav className="mb-4 hidden items-center gap-2 text-sm text-white/50 md:flex">
-        {railCollapsed && (
-          <button
-            type="button"
-            onClick={onToggleRail}
-            aria-label={t("admin:candidates.record.showList")}
-            title={t("admin:candidates.record.showList")}
-            className="-ms-1 inline-flex items-center rounded-sm p-1 text-white/40 transition hover:text-copper"
-          >
-            <RailToggleIcon className="size-3.5" flipped />
-          </button>
-        )}
         <Link to="/admin/candidates" className="transition hover:text-copper">
           {t("admin:candidates.title")}
         </Link>
