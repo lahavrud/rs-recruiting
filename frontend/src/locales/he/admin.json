@@ -403,7 +403,20 @@
     "errors": {
       "saveFailed": "שמירת הפרופיל נכשלה. נסה שוב.",
       "deleteFailed": "מחיקת המועמד נכשלה. נסה שוב.",
-      "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה."
+      "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה.",
+      "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."
+    },
+    "activitySection": "פעילות אחרונה",
+    "activityEmpty": "לא נמצאה פעילות עבור מועמד זה.",
+    "activity": {
+      "actions": {
+        "consent": "אישר/ה את מדיניות הפרטיות",
+        "termsAccept": "אישר/ה את תנאי השימוש",
+        "registerViaApply": "פתח/ה חשבון משתמש בעת שליחת המועמדות",
+        "delete": "הפרופיל נמחק",
+        "purge": "הפרופיל נמחק במסגרת מחיקה תקופתית"
+      },
+      "statusChange": "סטטוס מועמדות עודכן: {{from}} ← {{to}}"
     },
     "record": {
       "eyebrow": "פרופיל מועמד",

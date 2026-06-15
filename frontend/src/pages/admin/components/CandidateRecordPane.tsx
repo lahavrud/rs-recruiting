@@ -11,6 +11,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import CandidateContactInfo from "./CandidateContactInfo";
 import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
+import CandidateActivityPanel from "./CandidateActivityPanel";
 
 interface Props {
   candidateId: number | null;
@@ -147,6 +148,10 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
 
       <div className="mt-6 border-t border-white/8 pt-6">
         <CandidateApplicationsPanel candidateId={c.id} />
+      </div>
+
+      <div className="mt-6 border-t border-white/8 pt-6">
+        <CandidateActivityPanel candidateId={c.id} />
       </div>
 
       <ConfirmDialog

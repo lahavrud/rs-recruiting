@@ -7,6 +7,7 @@
  */
 
 export * from "@/types/enums";
+export * from "@/types/audit";
 export * from "@/types/auth";
 export * from "@/types/jobs";
 export * from "@/types/candidates";

@@ -1,6 +1,10 @@
 import api from "@/services/api";
 import type { CursorPage } from "@/hooks/useInfiniteList";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
+import type {
+  AuditLogRead,
+  CandidateProfileRead,
+  CandidateProfileUpdate,
+} from "@/types/api";
 
 export interface CandidateListParams {
   cursor?: string | null;
@@ -41,6 +45,21 @@ export async function updateCandidate(
 
 export async function deleteCandidate(id: number): Promise<void> {
   await api.delete(`/api/admin/candidates/${id}`);
+}
+
+export async function getCandidateActivity(
+  id: number,
+  params?: CandidateListParams,
+  signal?: AbortSignal,
+): Promise<CursorPage<AuditLogRead>> {
+  const query: Record<string, string | number> = {};
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit != null) query.limit = params.limit;
+  const res = await api.get<CursorPage<AuditLogRead>>(
+    `/api/admin/candidates/${id}/activity`,
+    { params: query, signal },
+  );
+  return res.data;
 }
 
 // fetchResumeBlob is in this file because it's exclusively used in the
