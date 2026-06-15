@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
@@ -15,8 +15,8 @@ from src.core.infrastructure.pagination import (
 )
 from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, Job
-from src.schemas import CandidateProfileRead, CandidateProfileUpdate
+from src.models import Application, AuditLog, CandidateProfile, Job
+from src.schemas import AuditLogRead, CandidateProfileRead, CandidateProfileUpdate
 from src.services.exceptions import CandidateNotFoundError
 from src.services.utils.audit import record_audit_event
 
@@ -64,6 +64,60 @@ async def get_candidate(
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
     return CandidateProfileRead.model_validate(candidate)
+
+
+async def list_candidate_activity(
+    candidate_id: int,
+    session: AsyncSession,
+    *,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> CursorPage[AuditLogRead]:
+    """Activity timeline for a candidate's record pane.
+
+    Aggregates audit rows for the candidate profile itself with rows for
+    all of their applications, newest first.
+
+    Raises:
+        CandidateNotFoundError: If no candidate with that id exists.
+    """
+    await get_by_id_or_raise(
+        session,
+        CandidateProfile,
+        candidate_id,
+        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
+    )
+
+    page_size = clamp_limit(limit)
+    application_ids = select(Application.id).where(
+        Application.candidate_id == candidate_id  # pyright: ignore[reportArgumentType]
+    )
+    base = select(AuditLog).where(
+        or_(
+            and_(
+                AuditLog.target_type == "CandidateProfile",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_id == candidate_id,  # pyright: ignore[reportArgumentType]
+            ),
+            and_(
+                AuditLog.target_type == "Application",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_id.in_(application_ids),  # pyright: ignore[reportArgumentType]
+            ),
+        )
+    )
+    query = apply_cursor(
+        base,
+        sort_col=AuditLog.created_at,  # pyright: ignore[reportArgumentType]
+        id_col=AuditLog.id,  # pyright: ignore[reportArgumentType]
+        cursor=cursor,
+        limit=page_size,
+    )
+    rows = list((await session.execute(query)).scalars().all())
+    return build_cursor_page(
+        rows,
+        serializer=AuditLogRead.model_validate,
+        cursor_key=lambda a: (a.created_at, a.id),
+        limit=page_size,
+    )
 
 
 async def update_candidate(

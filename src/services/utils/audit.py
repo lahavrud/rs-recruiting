@@ -51,6 +51,7 @@ async def list_audit_events(
     session: AsyncSession,
     *,
     target_type: str | None = None,
+    target_id: int | None = None,
     actor_user_id: int | None = None,
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
@@ -62,6 +63,8 @@ async def list_audit_events(
     base = select(AuditLog)
     if target_type is not None:
         base = base.where(AuditLog.target_type == target_type)  # pyright: ignore[reportArgumentType]
+    if target_id is not None:
+        base = base.where(AuditLog.target_id == target_id)  # pyright: ignore[reportArgumentType]
     if actor_user_id is not None:
         base = base.where(AuditLog.actor_user_id == actor_user_id)  # pyright: ignore[reportArgumentType]
     if from_dt is not None:

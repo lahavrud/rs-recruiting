@@ -8,12 +8,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
+from src.models import (
+    Application,
+    AuditLog,
+    CandidateProfile,
+    CompanyProfile,
+    Job,
+    User,
+)
 from src.schemas import CandidateProfileUpdate
 from src.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
     delete_candidate,
     get_candidate,
+    list_candidate_activity,
     list_candidates,
     purge_expired_candidates,
     update_candidate,
@@ -112,6 +120,67 @@ async def test_get_candidate_returns_profile(
 async def test_get_candidate_not_found(session: AsyncSession):
     with pytest.raises(CandidateNotFoundError):
         await get_candidate(99999, session)
+
+
+# ── list_candidate_activity ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_list_candidate_activity_not_found(session: AsyncSession):
+    with pytest.raises(CandidateNotFoundError):
+        await list_candidate_activity(99999, session)
+
+
+@pytest.mark.asyncio
+async def test_list_candidate_activity_merges_candidate_and_application_events(
+    session: AsyncSession,
+    candidate_profile: CandidateProfile,
+    application: Application,
+):
+    """Audit rows for the candidate and their applications are merged, newest first."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    session.add(
+        AuditLog(
+            action="candidate.consent",
+            target_type="CandidateProfile",
+            target_id=candidate_profile.id,
+            created_at=base,
+        )
+    )
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=application.id,
+            detail="NEW->APPROVED_BY_ADMIN",
+            created_at=base + timedelta(minutes=1),
+        )
+    )
+    # Unrelated row — different candidate's audit row must not leak in.
+    session.add(
+        AuditLog(
+            action="candidate.delete",
+            target_type="CandidateProfile",
+            target_id=candidate_profile.id + 999,
+            created_at=base + timedelta(minutes=2),
+        )
+    )
+    await session.commit()
+
+    page = await list_candidate_activity(candidate_profile.id, session)
+    assert [r.action for r in page.items] == [
+        "application.status_change",
+        "candidate.consent",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_candidate_activity_empty(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    page = await list_candidate_activity(candidate_profile.id, session)
+    assert page.items == []
+    assert page.next_cursor is None
 
 
 # ── update_candidate ──────────────────────────────────────────────────────────

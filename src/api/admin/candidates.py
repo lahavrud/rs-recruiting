@@ -9,10 +9,11 @@ from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import User
-from src.schemas import CandidateProfileRead, CandidateProfileUpdate
+from src.schemas import AuditLogRead, CandidateProfileRead, CandidateProfileUpdate
 from src.services.admin.candidates import (
     delete_candidate,
     get_candidate,
+    list_candidate_activity,
     list_candidates,
     update_candidate,
 )
@@ -46,6 +47,25 @@ async def get_candidate_endpoint(
         return await get_candidate(candidate_id, session)
     except CandidateNotFoundError as e:
         raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/candidates/{candidate_id}/activity", response_model=CursorPage[AuditLogRead]
+)
+async def get_candidate_activity(
+    candidate_id: int,
+    cursor: str | None = None,
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+) -> CursorPage[AuditLogRead]:
+    """Activity timeline: audit rows for the candidate and their applications."""
+    try:
+        return await list_candidate_activity(
+            candidate_id, session, cursor=cursor, limit=limit
+        )
+    except (CandidateNotFoundError, InvalidCursorError) as exc:
+        raise service_exception_to_http(exc) from exc
 
 
 @router.put("/candidates/{candidate_id}", response_model=CandidateProfileRead)

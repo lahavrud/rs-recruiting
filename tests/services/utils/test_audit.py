@@ -77,6 +77,9 @@ async def test_list_audit_events_filters_and_orders(session: AsyncSession):
     page = await list_audit_events(session, actor_user_id=1)
     assert [r.target_id for r in page.items] == [4, 2, 0]
 
+    page = await list_audit_events(session, target_type="CompanyProfile", target_id=1)
+    assert [r.target_id for r in page.items] == [1]
+
 
 @pytest.mark.asyncio
 async def test_list_audit_events_filters_by_date_range(session: AsyncSession):
