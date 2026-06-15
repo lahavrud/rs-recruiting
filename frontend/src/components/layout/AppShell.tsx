@@ -273,13 +273,14 @@ function isPublicShellPath(pathname: string): boolean {
   );
 }
 
-// Split-pane record workspaces (e.g. /admin/candidates[/:id]) manage their
-// own scroll regions — the rail and the record pane each scroll
-// independently so a long candidate list doesn't push the record content
-// (or the rail itself) out of view. `<main>` must give them a bounded
-// height instead of being the page's scroll container.
+// The candidate record workspace (/admin/candidates/:id) is a split pane —
+// the rail and the record pane each scroll independently so a long
+// candidate list doesn't push the record content (or the rail itself) out
+// of view. `<main>` must give it a bounded height instead of being the
+// page's scroll container. The bare list view (/admin/candidates) is a
+// regular table page and scrolls with the page.
 function isSplitPaneWorkspacePath(pathname: string): boolean {
-  return pathname.startsWith("/admin/candidates");
+  return /^\/admin\/candidates\/\d+$/.test(pathname);
 }
 
 /* ── Shell ───────────────────────────────────────────────────────────────── */
