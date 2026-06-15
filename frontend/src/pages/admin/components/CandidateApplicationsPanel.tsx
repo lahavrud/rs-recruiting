@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { getApplications } from "@/services/adminApplications";
+import { getActiveCompanies } from "@/services/adminCompanies";
 import type { ApplicationWithDetails } from "@/types/api";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -28,6 +29,7 @@ export default function CandidateApplicationsPanel({ candidateId }: Props) {
   const navigate = useNavigate();
   const [applications, setApplications] = useState<ApplicationWithDetails[] | null>(null);
   const [error, setError] = useState(false);
+  const [companyNameById, setCompanyNameById] = useState<Map<number, string>>(new Map());
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -43,6 +45,20 @@ export default function CandidateApplicationsPanel({ candidateId }: Props) {
       });
     return () => ctrl.abort();
   }, [candidateId]);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    getActiveCompanies({ limit: 100 }, ctrl.signal)
+      .then((page) =>
+        setCompanyNameById(
+          new Map(page.items.map((row) => [row.company_profile.id, row.company_profile.name])),
+        ),
+      )
+      .catch(() => {
+        /* best-effort */
+      });
+    return () => ctrl.abort();
+  }, []);
 
   const STATUS_LABELS: Record<string, string> = {
     NEW: t("admin:applications.statusLabels.NEW"),
@@ -74,73 +90,35 @@ export default function CandidateApplicationsPanel({ candidateId }: Props) {
         <p className="mt-3 text-xs text-white/35">{t("admin:candidates.noApplications")}</p>
       ) : (
         <ul className="mt-3 space-y-3">
-          {applications.map((a) => {
-            const hasAppAnswers =
-              a.service_concept || a.salary_expectations || a.strength || a.growth_area;
-            return (
-              <li
-                key={a.id}
-                onClick={() =>
-                  navigate(`/admin/applications?candidate=${a.candidate_id}`, {
-                    state: { autoOpen: a },
-                  })
-                }
-                className="group relative cursor-pointer rounded-xl border border-white/8 bg-card-raised p-4 pe-10 transition hover:border-white/15 hover:bg-card active:scale-[0.99]"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-base font-medium text-white/90">{a.job.title}</p>
-                    <p className="mt-1 text-xs text-white/40">{formatDate(a.created_at)}</p>
-                  </div>
-                  <StatusBadge
-                    label={STATUS_LABELS[a.status]}
-                    colorCls={STATUS_COLORS[a.status]}
-                  />
+          {applications.map((a) => (
+            <li
+              key={a.id}
+              onClick={() =>
+                navigate(`/admin/applications?candidate=${a.candidate_id}`, {
+                  state: { autoOpen: a },
+                })
+              }
+              className="group relative cursor-pointer rounded-xl border border-white/8 bg-card-raised p-4 pe-10 transition hover:border-white/15 hover:bg-card active:scale-[0.99]"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-base font-medium text-white/90">{a.job.title}</p>
+                  <p className="mt-1 text-xs text-white/40">{formatDate(a.created_at)}</p>
+                  <p className="mt-0.5 text-[11px] text-white/30">
+                    {companyNameById.get(a.job.company_id) ?? "—"}
+                  </p>
                 </div>
-
-                {hasAppAnswers && (
-                  <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 rounded-lg bg-well/60 p-3 text-xs @lg:grid-cols-2">
-                    {a.service_concept && (
-                      <>
-                        <dt className="text-white/35">
-                          {t("admin:candidates.details.serviceConcept")}
-                        </dt>
-                        <dd className="text-white/60">{a.service_concept}</dd>
-                      </>
-                    )}
-                    {a.salary_expectations && (
-                      <>
-                        <dt className="text-white/35">
-                          {t("admin:candidates.details.salaryExpectations")}
-                        </dt>
-                        <dd className="text-white/60">{a.salary_expectations}</dd>
-                      </>
-                    )}
-                    {a.strength && (
-                      <>
-                        <dt className="text-white/35">
-                          {t("admin:candidates.details.strength")}
-                        </dt>
-                        <dd className="text-white/60">{a.strength}</dd>
-                      </>
-                    )}
-                    {a.growth_area && (
-                      <>
-                        <dt className="text-white/35">
-                          {t("admin:candidates.details.weakness")}
-                        </dt>
-                        <dd className="text-white/60">{a.growth_area}</dd>
-                      </>
-                    )}
-                  </dl>
-                )}
-
-                <IconArrowRight
-                  className="absolute end-3 top-1/2 size-4 -translate-y-1/2 -scale-x-100 text-white/25 transition group-hover:text-copper"
+                <StatusBadge
+                  label={STATUS_LABELS[a.status]}
+                  colorCls={STATUS_COLORS[a.status]}
                 />
-              </li>
-            );
-          })}
+              </div>
+
+              <IconArrowRight
+                className="absolute end-3 top-1/2 size-4 -translate-y-1/2 -scale-x-100 text-white/25 transition group-hover:text-copper"
+              />
+            </li>
+          ))}
         </ul>
       )}
     </div>

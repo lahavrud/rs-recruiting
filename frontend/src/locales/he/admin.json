@@ -373,12 +373,6 @@
       "linkedin": "LinkedIn",
       "date": "תאריך"
     },
-    "details": {
-      "serviceConcept": "תפיסת שירות",
-      "salaryExpectations": "ציפיות שכר",
-      "strength": "חוזקות",
-      "weakness": "נקודות לשיפור"
-    },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",
     "editAction": "עריכת פרופיל",
