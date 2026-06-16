@@ -130,6 +130,20 @@ Title = Conventional Commit style. Body **must** follow `.github/pull_request_te
 ### Issues
 Use matching template from `.github/ISSUE_TEMPLATE/` (`bug_report.md`, `feature_request.md`, `task.md`). Fill every section including Milestone.
 
+### Project board — MUST keep in sync
+All tracked work across **every** rs-recruiting repo flows through the shared GitHub Project **"RS Recruiting"** (owner `lahavrud`, project `#1`). Automation handles two transitions: new issues/PRs are **auto-added** to the board, and items move to **Done ✅** when their issue/PR is closed or merged. You drive the rest:
+
+- Every non-trivial task has an issue on the board. When you **start** work, set Status → **In Progress 🏗️**.
+- When you open the PR, set Status → **In Review 🔍**, and **always** link the issue with `Closes #N` so the merge auto-moves it to Done. Never manually set Done — let the close/merge do it.
+- If blocked on an external dependency, set Status → **Blocked ⛔**.
+
+Set status from the CLI (resolve the item id with `gh project item-list 1 --owner lahavrud`):
+```bash
+gh project item-edit --project-id PVT_kwHODX-d9M4BMa98 --id <ITEM_ID> \
+  --field-id PVTSSF_lAHODX-d9M4BMa98zg7tTnw \
+  --single-select-option-id <STATUS>   # In Progress 🏗️ 47fc9ee4 · In Review 🔍 02e018f5 · Done ✅ 98236657 · Blocked ⛔ f75ad846 · Backlog c96e866b
+```
+
 ---
 
 ## Linting — MUST run before every commit
