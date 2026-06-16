@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import sentry_sdk
 from fastapi import FastAPI, Request
-from fastapi import routing as _fastapi_routing
+from fastapi import routing as fastapi_routing
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -117,11 +117,25 @@ configure_telemetry("rs-recruiting-api")
 logger = logging.getLogger(__name__)
 
 
-_included_router = getattr(_fastapi_routing, "_IncludedRouter", None)
+# FastAPI 0.137+ stores include_router entries as internal _IncludedRouter
+# objects without a .path attribute. opentelemetry-instrumentation-fastapi
+# expects .path during partial route matches, which raises AttributeError in
+# tests and request handling. Provide a compatibility .path shim until the
+# instrumentation package supports this FastAPI router shape natively.
+_included_router = getattr(fastapi_routing, "_IncludedRouter", None)
+
+
+def _included_router_path(router: object) -> str:
+    include_context = getattr(router, "include_context", None)
+    try:
+        prefix = getattr(include_context, "prefix", "")
+    except AttributeError:
+        return ""
+    return prefix or ""
+
+
 if _included_router is not None and not hasattr(_included_router, "path"):
-    _included_router.path = property(  # type: ignore[attr-defined]
-        lambda self: self.include_context.prefix or ""
-    )
+    _included_router.path = property(_included_router_path)  # type: ignore[attr-defined]
 
 
 class _HealthCheckLogFilter(logging.Filter):
