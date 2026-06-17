@@ -375,27 +375,17 @@
     },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",
-    "editAction": "עריכת פרופיל",
     "deleteAction": "מחיקה",
     "applicationsSection": "מועמדויות של מועמד זה",
     "applicationsCount_one": "מועמדות אחת",
     "applicationsCount_two": "{{count}} מועמדויות",
     "applicationsCount_other": "{{count}} מועמדויות",
     "noApplications": "המועמד לא הגיש מועמדויות עדיין.",
-    "editModalTitle": "עריכת פרופיל מועמד",
-    "fields": {
-      "fullName": "שם מלא",
-      "email": "כתובת אימייל",
-      "phone": "טלפון",
-      "linkedin": "LinkedIn"
-    },
     "deleteConfirmTitle": "מחיקת מועמד – {{name}}",
     "deleteConfirmMessage": "פעולה זו תמחק לצמיתות את המועמד, את כל המועמדויות שלו ואת קובץ קורות החיים שלו מהמאגר. לא ניתן לבטל פעולה זו.",
     "deleteConfirmYes": "כן, מחק",
-    "savedToast": "הפרופיל עודכן",
     "deletedToast": "המועמד נמחק",
     "errors": {
-      "saveFailed": "שמירת הפרופיל נכשלה. נסה שוב.",
       "deleteFailed": "מחיקת המועמד נכשלה. נסה שוב.",
       "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה.",
       "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."

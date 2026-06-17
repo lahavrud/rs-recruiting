@@ -41,7 +41,6 @@ from src.schemas.candidates import (
     CandidateMeUpdate,
     CandidateProfileCreate,
     CandidateProfileRead,
-    CandidateProfileUpdate,
 )
 from src.schemas.companies import (
     ActiveCompanyRead,
@@ -134,7 +133,6 @@ __all__ = [
     "CandidateMeUpdate",
     "CandidateProfileCreate",
     "CandidateProfileRead",
-    "CandidateProfileUpdate",
     # invites
     "InviteMetadataPublic",
     "InviteTokenCreate",

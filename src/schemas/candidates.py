@@ -17,7 +17,6 @@ def _validate_phone_value(v: str | None) -> str | None:
     Accepts any input shape that, after stripping spaces / `+` / `-` / `(` / `)`,
     is exactly 10 digits starting with `05` (e.g. `0501234567`, `050-123-4567`,
     `+972 50 123 4567` does NOT pass — candidates must use the local form).
-    Used by CandidateProfileCreate and CandidateProfileUpdate.
     """
     if v is None or v == "":
         return None
@@ -31,10 +30,7 @@ def _validate_phone_value(v: str | None) -> str | None:
 
 
 def _validate_linkedin_url_value(v: str | None) -> str | None:
-    """Validate LinkedIn URL format.
-
-    Used by CandidateProfileCreate and CandidateProfileUpdate.
-    """
+    """Validate LinkedIn URL format."""
     if v is None or v == "":
         return None
     parsed = urlparse(v)
@@ -112,55 +108,6 @@ class CandidateProfileCreate(BaseModel):
         if result is None:
             raise ValueError("Phone number is required")
         return result
-
-    @field_validator("linkedin_url")
-    @classmethod
-    def validate_linkedin_url(cls, v: str | None) -> str | None:
-        """Validate LinkedIn URL format."""
-        return _validate_linkedin_url_value(v)
-
-
-class CandidateProfileUpdate(BaseModel):
-    """Schema for updating a candidate profile."""
-
-    full_name: str | None = Field(None, min_length=2, max_length=100)
-    email: EmailStr | None = Field(None, max_length=255)
-    phone: str | None = Field(None, max_length=30)
-    resume_path: str | None = None
-    linkedin_url: str | None = Field(None, max_length=500)
-
-    @field_validator("resume_path")
-    @classmethod
-    def validate_resume_path(cls, v: str | None) -> str | None:
-        """Validate resume path to prevent path traversal attacks."""
-        if v is None:
-            return None
-        if "../" in v or "..\\" in v:
-            raise ValueError(
-                "Path cannot contain path traversal sequences ('../' or '..\\')"
-            )
-        if v.startswith("/") or v.startswith("\\"):
-            raise ValueError(
-                "Path cannot be absolute (must not start with '/' or '\\')"
-            )
-        normalized = os.path.normpath(v)
-        if ".." in normalized:
-            raise ValueError("Path cannot contain '..' (parent directory reference)")
-        return normalized
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
-        """Validate phone number format.
-
-        ``phone`` is nullable on the model — an explicit ``null`` clears the
-        column. Omitting the key leaves the existing value unchanged
-        (partial-update semantics). A non-null value is validated against
-        the Israeli mobile format.
-        """
-        if v is None:
-            return None
-        return _validate_phone_value(v)
 
     @field_validator("linkedin_url")
     @classmethod

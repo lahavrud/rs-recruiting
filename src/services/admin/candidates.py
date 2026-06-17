@@ -19,7 +19,6 @@ from src.models import Application, AuditLog, CandidateProfile, Job
 from src.schemas import (
     CandidateActivityEvent,
     CandidateProfileRead,
-    CandidateProfileUpdate,
 )
 from src.services.exceptions import CandidateNotFoundError
 from src.services.utils.audit import record_audit_event
@@ -144,31 +143,6 @@ async def list_candidate_activity(
         cursor_key=lambda a: (a.created_at, a.id),
         limit=page_size,
     )
-
-
-async def update_candidate(
-    candidate_id: int,
-    data: CandidateProfileUpdate,
-    session: AsyncSession,
-) -> CandidateProfileRead:
-    """Apply a partial update to a candidate profile.
-
-    Raises:
-        CandidateNotFoundError: If no candidate with that id exists.
-    """
-    candidate = await get_by_id_or_raise(
-        session,
-        CandidateProfile,
-        candidate_id,
-        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
-    )
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(candidate, field, value)
-
-    await session.flush()
-    await session.refresh(candidate)
-    return CandidateProfileRead.model_validate(candidate)
 
 
 async def delete_candidate(

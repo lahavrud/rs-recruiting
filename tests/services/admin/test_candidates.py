@@ -16,7 +16,6 @@ from src.models import (
     Job,
     User,
 )
-from src.schemas import CandidateProfileUpdate
 from src.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
     delete_candidate,
@@ -24,7 +23,6 @@ from src.services.admin.candidates import (
     list_candidate_activity,
     list_candidates,
     purge_expired_candidates,
-    update_candidate,
 )
 from src.services.exceptions import CandidateNotFoundError
 
@@ -183,32 +181,6 @@ async def test_list_candidate_activity_empty(
     page = await list_candidate_activity(candidate_profile.id, session)
     assert page.items == []
     assert page.next_cursor is None
-
-
-# ── update_candidate ──────────────────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_update_candidate_partial_keeps_unset_fields(
-    session: AsyncSession, candidate_profile: CandidateProfile
-):
-    updated = await update_candidate(
-        candidate_profile.id,
-        CandidateProfileUpdate(full_name="New Name"),
-        session,
-    )
-    await session.commit()
-    assert updated.full_name == "New Name"
-    assert updated.email == candidate_profile.email  # untouched
-    assert updated.phone == candidate_profile.phone  # untouched
-
-
-@pytest.mark.asyncio
-async def test_update_candidate_not_found(session: AsyncSession):
-    with pytest.raises(CandidateNotFoundError):
-        await update_candidate(
-            99999, CandidateProfileUpdate(full_name="Anyone"), session
-        )
 
 
 # ── delete_candidate ──────────────────────────────────────────────────────────

@@ -12,7 +12,6 @@ interface CandidatesRailListProps {
   candidates: CandidateProfileRead[];
   selectedId?: number | null;
   onView: (c: CandidateProfileRead) => void;
-  onEdit: (c: CandidateProfileRead) => void;
   onDelete: (c: CandidateProfileRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
   isFetchingMore: boolean;
@@ -23,7 +22,6 @@ export default function CandidatesRailList({
   candidates,
   selectedId,
   onView,
-  onEdit,
   onDelete,
   sentinelRef,
   isFetchingMore,
@@ -60,9 +58,6 @@ export default function CandidatesRailList({
                 >
                   <DropdownMenuItem onSelect={() => onView(c)}>
                     {t("admin:candidates.viewAction")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => onEdit(c)}>
-                    {t("admin:candidates.editAction")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() =>

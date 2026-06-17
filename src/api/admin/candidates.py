@@ -12,14 +12,12 @@ from src.models import User
 from src.schemas import (
     CandidateActivityEvent,
     CandidateProfileRead,
-    CandidateProfileUpdate,
 )
 from src.services.admin.candidates import (
     delete_candidate,
     get_candidate,
     list_candidate_activity,
     list_candidates,
-    update_candidate,
 )
 from src.services.exceptions import CandidateNotFoundError, InvalidCursorError
 
@@ -71,21 +69,6 @@ async def get_candidate_activity(
         )
     except (CandidateNotFoundError, InvalidCursorError) as exc:
         raise service_exception_to_http(exc) from exc
-
-
-@router.put("/candidates/{candidate_id}", response_model=CandidateProfileRead)
-async def update_candidate_endpoint(
-    candidate_id: int,
-    data: CandidateProfileUpdate,
-    current_admin: User = Depends(get_current_admin),
-    session: AsyncSession = Depends(get_session),
-) -> CandidateProfileRead:
-    """Partially update a candidate profile."""
-    try:
-        async with transactional(session):
-            return await update_candidate(candidate_id, data, session)
-    except CandidateNotFoundError as e:
-        raise service_exception_to_http(e) from e
 
 
 @router.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

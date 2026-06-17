@@ -182,42 +182,6 @@ async def test_get_candidate_activity_requires_admin(
     assert response.status_code == 401
 
 
-# ── PUT /api/admin/candidates/{id} ────────────────────────────────────────────
-
-
-@pytest.mark.asyncio
-async def test_update_candidate_partial(
-    admin_client: AsyncClient, candidate_profile: CandidateProfile
-):
-    response = await admin_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}",
-        json={"full_name": "Updated Name"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["full_name"] == "Updated Name"
-    assert data["email"] == candidate_profile.email  # untouched
-
-
-@pytest.mark.asyncio
-async def test_update_candidate_validates_phone(
-    admin_client: AsyncClient, candidate_profile: CandidateProfile
-):
-    response = await admin_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}",
-        json={"phone": "abc"},
-    )
-    assert response.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_update_candidate_not_found(admin_client: AsyncClient):
-    response = await admin_client.put(
-        "/api/admin/candidates/99999", json={"full_name": "Anyone"}
-    )
-    assert response.status_code == 404
-
-
 # ── DELETE /api/admin/candidates/{id} ─────────────────────────────────────────
 
 
@@ -269,11 +233,7 @@ async def test_delete_candidate_not_found(admin_client: AsyncClient):
 async def test_candidate_endpoints_require_admin(
     public_client: AsyncClient, candidate_profile: CandidateProfile
 ):
-    put_resp = await public_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}", json={"full_name": "New"}
-    )
     delete_resp = await public_client.delete(
         f"/api/admin/candidates/{candidate_profile.id}"
     )
-    assert put_resp.status_code == 401
     assert delete_resp.status_code == 401

@@ -1,10 +1,6 @@
 import api from "@/services/api";
 import type { CursorPage } from "@/hooks/useInfiniteList";
-import type {
-  CandidateActivityEvent,
-  CandidateProfileRead,
-  CandidateProfileUpdate,
-} from "@/types/api";
+import type { CandidateActivityEvent, CandidateProfileRead } from "@/types/api";
 
 export interface CandidateListParams {
   cursor?: string | null;
@@ -32,14 +28,6 @@ export async function getCandidate(
   const res = await api.get<CandidateProfileRead>(`/api/admin/candidates/${id}`, {
     signal,
   });
-  return res.data;
-}
-
-export async function updateCandidate(
-  id: number,
-  body: CandidateProfileUpdate,
-): Promise<CandidateProfileRead> {
-  const res = await api.put<CandidateProfileRead>(`/api/admin/candidates/${id}`, body);
   return res.data;
 }
 

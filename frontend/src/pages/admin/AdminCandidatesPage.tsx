@@ -15,7 +15,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
-import CandidateEditDialog from "./components/CandidateEditDialog";
 import CandidateRecordPane from "./components/CandidateRecordPane";
 import CandidatesRailList from "./components/CandidatesRailList";
 import CandidatesTable from "./components/CandidatesTable";
@@ -42,11 +41,9 @@ export default function AdminCandidatesPage() {
     error,
     sentinelRef,
     reload,
-    updateItem,
     removeItem,
   } = useInfiniteList<CandidateProfileRead>(fetcher);
 
-  const [editing, setEditing] = useState<CandidateProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<CandidateProfileRead | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
@@ -95,17 +92,6 @@ export default function AdminCandidatesPage() {
 
   const dialogs = (
     <>
-      <CandidateEditDialog
-        candidate={editing}
-        onClose={() => setEditing(null)}
-        onSaved={(updated) => {
-          updateItem((c) => c.id === updated.id, updated);
-          toast.success(t("admin:candidates.savedToast"));
-          setEditing(null);
-        }}
-        onError={() => toast.error(t("admin:candidates.errors.saveFailed"))}
-      />
-
       <ConfirmDialog
         open={deletePending != null}
         onOpenChange={(o) => !o && setDeletePending(null)}
@@ -166,7 +152,6 @@ export default function AdminCandidatesPage() {
               <CandidatesRailList
                 candidates={filteredCandidates}
                 onView={(c) => navigate(`/admin/candidates/${c.id}`)}
-                onEdit={setEditing}
                 onDelete={setDeletePending}
                 sentinelRef={sentinelRef}
                 isFetchingMore={isFetchingMore}
@@ -176,7 +161,6 @@ export default function AdminCandidatesPage() {
             <CandidatesTable
               candidates={filteredCandidates}
               onView={(c) => navigate(`/admin/candidates/${c.id}`)}
-              onEdit={setEditing}
               onDelete={setDeletePending}
               sentinelRef={sentinelRef}
               isFetchingMore={isFetchingMore}
@@ -233,7 +217,6 @@ export default function AdminCandidatesPage() {
               candidates={filteredCandidates}
               selectedId={selectedId}
               onView={(c) => navigate(`/admin/candidates/${c.id}`)}
-              onEdit={setEditing}
               onDelete={setDeletePending}
               sentinelRef={sentinelRef}
               isFetchingMore={isFetchingMore}

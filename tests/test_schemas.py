@@ -5,7 +5,6 @@ from pydantic import ValidationError
 
 from src.schemas import (
     CandidateProfileCreate,
-    CandidateProfileUpdate,
     JobAdminCreate,
     JobCreate,
     JobUpdate,
@@ -25,11 +24,6 @@ from src.schemas import (
                 "resume_path": "uploads/resumes/test_resume.pdf",
             },
             "uploads/resumes/test_resume.pdf",
-        ),
-        (
-            CandidateProfileUpdate,
-            {"resume_path": "uploads/resumes/updated_resume.pdf"},
-            "uploads/resumes/updated_resume.pdf",
         ),
     ],
 )
@@ -51,7 +45,6 @@ def test_valid_resume_path(schema_class, create_kwargs, expected_path):
                 "resume_path": None,
             },
         ),
-        (CandidateProfileUpdate, {"resume_path": None}),
     ],
 )
 def test_none_resume_path(schema_class, create_kwargs):
@@ -72,7 +65,6 @@ def test_none_resume_path(schema_class, create_kwargs):
                 "resume_path": "../../../../etc/passwd",
             },
         ),
-        (CandidateProfileUpdate, {"resume_path": "../../../../etc/passwd"}),
     ],
 )
 def test_path_traversal_parent_directory(schema_class, create_kwargs):
@@ -95,7 +87,6 @@ def test_path_traversal_parent_directory(schema_class, create_kwargs):
                 "resume_path": "../config.py",
             },
         ),
-        (CandidateProfileUpdate, {"resume_path": "../config.py"}),
     ],
 )
 def test_path_traversal_relative_parent(schema_class, create_kwargs):
@@ -118,7 +109,6 @@ def test_path_traversal_relative_parent(schema_class, create_kwargs):
                 "resume_path": "/root/sensitive_file",
             },
         ),
-        (CandidateProfileUpdate, {"resume_path": "/root/sensitive_file"}),
     ],
 )
 def test_absolute_path_rejected(schema_class, create_kwargs):
@@ -139,7 +129,6 @@ def test_absolute_path_rejected(schema_class, create_kwargs):
                 "resume_path": "config/secrets.env",
             },
         ),
-        (CandidateProfileUpdate, {"resume_path": "config/secrets.env"}),
     ],
 )
 def test_path_outside_uploads_directory(schema_class, create_kwargs):
@@ -167,11 +156,6 @@ def test_path_outside_uploads_directory(schema_class, create_kwargs):
             },
             "uploads/resumes/2026/01/resume.pdf",
         ),
-        (
-            CandidateProfileUpdate,
-            {"resume_path": "uploads/resumes/2026/01/updated.pdf"},
-            "uploads/resumes/2026/01/updated.pdf",
-        ),
     ],
 )
 def test_nested_valid_path(schema_class, create_kwargs, expected_path):
@@ -197,17 +181,12 @@ BASE_CREATE = {
         (CandidateProfileCreate, "0501234567", "0501234567"),
         (CandidateProfileCreate, "050-123-4567", "050-123-4567"),
         (CandidateProfileCreate, "050 123 4567", "050 123 4567"),
-        (CandidateProfileUpdate, "(050) 123-4567", "(050) 123-4567"),
     ],
 )
 def test_valid_phone(schema_class, phone, expected):
     """Israeli mobile (10 digits starting with 05) — accepted in any common
-    shape (spaces, dashes, parens), regardless of update vs create."""
-    if schema_class is CandidateProfileCreate:
-        kwargs = {**BASE_CREATE, "phone": phone}
-    else:
-        kwargs = {"phone": phone}
-    schema = schema_class(**kwargs)
+    shape (spaces, dashes, parens)."""
+    schema = schema_class(**{**BASE_CREATE, "phone": phone})
     assert schema.phone == expected
 
 
@@ -224,30 +203,12 @@ def test_valid_phone(schema_class, phone, expected):
         # International format — same number, but candidates must enter the
         # local form so we have a uniform shape downstream.
         (CandidateProfileCreate, "+972 50 123 4567", "Israeli mobile"),
-        (CandidateProfileUpdate, "!@#$", "digits, spaces"),
-        (CandidateProfileUpdate, "1234", "Israeli mobile"),
     ],
 )
 def test_invalid_phone(schema_class, phone, error_match):
     """Test that invalid phone numbers are rejected."""
-    if schema_class is CandidateProfileCreate:
-        kwargs = {**BASE_CREATE, "phone": phone}
-    else:
-        kwargs = {"phone": phone}
     with pytest.raises(ValidationError, match=error_match):
-        schema_class(**kwargs)
-
-
-def test_candidate_profile_update_phone_null_clears():
-    """``phone`` is nullable on the model — explicit-null clears the column.
-
-    Profile UX rule: only full_name + email are mandatory identity. Phone is
-    autofill metadata; the user can drop it and re-enter it inline on the
-    next apply-form submission.
-    """
-    patch = CandidateProfileUpdate(phone=None)
-    # Pydantic keeps the explicit-None when set, so the field is in the dump.
-    assert patch.model_dump(exclude_unset=True) == {"phone": None}
+        schema_class(**{**BASE_CREATE, "phone": phone})
 
 
 # ---------------------------------------------------------------------------
@@ -265,21 +226,11 @@ def test_candidate_profile_update_phone_null_clears():
         ),
         (CandidateProfileCreate, None, None),
         (CandidateProfileCreate, "", None),
-        (
-            CandidateProfileUpdate,
-            "https://linkedin.com/company/acme",
-            "https://linkedin.com/company/acme",
-        ),
-        (CandidateProfileUpdate, None, None),
     ],
 )
 def test_valid_linkedin_url(schema_class, url, expected):
     """Test that valid LinkedIn URLs are accepted."""
-    if schema_class is CandidateProfileCreate:
-        kwargs = {**BASE_CREATE, "linkedin_url": url}
-    else:
-        kwargs = {"linkedin_url": url}
-    schema = schema_class(**kwargs)
+    schema = schema_class(**{**BASE_CREATE, "linkedin_url": url})
     assert schema.linkedin_url == expected
 
 
@@ -297,18 +248,12 @@ def test_valid_linkedin_url(schema_class, url, expected):
         ),
         # Missing scheme
         (CandidateProfileCreate, "linkedin.com/in/foo", "https"),
-        # Wrong host entirely
-        (CandidateProfileUpdate, "https://notlinkedin.com/in/foo", "linkedin.com"),
     ],
 )
 def test_invalid_linkedin_url(schema_class, url, error_match):
     """Test that invalid LinkedIn URLs are rejected."""
-    if schema_class is CandidateProfileCreate:
-        kwargs = {**BASE_CREATE, "linkedin_url": url}
-    else:
-        kwargs = {"linkedin_url": url}
     with pytest.raises(ValidationError, match=error_match):
-        schema_class(**kwargs)
+        schema_class(**{**BASE_CREATE, "linkedin_url": url})
 
 
 # ── Job schemas: salary_min must be <= salary_max ─────────────────────────────
