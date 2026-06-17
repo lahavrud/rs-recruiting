@@ -4,7 +4,6 @@ import logging
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.core.infrastructure.pagination import (
     CursorPage,
@@ -27,11 +26,9 @@ from src.schemas import (
     PendingCompanyRead,
     UserRead,
 )
+from src.services.admin._helpers import validate_company_user_pending
 from src.services.admin.company_approval import approve_company  # re-exported
-from src.services.exceptions import (
-    CompanyNotFoundError,
-    CompanyNotPendingError,
-)
+from src.services.exceptions import CompanyNotFoundError
 from src.services.utils.audit import record_audit_event
 from src.templates.email import build_rejection_html
 
@@ -120,22 +117,7 @@ async def reject_company(
         CompanyNotFoundError: If company user not found
         CompanyNotPendingError: If already approved or not a COMPANY user
     """
-    result = await session.execute(
-        select(User)
-        .options(selectinload(User.company_profile))
-        .where(User.id == company_user_id)  # pyright: ignore[reportArgumentType]
-    )
-    user = result.scalar_one_or_none()
-    if not user:
-        raise CompanyNotFoundError(f"Company user with ID {company_user_id} not found")
-    if user.role != UserRole.COMPANY:
-        raise CompanyNotPendingError(
-            f"User {company_user_id} is not a COMPANY user (role: {user.role})"
-        )
-    if user.is_active:
-        raise CompanyNotPendingError(
-            f"Company user {company_user_id} is already approved (active)"
-        )
+    user = await validate_company_user_pending(company_user_id, session)
 
     company_profile = user.company_profile
 
