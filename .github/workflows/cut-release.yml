@@ -1,0 +1,75 @@
+name: Cut Release
+
+# "Cut Release" — promotes an already-validated RC tag to its final vX.Y.Z by
+# stripping the `-rc.N` suffix and re-tagging the *same* commit. No rebuild,
+# no bump arithmetic — that already happened when Deploy Staging cut the RC.
+# The tag push triggers release.yml's promote-prod job.
+# See docs/release-process.md for the full release ritual.
+
+on:
+  workflow_dispatch:
+    inputs:
+      rc_tag:
+        description: "RC tag to promote, e.g. v1.3.0-rc.2 (leave blank for the most recent RC)"
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-creation
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Strip -rc.N and push final tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve RC tag and final version
+        id: version
+        run: |
+          set -euo pipefail
+
+          RC_TAG="${{ inputs.rc_tag }}"
+          if [ -z "${RC_TAG}" ]; then
+            RC_TAG=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' 'refs/tags/v*.*.*-rc.*' | head -1)
+          fi
+          if [ -z "${RC_TAG}" ]; then
+            echo "==> No RC tags found in the repo — run Deploy Staging first"
+            exit 1
+          fi
+          if ! git rev-parse "${RC_TAG}" >/dev/null 2>&1; then
+            echo "==> Tag ${RC_TAG} does not exist"
+            exit 1
+          fi
+
+          FINAL_TAG=$(echo "${RC_TAG}" | sed -E 's/-rc\.[0-9]+$//')
+          if [ "${FINAL_TAG}" = "${RC_TAG}" ]; then
+            echo "==> ${RC_TAG} is not an RC tag (expected vX.Y.Z-rc.N)"
+            exit 1
+          fi
+          if git rev-parse "${FINAL_TAG}" >/dev/null 2>&1; then
+            echo "==> ${FINAL_TAG} already exists — nothing to promote"
+            exit 1
+          fi
+
+          SHA=$(git rev-list -n1 "${RC_TAG}")
+          echo "==> Promoting ${RC_TAG} (${SHA}) to ${FINAL_TAG}"
+          echo "rc_tag=${RC_TAG}" >> "$GITHUB_OUTPUT"
+          echo "final_tag=${FINAL_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Push final tag
+        run: |
+          git tag "${{ steps.version.outputs.final_tag }}" "${{ steps.version.outputs.sha }}"
+          git push origin "${{ steps.version.outputs.final_tag }}"
+
+      - name: Summary
+        run: |
+          echo "### Promoted \`${{ steps.version.outputs.rc_tag }}\` → \`${{ steps.version.outputs.final_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Triggers release.yml's promote-prod job to re-tag (no rebuild) and deploy." >> "$GITHUB_STEP_SUMMARY"

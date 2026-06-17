@@ -1,0 +1,314 @@
+name: Release
+
+# Triggered by tag push from either deploy-staging.yml (`-rc.N` tags) or
+# cut-release.yml (final `vX.Y.Z` tags). RC tags only build & push an image —
+# no deploy target until #890 adds ephemeral staging. Final tags promote the
+# already-built RC image (no rebuild) and run the full production deploy.
+# See docs/release-process.md for the full release ritual.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── RC: build & push image only ─────────────────────────────────────────
+
+  build-rc:
+    name: Build & push RC image
+    if: contains(github.ref_name, '-rc.')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Check if RC image already in ECR
+        id: rc_exists
+        run: |
+          if aws ecr describe-images \
+            --repository-name rs-recruiting/api \
+            --image-ids imageTag=${{ github.ref_name }} \
+            --region us-east-1 > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "==> Image already exists — skipping build"
+          fi
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        if: steps.rc_exists.outputs.exists != 'true'
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        if: steps.rc_exists.outputs.exists != 'true'
+        with:
+          context: .
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
+            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+  # ── Final: promote RC image (no rebuild) ────────────────────────────────
+
+  promote-prod:
+    name: Promote to production
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Promote existing RC image, or build fresh
+        id: promote
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          TAG="${{ github.ref_name }}"
+          if aws ecr describe-images \
+            --repository-name rs-recruiting/api \
+            --image-ids imageTag="${SHA}" \
+            --region us-east-1 > /dev/null 2>&1; then
+            echo "==> Found image for ${SHA} — re-tagging ${TAG} (no rebuild)"
+            IMAGE_MANIFEST=$(aws ecr batch-get-image \
+              --repository-name rs-recruiting/api \
+              --image-ids imageTag="${SHA}" \
+              --region us-east-1 \
+              --query 'images[0].imageManifest' --output text)
+            aws ecr put-image \
+              --repository-name rs-recruiting/api \
+              --image-tag "${TAG}" \
+              --image-manifest "${IMAGE_MANIFEST}" \
+              --region us-east-1 > /dev/null
+            echo "rebuild=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "==> No image found for ${SHA} — building fresh (no preceding RC; safety net)"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        if: steps.promote.outputs.rebuild == 'true'
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        if: steps.promote.outputs.rebuild == 'true'
+        with:
+          context: .
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
+            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.sha }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Upload version-pinned artifacts to S3
+        run: |
+          TAG="${{ github.ref_name }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          S3_BUCKET="rs-recruiting-deploy-prod-${ACCOUNT_ID}"
+          aws s3 cp docker-compose.deploy.yml "s3://${S3_BUCKET}/deploy/${TAG}/docker-compose.deploy.yml"
+          aws s3 cp scripts/deploy_ec2.sh     "s3://${S3_BUCKET}/deploy/${TAG}/deploy_ec2.sh"
+          aws s3 cp nginx/nginx.conf          "s3://${S3_BUCKET}/deploy/${TAG}/nginx.conf"
+          aws s3 cp alloy/config.alloy        "s3://${S3_BUCKET}/deploy/${TAG}/alloy/config.alloy"
+
+  # ── Build & deploy frontend to S3 + CloudFront ────────────────────────────
+
+  deploy-frontend:
+    name: Build & deploy frontend
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: cd frontend && npm ci
+
+      - name: Build
+        run: cd frontend && npm run build
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_RELEASE: ${{ github.ref_name }}
+          VITE_GTM_ID: GTM-PRRX7D6L
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Sync to S3
+        run: |
+          # All other assets first (additive, immutable) — lifecycle rule expires stale bundles after 3 days
+          aws s3 sync frontend/dist/ \
+            s3://${{ secrets.S3_FRONTEND_BUCKET }}/ \
+            --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
+          # index.html last — no-cache so browsers always fetch the latest bundle references,
+          # and by now every chunk it points to already exists in S3
+          aws s3 cp frontend/dist/index.html \
+            s3://${{ secrets.S3_FRONTEND_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/index.html"
+
+  # ── Deploy backend to EC2 ─────────────────────────────────────────────────
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [promote-prod, deploy-frontend]
+    if: |
+      always() && !contains(github.ref_name, '-rc.') &&
+      needs.promote-prod.result == 'success' &&
+      needs.deploy-frontend.result == 'success'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Trigger deploy via SSM Run Command
+        id: ssm
+        run: |
+          TAG="${{ github.ref_name }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          S3_BUCKET="rs-recruiting-deploy-prod-${ACCOUNT_ID}"
+          DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${TAG}/deploy_ec2.sh /tmp/deploy_${TAG}.sh && IMAGE_TAG=${TAG} bash /tmp/deploy_${TAG}.sh"
+          PARAMS=$(jq -n --arg cmd "$DEPLOY_CMD" '{commands: [$cmd]}')
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --timeout-seconds 300 \
+            --parameters "$PARAMS" \
+            --query "Command.CommandId" \
+            --output text)
+          echo "COMMAND_ID=${COMMAND_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for deploy to complete
+        run: |
+          COMMAND_ID="${{ steps.ssm.outputs.COMMAND_ID }}"
+          for i in $(seq 1 54); do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+              --query "Status" --output text 2>/dev/null || echo "Pending")
+            echo "[${i}/54] ${STATUS}"
+            case "${STATUS}" in
+              Success)
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardOutputContent" --output text
+                exit 0
+                ;;
+              Failed|TimedOut|Cancelled|Cancelling)
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardOutputContent" --output text
+                aws ssm get-command-invocation \
+                  --command-id "${COMMAND_ID}" \
+                  --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+                  --query "StandardErrorContent" --output text
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "==> Timed out waiting for deploy (9 min)"
+          exit 1
+
+  # ── GitHub Release ──────────────────────────────────────────────────────
+
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: ${{ !contains(github.ref_name, '-rc.') && needs.deploy.result == 'success' }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" --generate-notes --repo "${{ github.repository }}"
+
+  # ── Failure notification ──────────────────────────────────────────────────
+
+  notify-failure:
+    name: Notify release failure
+    runs-on: ubuntu-latest
+    needs: [build-rc, promote-prod, deploy-frontend, deploy, github-release]
+    if: failure()
+    permissions:
+      issues: write
+    steps:
+      - name: Open GitHub issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ROLLBACK_URL="https://github.com/${{ github.repository }}/actions/workflows/rollback.yml"
+          printf '%s\n\n%s\n\n%s\n' \
+            "**Release failed** for tag [\`${TAG}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})." \
+            "Check the [workflow run](${RUN_URL}) for current production state and logs." \
+            "To redeploy a previous version: [run the rollback workflow](${ROLLBACK_URL})." \
+            > /tmp/issue_body.md
+          gh issue create \
+            --title "Release failed: ${TAG}" \
+            --body-file /tmp/issue_body.md \
+            --repo "${{ github.repository }}"
