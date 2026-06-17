@@ -36,6 +36,24 @@ async def test_record_audit_event_persists_row(session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_record_audit_event_accepts_explicit_created_at(session: AsyncSession):
+    """Callers (e.g. seed scripts) can backdate audit rows."""
+    backdated = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    await record_audit_event(
+        session,
+        actor_user_id=42,
+        action="application.status_change",
+        target_type="Application",
+        target_id=7,
+        created_at=backdated,
+    )
+    await session.commit()
+
+    row = (await session.execute(select(AuditLog))).scalar_one()
+    assert row.created_at == backdated
+
+
+@pytest.mark.asyncio
 async def test_record_audit_event_allows_null_actor(session: AsyncSession):
     """System tasks (e.g. scheduled purge) write rows with actor_user_id=None."""
     await record_audit_event(
