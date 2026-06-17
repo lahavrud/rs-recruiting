@@ -10,6 +10,7 @@ import {
   JobStatus,
   type ApplicationWithDetails,
 } from "@/types/api";
+import { APPLICATION_STATUS_META } from "@/constants/statusColors";
 
 /**
  * Dashboard stats block. Three sub-sections, all fed by parallel first-page
@@ -169,7 +170,7 @@ function ApplicationStatusBar({
               seg.n === 0 ? null : (
                 <div
                   key={seg.status}
-                  className={STATUS_META[seg.status].barClass}
+                  className={APPLICATION_STATUS_META[seg.status].barClass}
                   style={{ width: `${(seg.n / total) * 100}%` }}
                   title={`${t(`admin:applications.statusLabels.${seg.status}`)} — ${seg.n}`}
                 />
@@ -183,7 +184,7 @@ function ApplicationStatusBar({
                 className="inline-flex items-center gap-1.5"
               >
                 <span
-                  className={`size-2.5 rounded-full ${STATUS_META[seg.status].dotClass}`}
+                  className={`size-2.5 rounded-full ${APPLICATION_STATUS_META[seg.status].dotClass}`}
                   aria-hidden="true"
                 />
                 <span className="text-white/55">
@@ -252,21 +253,3 @@ function TopJobsList({
   );
 }
 
-const STATUS_META: Record<string, { barClass: string; dotClass: string }> = {
-  [ApplicationStatus.NEW]: {
-    barClass: "bg-copper/85",
-    dotClass: "bg-copper/85",
-  },
-  [ApplicationStatus.APPROVED_BY_ADMIN]: {
-    barClass: "bg-success/85",
-    dotClass: "bg-success/85",
-  },
-  [ApplicationStatus.HIRED]: {
-    barClass: "bg-hired/85",
-    dotClass: "bg-hired/85",
-  },
-  [ApplicationStatus.REJECTED]: {
-    barClass: "bg-danger/70",
-    dotClass: "bg-danger/70",
-  },
-};

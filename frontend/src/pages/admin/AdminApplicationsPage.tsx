@@ -7,6 +7,7 @@ import { deleteApplication, getApplications } from "@/services/adminApplications
 import type { ApplicationListParams } from "@/services/adminApplications";
 import { ApplicationStatus } from "@/types/api";
 import type { ApplicationWithDetails } from "@/types/api";
+import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -37,15 +38,6 @@ import ApplicationNotesDialog from "./components/ApplicationNotesDialog";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
 import { formatDate } from "@/utils/formatDate";
-
-const STATUS_COLORS: Record<string, string> = {
-  NEW: "bg-copper/10 text-copper",
-  APPROVED_BY_ADMIN: "bg-success/10 text-success",
-  REJECTED: "bg-danger/10 text-danger",
-  HIRED: "bg-hired/10 text-hired",
-  JOB_CLOSED: "bg-white/8 text-white/45",
-  WITHDRAWN: "bg-white/3 text-white/25",
-};
 
 const CLOSED_STATUSES = new Set<ApplicationStatus>([ApplicationStatus.JOB_CLOSED, ApplicationStatus.WITHDRAWN]);
 
@@ -280,22 +272,20 @@ export default function AdminApplicationsPage() {
       </div>
 
       <ApplicationsFilterPanel
-        filter={filter}
-        setFilter={setFilter}
-        query={query}
-        setQuery={setQuery}
-        jobFilter={jobFilter}
-        setJobFilter={setJobFilter}
-        filterCandidateId={filterCandidateId}
-        setFilterCandidateId={setFilterCandidateId}
-        companyFilter={companyFilter}
-        setCompanyFilter={setCompanyFilter}
-        allJobs={allJobs}
-        companyNameById={companyNameById}
-        jobTitleById={jobTitleById}
-        activeFilterCount={activeFilterCount}
-        filterOpen={filterOpen}
-        statusLabels={STATUS_LABELS}
+        filterState={{
+          filter,
+          setFilter,
+          query,
+          setQuery,
+          jobFilter,
+          setJobFilter,
+          filterCandidateId,
+          setFilterCandidateId,
+          companyFilter,
+          setCompanyFilter,
+        }}
+        lookupMaps={{ allJobs, companyNameById, jobTitleById }}
+        uiState={{ activeFilterCount, filterOpen, statusLabels: STATUS_LABELS }}
       />
 
       {isLoading ? (
@@ -357,7 +347,7 @@ export default function AdminApplicationsPage() {
                     </div>
                   }
                   badge={
-                    <StatusBadge label={STATUS_LABELS[app.status]} colorCls={STATUS_COLORS[app.status]} />
+                    <StatusBadge label={STATUS_LABELS[app.status]} colorCls={APPLICATION_STATUS_COLORS[app.status]} />
                   }
                   actions={actions}
                 >
@@ -405,7 +395,7 @@ export default function AdminApplicationsPage() {
                       <p className="text-xs text-white/40">{app.job.location}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge label={STATUS_LABELS[app.status]} colorCls={STATUS_COLORS[app.status]} />
+                      <StatusBadge label={STATUS_LABELS[app.status]} colorCls={APPLICATION_STATUS_COLORS[app.status]} />
                     </td>
                     <td className="px-4 py-3 text-white/40">
                       {formatDate(app.created_at)}
@@ -450,7 +440,7 @@ export default function AdminApplicationsPage() {
           <ClosedApplicationsSection
             apps={closedFiltered}
             statusLabels={STATUS_LABELS}
-            statusColors={STATUS_COLORS}
+            statusColors={APPLICATION_STATUS_COLORS}
             onView={setDetail}
             onUpdateStatus={setStatusModal}
             onEditNotes={setNotesModal}

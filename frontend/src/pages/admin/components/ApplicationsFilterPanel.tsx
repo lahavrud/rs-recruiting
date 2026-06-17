@@ -17,7 +17,7 @@ const ALL_STATUSES = [
   ApplicationStatus.WITHDRAWN,
 ];
 
-export interface ApplicationsFilterPanelProps {
+export interface FilterState {
   filter: FilterValue;
   setFilter: Dispatch<SetStateAction<FilterValue>>;
   query: string;
@@ -28,32 +28,45 @@ export interface ApplicationsFilterPanelProps {
   setFilterCandidateId: Dispatch<SetStateAction<number | undefined>>;
   companyFilter: number[];
   setCompanyFilter: Dispatch<SetStateAction<number[]>>;
+}
+
+export interface LookupMaps {
   allJobs: { id: number; title: string; company_id: number }[];
   companyNameById: Map<number, string>;
   jobTitleById: Map<number, string>;
+}
+
+export interface UIState {
   activeFilterCount: number;
   filterOpen: boolean;
   statusLabels: Record<string, string>;
 }
 
+export interface ApplicationsFilterPanelProps {
+  filterState: FilterState;
+  lookupMaps: LookupMaps;
+  uiState: UIState;
+}
+
 export default function ApplicationsFilterPanel({
-  filter,
-  setFilter,
-  query,
-  setQuery,
-  jobFilter,
-  setJobFilter,
-  filterCandidateId,
-  setFilterCandidateId,
-  companyFilter,
-  setCompanyFilter,
-  allJobs,
-  companyNameById,
-  jobTitleById,
-  activeFilterCount,
-  filterOpen,
-  statusLabels,
+  filterState,
+  lookupMaps,
+  uiState,
 }: ApplicationsFilterPanelProps) {
+  const {
+    filter,
+    setFilter,
+    query,
+    setQuery,
+    jobFilter,
+    setJobFilter,
+    filterCandidateId,
+    setFilterCandidateId,
+    companyFilter,
+    setCompanyFilter,
+  } = filterState;
+  const { allJobs, companyNameById, jobTitleById } = lookupMaps;
+  const { activeFilterCount, filterOpen, statusLabels } = uiState;
   const { t } = useTranslation(['admin', 'common']);
   const filterTabs: FilterValue[] = [ALL_FILTER, ...ALL_STATUSES];
 

@@ -15,69 +15,76 @@ export interface SalaryBounds {
   max: number;
 }
 
-export interface JobsFilterPanelProps {
-  // Search
+export interface SearchState {
   query: string;
   setQuery: Dispatch<SetStateAction<string>>;
+}
 
-  // Status
+export interface FilterState {
   filter: string;
   setFilter: Dispatch<SetStateAction<string>>;
   filterTabs: string[];
   statusLabels: Record<string, string>;
-
-  // Location
   uniqueLocations: string[];
   selectedLocations: string[];
   setSelectedLocations: Dispatch<SetStateAction<string[]>>;
+  featuredOnly: boolean;
+  setFeaturedOnly: Dispatch<SetStateAction<boolean>>;
+}
 
-  // Salary
+export interface SalaryFilterState {
   salaryBounds: SalaryBounds;
   effectiveSalaryRange: [number, number];
   isSalaryActive: boolean;
   setSalaryRange: Dispatch<SetStateAction<[number, number] | null>>;
+}
 
-  // Company
+export interface CompanyFilterState {
   uniqueCompanies: number[];
   companyFilter: number[];
   setCompanyFilter: Dispatch<SetStateAction<number[]>>;
   companyNameById: Map<number, string>;
+}
 
-  // Featured
-  featuredOnly: boolean;
-  setFeaturedOnly: Dispatch<SetStateAction<boolean>>;
-
-  // Derived
+export interface UIState {
   activeFilterCount: number;
   filterOpen: boolean;
   setFilterOpen: Dispatch<SetStateAction<boolean>>;
   clearFilters: () => void;
 }
 
+export interface JobsFilterPanelProps {
+  search: SearchState;
+  filters: FilterState;
+  salary: SalaryFilterState;
+  company: CompanyFilterState;
+  ui: UIState;
+}
+
 export default function JobsFilterPanel({
-  query,
-  setQuery,
-  filter,
-  setFilter,
-  filterTabs,
-  statusLabels,
-  uniqueLocations,
-  selectedLocations,
-  setSelectedLocations,
-  salaryBounds,
-  effectiveSalaryRange,
-  isSalaryActive,
-  setSalaryRange,
-  uniqueCompanies,
-  companyFilter,
-  setCompanyFilter,
-  companyNameById,
-  featuredOnly,
-  setFeaturedOnly,
-  activeFilterCount,
-  filterOpen,
-  setFilterOpen,
+  search,
+  filters,
+  salary,
+  company,
+  ui,
 }: JobsFilterPanelProps) {
+  const { query, setQuery } = search;
+  const {
+    filter,
+    setFilter,
+    filterTabs,
+    statusLabels,
+    uniqueLocations,
+    selectedLocations,
+    setSelectedLocations,
+    featuredOnly,
+    setFeaturedOnly,
+  } = filters;
+  const { salaryBounds, effectiveSalaryRange, isSalaryActive, setSalaryRange } =
+    salary;
+  const { uniqueCompanies, companyFilter, setCompanyFilter, companyNameById } =
+    company;
+  const { activeFilterCount, filterOpen, setFilterOpen } = ui;
   const { t } = useTranslation(['admin', 'common', 'publicJobs']);
 
   return (

@@ -14,6 +14,7 @@ import {
 } from "@/services/adminJobs";
 import type { JobRead } from "@/types/api";
 import { JobStatus } from "@/types/api";
+import { JOB_STATUS_COLORS } from "@/constants/statusColors";
 import PageHeader from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -37,12 +38,6 @@ const ALL_STATUSES = [
   JobStatus.PUBLISHED,
   JobStatus.CLOSED,
 ];
-
-const STATUS_COLORS: Record<string, string> = {
-  PENDING_APPROVAL: "bg-warning/10 text-warning",
-  PUBLISHED: "bg-success/10 text-success",
-  CLOSED: "bg-white/8 text-white/45",
-};
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
@@ -341,29 +336,36 @@ export default function AdminJobsPage() {
       />
 
       <JobsFilterPanel
-        query={query}
-        setQuery={setQuery}
-        filter={filter}
-        setFilter={setFilter}
-        filterTabs={filterTabs}
-        statusLabels={STATUS_LABELS}
-        uniqueLocations={uniqueLocations}
-        selectedLocations={selectedLocations}
-        setSelectedLocations={setSelectedLocations}
-        salaryBounds={salaryBounds}
-        effectiveSalaryRange={effectiveSalaryRange}
-        isSalaryActive={isSalaryActive}
-        setSalaryRange={setSalaryRange}
-        uniqueCompanies={uniqueCompanies}
-        companyFilter={companyFilter}
-        setCompanyFilter={setCompanyFilter}
-        companyNameById={companyNameById}
-        featuredOnly={featuredOnly}
-        setFeaturedOnly={setFeaturedOnly}
-        activeFilterCount={activeFilterCount}
-        filterOpen={filterOpen}
-        setFilterOpen={setFilterOpen}
-        clearFilters={clearFilters}
+        search={{ query, setQuery }}
+        filters={{
+          filter,
+          setFilter,
+          filterTabs,
+          statusLabels: STATUS_LABELS,
+          uniqueLocations,
+          selectedLocations,
+          setSelectedLocations,
+          featuredOnly,
+          setFeaturedOnly,
+        }}
+        salary={{
+          salaryBounds,
+          effectiveSalaryRange,
+          isSalaryActive,
+          setSalaryRange,
+        }}
+        company={{
+          uniqueCompanies,
+          companyFilter,
+          setCompanyFilter,
+          companyNameById,
+        }}
+        ui={{
+          activeFilterCount,
+          filterOpen,
+          setFilterOpen,
+          clearFilters,
+        }}
       />
 
       {isLoading ? (
@@ -394,7 +396,7 @@ export default function AdminJobsPage() {
           <JobsList
             jobs={filteredJobs}
             statusLabels={STATUS_LABELS}
-            statusColors={STATUS_COLORS}
+            statusColors={JOB_STATUS_COLORS}
             companyNameById={companyNameById}
             onEdit={openJob}
             onApprove={handleApprove}
@@ -406,7 +408,7 @@ export default function AdminJobsPage() {
           <JobsTable
             jobs={filteredJobs}
             statusLabels={STATUS_LABELS}
-            statusColors={STATUS_COLORS}
+            statusColors={JOB_STATUS_COLORS}
             onOpenDetail={openJob}
             onEdit={openJob}
             onApprove={handleApprove}
