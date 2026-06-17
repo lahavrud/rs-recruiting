@@ -1,0 +1,27 @@
+name: Notify failure
+description: Open a GitHub issue reporting a workflow failure.
+
+inputs:
+  title:
+    required: true
+  body:
+    description: "Markdown issue body"
+    required: true
+  gh-token:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Open GitHub issue
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.gh-token }}
+        ISSUE_TITLE: ${{ inputs.title }}
+        ISSUE_BODY: ${{ inputs.body }}
+      run: |
+        printf '%s\n' "$ISSUE_BODY" > /tmp/issue_body.md
+        gh issue create \
+          --title "$ISSUE_TITLE" \
+          --body-file /tmp/issue_body.md \
+          --repo "${{ github.repository }}"
