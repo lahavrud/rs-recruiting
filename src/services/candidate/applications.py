@@ -9,6 +9,7 @@ if they don't exist for this candidate). Only the derived ``editable`` flag
 """
 
 import logging
+from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -184,17 +185,22 @@ def _build_detail(app: Application) -> CandidateApplicationDetail:
     )
 
 
+@dataclass(frozen=True)
+class ApplicationEditData:
+    service_concept: str | None
+    salary_expectations: str | None
+    strength: str | None
+    growth_area: str | None
+    resume_bytes: bytes | None
+    resume_filename: str | None
+
+
 async def edit_my_application(
     session: AsyncSession,
     *,
     candidate_id: int,
     application_id: int,
-    service_concept: str | None,
-    salary_expectations: str | None,
-    strength: str | None,
-    growth_area: str | None,
-    resume_bytes: bytes | None,
-    resume_filename: str | None,
+    data: ApplicationEditData,
     storage: StorageProvider,
 ) -> CandidateApplicationDetail:
     """Partially update text answers and/or replace the resume snapshot.
@@ -221,28 +227,33 @@ async def edit_my_application(
 
     has_text = any(
         f is not None
-        for f in (service_concept, salary_expectations, strength, growth_area)
+        for f in (
+            data.service_concept,
+            data.salary_expectations,
+            data.strength,
+            data.growth_area,
+        )
     )
-    if not has_text and resume_bytes is None:
+    if not has_text and data.resume_bytes is None:
         raise ValueError("empty_body")
 
-    if service_concept is not None:
-        app.service_concept = service_concept
-    if salary_expectations is not None:
-        app.salary_expectations = salary_expectations
-    if strength is not None:
-        app.strength = strength
-    if growth_area is not None:
-        app.growth_area = growth_area
+    if data.service_concept is not None:
+        app.service_concept = data.service_concept
+    if data.salary_expectations is not None:
+        app.salary_expectations = data.salary_expectations
+    if data.strength is not None:
+        app.strength = data.strength
+    if data.growth_area is not None:
+        app.growth_area = data.growth_area
 
     old_resume_key: str | None = None
-    if resume_bytes is not None and resume_filename is not None:
+    if data.resume_bytes is not None and data.resume_filename is not None:
         new_key, new_hash = await validate_and_upload_resume(
-            resume_bytes, resume_filename, storage
+            data.resume_bytes, data.resume_filename, storage
         )
         old_resume_key = app.resume_path
         app.resume_path = new_key
-        app.resume_filename = resume_filename
+        app.resume_filename = data.resume_filename
         app.resume_hash = new_hash
 
     await session.commit()

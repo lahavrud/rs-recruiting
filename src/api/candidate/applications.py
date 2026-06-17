@@ -36,6 +36,7 @@ from src.schemas import (
     CandidateApplicationListItem,
 )
 from src.services.candidate.applications import (
+    ApplicationEditData,
     edit_my_application,
     get_application_resume_key,
     get_my_application,
@@ -139,12 +140,14 @@ async def edit_application(
             session,
             candidate_id=profile.id,  # type: ignore[arg-type]
             application_id=application_id,
-            service_concept=service_concept,
-            salary_expectations=salary_expectations,
-            strength=strength,
-            growth_area=growth_area,
-            resume_bytes=resume_bytes,
-            resume_filename=resume_filename,
+            data=ApplicationEditData(
+                service_concept=service_concept,
+                salary_expectations=salary_expectations,
+                strength=strength,
+                growth_area=growth_area,
+                resume_bytes=resume_bytes,
+                resume_filename=resume_filename,
+            ),
             storage=get_storage_provider(),
         )
     except ApplicationNotFoundError as exc:
