@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { AuthContext, type AuthContextType } from "@/contexts/AuthContext";
 import type { AuthUser } from "@/contexts/AuthContext";
 import { UserRole } from "@/types/api";
-import AdminRoute from "../guards/AdminRoute";
-import CompanyRoute from "../guards/CompanyRoute";
-import CandidateRoute from "../guards/CandidateRoute";
-import ProtectedRoute from "../guards/ProtectedRoute";
+import AdminRoute from "@/components/guards/AdminRoute";
+import CompanyRoute from "@/components/guards/CompanyRoute";
+import CandidateRoute from "@/components/guards/CandidateRoute";
+import ProtectedRoute from "@/components/guards/ProtectedRoute";
 
 function makeCtx(user: AuthUser | null): AuthContextType {
   return {
