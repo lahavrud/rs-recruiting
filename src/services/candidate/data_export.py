@@ -257,6 +257,18 @@ async def build_and_persist_export(
     return raw_token, user.email
 
 
+async def get_export_request_by_token_hash(
+    token_hash: str, session: AsyncSession
+) -> DataExportRequest | None:
+    """Look up a ``DataExportRequest`` row by its hashed download token."""
+    result = await session.execute(
+        select(DataExportRequest).where(  # pyright: ignore[reportArgumentType]
+            DataExportRequest.token_hash == token_hash
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def has_pending_export(user_id: int, session: AsyncSession) -> bool:
     """Per-user rate limit: is there an unused, unexpired export?
 

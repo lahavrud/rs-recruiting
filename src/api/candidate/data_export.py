@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.database import get_session
@@ -27,8 +26,11 @@ from src.core.infrastructure.security import hash_token
 from src.core.infrastructure.transactions import defer_after_commit, transactional
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_data_export_task
-from src.models import CandidateProfile, DataExportRequest, User
-from src.services.candidate.data_export import has_pending_export
+from src.models import CandidateProfile, User
+from src.services.candidate.data_export import (
+    get_export_request_by_token_hash,
+    has_pending_export,
+)
 
 router = APIRouter(prefix="/api/candidate", tags=["candidate"])
 limiter = get_limiter()
@@ -74,12 +76,7 @@ async def download_export(
     No auth — the unguessable token IS the credential. On success the
     row is marked used so the link is single-use.
     """
-    result = await session.execute(
-        select(DataExportRequest).where(
-            DataExportRequest.token_hash == hash_token(token)  # pyright: ignore[reportArgumentType]
-        )
-    )
-    record = result.scalar_one_or_none()
+    record = await get_export_request_by_token_hash(hash_token(token), session)
     if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="export_not_found"
