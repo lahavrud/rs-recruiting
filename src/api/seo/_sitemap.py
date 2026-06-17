@@ -4,13 +4,11 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import get_session
-from src.enums import JobStatus
-from src.models import Job
+from src.services.public.jobs import list_published_job_sitemap_entries
 
 from ._articles import list_articles
 from ._content import DISALLOWED_PATHS
@@ -52,10 +50,7 @@ async def sitemap_xml(session: AsyncSession = Depends(get_session)) -> str:
     base = settings.frontend_base_url
     today = datetime.now(UTC).date().isoformat()
 
-    result = await session.execute(
-        select(Job.id, Job.updated_at).where(Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
-    )
-    jobs = result.all()
+    jobs = await list_published_job_sitemap_entries(session)
 
     entries = _url_entry(f"{base}/", changefreq="monthly")
     entries += _url_entry(f"{base}/jobs", lastmod=today, changefreq="daily")

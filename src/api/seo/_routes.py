@@ -4,13 +4,11 @@ import html
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import get_session
-from src.enums import JobStatus
-from src.models import Job
+from src.services.public.jobs import get_published_job_orm, list_featured_published_jobs
 
 from . import _jsonld as jsonld
 from ._content import (
@@ -41,13 +39,7 @@ async def og_home(
     site_url = settings.frontend_base_url
     title = HOME_TITLE
 
-    result = await session.execute(
-        select(Job)
-        .where(Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
-        .order_by(Job.is_featured.desc(), Job.created_at.desc())  # pyright: ignore[reportAttributeAccessIssue]
-        .limit(6)
-    )
-    featured = list(result.scalars().all())
+    featured = await list_featured_published_jobs(session, limit=6)
 
     e = html.escape
     items = "".join(
@@ -89,13 +81,7 @@ async def og_jobs_index(
     site_url = settings.frontend_base_url
     title = JOBS_TITLE
 
-    result = await session.execute(
-        select(Job)
-        .where(Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
-        .order_by(Job.is_featured.desc(), Job.created_at.desc())  # pyright: ignore[reportAttributeAccessIssue]
-        .limit(JOBS_INDEX_LIMIT)
-    )
-    jobs = list(result.scalars().all())
+    jobs = await list_featured_published_jobs(session, limit=JOBS_INDEX_LIMIT)
 
     e = html.escape
     items = []
@@ -152,11 +138,7 @@ async def og_job(
     and search-engine crawlers (Googlebot). Real browsers fall through to
     the SPA.
     """
-    job = (
-        await session.execute(
-            select(Job).where(Job.id == job_id, Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
-        )
-    ).scalar_one_or_none()
+    job = await get_published_job_orm(job_id, session)
     if job is None:
         raise HTTPException(status_code=404, detail="job_not_found")
 

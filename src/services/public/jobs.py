@@ -1,5 +1,7 @@
 """Public job board service functions (no authentication required)."""
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -109,3 +111,41 @@ async def get_published_job(
             )
 
     return job_read
+
+
+async def get_published_job_orm(job_id: int, session: AsyncSession) -> Job | None:
+    """Get a published job by ID as the raw ORM object, for SEO prerendering."""
+    return (
+        await session.execute(
+            select(Job).where(  # pyright: ignore[reportArgumentType]
+                Job.id == job_id, Job.status == JobStatus.PUBLISHED
+            )
+        )
+    ).scalar_one_or_none()
+
+
+async def list_featured_published_jobs(
+    session: AsyncSession, *, limit: int
+) -> list[Job]:
+    """Published jobs, featured first then newest, as raw ORM objects.
+
+    For SEO prerendering (`/api/og/home`, `/api/og/jobs`), which renders
+    full `Job` fields rather than the public-board's restricted schema.
+    """
+    result = await session.execute(
+        select(Job)
+        .where(Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
+        .order_by(Job.is_featured.desc(), Job.created_at.desc())  # pyright: ignore[reportAttributeAccessIssue]
+        .limit(limit)
+    )
+    return list(result.scalars().all())
+
+
+async def list_published_job_sitemap_entries(
+    session: AsyncSession,
+) -> list[tuple[int, datetime | None]]:
+    """`(id, updated_at)` for every published job, for sitemap.xml generation."""
+    result = await session.execute(
+        select(Job.id, Job.updated_at).where(Job.status == JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
+    )
+    return list(result.all())
