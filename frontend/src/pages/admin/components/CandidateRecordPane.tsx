@@ -84,13 +84,15 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
     );
   }
 
+  const recordId = c.id;
+
   async function handleDeleteConfirm() {
     setDeleting(true);
     try {
-      await deleteCandidate(c.id);
+      await deleteCandidate(recordId);
       toast.success(t("admin:candidates.deletedToast"));
       setDeleteOpen(false);
-      onDeleted(c.id);
+      onDeleted(recordId);
       navigate("/admin/candidates");
     } catch {
       toast.error(t("admin:candidates.errors.deleteFailed"));
