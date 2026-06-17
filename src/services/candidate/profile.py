@@ -13,6 +13,8 @@ import hashlib
 import logging
 import re
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.services.storage import StorageProvider
 from src.models import CandidateProfile
 from src.schemas import CandidateMeUpdate
@@ -33,7 +35,9 @@ _SAFE_FILENAME = re.compile(r"^[\w.\-]+$")
 _MAX_DISPLAY_FILENAME_LEN = 100
 
 
-def apply_identity_patch(profile: CandidateProfile, patch: CandidateMeUpdate) -> None:
+async def apply_identity_patch(
+    profile: CandidateProfile, patch: CandidateMeUpdate, session: AsyncSession
+) -> None:
     """Apply only the fields the candidate is allowed to change on themselves.
 
     Partial-update semantics: omitted keys leave the existing value alone.
@@ -58,6 +62,8 @@ def apply_identity_patch(profile: CandidateProfile, patch: CandidateMeUpdate) ->
         profile.resume_filename = _resolve_renamed_filename(
             profile=profile, requested=data["resume_filename"]
         )
+    await session.flush()
+    await session.refresh(profile)
 
 
 def _resolve_renamed_filename(
@@ -117,6 +123,7 @@ async def replace_resume(
     filename: str,
     content_type: str | None,
     storage: StorageProvider,
+    session: AsyncSession,
 ) -> str:
     """Replace the candidate's profile-level resume, deleting the prior file.
 
@@ -163,10 +170,14 @@ async def replace_resume(
             # to blocking the candidate's update on a storage outage.
             logger.exception("Failed to delete previous resume %s", old_key)
 
+    await session.flush()
+    await session.refresh(profile)
     return new_key
 
 
-async def remove_resume(profile: CandidateProfile, storage: StorageProvider) -> None:
+async def remove_resume(
+    profile: CandidateProfile, storage: StorageProvider, session: AsyncSession
+) -> None:
     """Idempotent resume removal: delete the file (best-effort) + null the path.
 
     No-op when there is no resume on file. Application snapshots are untouched.
@@ -181,3 +192,5 @@ async def remove_resume(profile: CandidateProfile, storage: StorageProvider) -> 
             await storage.delete_file(old_key)
         except Exception:
             logger.exception("Failed to delete resume %s during remove", old_key)
+    await session.flush()
+    await session.refresh(profile)

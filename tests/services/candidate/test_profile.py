@@ -27,10 +27,20 @@ def _make_profile(**overrides) -> CandidateProfile:
     return CandidateProfile(**base)
 
 
-def test_apply_identity_patch_only_writes_set_fields():
+def _make_session() -> AsyncMock:
+    session = AsyncMock()
+    session.flush = AsyncMock(return_value=None)
+    session.refresh = AsyncMock(return_value=None)
+    return session
+
+
+@pytest.mark.asyncio
+async def test_apply_identity_patch_only_writes_set_fields():
     profile = _make_profile(linkedin_url="https://linkedin.com/in/old")
-    apply_identity_patch(
-        profile, CandidateMeUpdate(full_name="New Name", phone="050-111-2222")
+    await apply_identity_patch(
+        profile,
+        CandidateMeUpdate(full_name="New Name", phone="050-111-2222"),
+        _make_session(),
     )
     assert profile.full_name == "New Name"
     assert profile.phone == "050-111-2222"
@@ -38,7 +48,8 @@ def test_apply_identity_patch_only_writes_set_fields():
     assert profile.linkedin_url == "https://linkedin.com/in/old"
 
 
-def test_apply_identity_patch_allows_clearing_linkedin():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_allows_clearing_linkedin():
     """linkedin_url is the one field where explicit-null clears the value.
 
     Passing ``linkedin_url=None`` in the patch is distinct from omitting
@@ -46,18 +57,24 @@ def test_apply_identity_patch_allows_clearing_linkedin():
     fields, so this null reaches the writer and clears the column.
     """
     profile = _make_profile(linkedin_url="https://linkedin.com/in/old")
-    apply_identity_patch(profile, CandidateMeUpdate(linkedin_url=None))
+    await apply_identity_patch(
+        profile, CandidateMeUpdate(linkedin_url=None), _make_session()
+    )
     assert profile.linkedin_url is None
 
 
-def test_apply_identity_patch_omitted_linkedin_preserves_existing():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_omitted_linkedin_preserves_existing():
     """When the patch leaves linkedin_url out entirely, the old value stays."""
     profile = _make_profile(linkedin_url="https://linkedin.com/in/keep")
-    apply_identity_patch(profile, CandidateMeUpdate(full_name="Updated Name"))
+    await apply_identity_patch(
+        profile, CandidateMeUpdate(full_name="Updated Name"), _make_session()
+    )
     assert profile.linkedin_url == "https://linkedin.com/in/keep"
 
 
-def test_apply_identity_patch_clears_phone_on_explicit_null():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_clears_phone_on_explicit_null():
     """phone is nullable on the model — explicit null clears the value.
 
     Was rejecting null because only full_name + email are mandatory identity
@@ -66,37 +83,49 @@ def test_apply_identity_patch_clears_phone_on_explicit_null():
     has a phone, regardless of what's on the profile.
     """
     profile = _make_profile(phone="050-111-2222")
-    apply_identity_patch(profile, CandidateMeUpdate(phone=None))
+    await apply_identity_patch(profile, CandidateMeUpdate(phone=None), _make_session())
     assert profile.phone is None
 
 
-def test_apply_identity_patch_renames_resume_filename_with_same_extension():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_renames_resume_filename_with_same_extension():
     """Candidates can edit the display label, keeping the locked extension."""
     profile = _make_profile(
         resume_path="resumes/abc.pdf", resume_filename="Resume_v1.pdf"
     )
-    apply_identity_patch(profile, CandidateMeUpdate(resume_filename="Lahav_Resume.pdf"))
+    await apply_identity_patch(
+        profile, CandidateMeUpdate(resume_filename="Lahav_Resume.pdf"), _make_session()
+    )
     assert profile.resume_filename == "Lahav_Resume.pdf"
 
 
-def test_apply_identity_patch_rejects_resume_filename_extension_change():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_rejects_resume_filename_extension_change():
     """The extension is locked to the bytes on disk — can't be renamed."""
     profile = _make_profile(resume_path="resumes/abc.pdf", resume_filename="Resume.pdf")
     with pytest.raises(ValueError, match="extension is locked"):
-        apply_identity_patch(profile, CandidateMeUpdate(resume_filename="Resume.docx"))
+        await apply_identity_patch(
+            profile, CandidateMeUpdate(resume_filename="Resume.docx"), _make_session()
+        )
 
 
-def test_apply_identity_patch_rejects_resume_filename_without_stored_resume():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_rejects_resume_filename_without_stored_resume():
     """Can't label a resume that doesn't exist."""
     profile = _make_profile(resume_path=None, resume_filename=None)
     with pytest.raises(ValueError, match="without a stored resume"):
-        apply_identity_patch(profile, CandidateMeUpdate(resume_filename="hello.pdf"))
+        await apply_identity_patch(
+            profile, CandidateMeUpdate(resume_filename="hello.pdf"), _make_session()
+        )
 
 
-def test_apply_identity_patch_clears_resume_filename_on_explicit_null():
+@pytest.mark.asyncio
+async def test_apply_identity_patch_clears_resume_filename_on_explicit_null():
     """Explicit-null clears the label — file on disk is unaffected."""
     profile = _make_profile(resume_path="resumes/abc.pdf", resume_filename="Resume.pdf")
-    apply_identity_patch(profile, CandidateMeUpdate(resume_filename=None))
+    await apply_identity_patch(
+        profile, CandidateMeUpdate(resume_filename=None), _make_session()
+    )
     assert profile.resume_filename is None
     assert profile.resume_path == "resumes/abc.pdf"
 
@@ -109,7 +138,7 @@ async def test_replace_resume_uploads_and_deletes_old_file():
     storage.delete_file = AsyncMock(return_value=True)
 
     new_key = await replace_resume(
-        profile, _PDF_BYTES, "new.pdf", "application/pdf", storage
+        profile, _PDF_BYTES, "new.pdf", "application/pdf", storage, _make_session()
     )
 
     assert new_key == "resumes/new.pdf"
@@ -127,7 +156,9 @@ async def test_replace_resume_first_upload_does_not_attempt_delete():
     storage.upload_file = AsyncMock(return_value="resumes/first.pdf")
     storage.delete_file = AsyncMock(return_value=True)
 
-    await replace_resume(profile, _PDF_BYTES, "first.pdf", "application/pdf", storage)
+    await replace_resume(
+        profile, _PDF_BYTES, "first.pdf", "application/pdf", storage, _make_session()
+    )
 
     assert profile.resume_path == "resumes/first.pdf"
     storage.delete_file.assert_not_called()
@@ -139,7 +170,9 @@ async def test_replace_resume_rejects_wrong_extension():
     storage = AsyncMock()
 
     with pytest.raises(ValueError):
-        await replace_resume(profile, _PDF_BYTES, "file.txt", "text/plain", storage)
+        await replace_resume(
+            profile, _PDF_BYTES, "file.txt", "text/plain", storage, _make_session()
+        )
     storage.upload_file.assert_not_called()
 
 
@@ -150,7 +183,9 @@ async def test_replace_resume_rejects_oversize():
     too_big = b"x" * (11 * 1024 * 1024)
 
     with pytest.raises(ValueError):
-        await replace_resume(profile, too_big, "huge.pdf", "application/pdf", storage)
+        await replace_resume(
+            profile, too_big, "huge.pdf", "application/pdf", storage, _make_session()
+        )
 
 
 @pytest.mark.asyncio
@@ -160,7 +195,9 @@ async def test_replace_resume_rejects_bad_magic_bytes():
     fake_pdf = b"NOT-A-REAL-PDF" + b"\x00" * 50
 
     with pytest.raises(ValueError):
-        await replace_resume(profile, fake_pdf, "fake.pdf", "application/pdf", storage)
+        await replace_resume(
+            profile, fake_pdf, "fake.pdf", "application/pdf", storage, _make_session()
+        )
 
 
 @pytest.mark.asyncio
@@ -172,7 +209,7 @@ async def test_replace_resume_storage_delete_failure_is_swallowed():
     storage.delete_file = AsyncMock(side_effect=RuntimeError("storage down"))
 
     new_key = await replace_resume(
-        profile, _PDF_BYTES, "new.pdf", "application/pdf", storage
+        profile, _PDF_BYTES, "new.pdf", "application/pdf", storage, _make_session()
     )
     assert new_key == "resumes/new.pdf"
     assert profile.resume_path == "resumes/new.pdf"
@@ -183,7 +220,7 @@ async def test_remove_resume_idempotent_when_already_empty():
     profile = _make_profile(resume_path=None)
     storage = AsyncMock()
 
-    await remove_resume(profile, storage)
+    await remove_resume(profile, storage, _make_session())
     assert profile.resume_path is None
     storage.delete_file.assert_not_called()
 
@@ -194,6 +231,6 @@ async def test_remove_resume_clears_path_and_deletes_file():
     storage = AsyncMock()
     storage.delete_file = AsyncMock(return_value=True)
 
-    await remove_resume(profile, storage)
+    await remove_resume(profile, storage, _make_session())
     assert profile.resume_path is None
     storage.delete_file.assert_awaited_once_with("resumes/keep.pdf")

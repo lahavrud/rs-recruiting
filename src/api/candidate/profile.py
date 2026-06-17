@@ -84,9 +84,7 @@ async def patch_me(
     user, profile = current
     try:
         async with transactional(session):
-            apply_identity_patch(profile, patch)
-            await session.flush()
-            await session.refresh(profile)
+            await apply_identity_patch(profile, patch, session)
     except ValueError as e:
         # Extension-lock on resume_filename rename + the "rename without
         # a stored resume" guard both raise here.
@@ -115,9 +113,8 @@ async def upload_resume(
                 filename,
                 resume.content_type,
                 get_storage_provider(),
+                session,
             )
-            await session.flush()
-            await session.refresh(profile)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -134,7 +131,5 @@ async def delete_resume(
     """Idempotent resume removal."""
     user, profile = current
     async with transactional(session):
-        await remove_resume(profile, get_storage_provider())
-        await session.flush()
-        await session.refresh(profile)
+        await remove_resume(profile, get_storage_provider(), session)
     return _to_me_read(user, profile)
