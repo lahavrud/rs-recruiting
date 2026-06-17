@@ -84,6 +84,10 @@ async def test_update_job_not_found(session: AsyncSession):
 
 _PATCH_EMAIL = "src.services.admin.jobs.enqueue_email_task"
 _PATCH_DEFER = "src.services.admin.jobs.defer_after_commit"
+# Company-notification emails (closure / generic update) are built in the
+# sibling _job_emails module, which holds its own imports of these names.
+_PATCH_NOTIFY_EMAIL = "src.services.admin._job_emails.enqueue_email_task"
+_PATCH_NOTIFY_DEFER = "src.services.admin._job_emails.defer_after_commit"
 
 
 @pytest.mark.asyncio
@@ -93,8 +97,8 @@ async def test_update_job_enqueues_email_on_real_change(
     created = await admin_create_job(_payload(company_with_user.id), session)
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
             await update_job(
                 created.id,
                 JobAdminUpdate(title="Updated Title"),
@@ -115,8 +119,8 @@ async def test_update_job_no_email_on_noop(
     created = await admin_create_job(_payload(company_with_user.id), session)
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
             await update_job(
                 created.id,
                 JobAdminUpdate(title="Backend Engineer"),  # same as original
@@ -146,8 +150,8 @@ async def test_update_job_no_email_when_company_has_no_user(
     created = await admin_create_job(_payload(orphan_company.id), session)
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
             await update_job(
                 created.id,
                 JobAdminUpdate(title="New Title"),
@@ -230,8 +234,8 @@ async def test_close_published_job_sends_company_closure_email(
     created = await admin_create_job(_payload(company_with_user.id), session)
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
             await update_job(
                 created.id,
                 JobAdminUpdate(status=JobStatus.CLOSED),
@@ -255,8 +259,8 @@ async def test_close_published_job_with_other_changes_sends_two_emails(
     created = await admin_create_job(_payload(company_with_user.id), session)
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
             await update_job(
                 created.id,
                 JobAdminUpdate(status=JobStatus.CLOSED, title="New Title"),
@@ -287,13 +291,17 @@ async def test_close_published_job_transitions_active_applications(
     )
     await session.commit()
 
-    with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
-        await update_job(
-            job_id,
-            JobAdminUpdate(status=JobStatus.CLOSED),
-            session,
-        )
-        await session.commit()
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(
+                job_id,
+                JobAdminUpdate(status=JobStatus.CLOSED),
+                session,
+            )
+            await session.commit()
 
     await session.refresh(app_new)
     await session.refresh(app_approved)
@@ -315,14 +323,18 @@ async def test_close_published_job_sends_candidate_emails(
     await _make_application(session, job_id, "c2@test.com")
     await session.commit()
 
-    with patch(_PATCH_EMAIL) as mock_email:
-        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
-            await update_job(
-                job_id,
-                JobAdminUpdate(status=JobStatus.CLOSED),
-                session,
-            )
-            await session.commit()
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_EMAIL) as mock_email:
+            with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+                await update_job(
+                    job_id,
+                    JobAdminUpdate(status=JobStatus.CLOSED),
+                    session,
+                )
+                await session.commit()
 
     recipients = {c.kwargs["to"] for c in mock_email.call_args_list}
     assert "c1@test.com" in recipients
@@ -342,14 +354,18 @@ async def test_close_published_job_records_audit_events(
     app2 = await _make_application(session, job_id, "audit2@test.com")
     await session.commit()
 
-    with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
-        await update_job(
-            job_id,
-            JobAdminUpdate(status=JobStatus.CLOSED),
-            session,
-            actor_user_id=42,
-        )
-        await session.commit()
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(
+                job_id,
+                JobAdminUpdate(status=JobStatus.CLOSED),
+                session,
+                actor_user_id=42,
+            )
+            await session.commit()
 
     rows = list(
         (
@@ -392,9 +408,13 @@ async def test_non_published_to_closed_skips_cascade(
     app = await _make_application(session, job.id, "p@test.com")
     await session.commit()
 
-    with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
-        await update_job(job.id, JobAdminUpdate(status=JobStatus.CLOSED), session)
-        await session.commit()
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(job.id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+            await session.commit()
 
     await session.refresh(app)
     assert (

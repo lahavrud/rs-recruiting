@@ -252,4 +252,3 @@ function TopJobsList({
     </div>
   );
 }
-
