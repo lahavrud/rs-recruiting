@@ -33,11 +33,25 @@ async def list_candidates(
     *,
     cursor: str | None = None,
     limit: int | None = None,
+    q: str | None = None,
 ) -> CursorPage[CandidateProfileRead]:
-    """Return one page of candidate profiles, newest first."""
+    """Return one page of candidate profiles, newest first.
+
+    `q`, when given, case-insensitively substring-matches name/email/phone.
+    """
     page_size = clamp_limit(limit)
+    base = select(CandidateProfile)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        base = base.where(
+            or_(
+                CandidateProfile.full_name.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.email.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
+            )
+        )
     query = apply_cursor(
-        select(CandidateProfile),
+        base,
         sort_col=CandidateProfile.created_at,  # pyright: ignore[reportArgumentType]
         id_col=CandidateProfile.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,

@@ -7,13 +7,18 @@ export interface CandidateListParams {
   limit?: number;
 }
 
+export interface CandidateSearchParams extends CandidateListParams {
+  q?: string;
+}
+
 export async function getCandidates(
-  params?: CandidateListParams,
+  params?: CandidateSearchParams,
   signal?: AbortSignal,
 ): Promise<CursorPage<CandidateProfileRead>> {
   const query: Record<string, string | number> = {};
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
+  if (params?.q) query.q = params.q;
   const res = await api.get<CursorPage<CandidateProfileRead>>("/api/admin/candidates", {
     params: query,
     signal,

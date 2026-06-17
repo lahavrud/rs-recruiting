@@ -102,6 +102,58 @@ async def test_list_candidates_paginates_with_cursor(session: AsyncSession):
     assert seen[-1] == "user00@test.com"
 
 
+@pytest.mark.asyncio
+async def test_list_candidates_filters_by_q_case_insensitive(session: AsyncSession):
+    """`q` substring-matches name/email/phone, case-insensitively."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+            ),
+            CandidateProfile(
+                full_name="Yossi Levi", email="yossi@test.com", phone="0509998877"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="DANA")
+    assert [item.email for item in page.items] == ["dana@test.com"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_filters_by_q_matches_phone(session: AsyncSession):
+    """`q` also matches against the phone column."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+            ),
+            CandidateProfile(
+                full_name="Yossi Levi", email="yossi@test.com", phone="0509998877"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="9998877")
+    assert [item.email for item in page.items] == ["yossi@test.com"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_blank_q_returns_all(session: AsyncSession):
+    """A blank/whitespace `q` is treated as no filter."""
+    session.add(
+        CandidateProfile(
+            full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+        )
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="   ")
+    assert len(page.items) == 1
+
+
 # ── get_candidate ─────────────────────────────────────────────────────────────
 
 

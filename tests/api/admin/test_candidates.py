@@ -43,6 +43,28 @@ async def test_list_candidates_requires_admin(public_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_list_candidates_filters_by_q(
+    admin_client: AsyncClient,
+    candidate_profile: CandidateProfile,
+):
+    """`q` filters by name/email/phone, case-insensitively."""
+    response = await admin_client.get(
+        "/api/admin/candidates",
+        params={"q": candidate_profile.full_name.upper()[:4]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == candidate_profile.id
+
+    no_match = await admin_client.get(
+        "/api/admin/candidates", params={"q": "zzz-no-such-candidate"}
+    )
+    assert no_match.status_code == 200
+    assert no_match.json()["items"] == []
+
+
+@pytest.mark.asyncio
 async def test_list_candidates_invalid_cursor_returns_400(admin_client: AsyncClient):
     """Garbage cursors return 400 instead of leaking a stack trace."""
     response = await admin_client.get(

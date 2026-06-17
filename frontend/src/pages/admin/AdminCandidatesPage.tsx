@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { deleteCandidate, getCandidates } from "@/services/adminCandidates";
@@ -28,10 +28,16 @@ export default function AdminCandidatesPage() {
   const { id } = useParams<{ id: string }>();
   const selectedId = id != null ? Number(id) : null;
 
+  // Search re-fetches from the server (debounced), resetting the cursor —
+  // matching against already-loaded items only would miss candidates
+  // further down the (cursor-paginated) list.
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 200);
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<CandidateProfileRead>> =>
-      getCandidates({ cursor }),
-    [],
+      getCandidates({ cursor, q: debouncedQuery.trim() || undefined }),
+    [debouncedQuery],
   );
 
   const {
@@ -47,20 +53,6 @@ export default function AdminCandidatesPage() {
   const [deletePending, setDeletePending] = useState<CandidateProfileRead | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
-
-  // Client-side search on the loaded candidate set.
-  const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounce(query, 200);
-
-  const filteredCandidates = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return candidates;
-    return candidates.filter((c) =>
-      [c.full_name, c.email, c.phone ?? "", c.linkedin_url ?? ""].some((s) =>
-        s.toLowerCase().includes(q),
-      ),
-    );
-  }, [candidates, debouncedQuery]);
 
   // Redirect to the list when /admin/candidates/:id has a non-numeric id.
   useEffect(() => {
@@ -140,17 +132,19 @@ export default function AdminCandidatesPage() {
         ) : error ? (
           <ErrorState message={t("admin:candidates.loadError")} onRetry={reload} />
         ) : candidates.length === 0 ? (
-          <EmptyState
-            eyebrow={t("admin:candidates.title")}
-            headline={t("admin:candidates.empty")}
-          />
-        ) : filteredCandidates.length === 0 ? (
-          <NoResults />
+          debouncedQuery.trim() ? (
+            <NoResults />
+          ) : (
+            <EmptyState
+              eyebrow={t("admin:candidates.title")}
+              headline={t("admin:candidates.empty")}
+            />
+          )
         ) : (
           <>
             <div className="md:hidden">
               <CandidatesRailList
-                candidates={filteredCandidates}
+                candidates={candidates}
                 onView={(c) => navigate(`/admin/candidates/${c.id}`)}
                 onDelete={setDeletePending}
                 sentinelRef={sentinelRef}
@@ -159,7 +153,7 @@ export default function AdminCandidatesPage() {
             </div>
 
             <CandidatesTable
-              candidates={filteredCandidates}
+              candidates={candidates}
               onView={(c) => navigate(`/admin/candidates/${c.id}`)}
               onDelete={setDeletePending}
               sentinelRef={sentinelRef}
@@ -206,15 +200,17 @@ export default function AdminCandidatesPage() {
           ) : error ? (
             <ErrorState message={t("admin:candidates.loadError")} onRetry={reload} />
           ) : candidates.length === 0 ? (
-            <EmptyState
-              eyebrow={t("admin:candidates.title")}
-              headline={t("admin:candidates.empty")}
-            />
-          ) : filteredCandidates.length === 0 ? (
-            <NoResults />
+            debouncedQuery.trim() ? (
+              <NoResults />
+            ) : (
+              <EmptyState
+                eyebrow={t("admin:candidates.title")}
+                headline={t("admin:candidates.empty")}
+              />
+            )
           ) : (
             <CandidatesRailList
-              candidates={filteredCandidates}
+              candidates={candidates}
               selectedId={selectedId}
               onView={(c) => navigate(`/admin/candidates/${c.id}`)}
               onDelete={setDeletePending}

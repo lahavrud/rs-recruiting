@@ -28,12 +28,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 async def get_candidates(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    q: str | None = Query(default=None, max_length=255),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[CandidateProfileRead]:
-    """List candidate profiles, newest first, cursor-paginated."""
+    """List candidate profiles, newest first, cursor-paginated.
+
+    `q`, when given, filters by name/email/phone (case-insensitive substring).
+    """
     try:
-        return await list_candidates(session, cursor=cursor, limit=limit)
+        return await list_candidates(session, cursor=cursor, limit=limit, q=q)
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
 
