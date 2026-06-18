@@ -23,7 +23,7 @@ from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import JobAdminCreate, JobAdminUpdate, JobRead
-from src.services.admin._job_emails import _FIELD_LABELS, notify_company_of_update
+from src.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
 from src.services.utils.audit import record_audit_event
 from src.templates.email import build_job_closed_candidate_html
@@ -122,7 +122,7 @@ async def update_job(
     payload = data.model_dump(exclude_unset=True)
 
     changed_labels = [
-        _FIELD_LABELS.get(field, field)
+        FIELD_LABELS.get(field, field)
         for field, value in payload.items()
         if getattr(job, field) != value
     ]

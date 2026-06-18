@@ -9,7 +9,7 @@ from src.templates.email import (
     build_job_closed_company_html,
 )
 
-_FIELD_LABELS: dict[str, str] = {
+FIELD_LABELS: dict[str, str] = {
     "title": "כותרת",
     "short_description": "תיאור קצר",
     "description": "תיאור מפורט",
@@ -106,7 +106,7 @@ def notify_company_of_update(
             ),
         )
 
-    status_label = _FIELD_LABELS.get("status")
+    status_label = FIELD_LABELS.get("status")
     notify_labels = [
         lbl for lbl in changed_labels if not (is_closing and lbl == status_label)
     ]
