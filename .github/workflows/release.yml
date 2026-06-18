@@ -1,8 +1,11 @@
 name: Release
 
-# Triggered by tag push from either deploy-staging.yml (`-rc.N` tags) or
-# cut-release.yml (final `vX.Y.Z` tags). RC tags only build & push an image —
-# no deploy target until #890 adds ephemeral staging. Final tags promote the
+# Triggered by deploy-staging.yml (`-rc.N` tags) or cut-release.yml (final
+# `vX.Y.Z` tags) explicitly dispatching this workflow against the tag they
+# just pushed — a GITHUB_TOKEN-authored push doesn't fire push-based workflow
+# runs on its own, so the push trigger below only catches a tag pushed with
+# a human's own git credentials. RC tags only build & push an image — no
+# deploy target until #890 adds ephemeral staging. Final tags promote the
 # already-built RC image (no rebuild) and run the full production deploy.
 # See docs/release-process.md for the full release ritual.
 
@@ -10,6 +13,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 concurrency:
   group: deploy-production

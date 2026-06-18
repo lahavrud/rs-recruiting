@@ -31,6 +31,7 @@ When editing workflows:
 - OIDC permissions block must stay on any job that calls AWS (`id-token: write`, `contents: read`)
 - Poll SSM run-command status after dispatch — never fire-and-forget
 - `contents: write` is only granted to `deploy-staging.yml` and `cut-release.yml` — the only two workflows that push to the repo
+- `deploy-staging.yml`/`cut-release.yml` explicitly run `gh workflow run release.yml --ref <tag>` after pushing a tag, instead of relying on `release.yml`'s push trigger — a tag pushed with the default `GITHUB_TOKEN` doesn't fire push-based workflow runs (GitHub's recursion-prevention rule). Don't remove the dispatch step as "redundant" with the push trigger.
 
 ## Infrastructure repo
 Terraform/OpenTofu lives in a separate repo (`rs-recruiting-infra`). Do not modify infrastructure from this repo.
