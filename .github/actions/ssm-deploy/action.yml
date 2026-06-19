@@ -8,6 +8,14 @@ inputs:
   instance-id:
     description: "EC2 instance ID to run the deploy command on"
     required: true
+  environment:
+    description: "Deploy environment — selects the deploy S3 bucket (rs-recruiting-deploy-<env>-<account>)"
+    required: false
+    default: prod
+  script-name:
+    description: "Deploy script to fetch from the bucket and run on the box"
+    required: false
+    default: deploy_ec2.sh
 
 runs:
   using: composite
@@ -17,9 +25,11 @@ runs:
       shell: bash
       run: |
         REF="${{ inputs.ref }}"
+        ENV="${{ inputs.environment }}"
+        SCRIPT="${{ inputs.script-name }}"
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        S3_BUCKET="rs-recruiting-deploy-prod-${ACCOUNT_ID}"
-        DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${REF}/deploy_ec2.sh /tmp/deploy_${REF}.sh && IMAGE_TAG=${REF} bash /tmp/deploy_${REF}.sh"
+        S3_BUCKET="rs-recruiting-deploy-${ENV}-${ACCOUNT_ID}"
+        DEPLOY_CMD="aws s3 cp s3://${S3_BUCKET}/deploy/${REF}/${SCRIPT} /tmp/deploy_${REF}.sh && ENVIRONMENT=${ENV} IMAGE_TAG=${REF} bash /tmp/deploy_${REF}.sh"
         PARAMS=$(jq -n --arg cmd "$DEPLOY_CMD" '{commands: [$cmd]}')
         COMMAND_ID=$(aws ssm send-command \
           --instance-ids "${{ inputs.instance-id }}" \

@@ -152,7 +152,11 @@ class Settings(BaseSettings):
     ga4_api_secret: str = ""  # Measurement Protocol API secret
 
     # Environment
-    environment: Literal["development", "production"] = "development"
+    # "staging" is the ephemeral RC-validation environment (separate AWS
+    # account, HTTP-only). It behaves like production — loads config from SSM,
+    # enforces rate limiting and the FRONTEND_BASE_URL check — except where its
+    # plain-HTTP ingress forces a difference (see _refresh_cookie_secure).
+    environment: Literal["development", "staging", "production"] = "development"
 
     # Trusted reverse-proxy IPs/CIDRs (issue #647)
     # Comma-separated list of IP addresses or CIDR ranges whose X-Forwarded-For
@@ -188,7 +192,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        if os.environ.get("ENVIRONMENT") == "production":
+        if os.environ.get("ENVIRONMENT") in ("production", "staging"):
             return (
                 init_settings,
                 SsmSettingsSource(settings_cls, _ssm_path_prefix()),
@@ -238,14 +242,14 @@ def validate_settings() -> None:
     if settings.email_provider == "ses" and not settings.aws_ses_from_email:
         raise ValueError("AWS_SES_FROM_EMAIL must be set when EMAIL_PROVIDER=ses")
 
-    # Validate frontend base URL in production
-    if settings.environment == "production" and (
+    # Validate frontend base URL in deployed environments
+    if settings.environment in ("production", "staging") and (
         "localhost" in settings.frontend_base_url
         or "127.0.0.1" in settings.frontend_base_url
     ):
         raise ValueError(
-            "FRONTEND_BASE_URL must be set to the real domain in production "
-            f"(current value: {settings.frontend_base_url})"
+            "FRONTEND_BASE_URL must be set to the real domain in "
+            f"{settings.environment} (current value: {settings.frontend_base_url})"
         )
 
 

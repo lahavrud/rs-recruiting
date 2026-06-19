@@ -19,7 +19,8 @@ Never hardcode a value that should be in SSM. Never commit `.env` files that con
 - `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend)
 - `deploy-staging.yml` — manual. The only way an `-rc.N` tag gets created; computes the next RC version from commits since the last final tag and pushes it
 - `cut-release.yml` — manual. Promotes an existing `-rc.N` tag to its final `vX.Y.Z` on the same commit — no rebuild, no bump arithmetic
-- `release.yml` — triggered by tag push (`v*.*.*`). Builds & pushes the RC image; on a final tag, re-tags the existing image (no rebuild), deploys frontend + backend, creates the GitHub Release
+- `release.yml` — triggered by tag push (`v*.*.*`). RC tag: builds & pushes the image (prod ECR + mirrored to the staging-account ECR) and triggers the infra repo's `staging-apply.yml`. Final tag: re-tags the existing image (no rebuild), deploys frontend + backend, creates the GitHub Release, then triggers `staging-destroy.yml`
+- `staging-deploy.yml` — `repository_dispatch` (`staging-provisioned`) from the infra repo's `staging-apply.yml`. Builds the frontend and SSM-deploys the RC to the ephemeral staging box (migrate + seed mock data; nginx serves the bundle). Staging is HTTP-only with no observability — it reuses `ssm-deploy` with `environment: staging` + a separate `deploy_ec2_staging.sh`/`docker-compose.staging.yml`/`nginx.staging.conf`
 - `deploy.yml` — manual only. Redeploys an already-built tag/SHA — rollback / escape hatch, not the normal release path
 - `rollback.yml` — manual. Redeploys `PREV_SHA`
 - `security-audit.yml` — weekly pip-audit for CVEs
@@ -35,6 +36,8 @@ When editing workflows:
 
 ## Infrastructure repo
 Terraform/OpenTofu lives in a separate repo (`rs-recruiting-infra`). Do not modify infrastructure from this repo.
+
+The **ephemeral staging** tofu lifecycle lives in the infra repo: `staging-apply.yml` / `staging-destroy.yml` / `staging-ttl-check.yml` (apply/destroy `tofu/staging-app` as a CI `tofu-provisioner` OIDC role; idle-expiry after 3 days). Cross-repo triggers (app↔infra) use a shared GitHub App (`CI_APP_ID` / `CI_APP_PRIVATE_KEY` secrets in both repos), because the default `GITHUB_TOKEN` can't dispatch workflows in another repo. App-repo secrets: `AWS_STAGING_DEPLOY_ROLE_ARN`, `STAGING_ECR_REGISTRY`.
 
 ## Observability
 - Sentry: backend DSN in SSM, frontend DSN in build args

@@ -4,9 +4,12 @@ name: Release
 # `vX.Y.Z` tags) explicitly dispatching this workflow against the tag they
 # just pushed — a GITHUB_TOKEN-authored push doesn't fire push-based workflow
 # runs on its own, so the push trigger below only catches a tag pushed with
-# a human's own git credentials. RC tags only build & push an image — no
-# deploy target until #890 adds ephemeral staging. Final tags promote the
-# already-built RC image (no rebuild) and run the full production deploy.
+# a human's own git credentials. RC tags build & push the image (to prod ECR
+# for later promotion, and mirrored to the staging-account ECR), then trigger
+# the infra repo's staging-apply.yml to spin up ephemeral staging; staging-
+# deploy.yml ships the RC there via the provisioning callback. Final tags
+# promote the already-built RC image (no rebuild), run the full production
+# deploy, then tear staging down.
 # See docs/release-process.md for the full release ritual.
 
 on:
@@ -71,6 +74,43 @@ jobs:
             ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.sha }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
+
+      # Mirror the RC image into the staging account's ECR so the ephemeral
+      # staging EC2 (separate account) can pull it. imagetools copies the
+      # manifest server-side, so this works whether the image was just built or
+      # already existed (build skipped). Logging in to staging ECR leaves the
+      # prod login in place — docker keeps per-registry credentials.
+      - name: Log in to staging ECR
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_STAGING_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Mirror RC image to staging ECR
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ secrets.STAGING_ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }} \
+            ${{ secrets.ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
+
+      - name: Mint GitHub App token (infra repo)
+        id: app-token
+        # TODO: pin to a commit SHA to match the repo's action-pinning convention.
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          owner: lahavrud
+          repositories: rs-recruiting-infra
+
+      - name: Provision ephemeral staging
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh workflow run staging-apply.yml \
+            -R lahavrud/rs-recruiting-infra \
+            -f rc_tag=${{ github.ref_name }}
 
   # ── Final: promote RC image (no rebuild) ────────────────────────────────
 
@@ -215,6 +255,32 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release create "${{ github.ref_name }}" --generate-notes --repo "${{ github.repository }}"
+
+  # ── Tear down ephemeral staging ───────────────────────────────────────────
+
+  teardown-staging:
+    name: Destroy ephemeral staging
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: ${{ !contains(github.ref_name, '-rc.') && needs.deploy.result == 'success' }}
+    steps:
+      - name: Mint GitHub App token (infra repo)
+        id: app-token
+        # TODO: pin to a commit SHA to match the repo's action-pinning convention.
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          owner: lahavrud
+          repositories: rs-recruiting-infra
+
+      - name: Dispatch staging destroy
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh workflow run staging-destroy.yml \
+            -R lahavrud/rs-recruiting-infra \
+            -f reason=released
 
   # ── Failure notification ──────────────────────────────────────────────────
 
