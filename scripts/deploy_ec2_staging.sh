@@ -43,6 +43,22 @@ echo "==> S3 bucket:    ${S3_BUCKET}"
 echo "==> IMAGE_TAG:    ${IMAGE_TAG}"
 echo "==> Public URL:   ${FRONTEND_BASE_URL}"
 
+# Ephemeral staging provisions a fresh box each cycle, and staging-apply
+# dispatches this deploy the moment tofu finishes — which can race cloud-init/
+# user-data still installing Docker and the compose v2 plugin. Wait for both
+# before proceeding, else `docker compose` exits 125 ("unknown command").
+echo "==> Waiting for Docker + compose plugin (cloud-init may still be running)"
+for _ in $(seq 1 60); do
+  if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+if ! { docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; }; then
+  echo "ERROR: Docker/compose not ready after 5 minutes"
+  exit 1
+fi
+
 echo "==> Logging in to ECR"
 aws ecr get-login-password --region "${REGION}" \
   | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
@@ -74,8 +90,19 @@ if [ "${HEAD_COUNT}" -ne 1 ]; then
   exit 1
 fi
 
-echo "==> Running database migrations"
-docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api alembic upgrade head
+# Staging provisions a brand-new RDS each cycle. The app's 40 Alembic migrations
+# are incremental-only — they ALTER a base schema that was originally built by
+# SQLModel.metadata.create_all() (see src/core/infrastructure/database.py:init_db),
+# with Alembic adopted later to evolve the existing prod DB. So `alembic upgrade
+# head` against an EMPTY database fails on the first ALTER. Bootstrap the way the
+# app and the test suite do (tests/conftest.py): build the schema from the models,
+# then stamp Alembic at head. Do NOT switch this back to `upgrade head`.
+echo "==> Building schema from models (create_all)"
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api \
+  python -c "import asyncio; from src.core.infrastructure.database import init_db; asyncio.run(init_db())"
+
+echo "==> Stamping Alembic at head"
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api alembic stamp head
 
 echo "==> Seeding mock data"
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api \
