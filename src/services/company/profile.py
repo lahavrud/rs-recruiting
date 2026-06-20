@@ -1,5 +1,6 @@
 """Company-facing service functions (self-service data export)."""
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -14,6 +15,8 @@ from src.schemas import (
     UserRead,
 )
 
+logger = logging.getLogger(__name__)
+
 
 async def _resolve_url(storage: StorageProvider, identifier: str | None) -> str | None:
     """Best-effort presign — return None on failure rather than aborting the export.
@@ -25,6 +28,7 @@ async def _resolve_url(storage: StorageProvider, identifier: str | None) -> str 
     try:
         return await storage.get_file_url(identifier)
     except Exception:
+        logger.exception("Failed to resolve URL for key %s", identifier)
         return None
 
 

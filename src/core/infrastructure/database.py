@@ -73,7 +73,8 @@ async def init_db() -> None:
             try:
                 await conn.execute(text(stmt))
             except Exception:
-                pass  # Column already exists — safe to ignore
+                logger.exception("Migration failed: %s", stmt)
+                raise
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

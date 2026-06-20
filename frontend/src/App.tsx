@@ -8,6 +8,7 @@ import CandidateRoute from "@/components/guards/CandidateRoute";
 import CompanyRoute from "@/components/guards/CompanyRoute";
 import AppShell from "@/components/layout/AppShell";
 import CookieConsent from "@/components/ui/CookieConsent";
+import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary";
 import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // Eager — entry funnels Google + direct visits land on most often. Keeping
@@ -134,12 +135,33 @@ export default function App() {
 
                 {/* Public job board */}
                 <Route path="/jobs" element={<JobBoardPage />} />
-                <Route path="/jobs/:id" element={<JobDetailPage />} />
-                <Route path="/jobs/:id/apply" element={<ApplicationPage />} />
+                <Route
+                  path="/jobs/:id"
+                  element={
+                    <RouteErrorBoundary>
+                      <JobDetailPage />
+                    </RouteErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/jobs/:id/apply"
+                  element={
+                    <RouteErrorBoundary>
+                      <ApplicationPage />
+                    </RouteErrorBoundary>
+                  }
+                />
 
                 {/* Public articles */}
                 <Route path="/articles" element={<ArticlesIndexPage />} />
-                <Route path="/articles/:slug" element={<ArticlePage />} />
+                <Route
+                  path="/articles/:slug"
+                  element={
+                    <RouteErrorBoundary>
+                      <ArticlePage />
+                    </RouteErrorBoundary>
+                  }
+                />
 
                 {/* Shared authenticated dashboard */}
                 <Route
@@ -156,7 +178,9 @@ export default function App() {
                   path="/admin/companies"
                   element={
                     <AdminRoute>
-                      <AdminCompaniesPage />
+                      <RouteErrorBoundary>
+                        <AdminCompaniesPage />
+                      </RouteErrorBoundary>
                     </AdminRoute>
                   }
                 />
@@ -164,7 +188,9 @@ export default function App() {
                   path="/admin/jobs"
                   element={
                     <AdminRoute>
-                      <AdminJobsPage />
+                      <RouteErrorBoundary>
+                        <AdminJobsPage />
+                      </RouteErrorBoundary>
                     </AdminRoute>
                   }
                 />
@@ -172,7 +198,9 @@ export default function App() {
                   path="/admin/applications"
                   element={
                     <AdminRoute>
-                      <AdminApplicationsPage />
+                      <RouteErrorBoundary>
+                        <AdminApplicationsPage />
+                      </RouteErrorBoundary>
                     </AdminRoute>
                   }
                 />
@@ -180,7 +208,9 @@ export default function App() {
                   path="/admin/applications/triage"
                   element={
                     <AdminRoute>
-                      <AdminApplicationsTriagePage />
+                      <RouteErrorBoundary>
+                        <AdminApplicationsTriagePage />
+                      </RouteErrorBoundary>
                     </AdminRoute>
                   }
                 />
@@ -188,7 +218,9 @@ export default function App() {
                   path="/admin/candidates"
                   element={
                     <AdminRoute>
-                      <AdminCandidatesPage />
+                      <RouteErrorBoundary>
+                        <AdminCandidatesPage />
+                      </RouteErrorBoundary>
                     </AdminRoute>
                   }
                 />
@@ -198,7 +230,9 @@ export default function App() {
                   path="/company/jobs"
                   element={
                     <CompanyRoute>
-                      <CompanyJobsPage />
+                      <RouteErrorBoundary>
+                        <CompanyJobsPage />
+                      </RouteErrorBoundary>
                     </CompanyRoute>
                   }
                 />
@@ -208,7 +242,9 @@ export default function App() {
                   path="/candidate/profile"
                   element={
                     <CandidateRoute>
-                      <CandidateProfilePage />
+                      <RouteErrorBoundary>
+                        <CandidateProfilePage />
+                      </RouteErrorBoundary>
                     </CandidateRoute>
                   }
                 />
@@ -216,7 +252,9 @@ export default function App() {
                   path="/candidate/applications"
                   element={
                     <CandidateRoute>
-                      <CandidateApplicationsPage />
+                      <RouteErrorBoundary>
+                        <CandidateApplicationsPage />
+                      </RouteErrorBoundary>
                     </CandidateRoute>
                   }
                 />
@@ -224,7 +262,9 @@ export default function App() {
                   path="/candidate/applications/:id"
                   element={
                     <CandidateRoute>
-                      <CandidateApplicationDetailPage />
+                      <RouteErrorBoundary>
+                        <CandidateApplicationDetailPage />
+                      </RouteErrorBoundary>
                     </CandidateRoute>
                   }
                 />
