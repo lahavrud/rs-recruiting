@@ -105,7 +105,9 @@ echo "==> Stamping Alembic at head"
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api alembic stamp head
 
 echo "==> Seeding mock data"
-docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api \
+# `python scripts/x.py` puts scripts/ (not /app) on sys.path[0], so `import src`
+# fails — set PYTHONPATH, as the script's own usage docstring documents.
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T -e PYTHONPATH=/app api \
   python scripts/seed_mock_data.py --reset
 
 echo "==> Starting services"
