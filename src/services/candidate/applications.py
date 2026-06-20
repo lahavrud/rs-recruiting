@@ -21,6 +21,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.infrastructure.storage_helpers import delete_file_best_effort
 from src.core.services.storage import StorageProvider
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, Job
@@ -259,10 +260,9 @@ async def edit_my_application(
     await session.commit()
 
     if old_resume_key and old_resume_key != app.resume_path:
-        try:
-            await storage.delete_file(old_resume_key)
-        except Exception:
-            logger.exception("Failed to delete old resume snapshot %s", old_resume_key)
+        await delete_file_best_effort(
+            storage, old_resume_key, logger, context="old resume snapshot"
+        )
 
     return _build_detail(app)
 
