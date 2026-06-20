@@ -1,8 +1,10 @@
 name: Deploy Staging
 
 # "Deploy Staging" — the only way an `-rc.N` tag gets created. Computes the
-# next release-candidate version from commits since the last final tag and
-# pushes it; the tag push is what triggers release.yml's build-rc job.
+# next release-candidate version from commits since the last final tag,
+# pushes it, then explicitly dispatches release.yml's build-rc job against
+# that tag — a GITHUB_TOKEN-authored push doesn't fire push-based workflow
+# runs on its own, so the dispatch is required, not just the push.
 # See docs/release-process.md for the full release ritual.
 
 on:
@@ -15,6 +17,7 @@ on:
 permissions:
   contents: write
   pull-requests: read
+  actions: write
 
 concurrency:
   group: tag-creation
@@ -48,7 +51,12 @@ jobs:
           git tag "${{ steps.version.outputs.tag }}" "${{ steps.target.outputs.sha }}"
           git push origin "${{ steps.version.outputs.tag }}"
 
+      - name: Trigger release build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref "${{ steps.version.outputs.tag }}"
+
       - name: Summary
         run: |
           echo "### Cut \`${{ steps.version.outputs.tag }}\` from \`${{ steps.target.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Triggers release.yml's build-rc job to build & push the image." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dispatched release.yml's build-rc job to build & push the image." >> "$GITHUB_STEP_SUMMARY"

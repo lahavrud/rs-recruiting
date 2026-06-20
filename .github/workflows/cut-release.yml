@@ -3,7 +3,9 @@ name: Cut Release
 # "Cut Release" — promotes an already-validated RC tag to its final vX.Y.Z by
 # stripping the `-rc.N` suffix and re-tagging the *same* commit. No rebuild,
 # no bump arithmetic — that already happened when Deploy Staging cut the RC.
-# The tag push triggers release.yml's promote-prod job.
+# Pushes the final tag, then explicitly dispatches release.yml's promote-prod
+# job against it — a GITHUB_TOKEN-authored push doesn't fire push-based
+# workflow runs on its own, so the dispatch is required, not just the push.
 # See docs/release-process.md for the full release ritual.
 
 on:
@@ -15,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: tag-creation
@@ -69,7 +72,12 @@ jobs:
           git tag "${{ steps.version.outputs.final_tag }}" "${{ steps.version.outputs.sha }}"
           git push origin "${{ steps.version.outputs.final_tag }}"
 
+      - name: Trigger release promotion
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref "${{ steps.version.outputs.final_tag }}"
+
       - name: Summary
         run: |
           echo "### Promoted \`${{ steps.version.outputs.rc_tag }}\` → \`${{ steps.version.outputs.final_tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Triggers release.yml's promote-prod job to re-tag (no rebuild) and deploy." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dispatched release.yml's promote-prod job to re-tag (no rebuild) and deploy." >> "$GITHUB_STEP_SUMMARY"

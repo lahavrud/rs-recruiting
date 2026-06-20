@@ -1,0 +1,81 @@
+name: Staging Deploy
+
+# Ships an RC to the freshly-provisioned ephemeral staging box. Triggered by the
+# infra repo's staging-apply.yml via a `staging-provisioned` repository_dispatch
+# (carrying the rc_tag, instance_id, and public_ip) once tofu/staging-app has
+# created the EC2 + RDS. Builds the frontend, uploads it + the staging deploy
+# artifacts to the staging deploy bucket, then SSM-deploys: migrate, seed mock
+# data, and start the stack with nginx serving the bundle.
+
+on:
+  repository_dispatch:
+    types: [staging-provisioned]
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.event.client_payload.rc_tag }} to staging
+    runs-on: ubuntu-latest
+    env:
+      RC_TAG: ${{ github.event.client_payload.rc_tag }}
+      INSTANCE_ID: ${{ github.event.client_payload.instance_id }}
+      PUBLIC_IP: ${{ github.event.client_payload.public_ip }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.client_payload.rc_tag }}
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: cd frontend && npm ci && npm run build
+        env:
+          # No VITE_API_BASE_URL — the bundle calls the API over relative paths,
+          # served by the same nginx (see nginx.staging.conf), so it works on the
+          # per-cycle Elastic IP without baking it in. No Sentry on staging.
+          VITE_RELEASE: ${{ env.RC_TAG }}
+
+      - name: Package frontend bundle
+        run: tar -czf frontend-dist.tar.gz -C frontend/dist .
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_STAGING_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Upload deploy artifacts to staging bucket
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          S3_BUCKET="rs-recruiting-deploy-staging-${ACCOUNT_ID}"
+          DEST="s3://${S3_BUCKET}/deploy/${RC_TAG}"
+          aws s3 cp docker-compose.staging.yml      "${DEST}/docker-compose.staging.yml"
+          aws s3 cp nginx/nginx.staging.conf        "${DEST}/nginx.staging.conf"
+          aws s3 cp scripts/deploy_ec2_staging.sh   "${DEST}/deploy_ec2_staging.sh"
+          aws s3 cp frontend-dist.tar.gz            "${DEST}/frontend-dist.tar.gz"
+
+      - uses: ./.github/actions/ssm-deploy
+        with:
+          ref: ${{ env.RC_TAG }}
+          instance-id: ${{ env.INSTANCE_ID }}
+          environment: staging
+          script-name: deploy_ec2_staging.sh
+
+      - name: Summary
+        run: |
+          {
+            echo "### Staging live: \`${{ env.RC_TAG }}\`"
+            echo "- URL: http://${{ env.PUBLIC_IP }}/"
+            echo "- Admin login: admin@rsrecruit.com / Admin123!"
+          } >> "$GITHUB_STEP_SUMMARY"

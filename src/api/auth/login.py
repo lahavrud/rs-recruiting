@@ -41,16 +41,19 @@ _REMEMBER_ME_MAX_AGE = int(REFRESH_TTL_LONG.total_seconds())
 
 def _refresh_cookie_secure() -> bool:
     """Default the refresh cookie's ``Secure`` flag to True everywhere
-    except the test suite (issue #650).
+    except the test suite (issue #650) and the staging environment.
 
-    Was ``environment == "production"`` — which left development and any
-    future staging environment shipping the cookie over plain HTTP.
-    httpx in our tests hits the API at ``http://test/``, which isn't
-    localhost from the cookie-store's perspective, so secure cookies are
-    silently dropped — ``settings.testing`` is the documented opt-out
-    for that one consumer.
+    Was ``environment == "production"`` — which left development shipping the
+    cookie over plain HTTP. httpx in our tests hits the API at ``http://test/``,
+    which isn't localhost from the cookie-store's perspective, so secure cookies
+    are silently dropped — ``settings.testing`` is the documented opt-out for
+    that one consumer.
+
+    Staging is the other opt-out: it has no TLS (direct HTTP on port 80, no
+    CloudFront in front), so a ``Secure`` cookie would be dropped by the browser
+    and break the refresh-token flow. Acceptable for a throwaway RC environment.
     """
-    return not settings.testing
+    return not settings.testing and settings.environment != "staging"
 
 
 def _set_refresh_cookie(

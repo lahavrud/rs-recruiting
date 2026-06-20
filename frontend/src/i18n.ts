@@ -9,6 +9,7 @@ import companyHe from "./locales/he/company.json";
 import cookiesHe from "./locales/he/cookies.json";
 import dashboardHe from "./locales/he/dashboard.json";
 import landingHe from "./locales/he/landing.json";
+import legalHe from "./locales/he/legal.json";
 import navHe from "./locales/he/nav.json";
 import publicJobsHe from "./locales/he/publicJobs.json";
 import resumeHe from "./locales/he/resume.json";
@@ -26,6 +27,7 @@ i18n.use(initReactI18next).init({
       cookies: cookiesHe,
       dashboard: dashboardHe,
       landing: landingHe,
+      legal: legalHe,
       nav: navHe,
       publicJobs: publicJobsHe,
       resume: resumeHe,
@@ -44,6 +46,7 @@ i18n.use(initReactI18next).init({
     "cookies",
     "dashboard",
     "landing",
+    "legal",
     "nav",
     "publicJobs",
     "resume",
