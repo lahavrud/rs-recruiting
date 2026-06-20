@@ -110,7 +110,7 @@ async def refresh_user_tokens(
     # Replay detection: if this hash appears in the used-token store, an
     # already-consumed token has been presented again — strong signal of theft.
     # Expired used-hash records are cleaned up passively here; bulk cleanup
-    # lives in the nightly cron (#619).
+    # is left for a future scheduled job.
     used_result = await session.execute(
         select(UsedRefreshToken).where(
             UsedRefreshToken.token_hash == token_hash  # pyright: ignore[reportArgumentType]
@@ -142,7 +142,7 @@ async def refresh_user_tokens(
 
     # Expired-on-discovery rows are deleted on the way out so the
     # ``refreshtoken`` table doesn't accumulate dead state without a
-    # cleanup path (issue #641). Uses a separate committed session because
+    # cleanup path. Uses a separate committed session because
     # the outer transactional() block rolls back on the InvalidCredentialsError
     # that follows — a plain session.delete() would be undone. The HTTP
     # behaviour is unchanged — the caller still gets 401.

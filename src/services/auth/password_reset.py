@@ -172,8 +172,7 @@ async def reset_password(
 
     # Every parallel session for this user is wiped — a password reset
     # is the canonical "log everyone out" event. Delete instead of
-    # mark-revoked (issue #641); same security guarantee, no row
-    # accumulation.
+    # mark-revoked; same security guarantee, no row accumulation.
     await session.execute(
         delete(RefreshToken).where(
             RefreshToken.user_id == user.id,  # pyright: ignore[reportArgumentType]

@@ -6,7 +6,7 @@ Carved out of ``applications.py`` to keep the main module under the
 * ``validate_and_upload_resume`` — magic-byte + size + extension checks
   followed by a storage upload, returning the storage key.
 * ``check_no_blocking_application`` — duplicate-apply pre-check, raising
-  the editable / locked variants per Sprint 11 / #606.
+  the editable / locked variants.
 * ``upsert_candidate_and_application`` — the find-or-create profile +
   Application row pair, with consent-write and resume-snapshot semantics.
 * ``send_application_emails`` — the candidate-confirmation + admin-
@@ -185,7 +185,8 @@ async def upsert_candidate_and_application(
         await session.flush()
 
     # Resume snapshot per Application — independent of profile's "latest"
-    # resume (per #604; fixes the missing snapshot write before #606).
+    # resume; fixes a missing snapshot write that previously let a
+    # candidate's profile resume change retroactively for past applications.
     session.add(
         Application(
             job_id=job_id,

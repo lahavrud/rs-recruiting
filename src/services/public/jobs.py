@@ -68,7 +68,7 @@ async def get_published_job(
         current_user: Optional authenticated user. When a candidate, the
             response's ``my_application`` field is populated with the
             candidate's own application for this job (if any non-WITHDRAWN
-            application exists) — Sprint 11 / #606.
+            application exists).
 
     Returns:
         Job as JobPublicRead schema
@@ -87,7 +87,7 @@ async def get_published_job(
     if current_user is not None and current_user.role == UserRole.CANDIDATE:
         # Find this candidate's most-relevant non-WITHDRAWN application for
         # the job (in practice there's at most one — the partial unique
-        # index from #604 enforces it).
+        # index enforces it).
         my_app = (
             await session.execute(
                 select(Application)

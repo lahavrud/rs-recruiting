@@ -58,7 +58,7 @@ class ActivationToken(SQLModel, table=True):
     * CANDIDATE: self-service registration — the candidate registers with
       email + password + consent. The activation email goes to the candidate;
       clicking the link creates / links their CandidateProfile and activates
-      the account (Sprint 11 / issue #605).
+      the account.
 
     `consent_policy_version` is set by the candidate flow at registration time
     so the policy version they agreed to is locked even if the policy changes
@@ -115,10 +115,10 @@ class RefreshToken(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     remember_me: bool = Field(default=False)
-    # ``is_revoked`` removed in #641 — refresh tokens are now deleted on
-    # use / logout / password change instead of being marked revoked.
-    # The column provided no security benefit (revoked + missing were
-    # treated identically) and let dead rows accumulate.
+    # Refresh tokens are deleted on use / logout / password change instead
+    # of being marked revoked. A boolean revoked flag provided no security
+    # benefit (revoked + missing were treated identically) and let dead
+    # rows accumulate.
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -133,7 +133,8 @@ class UsedRefreshToken(SQLModel, table=True):
     same hash is presented again before expiry, all active sessions for that
     user are nuked — a replay after rotation is a strong signal of token theft.
     Rows are cheap to keep until the original TTL elapses; expired rows are
-    cleaned up passively at detection time and in bulk by the nightly cron (#619).
+    cleaned up passively at detection time, with bulk cleanup of expired
+    rows left for a future scheduled job.
     """
 
     id: int | None = Field(default=None, primary_key=True)
@@ -154,16 +155,16 @@ class UsedRefreshToken(SQLModel, table=True):
 class DataExportRequest(SQLModel, table=True):
     """One-shot signed download token for the candidate GDPR data export.
 
-    Sprint 11 / #608: candidates request an export → background task
-    assembles a ZIP (profile JSON + per-application resumes) and uploads
-    it to storage → row is minted here pointing at the ZIP's storage key
-    → confirmation email contains a signed link `/api/candidate/me/export/
-    {token}` → the GET endpoint streams the ZIP and marks `used=True`.
+    Candidates request an export → background task assembles a ZIP
+    (profile JSON + per-application resumes) and uploads it to storage →
+    row is minted here pointing at the ZIP's storage key → confirmation
+    email contains a signed link `/api/candidate/me/export/{token}` →
+    the GET endpoint streams the ZIP and marks `used=True`.
 
     Tokens are stored as SHA-256 hashes (raw token only ever lives in the
-    email URL). `expires_at` is 24h from creation. The cleanup cron in
-    #10 sweeps expired and used rows (and the corresponding storage
-    objects).
+    email URL). `expires_at` is 24h from creation. Sweeping expired and
+    used rows (and the corresponding storage objects) is left for a
+    future scheduled job.
     """
 
     __tablename__ = "data_export_request"
@@ -260,9 +261,9 @@ class User(SQLModel, table=True):
     # 1:1 with CandidateProfile (effectively nullable: ADMIN/COMPANY users have
     # no candidate profile). FK uses ON DELETE SET NULL so that deleting a
     # candidate User leaves the profile as a tombstone for application history
-    # (the deletion service then PII-scrubs the profile in place — see Sprint
-    # 11 / issue #611). `passive_deletes="all"` keeps SQLAlchemy from issuing
-    # its own UPDATE before the DELETE; we trust the DB-side SET NULL.
+    # (the deletion service then PII-scrubs the profile in place).
+    # `passive_deletes="all"` keeps SQLAlchemy from issuing its own UPDATE
+    # before the DELETE; we trust the DB-side SET NULL.
     candidate_profile: CandidateProfile = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"uselist": False, "passive_deletes": "all"},
@@ -398,7 +399,7 @@ class CandidateProfile(SQLModel, table=True):
     OR a registered candidate (linked 1:1 with a `User(role=CANDIDATE)`).
 
     On `User` deletion the FK is SET NULL, leaving the profile in place so
-    `Application` rows survive (see Sprint 11 deletion flow — issue #611).
+    `Application` rows survive.
     """
 
     id: int | None = Field(default=None, primary_key=True)
@@ -424,7 +425,7 @@ class CandidateProfile(SQLModel, table=True):
     # only; the extension is locked to the stored file's). Nullable so
     # legacy rows (and PII-scrubbed deleted profiles) keep working with
     # the basename-of-storage-key UI fallback. Per-Application snapshots
-    # of the filename are tracked separately in issue #666.
+    # of the filename are tracked separately.
     resume_filename: str | None = Field(default=None, max_length=255)
     resume_hash: str | None = Field(default=None, max_length=64)
     linkedin_url: str | None = None
@@ -504,7 +505,7 @@ class Application(SQLModel, table=True):
     Links a Candidate to a Job. Represents the recruitment match.
 
     `resume_path` snapshots the resume that was uploaded *for this specific
-    application* at apply time (Sprint 11 / issue #604). It is independent of
+    application* at apply time. It is independent of
     `CandidateProfile.resume_path` (the latest resume on file). Allows
     candidates to swap their default resume without retroactively changing
     what companies already received.
@@ -512,8 +513,8 @@ class Application(SQLModel, table=True):
 
     # Partial unique index: a candidate cannot have two non-WITHDRAWN
     # applications for the same job, but WITHDRAWN ones don't block re-apply
-    # (Sprint 11 / #604 amendment — candidates can change their mind and
-    # apply again to a job they previously withdrew from).
+    # — candidates can change their mind and apply again to a job they
+    # previously withdrew from.
     __table_args__ = (
         Index(
             "uq_application_job_candidate_active",

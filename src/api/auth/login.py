@@ -41,7 +41,7 @@ _REMEMBER_ME_MAX_AGE = int(REFRESH_TTL_LONG.total_seconds())
 
 def _refresh_cookie_secure() -> bool:
     """Default the refresh cookie's ``Secure`` flag to True everywhere
-    except the test suite (issue #650) and the staging environment.
+    except the test suite and the staging environment.
 
     Was ``environment == "production"`` — which left development shipping the
     cookie over plain HTTP. httpx in our tests hits the API at ``http://test/``,
@@ -138,8 +138,7 @@ async def refresh(
 
     Rate-limited (30/minute per IP) — normal browser sessions only need a
     handful of refreshes per minute even with parallel tabs, but a stolen
-    refresh token replayed in a loop was previously unthrottled
-    (issue #643).
+    refresh token replayed in a loop was previously unthrottled.
     """
     raw_refresh = request.cookies.get(_REFRESH_COOKIE)
     if not raw_refresh:

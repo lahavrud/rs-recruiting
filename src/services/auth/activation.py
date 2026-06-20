@@ -1,9 +1,8 @@
 """Account-activation token consumption.
 
 Originally carved out next to the admin company lifecycle code that mints
-these tokens (`admin_companies.approve_company`). Sprint 11 / issue #605
-extended the service to also serve candidate self-registration tokens —
-the dispatch happens on `User.role`:
+these tokens (`admin_companies.approve_company`). The service also serves
+candidate self-registration tokens — the dispatch happens on `User.role`:
 
 * COMPANY: legacy path — just flip `is_active=True`. Consent is recorded
   on `CompanyProfile` at registration time, not here.
@@ -103,7 +102,7 @@ async def _link_or_create_candidate_profile(
     they applied to a job before registering), link it to the user. Otherwise
     create a fresh profile with a minimal `full_name` placeholder so the
     NOT-NULL invariant holds; the candidate fills in the rest from the
-    profile page (#608).
+    profile page.
 
     Always (re)writes consent fields from the activation-request context,
     using the policy version snapshotted on the activation token if present.
