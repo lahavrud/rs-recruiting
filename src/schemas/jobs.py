@@ -205,9 +205,9 @@ class MyApplicationInfo(BaseModel):
     """The candidate-facing slice of a candidate's own application.
 
     Returned on ``GET /api/public/jobs/:id`` when the request bears a valid
-    candidate JWT (Sprint 11 / #606). Withdrawn applications are filtered
+    candidate JWT. Withdrawn applications are filtered
     out server-side; ``editable`` is the only status-derived bit exposed to
-    candidates (per Sprint 11 rule — see #609).
+    candidates.
     """
 
     id: int
@@ -224,7 +224,7 @@ class JobPublicRead(BaseModel):
 
     ``my_application`` is populated only for the per-job detail endpoint
     when the request bears a candidate JWT and that candidate has a
-    non-withdrawn application for the job (#606). Anonymous responses
+    non-withdrawn application for the job. Anonymous responses
     and list-endpoint responses leave it ``None``.
     """
 

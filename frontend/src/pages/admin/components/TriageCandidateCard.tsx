@@ -3,8 +3,8 @@ import {
   AnswerBlock,
   NoteField,
   RevisitBanner,
-} from "./triageComponents";
-import { IconDocument } from "./triageIcons";
+} from "./TriageComponents";
+import { IconDocument } from "./TriageIcons";
 import { formatTriageDate, type Decision } from "./triageTypes";
 import type { TriageItem } from "./useTriageQueue";
 import { sanitizeLinkedInUrl } from "@/utils/validators";

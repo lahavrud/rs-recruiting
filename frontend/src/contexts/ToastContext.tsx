@@ -11,7 +11,7 @@ import {
   type Toast,
   type ToastContextValue,
   type ToastVariant,
-} from "./toast-context";
+} from "./toastContext";
 
 const DEFAULT_DURATION_MS = 4000;
 

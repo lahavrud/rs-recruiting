@@ -20,7 +20,7 @@ security = HTTPBearer()
 # Optional auth: returns the credential or None when no Authorization header is
 # present. Used by public endpoints that *can* be enriched for logged-in users
 # but must not 401 anonymous traffic (e.g. GET /api/public/jobs/:id with
-# my_application surfacing in #606).
+# my_application surfacing for authenticated candidates).
 security_optional = HTTPBearer(auto_error=False)
 
 
@@ -264,7 +264,7 @@ def _is_trusted_proxy(peer_ip: str) -> bool:
 def client_ip(request: Request) -> str | None:
     """Best-effort client IP.
 
-    Two-layer protection against XFF forgery (issue #647):
+    Two-layer protection against XFF forgery:
 
     1. **Infrastructure layer (primary)**: set the `FORWARDED_ALLOW_IPS` env
        var to the load-balancer's private CIDR in production.  Uvicorn reads

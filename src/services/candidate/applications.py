@@ -2,7 +2,7 @@
 
 The candidate-facing API deliberately never exposes raw ``Application.status``
 or ``admin_notes``. WITHDRAWN applications are filtered out entirely (the
-candidate can re-apply per the partial unique index added in #604, so showing
+candidate can re-apply per the partial unique index, so showing
 a withdrawn row would be misleading — and the spec treats withdrawn rows as
 if they don't exist for this candidate). Only the derived ``editable`` flag
 (true iff ``status == NEW``) leaks across the boundary.
@@ -277,7 +277,7 @@ async def withdraw_my_application(
 
     Gates: foreign/non-existent → 404, already WITHDRAWN → 404, non-NEW → 409.
     The row is preserved for admin visibility; only the candidate's list
-    filters it out (per #609).
+    filters it out.
     """
     query = select(Application).where(
         Application.id == application_id,  # pyright: ignore[reportArgumentType]
