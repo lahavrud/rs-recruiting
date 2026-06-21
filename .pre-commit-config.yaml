@@ -103,5 +103,6 @@ exclude: |
     venv/|
     \.pytest_cache|
     \.mypy_cache|
-    alembic/versions/.*\.py$  # Exclude migration files from some checks
+    alembic/versions/.*\.py$|  # Exclude migration files from some checks
+    helm/.*/templates/.*\.yaml$  # Helm templating isn't valid standalone YAML
   )$

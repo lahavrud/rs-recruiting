@@ -1,0 +1,72 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  port: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  # Requires the metrics-server EKS addon — not yet installed on the sandbox
+  # cluster, so this HPA will exist but report <unknown> for current CPU
+  # until that's added.
+  targetCPUUtilizationPercentage: 70
+
+# HTTPRoute on the cluster's shared Gateway (see rs-recruiting-infra
+# tofu/modules/environment/ingress.tf) — the sandbox uses AWS Load Balancer
+# Controller's Gateway API support, not a classic Ingress resource, so this
+# chart follows the same convention ArgoCD/Grafana use rather than templating
+# a networking.k8s.io/v1 Ingress.
+httpRoute:
+  enabled: true
+  gatewayName: sandbox
+  gatewayNamespace: kube-system
+  # Paths routed to the backend; everything else on the Gateway falls through
+  # to the frontend chart's HTTPRoute. Both sandbox-staging and sandbox-prod
+  # currently default to the same paths on one shared ALB — #20 needs to give
+  # each namespace a distinct prefix (or hostname) before both can coexist.
+  paths:
+    - /api
+    - /auth
+    - /health
+    - /robots.txt
+    - /sitemap.xml
+
+# Plain (non-secret) runtime config. ENVIRONMENT is deliberately left as
+# "development" (not "sandbox" — Settings.environment only accepts
+# development/staging/production) so the app reads config from env vars
+# instead of trying to load it from SSM, which sandbox pods have no IAM
+# access to.
+env:
+  environment: development
+  jwtAlgorithm: HS256
+  jwtAccessTokenExpireMinutes: 10
+  # Set to the Gateway's actual hostname (see chart README) once known —
+  # can't be defaulted here since the ALB hostname is assigned at apply time.
+  allowedOrigins: "http://localhost:3000"
+  frontendBaseUrl: "http://localhost:3000"
+
+# Secret runtime config — rendered into a Kubernetes Secret (templates/secret.yaml).
+# Do NOT put real values here. Override at install time, e.g.:
+#   helm install backend . -f secrets.values.yaml   (secrets.values.yaml gitignored)
+#   helm install backend . --set-string secrets.jwtSecretKey=...
+# or via the ArgoCD Application's own values source once #20 lands.
+secrets:
+  databaseUrl: ""
+  jwtSecretKey: ""

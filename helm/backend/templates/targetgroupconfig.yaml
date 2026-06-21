@@ -1,0 +1,16 @@
+{{- if .Values.httpRoute.enabled }}
+# Without this, the AWS Load Balancer Controller defaults new target groups
+# to instance mode, which doesn't work against a ClusterIP Service — mirrors
+# the same fix applied to ArgoCD/Grafana in rs-recruiting-infra's ingress.tf.
+apiVersion: gateway.k8s.aws/v1beta1
+kind: TargetGroupConfiguration
+metadata:
+  name: {{ include "backend.fullname" . }}
+  labels:
+    {{- include "backend.labels" . | nindent 4 }}
+spec:
+  targetReference:
+    name: {{ include "backend.fullname" . }}
+  defaultConfiguration:
+    targetType: ip
+{{- end }}
