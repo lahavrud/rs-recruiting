@@ -37,16 +37,25 @@ httpRoute:
   enabled: true
   gatewayName: sandbox
   gatewayNamespace: kube-system
-  # Paths routed to the backend; everything else on the Gateway falls through
-  # to the frontend chart's HTTPRoute. Both sandbox-staging and sandbox-prod
-  # currently default to the same paths on one shared ALB — #20 needs to give
-  # each namespace a distinct prefix (or hostname) before both can coexist.
-  paths:
-    - /api
-    - /auth
-    - /health
-    - /robots.txt
-    - /sitemap.xml
+  # Routes exposed to the backend; everything else on the Gateway falls
+  # through to the frontend. Rarely needs changing — pathPrefix is what
+  # varies per sub-environment.
+  routes:
+    - api
+    - auth
+    - health
+    - robots.txt
+    - sitemap.xml
+  # Prepended to every route above (e.g. "/dev" -> "/dev/api"), since
+  # sandbox-staging/sandbox-prod/sandbox-dev all share one ALB and need
+  # distinct paths to avoid colliding. Non-empty values also add a
+  # Gateway API URLRewrite filter (ReplacePrefixMatch) that strips the
+  # prefix before forwarding — FastAPI's routes are registered at the bare
+  # path (e.g. /api), so without the rewrite the backend 404s on the
+  # prefixed request. Leave empty for sandbox-prod (matches rs-recruiting-
+  # infra's cdn.tf, which forwards unprefixed); set to "/staging" for
+  # sandbox-staging, "/dev" for sandbox-dev.
+  pathPrefix: ""
 
 # Plain (non-secret) runtime config. ENVIRONMENT is deliberately left as
 # "development" (not "sandbox" — Settings.environment only accepts

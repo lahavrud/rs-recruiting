@@ -13,4 +13,10 @@ spec:
     name: {{ include "backend.fullname" . }}
   defaultConfiguration:
     targetType: ip
+    # Health checks hit the Service/pod directly, bypassing the HTTPRoute's
+    # URLRewrite — so this must be the bare path the app actually serves,
+    # not the externally-prefixed one. Same gap that bit ArgoCD's ALB health
+    # check (rs-recruiting-infra#50): the default "/" 404s here too.
+    healthCheckConfig:
+      healthCheckPath: /health
 {{- end }}

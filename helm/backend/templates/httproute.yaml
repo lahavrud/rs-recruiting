@@ -11,13 +11,21 @@ spec:
       namespace: {{ .Values.httpRoute.gatewayNamespace }}
       sectionName: http
   rules:
+    {{- range $route := .Values.httpRoute.routes }}
     - matches:
-        {{- range .Values.httpRoute.paths }}
         - path:
             type: PathPrefix
-            value: {{ . }}
-        {{- end }}
+            value: {{ printf "%s/%s" $.Values.httpRoute.pathPrefix $route }}
+      {{- if $.Values.httpRoute.pathPrefix }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /{{ $route }}
+      {{- end }}
       backendRefs:
-        - name: {{ include "backend.fullname" . }}
-          port: {{ .Values.service.port }}
+        - name: {{ include "backend.fullname" $ }}
+          port: {{ $.Values.service.port }}
+    {{- end }}
 {{- end }}
