@@ -1,4 +1,4 @@
-"""Candidate self-service profile + resume operations (Sprint 11 / #608).
+"""Candidate self-service profile + resume operations.
 
 Single-row primitives for the authenticated candidate's own profile:
 identity-field patches, resume replace (with storage cleanup of the
@@ -41,7 +41,7 @@ async def apply_identity_patch(
     """Apply only the fields the candidate is allowed to change on themselves.
 
     Partial-update semantics: omitted keys leave the existing value alone.
-    Email is NOT in the schema (#608 / Sprint 11 MVP) — the router rejects
+    Email is NOT in the schema — the router rejects
     requests that try to include it.
 
     ``resume_filename`` is special: the candidate can rename the label
@@ -127,7 +127,7 @@ async def replace_resume(
 ) -> str:
     """Replace the candidate's profile-level resume, deleting the prior file.
 
-    Returns the new storage key. The Application snapshots (#604) are
+    Returns the new storage key. The Application snapshots are
     independent and not touched by this operation.
 
     Raises ``ValueError`` on validation failure (extension, magic bytes,

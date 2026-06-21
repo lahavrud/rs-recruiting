@@ -1,4 +1,4 @@
-"""Candidate GDPR data export endpoints (Sprint 11 / #608).
+"""Candidate GDPR data export endpoints.
 
 Two endpoints:
 

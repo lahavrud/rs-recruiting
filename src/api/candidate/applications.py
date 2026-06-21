@@ -1,4 +1,4 @@
-"""Authenticated candidate application endpoints (Sprint 11 / #609, #610).
+"""Authenticated candidate application endpoints.
 
 Lists, detail, resume-snapshot streaming, edit, and withdraw for the
 authenticated candidate's own applications. Status and admin_notes are

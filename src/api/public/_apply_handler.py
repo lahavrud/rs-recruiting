@@ -44,7 +44,7 @@ _RESUME_MAX_BYTES = 10 * 1024 * 1024
 def validate_optional_password(
     password: str | None, password_confirm: str | None
 ) -> None:
-    """Sprint 11 / #606 claim path: enforce #605's password rules on the
+    """Claim path: enforce the registration password rules on the
     multipart form fields since there's no Pydantic schema on this surface."""
     if password is None:
         return
@@ -57,7 +57,7 @@ def validate_optional_password(
         _validate_password_complexity(password)
     except ValueError as e:
         # Opaque code instead of str(e) — the validator message included
-        # specifics about which rule failed (issue #648).
+        # specifics about which rule failed.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="password_complexity_failed",
@@ -85,7 +85,7 @@ async def apply_to_job(
 ) -> CandidateProfileRead:
     """Dispatched apply: anonymous / anonymous-claim / logged-in candidate."""
     # Anonymous: both consent checkboxes are required. Logged-in candidates
-    # already accepted at activation time (Sprint 11 / #605).
+    # already accepted at activation time.
     if current_user is None:
         if not privacy_accepted:
             raise HTTPException(

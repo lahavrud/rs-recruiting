@@ -1,4 +1,4 @@
-"""In-session password change (Sprint 11 / #608).
+"""In-session password change.
 
 Role-agnostic. Distinct from the forgot-password flow:
 * this requires the existing session's access token AND the user's current
@@ -65,8 +65,8 @@ async def change_user_password(
     # Drop every refresh token for this user except the one carrying the
     # current session's cookie — the user stays logged in here, every
     # other parallel session is forcibly signed out. Delete-on-rotate is
-    # the project-wide refresh-token cleanup policy (issue #641); rows
-    # no longer linger with ``is_revoked = True``.
+    # the project-wide refresh-token cleanup policy; rows no longer linger
+    # with ``is_revoked = True``.
     query = delete(RefreshToken).where(
         RefreshToken.user_id == persisted.id,  # pyright: ignore[reportArgumentType]
     )
