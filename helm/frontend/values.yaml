@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# HTTPRoute on the cluster's shared Gateway (see rs-recruiting-infra
+# tofu/modules/environment/ingress.tf) — same convention as the backend
+# chart. PathPrefix "/" is intentionally the catch-all: the backend chart's
+# HTTPRoute claims the more specific /api, /auth, /health, /robots.txt,
+# /sitemap.xml prefixes on the same Gateway, and Gateway API resolves the
+# longest-prefix match regardless of which HTTPRoute it came from.
+httpRoute:
+  enabled: true
+  gatewayName: sandbox
+  gatewayNamespace: kube-system
+  paths:
+    - /

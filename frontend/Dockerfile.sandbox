@@ -1,0 +1,18 @@
+# Sandbox variant of frontend/Dockerfile: same Vite build, but served over
+# plain HTTP with no TLS/Cloudflare config — the cluster's Gateway/ALB
+# terminates HTTP and routes here directly (see helm/frontend chart). Prod
+# still builds via frontend/Dockerfile and deploys to S3 + CloudFront
+# (.github/actions/deploy-frontend); this image is sandbox-only.
+FROM node:20-alpine AS build
+ARG VITE_RELEASE
+ENV VITE_RELEASE=$VITE_RELEASE
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . ./
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY nginx.sandbox.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
