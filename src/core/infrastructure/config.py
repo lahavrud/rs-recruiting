@@ -155,7 +155,7 @@ class Settings(BaseSettings):
     # "staging" is the ephemeral RC-validation environment (separate AWS
     # account, HTTP-only). It behaves like production — loads config from SSM,
     # enforces rate limiting and the FRONTEND_BASE_URL check — except where its
-    # plain-HTTP ingress forces a difference (see _refresh_cookie_secure).
+    # plain-HTTP ingress forces a difference (see _is_refresh_cookie_secure).
     environment: Literal["development", "staging", "production"] = "development"
 
     # Trusted reverse-proxy IPs/CIDRs.

@@ -48,7 +48,7 @@ class S3StorageProvider(StorageProvider):
             file_key = f"{parent}/{uuid4()}{suffix}"
         else:
             file_key = f"{uuid4()}{suffix}"
-        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             upload_kwargs: dict = {
                 "Bucket": self.bucket_name,
                 "Key": file_key,
@@ -80,7 +80,7 @@ class S3StorageProvider(StorageProvider):
 
     async def get_file_url(self, file_identifier: str) -> str:
         """Return a presigned URL valid for 1 hour."""
-        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             try:
                 return await s3.generate_presigned_url(
                     ClientMethod="get_object",
@@ -94,7 +94,7 @@ class S3StorageProvider(StorageProvider):
 
     async def download_file(self, file_identifier: str) -> bytes:
         """Download file from S3 and return raw bytes."""
-        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             try:
                 resp = await s3.get_object(Bucket=self.bucket_name, Key=file_identifier)
                 return await resp["Body"].read()
@@ -113,7 +113,7 @@ class S3StorageProvider(StorageProvider):
         Requires s3:ListBucketVersions and s3:DeleteObjectVersion in addition
         to the usual s3:DeleteObject.
         """
-        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             try:
                 paginator = s3.get_paginator("list_object_versions")
                 to_delete: list[dict] = []

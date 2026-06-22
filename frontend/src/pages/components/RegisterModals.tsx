@@ -63,7 +63,7 @@ export default function RegisterModals({
   onAcceptTerms,
   onAcceptPrivacy,
 }: Props) {
-  const { t } = useTranslation('auth');
+  const { t } = useTranslation(['auth', 'legal']);
 
   return (
     <>
@@ -97,7 +97,7 @@ export default function RegisterModals({
             </Button>
           }
         >
-          {t("auth:register.agreementTextSiteTerms")
+          {t("legal:terms.body")
             .split("\n\n")
             .map((para, i) => (
               <p key={i} className="text-sm leading-7 text-white/55">
@@ -117,7 +117,7 @@ export default function RegisterModals({
             </Button>
           }
         >
-          {t("auth:register.agreementTextPrivacy")
+          {t("legal:privacy.body")
             .split("\n\n")
             .map((para, i) => (
               <p key={i} className="text-sm leading-7 text-white/55">

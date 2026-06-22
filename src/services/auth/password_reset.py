@@ -51,7 +51,7 @@ async def _per_email_rate_limit_ok(user_id: int, session: AsyncSession) -> bool:
         select(func.count())
         .select_from(PasswordResetToken)
         .where(
-            PasswordResetToken.user_id == user_id,  # type: ignore[arg-type]
+            PasswordResetToken.user_id == user_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             PasswordResetToken.created_at > window_start,
         )
     )
@@ -153,7 +153,7 @@ async def reset_password(
     result = await session.execute(
         select(PasswordResetToken, User)
         .join(User, User.id == PasswordResetToken.user_id)  # pyright: ignore[reportArgumentType]
-        .where(PasswordResetToken.token_hash == hash_token(raw_token))  # type: ignore[arg-type]
+        .where(PasswordResetToken.token_hash == hash_token(raw_token))  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     row = result.one_or_none()
     if row is None:

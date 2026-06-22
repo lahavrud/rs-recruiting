@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 export default function LegalProse({ bodyKey }: { bodyKey: string }) {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation(["legal", "auth"]);
   return (
     <>
       {t(bodyKey)

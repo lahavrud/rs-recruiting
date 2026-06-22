@@ -78,7 +78,7 @@ def _fast_bcrypt_for_tests():
     The default cost of 12 is fine for prod but multiplied across every
     test that creates a User (admin, company, candidate fixtures + the
     register / login / password-reset flows) it dominated local pytest
-    runtime. Real bcrypt behavior is preserved (verify_password still
+    runtime. Real bcrypt behavior is preserved (is_password_valid still
     works, hashes round-trip correctly) — we only lower the work factor.
     """
     import bcrypt

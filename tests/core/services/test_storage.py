@@ -26,7 +26,9 @@ class TestLocalStorageProvider:
         return LocalStorageProvider(storage_path=temp_dir)
 
     @pytest.mark.asyncio
-    async def test_upload_file(self, provider: LocalStorageProvider):
+    async def test_upload_file_persists_with_uuid_key(
+        self, provider: LocalStorageProvider
+    ):
         """Test file upload."""
         file_content = b"test file content"
         file_name = "test.txt"
@@ -41,7 +43,7 @@ class TestLocalStorageProvider:
         assert file_path.read_bytes() == file_content
 
     @pytest.mark.asyncio
-    async def test_get_file_url(self, provider: LocalStorageProvider):
+    async def test_get_file_url_returns_http_path(self, provider: LocalStorageProvider):
         """Test getting file URL."""
         file_content = b"test content"
         file_name = "test.txt"
@@ -65,7 +67,9 @@ class TestLocalStorageProvider:
             await provider.get_file_url("nonexistent.txt")
 
     @pytest.mark.asyncio
-    async def test_delete_file(self, provider: LocalStorageProvider):
+    async def test_delete_file_removes_filesystem_entry(
+        self, provider: LocalStorageProvider
+    ):
         """Test file deletion."""
         file_content = b"test content"
         file_name = "test.txt"
@@ -105,7 +109,7 @@ class TestS3StorageProvider:
     # mock_s3_bucket fixture is now in conftest.py for reusability
 
     @pytest.mark.asyncio
-    async def test_upload_file(self, mock_s3_bucket):
+    async def test_upload_file_delegates_to_s3_with_uuid_key(self, mock_s3_bucket):
         """Test S3 file upload using mocked S3 client."""
 
         provider = S3StorageProvider(
@@ -137,7 +141,7 @@ class TestS3StorageProvider:
             assert call_kwargs["ServerSideEncryption"] == "AES256"
 
     @pytest.mark.asyncio
-    async def test_get_file_url(self, mock_s3_bucket):
+    async def test_get_file_url_returns_s3_signed_url(self, mock_s3_bucket):
         """Test getting S3 presigned URL using mocked S3 client."""
 
         provider = S3StorageProvider(
@@ -163,7 +167,7 @@ class TestS3StorageProvider:
             mock_s3_client.generate_presigned_url.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_delete_file(self, mock_s3_bucket):
+    async def test_delete_file_removes_s3_object(self, mock_s3_bucket):
         """delete_file permanently removes all versions and delete markers."""
         provider = S3StorageProvider(
             bucket_name=mock_s3_bucket["bucket_name"],

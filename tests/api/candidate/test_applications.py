@@ -654,7 +654,7 @@ async def test_patch_invalid_resume_mime_returns_400(test_db):
     _override_user(user.id, user.email)
 
     with patch(
-        "src.core.services.file_validation.validate_document_magic_bytes",
+        "src.core.services.file_validation.is_valid_document_magic_bytes",
         return_value=False,
     ):
         async with await _client() as client:

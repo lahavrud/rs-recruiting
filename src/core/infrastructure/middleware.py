@@ -27,7 +27,7 @@ class RequestIdFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = request_id_var.get("")  # type: ignore[attr-defined]
+        record.request_id = request_id_var.get("")  # type: ignore[attr-defined]  # dynamically attaching request_id to LogRecord; stdlib stubs don't declare it
         return True
 
 

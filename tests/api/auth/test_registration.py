@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from src.core.infrastructure.database import get_session
-from src.core.infrastructure.security import verify_password
+from src.core.infrastructure.security import is_password_valid
 from src.main import app
 from src.models import AuditLog, CompanyProfile, User
 from src.services.exceptions import InvalidInviteTokenError
@@ -88,7 +88,7 @@ async def test_register_success(client: AsyncClient):
             select(User).where(User.email == "company@example.com")  # pyright: ignore[reportArgumentType]
         )
         user = result.scalar_one()
-        assert verify_password(_STRONG_PASSWORD, user.hashed_password)
+        assert is_password_valid(_STRONG_PASSWORD, user.hashed_password)
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_register_persists_legal_acceptance_metadata(client: AsyncClient):
         assert cp.privacy_accepted_at is not None
         assert cp.privacy_policy_version == "1.2"
         assert cp.terms_accepted_at is not None
-        assert cp.terms_version == "1.0"
+        assert cp.terms_version == "1.1"
         assert cp.acceptance_user_agent == "pytest-ua/1.0"
 
         actions = {

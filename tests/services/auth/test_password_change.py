@@ -9,7 +9,7 @@ from sqlmodel import select
 from src.core.infrastructure.security import (
     get_password_hash,
     hash_token,
-    verify_password,
+    is_password_valid,
 )
 from src.enums import UserRole
 from src.models import RefreshToken, User
@@ -58,7 +58,7 @@ async def test_change_password_with_correct_current_succeeds(session: AsyncSessi
     )
     await session.commit()
 
-    assert verify_password(
+    assert is_password_valid(
         "FreshPass1!",  # pragma: allowlist secret
         user.hashed_password,
     )

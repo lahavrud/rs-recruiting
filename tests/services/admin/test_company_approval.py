@@ -48,7 +48,30 @@ async def _register(data: UserCreate, session: AsyncSession) -> User:
 @patch("src.services.admin.company_approval.enqueue_email_task")
 @patch("src.services.admin.company_approval.generate_signed_contract")
 @patch("src.services.admin.company_approval.get_storage_provider")
-async def test_approve_company_success(
+async def test_approve_company_uploads_contract(
+    mock_storage, mock_pdf, mock_email, session: AsyncSession
+):
+    mock_email.return_value = "job-id"
+    mock_pdf.return_value = b"%PDF-fake"
+    mock_storage.return_value.download_file = AsyncMock(return_value=b"fake-sig-bytes")
+    mock_storage.return_value.upload_file = AsyncMock(return_value="contract-key.pdf")
+
+    user = await _register(
+        _company_create("approve@example.com", "Approve Co"), session
+    )
+    assert not user.is_active
+
+    await approve_company(user.id, session)
+    await session.commit()
+
+    mock_storage.return_value.upload_file.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("src.services.admin.company_approval.enqueue_email_task")
+@patch("src.services.admin.company_approval.generate_signed_contract")
+@patch("src.services.admin.company_approval.get_storage_provider")
+async def test_approve_company_does_not_auto_activate_user(
     mock_storage, mock_pdf, mock_email, session: AsyncSession
 ):
     mock_email.return_value = "job-id"
@@ -70,13 +93,33 @@ async def test_approve_company_success(
     ).scalar_one()
     assert db_user.is_active is False
 
+
+@pytest.mark.asyncio
+@patch("src.services.admin.company_approval.enqueue_email_task")
+@patch("src.services.admin.company_approval.generate_signed_contract")
+@patch("src.services.admin.company_approval.get_storage_provider")
+async def test_approve_company_updates_contract_pdf_url(
+    mock_storage, mock_pdf, mock_email, session: AsyncSession
+):
+    mock_email.return_value = "job-id"
+    mock_pdf.return_value = b"%PDF-fake"
+    mock_storage.return_value.download_file = AsyncMock(return_value=b"fake-sig-bytes")
+    mock_storage.return_value.upload_file = AsyncMock(return_value="contract-key.pdf")
+
+    user = await _register(
+        _company_create("approve@example.com", "Approve Co"), session
+    )
+    assert not user.is_active
+
+    await approve_company(user.id, session)
+    await session.commit()
+
     cp = (
         await session.execute(
             select(CompanyProfile).where(CompanyProfile.user_id == user.id)  # pyright: ignore[reportArgumentType]
         )
     ).scalar_one()
     assert cp.contract_pdf_url == "contract-key.pdf"
-    mock_storage.return_value.upload_file.assert_called_once()
 
 
 @pytest.mark.asyncio

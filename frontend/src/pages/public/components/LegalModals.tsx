@@ -54,7 +54,7 @@ export function PrivacyModal({ onClose }: { onClose: () => void }) {
   return (
     <LegalModal
       titleKey="publicJobs:application.privacyConsentTitle"
-      bodyKey="auth:register.agreementTextPrivacy"
+      bodyKey="legal:privacy.body"
       onClose={onClose}
     />
   );
@@ -64,7 +64,7 @@ export function TermsModal({ onClose }: { onClose: () => void }) {
   return (
     <LegalModal
       titleKey="publicJobs:application.termsConsentTitle"
-      bodyKey="auth:register.agreementTextSiteTerms"
+      bodyKey="legal:terms.body"
       onClose={onClose}
     />
   );

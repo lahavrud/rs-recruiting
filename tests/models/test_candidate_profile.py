@@ -11,7 +11,7 @@ from src.models import CandidateProfile, User
 
 
 @pytest.mark.asyncio
-async def test_candidate_profile_creation(session: AsyncSession):
+async def test_candidate_profile_creation_persists_all_fields(session: AsyncSession):
     """Test creating a CandidateProfile model."""
     candidate = CandidateProfile(
         full_name="Jane Doe",

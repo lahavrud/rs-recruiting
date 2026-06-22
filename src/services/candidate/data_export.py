@@ -30,6 +30,7 @@ import logging
 import secrets
 import zipfile
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -80,7 +81,7 @@ async def _gather_candidate_data(
     profile_row = await session.execute(
         select(CandidateProfile)
         .options(selectinload(CandidateProfile.user))
-        .where(CandidateProfile.user_id == user_id)  # type: ignore[arg-type]
+        .where(CandidateProfile.user_id == user_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     profile = profile_row.scalar_one_or_none()
 
@@ -180,7 +181,7 @@ def _serialize_export(
 
 
 async def _build_zip_bytes(
-    payload: dict,
+    payload: dict[str, Any],
     applications: list[Application],
     storage: StorageProvider,
 ) -> bytes:

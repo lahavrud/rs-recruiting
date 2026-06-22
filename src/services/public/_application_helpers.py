@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
-from src.core.services.file_validation import validate_document_magic_bytes
+from src.core.services.file_validation import is_valid_document_magic_bytes
 from src.core.services.storage import StorageProvider
 from src.core.tasks import enqueue_email_task
 from src.enums import ApplicationStatus, UserRole
@@ -71,7 +71,7 @@ async def validate_and_upload_resume(
         raise ValueError(
             f"File size exceeds maximum of 10MB. Got: {len(resume_file)} bytes"
         )
-    if not validate_document_magic_bytes(resume_file, ext):
+    if not is_valid_document_magic_bytes(resume_file, ext):
         raise ValueError("Resume file content does not match the declared file type")
 
     content_type = _MIME_BY_EXT.get(ext, "application/octet-stream")
@@ -128,7 +128,7 @@ async def upsert_candidate_and_application(
     """
     if candidate_user is None:
         user_result = await session.execute(
-            select(User).where(User.email == candidate_data.email)  # type: ignore[arg-type]
+            select(User).where(User.email == candidate_data.email)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
         )
         matching_user = user_result.scalar_one_or_none()
         if (
@@ -190,7 +190,7 @@ async def upsert_candidate_and_application(
     session.add(
         Application(
             job_id=job_id,
-            candidate_id=candidate.id,  # type: ignore[arg-type]
+            candidate_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             status=ApplicationStatus.NEW,
             service_concept=service_concept,
             salary_expectations=salary_expectations,
