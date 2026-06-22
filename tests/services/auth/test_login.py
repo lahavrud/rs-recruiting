@@ -9,7 +9,10 @@ from src.enums import UserRole
 from src.models import User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.auth.login import authenticate_user
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 from src.services.exceptions import (
     InvalidCredentialsError,
     PendingApprovalError,
@@ -53,7 +56,7 @@ async def test_authenticate_user_success(session: AsyncSession):
         session,
         FAKE_LOGO,
         FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
+        CompanyRegistrationData(agreement_signature=FAKE_SIGNATURE_B64),
     )
     await session.commit()
 
@@ -87,7 +90,7 @@ async def test_authenticate_user_invalid_password(session: AsyncSession):
         session,
         FAKE_LOGO,
         FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
+        CompanyRegistrationData(agreement_signature=FAKE_SIGNATURE_B64),
     )
     await session.commit()
 
@@ -111,7 +114,7 @@ async def test_authenticate_user_inactive(session: AsyncSession):
         session,
         FAKE_LOGO,
         FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
+        CompanyRegistrationData(agreement_signature=FAKE_SIGNATURE_B64),
     )
     await session.commit()
 

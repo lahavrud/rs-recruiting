@@ -15,7 +15,10 @@ from src.enums import UserRole
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
 from src.services.admin.company_approval import approve_company
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
 from tests.conftest import FAKE_LOGO as _LOGO
 from tests.conftest import FAKE_SIG_B64 as _SIG
@@ -38,7 +41,13 @@ def _company_create(email: str, name: str) -> UserCreate:
 
 async def _register(data: UserCreate, session: AsyncSession) -> User:
     result = await register_company_user(
-        data, session, _LOGO, "logo.png", "image/png", _SIG
+        data,
+        session,
+        _LOGO,
+        "logo.png",
+        CompanyRegistrationData(
+            logo_content_type="image/png", agreement_signature=_SIG
+        ),
     )
     await session.commit()
     return result.user

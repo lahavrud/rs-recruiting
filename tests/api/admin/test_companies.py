@@ -8,7 +8,10 @@ from sqlalchemy import select
 
 from src.models import CompanyProfile, User
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 from tests.conftest import FAKE_LOGO, FAKE_SIG_B64, TestSessionLocal
 
 
@@ -46,8 +49,9 @@ async def test_get_pending_companies(
             session,
             FAKE_LOGO,
             "logo.png",
-            "image/png",
-            FAKE_SIG_B64,
+            CompanyRegistrationData(
+                logo_content_type="image/png", agreement_signature=FAKE_SIG_B64
+            ),
         )
         await session.commit()
 

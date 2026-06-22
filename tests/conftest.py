@@ -52,7 +52,10 @@ from src.models import (
     User,
 )
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 
 _EMAIL_TASK_TARGETS = [
     "src.services.auth.registration.enqueue_email_task",
@@ -439,8 +442,10 @@ async def company_user(test_db) -> User:
                 session,
                 FAKE_LOGO,
                 "logo.png",
-                "image/png",
-                FAKE_SIG_B64,
+                CompanyRegistrationData(
+                    logo_content_type="image/png",
+                    agreement_signature=FAKE_SIG_B64,
+                ),
             )
         return result.user
 
@@ -460,8 +465,10 @@ async def approved_company_user(test_db) -> User:
                 session,
                 FAKE_LOGO,
                 "logo.png",
-                "image/png",
-                FAKE_SIG_B64,
+                CompanyRegistrationData(
+                    logo_content_type="image/png",
+                    agreement_signature=FAKE_SIG_B64,
+                ),
             )
         result.user.is_active = True
         await session.commit()

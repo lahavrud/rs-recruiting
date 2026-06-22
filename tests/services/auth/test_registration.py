@@ -11,7 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.enums import UserRole
 from src.schemas import CompanyProfileCreate, UserCreate
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 from src.services.exceptions import EmailAlreadyExistsError
 from tests.conftest import FAKE_LOGO
 from tests.conftest import FAKE_SIG_B64 as FAKE_SIGNATURE_B64
@@ -49,8 +52,9 @@ async def test_register_company_user_full_data(session: AsyncSession):
         session,
         FAKE_LOGO,
         FAKE_LOGO_NAME,
-        FAKE_LOGO_TYPE,
-        FAKE_SIGNATURE_B64,
+        CompanyRegistrationData(
+            logo_content_type=FAKE_LOGO_TYPE, agreement_signature=FAKE_SIGNATURE_B64
+        ),
     )
     await session.commit()
 
@@ -88,7 +92,7 @@ async def test_register_company_user_duplicate_email(session: AsyncSession):
         session,
         FAKE_LOGO,
         FAKE_LOGO_NAME,
-        agreement_signature=FAKE_SIGNATURE_B64,
+        CompanyRegistrationData(agreement_signature=FAKE_SIGNATURE_B64),
     )
     await session.commit()
 
@@ -98,7 +102,7 @@ async def test_register_company_user_duplicate_email(session: AsyncSession):
             session,
             FAKE_LOGO,
             FAKE_LOGO_NAME,
-            agreement_signature=FAKE_SIGNATURE_B64,
+            CompanyRegistrationData(agreement_signature=FAKE_SIGNATURE_B64),
         )
     assert "duplicate@example.com" in str(exc_info.value)
 
@@ -109,7 +113,11 @@ async def test_register_logo_type_rejected(session: AsyncSession):
     user_data = _make_user_create("typeerr@example.com")
     with pytest.raises(ValueError, match="image"):
         await register_company_user(
-            user_data, session, b"pdf-bytes", "doc.pdf", "application/pdf"
+            user_data,
+            session,
+            b"pdf-bytes",
+            "doc.pdf",
+            CompanyRegistrationData(logo_content_type="application/pdf"),
         )
 
 
@@ -120,7 +128,11 @@ async def test_register_logo_too_large(session: AsyncSession):
     big_logo = b"x" * (5 * 1024 * 1024 + 1)
     with pytest.raises(ValueError, match="5 MB"):
         await register_company_user(
-            user_data, session, big_logo, "logo.png", "image/png"
+            user_data,
+            session,
+            big_logo,
+            "logo.png",
+            CompanyRegistrationData(logo_content_type="image/png"),
         )
 
 
@@ -131,7 +143,11 @@ async def test_register_logo_forged_magic_bytes_rejected(session: AsyncSession):
     exe_bytes = b"MZ" + b"\x00" * 100  # Windows PE header declared as PNG
     with pytest.raises(ValueError, match="content does not match"):
         await register_company_user(
-            user_data, session, exe_bytes, "logo.png", "image/png"
+            user_data,
+            session,
+            exe_bytes,
+            "logo.png",
+            CompanyRegistrationData(logo_content_type="image/png"),
         )
 
 
@@ -142,5 +158,11 @@ async def test_register_signature_invalid_png_rejected(session: AsyncSession):
     not_a_png = base64.b64encode(b"not-a-png-just-text").decode()
     with pytest.raises(ValueError, match="PNG"):
         await register_company_user(
-            user_data, session, FAKE_LOGO, FAKE_LOGO_NAME, FAKE_LOGO_TYPE, not_a_png
+            user_data,
+            session,
+            FAKE_LOGO,
+            FAKE_LOGO_NAME,
+            CompanyRegistrationData(
+                logo_content_type=FAKE_LOGO_TYPE, agreement_signature=not_a_png
+            ),
         )

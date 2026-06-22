@@ -14,6 +14,7 @@ Carved out of ``applications.py`` to keep the main module under the
 """
 
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -105,28 +106,42 @@ async def check_no_blocking_application(
     )
 
 
+@dataclass
+class CandidateApplicationPayload:
+    """Consent metadata + resume snapshot fields for an apply submission.
+
+    Grouped separately from `session`/`candidate_data`/`job_id` (the "what
+    and where" of the upsert) since these fields are either consent-write
+    inputs (timestamp is derived internally, but IP/UA + skip-flag travel
+    together) or the per-Application resume snapshot, plus the optional
+    authenticated user that toggles the skip-consent-write behavior.
+    """
+
+    resume_path: str | None = None
+    consent_ip: str | None = None
+    consent_ua: str | None = None
+    service_concept: str | None = None
+    salary_expectations: str | None = None
+    strength: str | None = None
+    growth_area: str | None = None
+    skip_consent_write: bool = False
+    candidate_user: User | None = None
+    resume_filename: str | None = None
+    resume_hash: str | None = None
+
+
 async def upsert_candidate_and_application(
     session: AsyncSession,
     candidate_data: CandidateProfileCreate,
     job_id: int,
-    resume_path: str | None,
-    consent_ip: str | None,
-    consent_ua: str | None,
-    service_concept: str | None = None,
-    salary_expectations: str | None = None,
-    strength: str | None = None,
-    growth_area: str | None = None,
-    skip_consent_write: bool = False,
-    candidate_user: User | None = None,
-    resume_filename: str | None = None,
-    resume_hash: str | None = None,
+    payload: CandidateApplicationPayload,
 ) -> CandidateProfile:
     """Find-or-create the candidate profile and create the Application row.
 
     Order matters: pre-checks fire before any profile mutation so a 409
     doesn't leave the profile half-updated with the new request's values.
     """
-    if candidate_user is None:
+    if payload.candidate_user is None:
         user_result = await session.execute(
             select(User).where(User.email == candidate_data.email)  # type: ignore[arg-type]
         )
@@ -148,16 +163,16 @@ async def upsert_candidate_and_application(
         candidate = await update_candidate_profile(
             candidate=existing,
             candidate_data=candidate_data,
-            resume_path=resume_path,
-            resume_filename=resume_filename,
-            resume_hash=resume_hash,
+            resume_path=payload.resume_path,
+            resume_filename=payload.resume_filename,
+            resume_hash=payload.resume_hash,
             session=session,
         )
-        if not skip_consent_write:
+        if not payload.skip_consent_write:
             candidate.consent_given_at = now
             candidate.consent_policy_version = CURRENT_PRIVACY_POLICY_VERSION
-            candidate.consent_ip = consent_ip
-            candidate.consent_user_agent = consent_ua
+            candidate.consent_ip = payload.consent_ip
+            candidate.consent_user_agent = payload.consent_ua
             candidate.tos_accepted_at = now
             candidate.tos_version = CURRENT_TERMS_OF_SERVICE_VERSION
         await session.flush()
@@ -166,19 +181,21 @@ async def upsert_candidate_and_application(
             full_name=candidate_data.full_name,
             email=candidate_data.email,
             phone=candidate_data.phone,
-            resume_path=resume_path,
-            resume_filename=resume_filename,
-            resume_hash=resume_hash,
+            resume_path=payload.resume_path,
+            resume_filename=payload.resume_filename,
+            resume_hash=payload.resume_hash,
             linkedin_url=candidate_data.linkedin_url,
-            consent_given_at=None if skip_consent_write else now,
+            consent_given_at=None if payload.skip_consent_write else now,
             consent_policy_version=(
-                None if skip_consent_write else CURRENT_PRIVACY_POLICY_VERSION
+                None if payload.skip_consent_write else CURRENT_PRIVACY_POLICY_VERSION
             ),
-            consent_ip=None if skip_consent_write else consent_ip,
-            consent_user_agent=None if skip_consent_write else consent_ua,
-            tos_accepted_at=None if skip_consent_write else now,
+            consent_ip=None if payload.skip_consent_write else payload.consent_ip,
+            consent_user_agent=(
+                None if payload.skip_consent_write else payload.consent_ua
+            ),
+            tos_accepted_at=None if payload.skip_consent_write else now,
             tos_version=(
-                None if skip_consent_write else CURRENT_TERMS_OF_SERVICE_VERSION
+                None if payload.skip_consent_write else CURRENT_TERMS_OF_SERVICE_VERSION
             ),
         )
         session.add(candidate)
@@ -192,13 +209,13 @@ async def upsert_candidate_and_application(
             job_id=job_id,
             candidate_id=candidate.id,  # type: ignore[arg-type]
             status=ApplicationStatus.NEW,
-            service_concept=service_concept,
-            salary_expectations=salary_expectations,
-            strength=strength,
-            growth_area=growth_area,
-            resume_path=resume_path,
-            resume_filename=resume_filename,
-            resume_hash=resume_hash,
+            service_concept=payload.service_concept,
+            salary_expectations=payload.salary_expectations,
+            strength=payload.strength,
+            growth_area=payload.growth_area,
+            resume_path=payload.resume_path,
+            resume_filename=payload.resume_filename,
+            resume_hash=payload.resume_hash,
         )
     )
     return candidate

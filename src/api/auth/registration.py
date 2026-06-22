@@ -25,7 +25,10 @@ from src.core.infrastructure.limiter import get_limiter
 from src.core.infrastructure.transactions import transactional
 from src.core.services.file_validation import validate_upload
 from src.schemas import CompanyProfileCreate, UserCreate, UserWithCompanyRead
-from src.services.auth.registration import register_company_user
+from src.services.auth.registration import (
+    CompanyRegistrationData,
+    register_company_user,
+)
 from src.services.auth.session import mark_invite_used
 from src.services.exceptions import EmailAlreadyExistsError, InvalidInviteTokenError
 
@@ -102,12 +105,14 @@ async def register(
                 session,
                 logo_content,
                 logo_filename,
-                logo_content_type,
-                agreement_signature,
-                privacy_accepted=privacy_accepted,
-                terms_accepted=terms_accepted,
-                acceptance_ip=client_ip(request),
-                acceptance_user_agent=request.headers.get("user-agent"),
+                CompanyRegistrationData(
+                    logo_content_type=logo_content_type,
+                    agreement_signature=agreement_signature,
+                    privacy_accepted=privacy_accepted,
+                    terms_accepted=terms_accepted,
+                    acceptance_ip=client_ip(request),
+                    acceptance_user_agent=request.headers.get("user-agent"),
+                ),
             )
             await mark_invite_used(token, session)
     except InvalidInviteTokenError as e:
