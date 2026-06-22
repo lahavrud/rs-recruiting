@@ -11,6 +11,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.infrastructure.storage_helpers import delete_file_best_effort
 from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
@@ -53,10 +54,7 @@ async def _delete_company_files(company_profile: CompanyProfile) -> None:
         company_profile.contract_pdf_url,
     ]:
         if key:
-            try:
-                await storage.delete_file(key)
-            except Exception:
-                _logger.exception("Failed to delete storage file %s", key)
+            await delete_file_best_effort(storage, key, _logger)
 
 
 async def get_all_admin_emails(session: AsyncSession) -> list[str]:
