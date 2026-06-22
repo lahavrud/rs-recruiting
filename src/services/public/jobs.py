@@ -93,7 +93,7 @@ async def get_published_job(
                 select(Application)
                 .join(
                     CandidateProfile,
-                    CandidateProfile.id == Application.candidate_id,  # type: ignore[arg-type]
+                    CandidateProfile.id == Application.candidate_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
                 )
                 .where(  # pyright: ignore[reportArgumentType]
                     Application.job_id == job_id,

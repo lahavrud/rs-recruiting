@@ -40,7 +40,7 @@ async def test_register_company_user_full_data(session: AsyncSession):
     """Test successful company user registration with all fields."""
     from sqlalchemy import select
 
-    from src.core.infrastructure.security import verify_password
+    from src.core.infrastructure.security import is_password_valid
     from src.models import CompanyProfile, User
 
     user_data = _make_user_create()
@@ -68,7 +68,7 @@ async def test_register_company_user_full_data(session: AsyncSession):
         select(User).where(User.email == "company@example.com")  # pyright: ignore[reportArgumentType]
     )
     db_user = db_result.scalar_one()
-    assert verify_password("SecurePass1!", db_user.hashed_password)
+    assert is_password_valid("SecurePass1!", db_user.hashed_password)
 
     db_profile_result = await session.execute(
         select(CompanyProfile).where(CompanyProfile.user_id == db_user.id)  # pyright: ignore[reportArgumentType]

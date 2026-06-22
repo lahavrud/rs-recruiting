@@ -44,7 +44,7 @@ def _set_tcp_keepalive(dbapi_conn: object, _connection_record: object) -> None:
     # never silently drops pooled connections.  pool_pre_ping catches the
     # rare case where a connection dies despite keepalives.
     try:
-        raw = dbapi_conn._connection  # type: ignore[attr-defined]
+        raw = dbapi_conn._connection  # type: ignore[attr-defined]  # reaching into the DBAPI driver's private connection attr; not in the stubs
         sock: socket.socket | None = raw._protocol.transport.get_extra_info("socket")
         if sock is None:
             return

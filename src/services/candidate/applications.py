@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def _job_summary(job: Job) -> CandidateApplicationJobSummary:
     return CandidateApplicationJobSummary(
-        id=job.id,  # type: ignore[arg-type]
+        id=job.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         title=job.title,
         closed=job.status == JobStatus.CLOSED,
     )
@@ -53,7 +53,7 @@ def _job_summary(job: Job) -> CandidateApplicationJobSummary:
 
 def _job_detail(job: Job) -> CandidateApplicationJobDetail:
     return CandidateApplicationJobDetail(
-        id=job.id,  # type: ignore[arg-type]
+        id=job.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         title=job.title,
         description=job.description,
         closed=job.status == JobStatus.CLOSED,
@@ -66,7 +66,7 @@ def _company(job: Job) -> CandidateApplicationCompany:
 
 def _list_item(app: Application) -> CandidateApplicationListItem:
     return CandidateApplicationListItem(
-        id=app.id,  # type: ignore[arg-type]
+        id=app.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         submitted_at=app.created_at,
         editable=app.status == ApplicationStatus.NEW,
         job=_job_summary(app.job),
@@ -104,7 +104,7 @@ async def list_my_applications(
     return build_cursor_page(
         rows,
         serializer=_list_item,
-        cursor_key=lambda a: (a.created_at, a.id),  # type: ignore[arg-type,return-value]
+        cursor_key=lambda a: (a.created_at, a.id),  # type: ignore[arg-type,return-value]  # SQLAlchemy column attrs in a plain tuple lambda; stubs incomplete
         limit=page_size,
     )
 
@@ -171,7 +171,7 @@ def _build_detail(app: Application) -> CandidateApplicationDetail:
             snapshot_present=True,
         )
     return CandidateApplicationDetail(
-        id=app.id,  # type: ignore[arg-type]
+        id=app.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         submitted_at=app.created_at,
         editable=app.status == ApplicationStatus.NEW,
         job=_job_detail(app.job),

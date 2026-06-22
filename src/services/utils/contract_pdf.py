@@ -66,7 +66,7 @@ async def _fetch_asset(key: str) -> bytes:
 
     session = aioboto3.Session()
     bucket = settings.aws_s3_bucket_name
-    async with session.client(  # type: ignore[attr-defined]
+    async with session.client(  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
         "s3",
         region_name=settings.aws_region,
         aws_access_key_id=settings.aws_access_key_id,

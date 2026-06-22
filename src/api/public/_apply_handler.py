@@ -128,7 +128,7 @@ async def apply_to_job(
         existing_profile = (
             await session.execute(
                 select(CandidateProfile).where(
-                    CandidateProfile.user_id == current_user.id  # type: ignore[arg-type]
+                    CandidateProfile.user_id == current_user.id  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
                 )
             )
         ).scalar_one_or_none()

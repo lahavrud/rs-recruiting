@@ -211,7 +211,7 @@ async def logout_user(
 async def mark_invite_used(token: str, session: AsyncSession) -> None:
     """Mark the invite DB record as used after successful registration."""
     result = await session.execute(
-        select(InviteToken).where(InviteToken.token_hash == hash_token(token))  # type: ignore[arg-type]
+        select(InviteToken).where(InviteToken.token_hash == hash_token(token))  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     record = result.scalar_one_or_none()
     if record and record.status == InviteTokenStatus.PENDING:

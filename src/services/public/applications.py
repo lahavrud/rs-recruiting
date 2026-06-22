@@ -162,7 +162,7 @@ async def create_candidate_profile(
             actor_user_id=None,
             action="candidate.consent",
             target_type="CandidateProfile",
-            target_id=candidate.id,  # type: ignore[arg-type]
+            target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
             ip_address=consent_ip,
         )
@@ -171,7 +171,7 @@ async def create_candidate_profile(
             actor_user_id=None,
             action="candidate.terms_accept",
             target_type="CandidateProfile",
-            target_id=candidate.id,  # type: ignore[arg-type]
+            target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
             ip_address=consent_ip,
         )
@@ -202,7 +202,7 @@ async def create_candidate_profile(
                 actor_user_id=None,
                 action="candidate_register_via_apply",
                 target_type="CandidateProfile",
-                target_id=candidate.id,  # type: ignore[arg-type]
+                target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
                 ip_address=consent_ip,
             )
         except EmailAlreadyExistsError:

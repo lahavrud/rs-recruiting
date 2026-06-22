@@ -53,7 +53,7 @@ async def activate_user(
     result = await session.execute(
         select(ActivationToken, User)
         .join(User, User.id == ActivationToken.user_id)  # pyright: ignore[reportArgumentType]
-        .where(ActivationToken.token_hash == hash_token(token))  # type: ignore[arg-type]
+        .where(ActivationToken.token_hash == hash_token(token))  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     row = result.one_or_none()
 
@@ -110,7 +110,7 @@ async def _link_or_create_candidate_profile(
     result = await session.execute(
         select(CandidateProfile)
         .options(selectinload(CandidateProfile.user))
-        .where(CandidateProfile.email == user.email)  # type: ignore[arg-type]
+        .where(CandidateProfile.email == user.email)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     profile = result.scalar_one_or_none()
 

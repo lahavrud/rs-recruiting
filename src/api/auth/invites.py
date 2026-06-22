@@ -26,7 +26,7 @@ async def get_invite_metadata(
     except InvalidInviteTokenError as e:
         raise service_exception_to_http(e) from e
     result = await session.execute(
-        select(InviteToken).where(InviteToken.token_hash == hash_token(token))  # type: ignore[arg-type]
+        select(InviteToken).where(InviteToken.token_hash == hash_token(token))  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     record = result.scalar_one_or_none()
     if record is None:

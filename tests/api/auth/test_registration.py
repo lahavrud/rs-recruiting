@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from src.core.infrastructure.database import get_session
-from src.core.infrastructure.security import verify_password
+from src.core.infrastructure.security import is_password_valid
 from src.main import app
 from src.models import AuditLog, CompanyProfile, User
 from src.services.exceptions import InvalidInviteTokenError
@@ -88,7 +88,7 @@ async def test_register_success(client: AsyncClient):
             select(User).where(User.email == "company@example.com")  # pyright: ignore[reportArgumentType]
         )
         user = result.scalar_one()
-        assert verify_password(_STRONG_PASSWORD, user.hashed_password)
+        assert is_password_valid(_STRONG_PASSWORD, user.hashed_password)
 
 
 @pytest.mark.asyncio

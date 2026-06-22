@@ -8,6 +8,7 @@ inside a ``<script type="application/ld+json">`` element.
 import html
 from collections.abc import Sequence
 from datetime import timedelta
+from typing import Any
 
 from src.models import Job
 
@@ -42,7 +43,7 @@ def description_html(job: Job) -> str:
 
 def job_posting(job: Job, site_url: str) -> dict:
     valid_through = job.created_at + timedelta(days=JOB_POSTING_VALID_DAYS)
-    posting: dict = {
+    posting: dict[str, Any] = {
         "@type": "JobPosting",
         "title": job.title,
         "description": description_html(job),
@@ -142,7 +143,7 @@ def breadcrumb(items: Sequence[tuple[str, str]]) -> dict:
 def article(item: Article, site_url: str) -> dict:
     """Article schema — matches ArticlePage.tsx so SPA + prerender agree."""
     canonical = f"{site_url}/articles/{item.slug}"
-    payload: dict = {
+    payload: dict[str, Any] = {
         "@type": "Article",
         "headline": item.title,
         "description": item.description,

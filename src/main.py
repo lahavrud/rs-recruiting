@@ -135,7 +135,7 @@ def _included_router_path(router: object) -> str:
 
 
 if _included_router is not None and not hasattr(_included_router, "path"):
-    _included_router.path = property(_included_router_path)  # type: ignore[attr-defined]
+    _included_router.path = property(_included_router_path)  # type: ignore[attr-defined]  # monkeypatching a property onto FastAPI's APIRoute class; stubs don't model this
 
 
 class _HealthCheckLogFilter(logging.Filter):
