@@ -1,12 +1,14 @@
 """Unit tests for database module initialization."""
 
+import logging
 import os
 
 import pytest
 from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from src.core.infrastructure.database import engine
+import src.core.infrastructure.database as database_module
+from src.core.infrastructure.database import engine, init_db
 from src.models import Application, CandidateProfile, CompanyProfile, Job, User
 
 TEST_DATABASE_URL = os.environ.get(
@@ -107,6 +109,28 @@ class TestInitDB:
 
             assert found_user is not None
             assert found_user.email == "test@example.com"
+
+
+class TestInitDbMigrationFailure:
+    """A failing ad-hoc migration must be logged and re-raised, never swallowed."""
+
+    @pytest.mark.asyncio
+    async def test_failed_migration_is_logged_and_raised(self, monkeypatch, caplog):
+        # Use a fresh engine bound to this worker's isolated test database —
+        # the module-level `engine` is bound to the unsuffixed base DATABASE_URL
+        # (read before conftest rewrites it per-worker) and is shared, unmanaged
+        # infrastructure that other tests in this file deliberately avoid.
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        monkeypatch.setattr(database_module, "engine", test_engine)
+        monkeypatch.setattr(
+            database_module, "_MIGRATIONS", ["SELECT * FROM nonexistent_table_xyz"]
+        )
+
+        with caplog.at_level(logging.ERROR, logger=database_module.logger.name):
+            with pytest.raises(Exception):
+                await init_db()
+
+        assert any("Migration failed" in record.message for record in caplog.records)
 
 
 class TestEngineConfiguration:
