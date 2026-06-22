@@ -64,7 +64,7 @@ async def _check_resend_rate_limit(user_id: int, session: AsyncSession) -> bool:
         select(func.count())
         .select_from(ActivationToken)
         .where(
-            ActivationToken.user_id == user_id,  # type: ignore[arg-type]
+            ActivationToken.user_id == user_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             ActivationToken.created_at > window_start,
         )
     )
@@ -108,7 +108,7 @@ async def _latest_unused_full_name(user_id: int, session: AsyncSession) -> str |
         await session.execute(
             select(ActivationToken.full_name)
             .where(
-                ActivationToken.user_id == user_id,  # type: ignore[arg-type]
+                ActivationToken.user_id == user_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
                 ActivationToken.used == False,  # noqa: E712
             )
             .order_by(ActivationToken.created_at.desc())
@@ -127,7 +127,7 @@ async def _delete_stale_tokens(user_id: int, session: AsyncSession) -> None:
     """
     stale_result = await session.execute(
         select(ActivationToken).where(
-            ActivationToken.user_id == user_id,  # type: ignore[arg-type]
+            ActivationToken.user_id == user_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             ActivationToken.used == False,  # noqa: E712
         )
     )
@@ -203,7 +203,7 @@ async def register_candidate(
     normalized_email = email.lower().strip()
 
     result = await session.execute(
-        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]
+        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     existing = result.scalar_one_or_none()
 
@@ -270,7 +270,7 @@ async def resend_candidate_activation(
     normalized_email = email.lower().strip()
 
     result = await session.execute(
-        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]
+        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     user = result.scalar_one_or_none()
 

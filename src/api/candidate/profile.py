@@ -1,5 +1,7 @@
 """Authenticated candidate self-service profile endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +33,7 @@ router = APIRouter(prefix="/api/candidate", tags=["candidate"])
 def _to_me_read(user: User, profile: CandidateProfile) -> CandidateMeRead:
     """Project the User + CandidateProfile pair into the /me response shape."""
     return CandidateMeRead(
-        id=profile.id,  # type: ignore[arg-type]
+        id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         email=user.email,
         full_name=profile.full_name,
         phone=profile.phone,
@@ -55,7 +57,7 @@ async def get_me(
 
 @router.patch("/me", response_model=CandidateMeRead)
 async def patch_me(
-    body: dict,
+    body: dict[str, Any],
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
 ) -> CandidateMeRead:

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.security import (
     get_password_hash,
     hash_token,
-    verify_password,
+    is_password_valid,
 )
 from src.core.infrastructure.transactions import transactional
 from src.enums import UserRole
@@ -136,8 +136,8 @@ async def test_reset_password_sets_new_hash_and_marks_token_used(
     await session.refresh(user)
     await session.refresh(record)
     assert record.used is True
-    assert verify_password("BrandNewPass1!", user.hashed_password)
-    assert not verify_password("OldPass1!", user.hashed_password)
+    assert is_password_valid("BrandNewPass1!", user.hashed_password)
+    assert not is_password_valid("OldPass1!", user.hashed_password)
 
 
 @pytest.mark.asyncio

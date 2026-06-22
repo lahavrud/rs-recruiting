@@ -1,8 +1,8 @@
 """Tests for magic byte file validation."""
 
 from src.core.services.file_validation import (
-    validate_document_magic_bytes,
-    validate_image_magic_bytes,
+    is_valid_document_magic_bytes,
+    is_valid_image_magic_bytes,
 )
 
 # ── Real magic byte headers ───────────────────────────────────────────────────
@@ -23,94 +23,94 @@ _EXE_HEADER = b"MZ" + b"\x00" * 100  # Windows PE
 
 
 def test_jpeg_valid():
-    assert validate_image_magic_bytes(_JPEG_HEADER, "image/jpeg") is True
+    assert is_valid_image_magic_bytes(_JPEG_HEADER, "image/jpeg") is True
 
 
 def test_png_valid():
-    assert validate_image_magic_bytes(_PNG_HEADER, "image/png") is True
+    assert is_valid_image_magic_bytes(_PNG_HEADER, "image/png") is True
 
 
 def test_gif87_valid():
-    assert validate_image_magic_bytes(_GIF87_HEADER, "image/gif") is True
+    assert is_valid_image_magic_bytes(_GIF87_HEADER, "image/gif") is True
 
 
 def test_gif89_valid():
-    assert validate_image_magic_bytes(_GIF89_HEADER, "image/gif") is True
+    assert is_valid_image_magic_bytes(_GIF89_HEADER, "image/gif") is True
 
 
 def test_webp_valid():
-    assert validate_image_magic_bytes(_WEBP_HEADER, "image/webp") is True
+    assert is_valid_image_magic_bytes(_WEBP_HEADER, "image/webp") is True
 
 
 def test_exe_disguised_as_jpeg():
-    assert validate_image_magic_bytes(_EXE_HEADER, "image/jpeg") is False
+    assert is_valid_image_magic_bytes(_EXE_HEADER, "image/jpeg") is False
 
 
 def test_exe_disguised_as_png():
-    assert validate_image_magic_bytes(_EXE_HEADER, "image/png") is False
+    assert is_valid_image_magic_bytes(_EXE_HEADER, "image/png") is False
 
 
 def test_jpeg_declared_as_png():
-    assert validate_image_magic_bytes(_JPEG_HEADER, "image/png") is False
+    assert is_valid_image_magic_bytes(_JPEG_HEADER, "image/png") is False
 
 
 def test_png_declared_as_jpeg():
-    assert validate_image_magic_bytes(_PNG_HEADER, "image/jpeg") is False
+    assert is_valid_image_magic_bytes(_PNG_HEADER, "image/jpeg") is False
 
 
 def test_pdf_declared_as_image():
-    assert validate_image_magic_bytes(_PDF_HEADER, "image/jpeg") is False
+    assert is_valid_image_magic_bytes(_PDF_HEADER, "image/jpeg") is False
 
 
 def test_empty_data_image():
-    assert validate_image_magic_bytes(b"", "image/jpeg") is False
+    assert is_valid_image_magic_bytes(b"", "image/jpeg") is False
 
 
 def test_unknown_mime_type():
-    assert validate_image_magic_bytes(_JPEG_HEADER, "image/tiff") is False
+    assert is_valid_image_magic_bytes(_JPEG_HEADER, "image/tiff") is False
 
 
 # ── Document validation ───────────────────────────────────────────────────────
 
 
 def test_pdf_valid():
-    assert validate_document_magic_bytes(_PDF_HEADER, "pdf") is True
+    assert is_valid_document_magic_bytes(_PDF_HEADER, "pdf") is True
 
 
 def test_doc_valid():
-    assert validate_document_magic_bytes(_DOC_HEADER, "doc") is True
+    assert is_valid_document_magic_bytes(_DOC_HEADER, "doc") is True
 
 
 def test_docx_valid():
-    assert validate_document_magic_bytes(_DOCX_HEADER, "docx") is True
+    assert is_valid_document_magic_bytes(_DOCX_HEADER, "docx") is True
 
 
 def test_exe_disguised_as_pdf():
-    assert validate_document_magic_bytes(_EXE_HEADER, "pdf") is False
+    assert is_valid_document_magic_bytes(_EXE_HEADER, "pdf") is False
 
 
 def test_exe_disguised_as_doc():
-    assert validate_document_magic_bytes(_EXE_HEADER, "doc") is False
+    assert is_valid_document_magic_bytes(_EXE_HEADER, "doc") is False
 
 
 def test_exe_disguised_as_docx():
-    assert validate_document_magic_bytes(_EXE_HEADER, "docx") is False
+    assert is_valid_document_magic_bytes(_EXE_HEADER, "docx") is False
 
 
 def test_pdf_declared_as_doc():
-    assert validate_document_magic_bytes(_PDF_HEADER, "doc") is False
+    assert is_valid_document_magic_bytes(_PDF_HEADER, "doc") is False
 
 
 def test_docx_declared_as_pdf():
-    assert validate_document_magic_bytes(_DOCX_HEADER, "pdf") is False
+    assert is_valid_document_magic_bytes(_DOCX_HEADER, "pdf") is False
 
 
 def test_empty_data_document():
-    assert validate_document_magic_bytes(b"", "pdf") is False
+    assert is_valid_document_magic_bytes(b"", "pdf") is False
 
 
 def test_unknown_extension():
-    assert validate_document_magic_bytes(_PDF_HEADER, "txt") is False
+    assert is_valid_document_magic_bytes(_PDF_HEADER, "txt") is False
 
 
 # ── WebP edge cases ───────────────────────────────────────────────────────────
@@ -118,13 +118,13 @@ def test_unknown_extension():
 
 def test_webp_wrong_riff():
     bad = b"XXXX\x00\x00\x00\x00WEBP" + b"\x00" * 100
-    assert validate_image_magic_bytes(bad, "image/webp") is False
+    assert is_valid_image_magic_bytes(bad, "image/webp") is False
 
 
 def test_webp_wrong_type():
     bad = b"RIFF\x00\x00\x00\x00JPEG" + b"\x00" * 100
-    assert validate_image_magic_bytes(bad, "image/webp") is False
+    assert is_valid_image_magic_bytes(bad, "image/webp") is False
 
 
 def test_webp_too_short():
-    assert validate_image_magic_bytes(b"RIFF", "image/webp") is False
+    assert is_valid_image_magic_bytes(b"RIFF", "image/webp") is False

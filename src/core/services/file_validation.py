@@ -22,7 +22,7 @@ _IMAGE_SIGNATURES: dict[str, list[bytes]] = {
 }
 
 
-def validate_image_magic_bytes(data: bytes, declared_mime: str) -> bool:
+def is_valid_image_magic_bytes(data: bytes, declared_mime: str) -> bool:
     """Return True if the file header matches the declared image MIME type."""
     if not data:
         return False
@@ -49,7 +49,7 @@ async def validate_upload(
     return content
 
 
-def validate_document_magic_bytes(data: bytes, extension: str) -> bool:
+def is_valid_document_magic_bytes(data: bytes, extension: str) -> bool:
     """Return True if the file header matches the declared document extension."""
     if not data:
         return False

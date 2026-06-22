@@ -9,7 +9,7 @@ from src.core.infrastructure.security import (
     create_access_token,
     decode_access_token,
     get_password_hash,
-    verify_password,
+    is_password_valid,
 )
 
 
@@ -25,8 +25,8 @@ class TestPasswordHashing:
         # Hashes should be different due to salt
         assert hash1 != hash2
         # Both should be valid
-        assert verify_password(password, hash1)
-        assert verify_password(password, hash2)
+        assert is_password_valid(password, hash1)
+        assert is_password_valid(password, hash2)
 
     def test_get_password_hash_format(self):
         """Test that hash has correct format."""
@@ -41,32 +41,32 @@ class TestPasswordHashing:
         """Test hash generation with empty password."""
         hashed = get_password_hash("")
         # Should not raise, but hash should be valid
-        assert verify_password("", hashed)
+        assert is_password_valid("", hashed)
 
-    def test_verify_password_correct(self):
+    def test_is_password_valid_correct(self):
         """Test password verification with correct password."""
         password = "correct_password"
         hashed = get_password_hash(password)
 
-        assert verify_password(password, hashed) is True
+        assert is_password_valid(password, hashed) is True
 
-    def test_verify_password_incorrect(self):
+    def test_is_password_valid_incorrect(self):
         """Test password verification with incorrect password."""
         password = "correct_password"
         wrong_password = "wrong_password"
         hashed = get_password_hash(password)
 
-        assert verify_password(wrong_password, hashed) is False
+        assert is_password_valid(wrong_password, hashed) is False
 
-    def test_verify_password_hash_format_validation(self):
-        """Test that verify_password validates hash format."""
+    def test_is_password_valid_hash_format_validation(self):
+        """Test that is_password_valid validates hash format."""
         password = "test_password"
         invalid_hash = "not_a_valid_hash"
 
         # bcrypt raises ValueError for invalid hash format
-        # verify_password should catch this and return False
+        # is_password_valid should catch this and return False
         try:
-            result = verify_password(password, invalid_hash)
+            result = is_password_valid(password, invalid_hash)
             assert result is False
         except ValueError:
             # If ValueError is raised, that's also acceptable behavior

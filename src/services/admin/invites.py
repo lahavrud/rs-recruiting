@@ -51,7 +51,7 @@ async def create_invite(
     """Generate a token, store metadata in DB, send invite email."""
     normalized_email = data.email.lower().strip()
     existing_user = await session.execute(
-        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]
+        select(User).where(User.email == normalized_email)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     if existing_user.scalar_one_or_none() is not None:
         raise EmailAlreadyExistsError(normalized_email)
@@ -59,7 +59,7 @@ async def create_invite(
     pending_invite = await session.execute(
         select(InviteToken).where(
             InviteToken.email == data.email,
-            InviteToken.status == InviteTokenStatus.PENDING,  # type: ignore[arg-type]
+            InviteToken.status == InviteTokenStatus.PENDING,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
         )
     )
     if pending_invite.scalar_one_or_none() is not None:
@@ -110,8 +110,8 @@ async def list_invites(
     await session.execute(
         update(InviteToken)
         .where(
-            InviteToken.status == InviteTokenStatus.PENDING,  # type: ignore[arg-type]
-            InviteToken.expires_at < now,  # type: ignore[operator]
+            InviteToken.status == InviteTokenStatus.PENDING,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
+            InviteToken.expires_at < now,  # type: ignore[operator]  # SQLAlchemy column comparison; stubs incomplete
         )
         .values(status=InviteTokenStatus.EXPIRED)
     )
@@ -119,7 +119,7 @@ async def list_invites(
     page_size = clamp_limit(limit)
     base = select(InviteToken)
     if status is not None:
-        base = base.where(InviteToken.status == status)  # type: ignore[arg-type]
+        base = base.where(InviteToken.status == status)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     query = apply_cursor(
         base,
         sort_col=InviteToken.created_at,  # pyright: ignore[reportArgumentType]
@@ -139,7 +139,7 @@ async def list_invites(
 async def revoke_invite(token_id: int, session: AsyncSession) -> None:
     """Revoke a pending invite: mark as revoked in DB."""
     result = await session.execute(
-        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]
+        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     record = result.scalar_one_or_none()
     if record is None:
@@ -160,7 +160,7 @@ async def delete_invite(token_id: int, session: AsyncSession) -> None:
     so the audit trail survives, while delete removes the record entirely.
     """
     result = await session.execute(
-        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]
+        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     record = result.scalar_one_or_none()
     if record is None:
@@ -172,7 +172,7 @@ async def delete_invite(token_id: int, session: AsyncSession) -> None:
 async def resend_invite(token_id: int, session: AsyncSession) -> None:
     """Generate a fresh token for an existing invite and resend the email."""
     result = await session.execute(
-        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]
+        select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
     )
     record = result.scalar_one_or_none()
     if record is None:

@@ -34,7 +34,7 @@ async def validate_invite_token(token: str, session: AsyncSession) -> None:
 
     result = await session.execute(
         select(InviteToken).where(
-            InviteToken.token_hash == hash_token(token)  # type: ignore[arg-type]
+            InviteToken.token_hash == hash_token(token)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
         )
     )
     record = result.scalar_one_or_none()

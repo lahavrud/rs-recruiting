@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash
 from src.core.infrastructure.transactions import defer_after_commit
-from src.core.services.file_validation import validate_image_magic_bytes
+from src.core.services.file_validation import is_valid_image_magic_bytes
 from src.core.services.storage import get_storage_provider
 from src.core.tasks import enqueue_email_task
 from src.core.utils import mask_email
@@ -114,7 +114,7 @@ async def register_company_user(
         raise ValueError("Logo must be an image file (JPEG, PNG, GIF, or WebP)")
     if len(logo_content) > _MAX_LOGO_SIZE:
         raise ValueError("Logo file size exceeds 5 MB limit")
-    if logo_content_type and not validate_image_magic_bytes(
+    if logo_content_type and not is_valid_image_magic_bytes(
         logo_content, logo_content_type
     ):
         raise ValueError("Logo file content does not match the declared image type")
@@ -201,7 +201,7 @@ async def register_company_user(
                 actor_user_id=new_user.id,
                 action="company.privacy_accept",
                 target_type="CompanyProfile",
-                target_id=new_company_profile.id,  # type: ignore[arg-type]
+                target_id=new_company_profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
                 detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
                 ip_address=acceptance_ip,
             )
@@ -211,7 +211,7 @@ async def register_company_user(
                 actor_user_id=new_user.id,
                 action="company.terms_accept",
                 target_type="CompanyProfile",
-                target_id=new_company_profile.id,  # type: ignore[arg-type]
+                target_id=new_company_profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
                 detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
                 ip_address=acceptance_ip,
             )
@@ -220,7 +220,7 @@ async def register_company_user(
             actor_user_id=new_user.id,
             action="company.contract_sign",
             target_type="CompanyProfile",
-            target_id=new_company_profile.id,  # type: ignore[arg-type]
+            target_id=new_company_profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             detail=f"signature_url={sig_identifier}",
             ip_address=acceptance_ip,
         )

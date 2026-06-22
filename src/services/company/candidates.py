@@ -17,7 +17,11 @@ async def find_candidate_by_email(
     email: str,
     session: AsyncSession,
 ) -> CandidateProfile | None:
-    """Find an existing candidate profile by email address."""
+    """The apply flow's dedup key: a guest applying without an account is
+    matched to their existing `CandidateProfile` by email rather than by
+    `user_id`, since an unauthenticated submitter has no user row to match
+    against yet.
+    """
     result = await session.execute(
         select(CandidateProfile).where(  # pyright: ignore[reportArgumentType]
             CandidateProfile.email == email

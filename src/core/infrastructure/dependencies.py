@@ -184,7 +184,7 @@ async def get_current_company(
     # Get company profile
     result = await session.execute(
         select(CompanyProfile).where(
-            CompanyProfile.user_id == current_user.id  # type: ignore[comparison-overlap]
+            CompanyProfile.user_id == current_user.id  # type: ignore[comparison-overlap]  # SQLAlchemy column comparison; stubs incomplete
         )
     )
     company_profile = result.scalar_one_or_none()
@@ -226,7 +226,7 @@ async def get_current_candidate(
 
     result = await session.execute(
         select(CandidateProfile).where(
-            CandidateProfile.user_id == current_user.id  # type: ignore[comparison-overlap]
+            CandidateProfile.user_id == current_user.id  # type: ignore[comparison-overlap]  # SQLAlchemy column comparison; stubs incomplete
         )
     )
     candidate_profile = result.scalar_one_or_none()

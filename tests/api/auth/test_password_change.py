@@ -11,7 +11,7 @@ from src.core.infrastructure.dependencies import get_current_user
 from src.core.infrastructure.security import (
     get_password_hash,
     hash_token,
-    verify_password,
+    is_password_valid,
 )
 from src.enums import UserRole
 from src.main import app
@@ -88,7 +88,7 @@ async def test_change_password_success_for_candidate(test_db):
                 select(User).where(User.email == "ok-cand@test.com")  # type: ignore[arg-type]
             )
         ).scalar_one()
-        assert verify_password(
+        assert is_password_valid(
             "RotatedAA1!",  # pragma: allowlist secret
             refreshed.hashed_password,
         )

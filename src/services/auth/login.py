@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import verify_password
+from src.core.infrastructure.security import is_password_valid
 from src.models import ActivationToken, User
 from src.services.exceptions import (
     AccountLockedError,
@@ -66,20 +66,20 @@ async def _record_failed_attempt(
     async with _session_factory() as session:
         await session.execute(
             update(User)
-            .where(User.id == user_id)  # type: ignore[arg-type]
+            .where(User.id == user_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             .values(failed_login_attempts=User.failed_login_attempts + 1)
         )
         await session.flush()
 
         result = await session.execute(
-            select(User.failed_login_attempts).where(User.id == user_id)  # type: ignore[arg-type]
+            select(User.failed_login_attempts).where(User.id == user_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
         )
         count = result.scalar_one()
 
         if count >= _MAX_FAILED_ATTEMPTS:
             await session.execute(
                 update(User)
-                .where(User.id == user_id)  # type: ignore[arg-type]
+                .where(User.id == user_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
                 .values(
                     failed_login_attempts=0,
                     locked_until=datetime.now(timezone.utc) + _LOCKOUT_DURATION,
@@ -109,7 +109,7 @@ async def _clear_failed_attempts(user_id: int) -> None:
     async with _session_factory() as session:
         await session.execute(
             update(User)
-            .where(User.id == user_id)  # type: ignore[arg-type]
+            .where(User.id == user_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             .values(failed_login_attempts=0, locked_until=None)
         )
         await session.commit()
@@ -137,7 +137,7 @@ async def authenticate_user(
 
     _check_lockout(user, client_ip)
 
-    if not verify_password(password, user.hashed_password):
+    if not is_password_valid(password, user.hashed_password):
         assert user.id is not None
         await _record_failed_attempt(user.id, email, client_ip)
         raise InvalidCredentialsError("Incorrect email or password")
@@ -147,7 +147,7 @@ async def authenticate_user(
         # hasn't clicked the link yet.  No token → still awaiting admin review.
         activation_result = await session.execute(
             select(ActivationToken).where(
-                ActivationToken.user_id == user.id,  # type: ignore[arg-type]
+                ActivationToken.user_id == user.id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
                 ActivationToken.used == False,  # noqa: E712
             )
         )
