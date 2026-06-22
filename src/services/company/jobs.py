@@ -169,12 +169,13 @@ async def update_job(
         JobNotOwnedByCompanyError: If job is not owned by the company
         JobCannotBeUpdatedError: If job status doesn't allow updates
     """
-    result = await session.execute(
-        select(Job).options(selectinload(Job.company)).where(Job.id == job_id)  # pyright: ignore[reportArgumentType]
+    job = await get_by_id_or_raise(
+        session,
+        Job,
+        job_id,
+        lambda pk: JobNotFoundError(f"Job with ID {pk} not found"),
+        options=[selectinload(Job.company)],  # pyright: ignore[reportArgumentType]
     )
-    job = result.scalar_one_or_none()
-    if job is None:
-        raise JobNotFoundError(f"Job with ID {job_id} not found")
 
     # Verify ownership
     if job.company_id != company_id:

@@ -15,6 +15,7 @@ import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.infrastructure.storage_helpers import delete_file_best_effort
 from src.core.services.storage import StorageProvider
 from src.models import CandidateProfile
 from src.schemas import CandidateMeUpdate
@@ -163,12 +164,9 @@ async def replace_resume(
     profile.resume_hash = hashlib.sha256(content).hexdigest()
 
     if old_key and old_key != new_key:
-        try:
-            await storage.delete_file(old_key)
-        except Exception:
-            # Best-effort cleanup — leaving a stale file behind is preferable
-            # to blocking the candidate's update on a storage outage.
-            logger.exception("Failed to delete previous resume %s", old_key)
+        # Best-effort cleanup — leaving a stale file behind is preferable
+        # to blocking the candidate's update on a storage outage.
+        await delete_file_best_effort(storage, old_key, logger)
 
     await session.flush()
     await session.refresh(profile)
@@ -188,9 +186,6 @@ async def remove_resume(
     profile.resume_filename = None
     profile.resume_hash = None
     if old_key:
-        try:
-            await storage.delete_file(old_key)
-        except Exception:
-            logger.exception("Failed to delete resume %s during remove", old_key)
+        await delete_file_best_effort(storage, old_key, logger, context="remove_resume")
     await session.flush()
     await session.refresh(profile)
