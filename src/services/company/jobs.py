@@ -32,18 +32,9 @@ from src.templates.email import build_job_updated_html, build_new_job_html
 async def create_job(
     job_data: JobCreate, company_id: int, session: AsyncSession
 ) -> JobRead:
-    """Create a new job posting.
-
-    Jobs are created with PENDING_APPROVAL status and require admin approval.
-    Sends email notification to all admins.
-
-    Args:
-        job_data: Job creation data
-        company_id: ID of the company creating the job
-        session: Database session
-
-    Returns:
-        Created job as JobRead schema
+    """Always starts in PENDING_APPROVAL — companies cannot publish directly,
+    so every posting goes through admin review first. Notifies all admins
+    by email so the review queue doesn't rely on them polling the admin UI.
 
     Raises:
         CompanyNotFoundError: If company not found
@@ -99,18 +90,6 @@ async def create_job(
 
 
 async def get_job(job_id: int, session: AsyncSession) -> JobRead:
-    """Get a job by ID.
-
-    Args:
-        job_id: ID of the job to retrieve
-        session: Database session
-
-    Returns:
-        Job as JobRead schema
-
-    Raises:
-        JobNotFoundError: If job not found
-    """
     job = await get_by_id_or_raise(
         session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
@@ -124,7 +103,6 @@ async def list_company_jobs(
     cursor: str | None = None,
     limit: int | None = None,
 ) -> CursorPage[JobRead]:
-    """One page of jobs for a company, newest first."""
     page_size = clamp_limit(limit)
     query = apply_cursor(
         select(Job).where(Job.company_id == company_id),  # pyright: ignore[reportArgumentType]
@@ -148,21 +126,12 @@ async def update_job(
     company_id: int,
     session: AsyncSession,
 ) -> JobRead:
-    """Update a job posting.
-
-    Only the company owner can update their jobs.
-    Jobs can only be updated if status is PENDING_APPROVAL or PUBLISHED.
-    Status cannot be changed by company (only admin can change status).
-    Sends email notification to admins when job is updated.
-
-    Args:
-        job_id: ID of the job to update
-        job_data: Job update data
-        company_id: ID of the company making the update (for ownership verification)
-        session: Database session
-
-    Returns:
-        Updated job as JobRead schema
+    """Blocked once a job is CLOSED — a closed posting is final and shouldn't
+    be reanimated by an edit. `status` itself is excluded from the patch
+    since only admins drive the approval workflow; a company silently
+    flipping its own status would bypass review. Admins are re-notified by
+    email on every edit so a previously-approved posting gets a fresh look
+    if its content changed.
 
     Raises:
         JobNotFoundError: If job not found
@@ -244,15 +213,10 @@ async def update_job(
 
 
 async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> None:
-    """Delete a job posting.
-
-    Only the company owner can delete their jobs.
-    Jobs can only be deleted if status is PENDING_APPROVAL.
-
-    Args:
-        job_id: ID of the job to delete
-        company_id: ID of the company making the delete (for ownership verification)
-        session: Database session
+    """Restricted to PENDING_APPROVAL: once a job is PUBLISHED it has been
+    admin-reviewed and may already be visible to candidates, so removing it
+    goes through the admin-driven close/reject flow instead of a company
+    self-service delete.
 
     Raises:
         JobNotFoundError: If job not found

@@ -28,11 +28,6 @@ from src.services.exceptions import (
 async def get_company_profile(
     profile_id: int, session: AsyncSession
 ) -> CompanyProfileRead:
-    """Fetch a single CompanyProfile by its primary key.
-
-    Raises:
-        CompanyNotFoundError: If no company profile with that id exists.
-    """
     profile = await get_by_id_or_raise(
         session,
         CompanyProfile,

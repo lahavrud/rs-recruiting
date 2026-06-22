@@ -12,7 +12,6 @@ domain exceptions only.
 """
 
 from fastapi import HTTPException, Request, UploadFile, status
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.dependencies import client_ip
@@ -20,7 +19,7 @@ from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.transactions import transactional
 from src.core.services.file_validation import validate_upload
 from src.enums import UserRole
-from src.models import CandidateProfile, User
+from src.models import User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.schemas.auth import _validate_password_complexity
 from src.services.exceptions import (
@@ -30,7 +29,10 @@ from src.services.exceptions import (
     EmailAlreadyExistsError,
     JobNotFoundError,
 )
-from src.services.public.applications import create_candidate_profile
+from src.services.public.applications import (
+    create_candidate_profile,
+    get_candidate_profile,
+)
 
 _RESUME_ALLOWED_TYPES = frozenset(
     {
@@ -125,13 +127,7 @@ async def apply_to_job(
     fallback_resume_filename: str | None = None
     fallback_resume_hash: str | None = None
     if resume_file is None and current_user is not None:
-        existing_profile = (
-            await session.execute(
-                select(CandidateProfile).where(
-                    CandidateProfile.user_id == current_user.id  # type: ignore[arg-type]
-                )
-            )
-        ).scalar_one_or_none()
+        existing_profile = await get_candidate_profile(current_user.id, session)
         if existing_profile and existing_profile.resume_path:
             fallback_resume_path = existing_profile.resume_path
             fallback_resume_filename = existing_profile.resume_filename
