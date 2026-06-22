@@ -31,7 +31,6 @@ async def list_candidates(
     cursor: str | None = None,
     limit: int | None = None,
 ) -> CursorPage[CandidateProfileRead]:
-    """Return one page of candidate profiles, newest first."""
     page_size = clamp_limit(limit)
     query = apply_cursor(
         select(CandidateProfile),
@@ -52,11 +51,6 @@ async def list_candidates(
 async def get_candidate(
     candidate_id: int, session: AsyncSession
 ) -> CandidateProfileRead:
-    """Fetch a single candidate profile by id.
-
-    Raises:
-        CandidateNotFoundError: If no candidate with that id exists.
-    """
     candidate = await get_by_id_or_raise(
         session,
         CandidateProfile,
@@ -71,11 +65,6 @@ async def update_candidate(
     data: CandidateProfileUpdate,
     session: AsyncSession,
 ) -> CandidateProfileRead:
-    """Apply a partial update to a candidate profile.
-
-    Raises:
-        CandidateNotFoundError: If no candidate with that id exists.
-    """
     candidate = await get_by_id_or_raise(
         session,
         CandidateProfile,
