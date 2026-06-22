@@ -1,5 +1,6 @@
 """Tests for the GA4 analytics tunnel endpoint."""
 
+import logging
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -95,7 +96,7 @@ async def test_forwards_event_to_ga4(public_client: AsyncClient, _configure_ga4)
 
 @pytest.mark.asyncio
 async def test_returns_204_when_upstream_fails(
-    public_client: AsyncClient, _configure_ga4
+    public_client: AsyncClient, _configure_ga4, caplog
 ):
     """Upstream GA4 failure must not propagate — always return 204 to browser."""
     mock_client = AsyncMock()
@@ -104,9 +105,12 @@ async def test_returns_204_when_upstream_fails(
     mock_client.__aexit__.return_value = None
 
     with patch("src.api.analytics.httpx.AsyncClient", return_value=mock_client):
-        resp = await public_client.post("/api/analytics/collect", json=_payload())
+        with caplog.at_level(logging.WARNING):
+            resp = await public_client.post("/api/analytics/collect", json=_payload())
 
     assert resp.status_code == 204
+    mock_client.post.assert_awaited_once()
+    assert any("upstream request failed" in record.message for record in caplog.records)
 
 
 @pytest.mark.asyncio
@@ -116,9 +120,16 @@ async def test_accepts_valid_event_names(public_client: AsyncClient, _configure_
     mock_client.__aenter__.return_value = mock_client
     mock_client.__aexit__.return_value = None
 
+    names = ("job_view", "apply_start", "apply_submit", "a", "A1_b2")
     with patch("src.api.analytics.httpx.AsyncClient", return_value=mock_client):
-        for name in ("job_view", "apply_start", "apply_submit", "a", "A1_b2"):
+        for name in names:
             resp = await public_client.post(
                 "/api/analytics/collect", json=_payload(name=name)
             )
             assert resp.status_code == 204, f"Expected 204 for event name {name!r}"
+
+    assert mock_client.post.call_count == len(names)
+    for name, call in zip(names, mock_client.post.call_args_list, strict=True):
+        _, kwargs = call
+        assert kwargs["json"]["events"][0]["name"] == name
+        assert kwargs["params"]["measurement_id"] == "G-TEST12345"

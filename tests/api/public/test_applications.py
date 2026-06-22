@@ -17,9 +17,23 @@ from tests.conftest import TestSessionLocal
 FAKE_RESUME = {"resume": ("resume.pdf", b"%PDF-1.4\x00" * 4, "application/pdf")}
 
 
+_SUCCESS_FORM_DATA = {
+    "full_name": "John Doe",
+    "email": "john@example.com",
+    "phone": "050-123-4567",
+    "linkedin_url": "https://linkedin.com/in/johndoe",
+    "service_concept": "I want to work on exciting projects",
+    "salary_expectations": "100k-120k",
+    "strength": "Problem solving",
+    "growth_area": "Public speaking",
+    "privacy_accepted": "true",
+    "terms_accepted": "true",
+}
+
+
 @pytest.mark.asyncio
 @patch("src.services.public._application_helpers.enqueue_email_task")
-async def test_apply_endpoint_success(
+async def test_apply_endpoint_returns_201_with_candidate_data(
     mock_enqueue_email,
     public_client: AsyncClient,
     published_job: Job,
@@ -27,19 +41,7 @@ async def test_apply_endpoint_success(
     """Test successfully submitting an application via API."""
     mock_enqueue_email.return_value = "test-job-id"
 
-    form_data = {
-        "job_id": published_job.id,
-        "full_name": "John Doe",
-        "email": "john@example.com",
-        "phone": "050-123-4567",
-        "linkedin_url": "https://linkedin.com/in/johndoe",
-        "service_concept": "I want to work on exciting projects",
-        "salary_expectations": "100k-120k",
-        "strength": "Problem solving",
-        "growth_area": "Public speaking",
-        "privacy_accepted": "true",
-        "terms_accepted": "true",
-    }
+    form_data = {"job_id": published_job.id, **_SUCCESS_FORM_DATA}
 
     response = await public_client.post(
         "/api/candidates/apply",
@@ -54,7 +56,27 @@ async def test_apply_endpoint_success(
     assert data["phone"] == "050-123-4567"
     assert data["id"] is not None
 
-    # Verify candidate was created in database with consent
+
+@pytest.mark.asyncio
+@patch("src.services.public._application_helpers.enqueue_email_task")
+async def test_apply_endpoint_creates_candidate_with_consent_audit(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Submitting an application creates a CandidateProfile with consent recorded."""
+    mock_enqueue_email.return_value = "test-job-id"
+
+    form_data = {"job_id": published_job.id, **_SUCCESS_FORM_DATA}
+
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
+
+    assert response.status_code == 201
+
     async with TestSessionLocal() as session:
         result = await session.execute(
             select(CandidateProfile).where(
@@ -67,7 +89,36 @@ async def test_apply_endpoint_success(
         assert candidate.consent_given_at is not None
         assert candidate.consent_policy_version == "1.2"
 
-        # Verify Application was created with interview fields
+
+@pytest.mark.asyncio
+@patch("src.services.public._application_helpers.enqueue_email_task")
+async def test_apply_endpoint_creates_application_with_interview_fields(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Submitting an application persists the interview-question fields."""
+    mock_enqueue_email.return_value = "test-job-id"
+
+    form_data = {"job_id": published_job.id, **_SUCCESS_FORM_DATA}
+
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
+
+    assert response.status_code == 201
+
+    async with TestSessionLocal() as session:
+        result = await session.execute(
+            select(CandidateProfile).where(
+                CandidateProfile.email == "john@example.com"  # pyright: ignore[reportArgumentType]
+            )
+        )
+        candidate = result.scalar_one_or_none()
+        assert candidate is not None
+
         result = await session.execute(
             select(Application).where(
                 and_(
@@ -224,9 +275,18 @@ async def test_apply_endpoint_file_size_limit(
     assert response.json()["detail"] == "file_too_large"
 
 
+_CREATES_APPLICATION_FORM_DATA = {
+    "full_name": "John Doe",
+    "email": "john@example.com",
+    "phone": "050-000-0003",
+    "privacy_accepted": "true",
+    "terms_accepted": "true",
+}
+
+
 @pytest.mark.asyncio
 @patch("src.services.public._application_helpers.enqueue_email_task")
-async def test_apply_endpoint_creates_application(
+async def test_apply_endpoint_creates_application_record(
     mock_enqueue_email,
     public_client: AsyncClient,
     published_job: Job,
@@ -234,14 +294,7 @@ async def test_apply_endpoint_creates_application(
     """Test that Application record is created when submitting via API."""
     mock_enqueue_email.return_value = "test-job-id"
 
-    form_data = {
-        "job_id": published_job.id,
-        "full_name": "John Doe",
-        "email": "john@example.com",
-        "phone": "050-000-0003",
-        "privacy_accepted": "true",
-        "terms_accepted": "true",
-    }
+    form_data = {"job_id": published_job.id, **_CREATES_APPLICATION_FORM_DATA}
 
     response = await public_client.post(
         "/api/candidates/apply",
@@ -253,7 +306,6 @@ async def test_apply_endpoint_creates_application(
     data = response.json()
     candidate_id = data["id"]
 
-    # Verify Application was created
     async with TestSessionLocal() as session:
         result = await session.execute(
             select(Application).where(
@@ -267,10 +319,32 @@ async def test_apply_endpoint_creates_application(
         assert application is not None
         assert application.status == ApplicationStatus.NEW
 
-        # Regression for #604: anonymous apply must still produce a
-        # CandidateProfile with user_id IS NULL (no auth attached).
-        from src.models import CandidateProfile
 
+@pytest.mark.asyncio
+@patch("src.services.public._application_helpers.enqueue_email_task")
+async def test_apply_endpoint_application_not_linked_to_user(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Regression for #604: anonymous apply must still produce a
+    CandidateProfile with user_id IS NULL (no auth attached).
+    """
+    mock_enqueue_email.return_value = "test-job-id"
+
+    form_data = {"job_id": published_job.id, **_CREATES_APPLICATION_FORM_DATA}
+
+    response = await public_client.post(
+        "/api/candidates/apply",
+        data=form_data,
+        files=FAKE_RESUME,
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    candidate_id = data["id"]
+
+    async with TestSessionLocal() as session:
         profile_result = await session.execute(
             select(CandidateProfile).where(
                 CandidateProfile.id == candidate_id  # pyright: ignore[reportArgumentType]

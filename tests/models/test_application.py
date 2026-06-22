@@ -64,7 +64,9 @@ async def job_and_candidate(session: AsyncSession) -> dict[str, Job | CandidateP
 
 
 @pytest.mark.asyncio
-async def test_application_creation(session: AsyncSession, job_and_candidate):
+async def test_application_creation_sets_new_status_and_timestamps(
+    session: AsyncSession, job_and_candidate
+):
     """Test creating an Application (Match) model."""
     job = job_and_candidate["job"]
     candidate = job_and_candidate["candidate"]

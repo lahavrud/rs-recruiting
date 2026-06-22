@@ -151,9 +151,16 @@ async def test_public_endpoints_no_auth_required(
     # These endpoints should work without any auth token
     response = await public_client.get("/api/public/jobs")
     assert response.status_code == 200
+    list_data = response.json()
+    assert "items" in list_data
+    assert list_data["items"][0]["id"] == published_job.id
+    assert list_data["items"][0]["title"] == published_job.title
 
     response = await public_client.get(f"/api/public/jobs/{published_job.id}")
     assert response.status_code == 200
+    detail_data = response.json()
+    assert detail_data["id"] == published_job.id
+    assert detail_data["title"] == published_job.title
 
 
 @pytest.mark.asyncio

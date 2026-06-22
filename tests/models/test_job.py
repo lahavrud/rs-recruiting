@@ -9,7 +9,9 @@ from src.models import CompanyProfile, Job
 
 
 @pytest.mark.asyncio
-async def test_job_creation(session: AsyncSession, company_with_user: CompanyProfile):
+async def test_job_creation_with_defaults_sets_pending_approval_status(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
     """Test creating a Job model."""
     assert company_with_user.id is not None
     job = Job(
