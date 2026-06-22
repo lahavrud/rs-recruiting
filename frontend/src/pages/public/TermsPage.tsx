@@ -4,7 +4,7 @@ export default function TermsPage() {
   return (
     <PolicyLayout
       titleKey="legal:terms.title"
-      bodyKey="auth:register.agreementTextSiteTerms"
+      bodyKey="legal:terms.body"
       canonicalPath="/terms"
       eyebrowKey="legal:terms.updated"
     />

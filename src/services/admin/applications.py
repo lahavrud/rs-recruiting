@@ -34,7 +34,6 @@ async def list_applications(
     cursor: str | None = None,
     limit: int | None = None,
 ) -> CursorPage[ApplicationWithDetails]:
-    """One page of applications with optional filters, newest first."""
     page_size = clamp_limit(limit)
     base = select(Application).options(
         selectinload(Application.job),  # pyright: ignore[reportArgumentType]
@@ -66,18 +65,6 @@ async def list_applications(
 async def get_application(
     application_id: int, session: AsyncSession
 ) -> ApplicationWithDetails:
-    """Get a single application with full details.
-
-    Args:
-        application_id: ID of the application to retrieve
-        session: Database session
-
-    Returns:
-        Application with nested job and candidate details
-
-    Raises:
-        ApplicationNotFoundError: If application not found
-    """
     application = await get_by_id_or_raise(
         session,
         Application,
@@ -197,9 +184,9 @@ async def update_application_notes(
     admin_notes: str | None,
     session: AsyncSession,
 ) -> ApplicationRead:
-    """Update only the admin_notes field on an application.
-
-    Does not change status and does not enqueue any emails.
+    """Distinct from `update_application_status` — skips the status-transition
+    checks, audit event, and rejection email, since notes are an internal
+    admin annotation rather than a candidate-facing state change.
 
     Raises:
         ApplicationNotFoundError: If application not found.
@@ -224,9 +211,9 @@ async def delete_application(
     application_id: int,
     session: AsyncSession,
 ) -> None:
-    """Delete an application record.
-
-    Removes the job ↔ candidate link. The candidate profile is preserved.
+    """Removes only the job <-> candidate link row; the candidate profile and
+    job are untouched, so the candidate remains eligible to be matched to
+    other jobs.
 
     Raises:
         ApplicationNotFoundError: If application not found

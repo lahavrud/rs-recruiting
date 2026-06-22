@@ -60,18 +60,10 @@ async def get_published_job(
     *,
     current_user: User | None = None,
 ) -> JobPublicRead:
-    """Get a published job by ID for public viewing.
-
-    Args:
-        job_id: ID of the job to retrieve
-        session: Database session
-        current_user: Optional authenticated user. When a candidate, the
-            response's ``my_application`` field is populated with the
-            candidate's own application for this job (if any non-WITHDRAWN
-            application exists).
-
-    Returns:
-        Job as JobPublicRead schema
+    """When `current_user` is an authenticated candidate, populates
+    `my_application` with their own non-WITHDRAWN application for this job
+    (if any), so the frontend can show "already applied" / edit affordances
+    without a second request.
 
     Raises:
         JobNotFoundError: If job not found or not published

@@ -35,7 +35,7 @@ const PASSWORD_RE = {
  * no logo, no company details) so the layout stays tight.
  */
 export default function RegisterCandidatePage() {
-  const { t } = useTranslation(['auth', 'common', 'http']);
+  const { t } = useTranslation(['auth', 'common', 'http', 'legal']);
   const { isAuthenticated } = useAuth();
   const [form, setForm] = useState({
     fullName: "",
@@ -336,12 +336,12 @@ export default function RegisterCandidatePage() {
         </p>
       </div>
 
-      {/* Policy modals — i18n keys re-used from the company register so
-          the text stays in one place. */}
+      {/* Policy modals — body text lives in the `legal` namespace, shared
+          with the standalone policy pages, so it stays in one place. */}
       {termsOpen && (
         <PolicyModal
           title={t("auth:register.agreementSectionSiteTerms")}
-          body={t("auth:register.agreementTextSiteTerms")}
+          body={t("legal:terms.body")}
           acceptLabel={t("common:confirm")}
           closeLabel={t("common:close")}
           checked={termsAccepted}
@@ -356,7 +356,7 @@ export default function RegisterCandidatePage() {
       {privacyOpen && (
         <PolicyModal
           title={t("auth:register.agreementSectionPrivacy")}
-          body={t("auth:register.agreementTextPrivacy")}
+          body={t("legal:privacy.body")}
           acceptLabel={t("common:confirm")}
           closeLabel={t("common:close")}
           checked={privacyAccepted}
