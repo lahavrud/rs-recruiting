@@ -31,7 +31,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
 import Button from "@/components/ui/Button";
 import { useNavigate } from "react-router-dom";
-import { IconSparkle } from "./components/triageIcons";
+import { IconSparkle } from "./components/TriageIcons";
 import ApplicationDetailDialog, { ApplicationDetailBody } from "./components/ApplicationDetailDialog";
 import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ApplicationNotesDialog from "./components/ApplicationNotesDialog";

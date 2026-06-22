@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { ToastContext, type ToastContextValue } from "@/contexts/toast-context";
+import { ToastContext, type ToastContextValue } from "@/contexts/toastContext";
 
 /** Fire-and-forget toast helpers. Throws if used outside `<ToastProvider>`. */
 export function useToast(): ToastContextValue {
