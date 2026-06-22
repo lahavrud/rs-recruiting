@@ -55,25 +55,25 @@ async def create_candidate_profile(
     """Create a candidate profile and application for a job.
 
     Three flavors, dispatched by the (``candidate_user``, ``claim_password``)
-    combo (Sprint 11 / #606):
+    combo:
 
     * Anonymous apply (no user, no password) — existing behavior.
     * Anonymous claim (no user, password supplied) — submit the application
       AND register a candidate User in the same request. Activation token is
-      minted and emailed via the shared #605 helper. If the email is already
-      taken by an active candidate user the apply is rejected upfront with
-      ``EmailAlreadyExistsError`` and the password is irrelevant.
+      minted and emailed via the shared registration helper. If the email is
+      already taken by an active candidate user the apply is rejected
+      upfront with ``EmailAlreadyExistsError`` and the password is irrelevant.
     * Logged-in candidate apply (user supplied) — use ``user.email`` instead
       of the form's email, snapshot the new resume on the Application,
       sync any updated identity fields onto the candidate's existing
       profile, and skip per-application consent writes (consent was already
-      captured at activation time per #605).
+      captured at activation time).
 
     Raises:
         ValueError: If session is missing or file upload fails.
         JobNotFoundError: If the job does not exist.
         EmailAlreadyExistsError: If apply email belongs to an active
-            candidate user (#606 active-user check).
+            candidate user.
         ApplicationAlreadyEditableError / ApplicationAlreadyLockedError: per
             ``check_no_blocking_application``.
     """
@@ -83,7 +83,7 @@ async def create_candidate_profile(
     # Restrict apply to PUBLISHED jobs only — PENDING_APPROVAL / CLOSED /
     # REJECTED rows are not visible on the public job board but a candidate
     # who has a stale link, brute-forces sequential IDs, or replays an old
-    # URL must not be able to slip an application past them (issue #649).
+    # URL must not be able to slip an application past them.
     # Pending / closed / rejected rows behave identically to "not found"
     # from the public surface; we collapse them all into JobNotFoundError
     # so the response is opaque about why the apply was rejected.
@@ -177,10 +177,10 @@ async def create_candidate_profile(
         )
 
     # Anonymous claim: mint a candidate User + activation token using the
-    # shared #605 helper. The User starts is_active=False; the candidate's
-    # CandidateProfile.user_id stays NULL until activation links them.
-    # If the email belongs to an already-pending user the helper updates the
-    # password + replaces the token (re-registration semantics, #605).
+    # shared registration helper. The User starts is_active=False; the
+    # candidate's CandidateProfile.user_id stays NULL until activation links
+    # them. If the email belongs to an already-pending user the helper
+    # updates the password + replaces the token (re-registration semantics).
     if candidate_user is None and claim_password is not None:
         # Lazy import to avoid a circular dep at module load (auth →
         # public → auth).

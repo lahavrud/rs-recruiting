@@ -89,7 +89,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    """Authenticated in-session password change (Sprint 11 / #608).
+    """Authenticated in-session password change.
 
     Distinct from the forgot-password flow:
     * forgot-password issues an email reset link (anonymous-initiated).
@@ -108,7 +108,7 @@ class ChangePasswordRequest(BaseModel):
 
 
 class CandidateRegisterRequest(BaseModel):
-    """Schema for the candidate self-registration endpoint (Sprint 11 / #605).
+    """Schema for the candidate self-registration endpoint.
 
     Mirrors company registration password rules but is JSON instead of
     multipart — candidates upload nothing at registration time.

@@ -1,4 +1,4 @@
-"""Candidate self-registration + resend-activation endpoints (Sprint 11 / #605)."""
+"""Candidate self-registration + resend-activation endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession

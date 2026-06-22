@@ -1,4 +1,4 @@
-"""Candidate self-registration service (Sprint 11 / issue #605).
+"""Candidate self-registration service.
 
 Two entry points:
 

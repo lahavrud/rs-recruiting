@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.core.infrastructure.config import settings
+from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
     apply_cursor,
@@ -77,19 +78,16 @@ async def get_application(
     Raises:
         ApplicationNotFoundError: If application not found
     """
-    result = await session.execute(
-        select(Application)
-        .options(
+    application = await get_by_id_or_raise(
+        session,
+        Application,
+        application_id,
+        lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
+        options=[
             selectinload(Application.job),  # pyright: ignore[reportArgumentType]
             selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
-        )
-        .where(Application.id == application_id)  # pyright: ignore[reportArgumentType]
+        ],
     )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise ApplicationNotFoundError(
-            f"Application with ID {application_id} not found"
-        )
     return ApplicationWithDetails.model_validate(application)
 
 
@@ -122,19 +120,16 @@ async def update_application_status(
     Raises:
         ApplicationNotFoundError: If application not found
     """
-    result = await session.execute(
-        select(Application)  # pyright: ignore[reportArgumentType]
-        .options(
+    application = await get_by_id_or_raise(
+        session,
+        Application,
+        application_id,
+        lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
+        options=[
             selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
             selectinload(Application.job),  # pyright: ignore[reportArgumentType]
-        )
-        .where(Application.id == application_id)  # pyright: ignore[reportArgumentType]
+        ],
     )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise ApplicationNotFoundError(
-            f"Application with ID {application_id} not found"
-        )
 
     old_status = application.status
 

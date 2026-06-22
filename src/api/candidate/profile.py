@@ -1,4 +1,4 @@
-"""Authenticated candidate self-service profile endpoints (Sprint 11 / #608)."""
+"""Authenticated candidate self-service profile endpoints."""
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import ValidationError as PydanticValidationError

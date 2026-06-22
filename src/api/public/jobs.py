@@ -40,8 +40,7 @@ async def get_public_job(
 
     No authentication required. Only returns jobs with PUBLISHED status.
     When called with a candidate JWT the response includes ``my_application``
-    summarizing the candidate's own non-WITHDRAWN application for this job
-    (Sprint 11 / #606).
+    summarizing the candidate's own non-WITHDRAWN application for this job.
     """
     try:
         return await get_published_job(job_id, session, current_user=current_user)

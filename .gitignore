@@ -137,6 +137,9 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# Local Helm values with real secrets (DATABASE_URL, JWT_SECRET_KEY, ...)
+helm/**/secrets.values.yaml
 .venv
 env/
 venv/

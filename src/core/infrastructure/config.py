@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rs_recruitment"  # pragma: allowlist secret  # noqa: E501
     database_echo: bool = False  # Enable SQL query logging (for debugging only)
     # Connection pool — SQLAlchemy defaults (5+10) saturate quickly on the
-    # production t3.micro target (#230). Sized for modest concurrency; tune
+    # production t3.micro target. Sized for modest concurrency; tune
     # via env vars (DB_POOL_SIZE, DB_MAX_OVERFLOW, etc.) per environment.
     # ⚠ pool_size + max_overflow = 35 per process. The production deployment
     # runs a single uvicorn worker (no --workers / WEB_CONCURRENCY), so the
@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     # plain-HTTP ingress forces a difference (see _refresh_cookie_secure).
     environment: Literal["development", "staging", "production"] = "development"
 
-    # Trusted reverse-proxy IPs/CIDRs (issue #647)
+    # Trusted reverse-proxy IPs/CIDRs.
     # Comma-separated list of IP addresses or CIDR ranges whose X-Forwarded-For
     # headers are accepted as authoritative.  Empty = no proxy trust (dev/test);
     # in production set to the load-balancer's private CIDR (e.g. "10.0.0.0/8").
