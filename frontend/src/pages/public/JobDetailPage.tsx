@@ -1,14 +1,18 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import Eyebrow from "@/components/ui/Eyebrow";
+import { useEffect } from "react";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { getPublicJob } from "@/services/jobs";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+
+import Eyebrow from "@/components/ui/Eyebrow";
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import { useFetch } from "@/hooks/useFetch";
+import { getPublicJob } from "@/services/jobs";
+import { errorAlertClsLg } from "@/styles/forms";
 import type { JobPublicRead } from "@/types/api";
 import { trackEvent } from "@/utils/analytics";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 import { formatSalary } from "@/utils/salary";
-import axios from "axios";
 
 const JOB_POSTING_VALID_DAYS = 90;
 
@@ -137,46 +141,23 @@ export default function JobDetailPage() {
   // Preserve filter params (q, loc, smin, smax) carried in from the board so
   // the back link returns the user to their filtered list.
   const backTo = { pathname: "/jobs", search: location.search };
-  const [job, setJob] = useState<JobPublicRead | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const jobId = id ? Number.parseInt(id, 10) : NaN;
+  const validId = Number.isFinite(jobId);
 
   useEffect(() => {
-    if (!id) {
-      navigate("/jobs", { replace: true });
-      return;
-    }
+    if (!validId) navigate("/jobs", { replace: true });
+  }, [validId, navigate]);
 
-    const jobId = Number.parseInt(id, 10);
-    if (!Number.isFinite(jobId)) {
-      navigate("/jobs", { replace: true });
-      return;
-    }
+  const { data: job, loading, error: fetchError } = useFetch<JobPublicRead | null>(async () => {
+    if (!validId) return null;
+    return getPublicJob(jobId);
+  }, [jobId, validId]);
 
-    let cancelled = false;
-
-    async function fetchJob() {
-      try {
-        const data = await getPublicJob(jobId);
-        if (!cancelled) setJob(data);
-      } catch (err) {
-        if (!cancelled) {
-          if (axios.isAxiosError(err) && err.response?.status === 404) {
-            setError(t("publicJobs:detail.unavailable"));
-          } else {
-            setError(t("publicJobs:detail.errorLoad"));
-          }
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchJob();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, navigate, t]);
+  const error = fetchError
+    ? axios.isAxiosError(fetchError) && fetchError.response?.status === 404
+      ? t("publicJobs:detail.unavailable")
+      : t("publicJobs:detail.errorLoad")
+    : null;
 
   useEffect(() => {
     if (!job) return;
@@ -188,7 +169,7 @@ export default function JobDetailPage() {
   if (error || !job) {
     return (
       <div className="text-center">
-        <div className="rounded-lg border border-danger/20 bg-danger/10 p-6 text-sm text-danger">
+        <div className={errorAlertClsLg}>
           {error ?? t("publicJobs:detail.notFound")}
         </div>
         <Link

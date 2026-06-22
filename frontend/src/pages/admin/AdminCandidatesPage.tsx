@@ -1,31 +1,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { apiErrorKey } from "@/utils/apiError";
-import { getActiveCompanies } from "@/services/adminCompanies";
-import { getJobs } from "@/services/adminJobs";
-import { getApplications } from "@/services/adminApplications";
-import { deleteCandidate, getCandidate, getCandidates } from "@/services/adminCandidates";
-import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/api";
-import PageHeader from "@/components/ui/PageHeader";
+import { useTranslation } from "react-i18next";
+
+import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
+import FunnelIcon from "@/components/admin/FunnelIcon";
+import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
-import TableSkeleton from "@/components/ui/TableSkeleton";
-import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import SearchInput from "@/components/ui/SearchInput";
-import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
-import FunnelIcon from "@/components/admin/FunnelIcon";
 import NoResults from "@/components/ui/NoResults";
+import PageHeader from "@/components/ui/PageHeader";
+import SearchInput from "@/components/ui/SearchInput";
+import TableSkeleton from "@/components/ui/TableSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
+import { getApplications } from "@/services/adminApplications";
+import { deleteCandidate, getCandidate, getCandidates } from "@/services/adminCandidates";
+import { getActiveCompanies } from "@/services/adminCompanies";
+import { getJobs } from "@/services/adminJobs";
+import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/api";
+import { apiErrorKey } from "@/utils/apiError";
+
 import CandidateDetailDialog from "./components/CandidateDetailDialog";
 import CandidateEditDialog from "./components/CandidateEditDialog";
 import CandidatesFilterPanel from "./components/CandidatesFilterPanel";
-import CandidatesTable from "./components/CandidatesTable";
 import CandidatesMobileList from "./components/CandidatesMobileList";
+import CandidatesTable from "./components/CandidatesTable";
 
 export default function AdminCandidatesPage() {
   const { t } = useTranslation(['admin', 'common', 'md']);

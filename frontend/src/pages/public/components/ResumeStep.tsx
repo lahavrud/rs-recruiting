@@ -1,5 +1,7 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import { RESUME_MAX_FILE_SIZE_MB } from "@/utils/resume";
 
 export default function ResumeStep({

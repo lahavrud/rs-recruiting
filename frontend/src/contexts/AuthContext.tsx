@@ -7,10 +7,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+
 import * as Sentry from "@sentry/react";
+
 import { login as loginService, logout as logoutService, refreshTokens } from "@/services/auth";
-import type { LoginRequest } from "@/types/api";
-import type { UserRole } from "@/types/api";
+import type { LoginRequest, UserRole  } from "@/types/api";
 import { getToken, inspectToken, removeToken } from "@/utils/token";
 
 export interface AuthUser {

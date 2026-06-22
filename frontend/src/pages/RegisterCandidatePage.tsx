@@ -1,15 +1,19 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
-import { Link, Navigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { useAuth } from "@/hooks/useAuth";
-import Logo from "@/components/ui/Logo";
-import { inputCls } from "@/styles/forms";
-import { registerCandidate } from "@/services/auth";
-import { EMAIL_RE } from "@/utils/validators";
-import Field from "@/components/ui/Field";
-import Eyebrow from "@/components/ui/Eyebrow";
+import { useTranslation } from "react-i18next";
+import { Link, Navigate } from "react-router-dom";
+
 import Button from "@/components/ui/Button";
+import Eyebrow from "@/components/ui/Eyebrow";
+import Field from "@/components/ui/Field";
+import Logo from "@/components/ui/Logo";
+import { useAuth } from "@/hooks/useAuth";
+import { registerCandidate } from "@/services/auth";
+import { errorAlertCls, inputCls } from "@/styles/forms";
+import { EMAIL_RE } from "@/utils/validators";
+
+import AuthShell from "./components/AuthShell";
 
 type FieldName =
   | "fullName"
@@ -164,7 +168,7 @@ export default function RegisterCandidatePage() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md space-y-6 rounded-xl border border-white/10 border-t-copper/50 bg-card p-8 text-center">
           <div className="flex justify-center">
             <Logo size={36} />
@@ -182,12 +186,12 @@ export default function RegisterCandidatePage() {
             {t("auth:register.success.backToLogin")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+    <AuthShell>
       <div className="w-full max-w-md space-y-8 rounded-xl border border-white/10 border-t-copper/50 bg-card">
         <div className="px-6 pt-8 text-center sm:px-8">
           <div className="flex justify-center">
@@ -206,11 +210,7 @@ export default function RegisterCandidatePage() {
           onSubmit={handleSubmit}
           noValidate
         >
-          {formError && (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
-              {formError}
-            </div>
-          )}
+          {formError && <div className={errorAlertCls}>{formError}</div>}
 
           <Field
             label={t("auth:registerCandidate.fullNameLabel")}
@@ -368,7 +368,7 @@ export default function RegisterCandidatePage() {
           onClose={() => setPrivacyOpen(false)}
         />
       )}
-    </div>
+    </AuthShell>
   );
 }
 

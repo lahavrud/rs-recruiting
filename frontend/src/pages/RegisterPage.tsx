@@ -1,14 +1,19 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { getInviteMetadata, register } from "@/services/auth";
-import { useAuth } from "@/hooks/useAuth";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+
 import Logo from "@/components/ui/Logo";
 import { type SignatureCanvasRef } from "@/components/ui/SignatureCanvas";
-import axios from "axios";
+import { useAuth } from "@/hooks/useAuth";
+import { getInviteMetadata, register } from "@/services/auth";
+import { errorAlertCls } from "@/styles/forms";
+
+import AuthShell from "./components/AuthShell";
+import RegisterModals from "./components/RegisterModals";
 import RegisterStep1Form from "./components/RegisterStep1Form";
 import RegisterStep2Form from "./components/RegisterStep2Form";
-import RegisterModals from "./components/RegisterModals";
 
 function useValidation() {
   const { t } = useTranslation(['auth', 'common']);
@@ -158,7 +163,7 @@ export default function RegisterPage() {
 
   if (!inviteToken || tokenInvalid) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4">
+      <AuthShell className="px-4">
         <div className="w-full max-w-md rounded-xl border border-white/10 bg-card p-8 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-warning/30 bg-warning/10 text-lg text-warning">
             ✕
@@ -176,15 +181,15 @@ export default function RegisterPage() {
             {t("auth:register.noToken.backToLogin")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   if (metadataLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void">
+      <AuthShell className="">
         <p className="text-sm text-white/30">{t("common:loading")}</p>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -315,7 +320,7 @@ export default function RegisterPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-success/30 bg-success/10 text-lg text-success">
             ✓
@@ -333,7 +338,7 @@ export default function RegisterPage() {
             {t("auth:register.success.backToLogin")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
@@ -365,9 +370,7 @@ export default function RegisterPage() {
         </div>
 
         {submitError && (
-          <div className="mb-5 rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
-            {submitError}
-          </div>
+          <div className={`mb-5 ${errorAlertCls}`}>{submitError}</div>
         )}
 
         {step === 1 && (

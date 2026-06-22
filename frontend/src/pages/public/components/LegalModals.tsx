@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+
 import LegalProse from "@/components/ui/LegalProse";
 
 function LegalModal({

@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useRef, useState } from "react";
+
 import axios from "axios";
-import PageHeader from "@/components/ui/PageHeader";
+import { useTranslation } from "react-i18next";
+import { Link, useNavigate, useParams } from "react-router-dom";
+
 import Button from "@/components/ui/Button";
 import CompanyName from "@/components/ui/CompanyName";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { textareaCls } from "@/styles/forms";
+import PageHeader from "@/components/ui/PageHeader";
+import { useFetch } from "@/hooks/useFetch";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import {
   fetchApplicationResumeBlob,
   getMyApplication,
@@ -15,13 +18,14 @@ import {
   type CandidateApplicationDetail,
   type CandidateApplicationMyAnswers,
 } from "@/services/candidate";
+import { textareaCls } from "@/styles/forms";
 
 export default function CandidateApplicationDetailPage() {
   const { t } = useTranslation('candidate');
   const { id } = useParams();
   const navigate = useNavigate();
+  const appId = Number(id);
   const [data, setData] = useState<CandidateApplicationDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -37,35 +41,22 @@ export default function CandidateApplicationDetailPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    const appId = Number(id);
-    (async () => {
-      if (!Number.isFinite(appId) || appId <= 0) {
-        if (alive) {
-          setError(t("candidate:applications.errors.notFound"));
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const detail = await getMyApplication(appId);
-        if (alive) setData(detail);
-      } catch (err) {
-        if (!alive) return;
-        if (axios.isAxiosError(err) && err.response?.status === 404) {
-          setError(t("candidate:applications.errors.notFound"));
-        } else {
-          setError(t("candidate:applications.errors.loadFailed"));
-        }
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [id, t]);
+  const { data: fetchedDetail, loading, error: fetchError } = useFetch(() => {
+    if (!Number.isFinite(appId) || appId <= 0) {
+      return Promise.reject(new Error("invalid_application_id"));
+    }
+    return getMyApplication(appId);
+  }, [appId]);
+  useResetOnTrigger(fetchedDetail, () => setData(fetchedDetail));
+  useResetOnTrigger(fetchError, () => {
+    if (axios.isAxiosError(fetchError) && fetchError.response?.status === 404) {
+      setError(t("candidate:applications.errors.notFound"));
+    } else if (fetchError instanceof Error && fetchError.message === "invalid_application_id") {
+      setError(t("candidate:applications.errors.notFound"));
+    } else {
+      setError(t("candidate:applications.errors.loadFailed"));
+    }
+  });
 
   async function downloadResume() {
     if (!data?.resume || downloading) return;

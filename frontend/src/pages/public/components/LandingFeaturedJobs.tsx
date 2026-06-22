@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+
 import { motion, useReducedMotion } from "motion/react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import Button from "@/components/ui/Button";
 import type { JobPublicRead } from "@/types/api";
 import { formatSalary } from "@/utils/salary";
+
+import LandingEyebrow from "./LandingEyebrow";
 import {
   staggerContainer,
   fadeRise,
   VIEWPORT_ONCE,
   EASE_OUT,
 } from "./landingMotionUtils";
-import LandingEyebrow from "./LandingEyebrow";
 
 const MAX_CARDS = 5;
 const MAX_VISIBLE_DEPTH = 3;

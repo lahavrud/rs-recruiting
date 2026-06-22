@@ -1,11 +1,13 @@
 import { useTranslation } from "react-i18next";
-import type { JobRead } from "@/types/api";
-import { JobStatus } from "@/types/api";
+
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
+import type { JobRead } from "@/types/api";
+import { JobStatus } from "@/types/api";
+
 import { MobileJobCard } from "./JobViewBody";
 
 export interface JobsListProps {

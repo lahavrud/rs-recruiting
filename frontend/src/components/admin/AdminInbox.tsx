@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import { getInvites } from "@/services/adminInvites";
-import { getPendingCompanies } from "@/services/adminCompanies";
-import { getJobs } from "@/services/adminJobs";
+import { Link } from "react-router-dom";
+
 import { getApplications } from "@/services/adminApplications";
+import { getPendingCompanies } from "@/services/adminCompanies";
+import { getInvites } from "@/services/adminInvites";
+import { getJobs } from "@/services/adminJobs";
 import {
   ApplicationStatus,
   InviteTokenStatus,

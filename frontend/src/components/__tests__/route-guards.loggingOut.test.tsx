@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
+
 import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { ReactNode } from "react";
-import { AuthContext, type AuthContextType } from "@/contexts/AuthContext";
+
 import AdminRoute from "@/components/guards/AdminRoute";
-import ProtectedRoute from "@/components/guards/ProtectedRoute";
-import CompanyRoute from "@/components/guards/CompanyRoute";
 import CandidateRoute from "@/components/guards/CandidateRoute";
+import CompanyRoute from "@/components/guards/CompanyRoute";
+import ProtectedRoute from "@/components/guards/ProtectedRoute";
+import { AuthContext, type AuthContextType } from "@/contexts/AuthContext";
 
 function loggingOutCtx(): AuthContextType {
   return {

@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+
 import { useTranslation } from "react-i18next";
-import { JobStatus } from "@/types/api";
+
 import RangeSlider from "@/components/ui/RangeSlider";
+import { JobStatus } from "@/types/api";
 
 const ALL_STATUSES = [
   JobStatus.PENDING_APPROVAL,

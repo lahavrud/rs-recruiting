@@ -1,6 +1,8 @@
 import { useState, type ChangeEvent } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+
 import {
   deleteResume,
   patchMe,

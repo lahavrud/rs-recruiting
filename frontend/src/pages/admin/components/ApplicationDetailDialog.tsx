@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
+
 import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
+import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 

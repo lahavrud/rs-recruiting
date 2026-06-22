@@ -1,26 +1,28 @@
 import { type FormEvent, useCallback, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
+import Button from "@/components/ui/Button";
+import Eyebrow from "@/components/ui/Eyebrow";
+import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
+import JobTagsInput from "@/components/ui/JobTagsInput";
+import PageHeader from "@/components/ui/PageHeader";
+import StatusBadge from "@/components/ui/StatusBadge";
+import { useInfiniteList } from "@/hooks/useInfiniteList";
 import {
   createJob,
   deleteJob,
   getCompanyJobs,
   updateJob,
 } from "@/services/companyJobs";
-import { useInfiniteList } from "@/hooks/useInfiniteList";
-import { JobStatus, JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/api";
+import { errorAlertBaseCls, inputCls, textareaCls } from "@/styles/forms";
 import type {
   JobCreate,
   JobRead,
   JobRequirementItem,
   JobUpdate,
 } from "@/types/api";
-import PageHeader from "@/components/ui/PageHeader";
-import Button from "@/components/ui/Button";
-import Eyebrow from "@/components/ui/Eyebrow";
-import StatusBadge from "@/components/ui/StatusBadge";
-import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
-import JobTagsInput from "@/components/ui/JobTagsInput";
-import { inputCls, textareaCls } from "@/styles/forms";
+import { JobStatus, JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
 
 const emptyRequirements = (): JobRequirementItem[] =>
@@ -288,7 +290,7 @@ export default function CompanyJobsPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">{error}</div>
+        <div className={`mb-4 ${errorAlertBaseCls} p-4`}>{error}</div>
       )}
 
       {showForm && (

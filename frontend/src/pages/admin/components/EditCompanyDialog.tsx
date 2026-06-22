@@ -1,18 +1,21 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
+import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
+import { useConfirmableClose } from "@/hooks/useConfirmableClose";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
+import { useToast } from "@/hooks/useToast";
 import { updateCompanyProfile } from "@/services/adminCompanies";
 import type { CompanyProfileAdminUpdate, CompanyProfileRead } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
-import Button from "@/components/ui/Button";
-import { useToast } from "@/hooks/useToast";
-import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
-import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import {
   COMPANY_PROFILE_FIELD_ORDER,
   validateCompanyProfile,
 } from "@/utils/validators";
+
 import CompanyProfileFields from "./CompanyProfileFields";
 
 interface EditProps {

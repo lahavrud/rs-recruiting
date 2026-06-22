@@ -1,12 +1,16 @@
 import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { useAuth } from "@/hooks/useAuth";
-import Logo from "@/components/ui/Logo";
-import { inputCls } from "@/styles/forms";
-import { resendCandidateActivation } from "@/services/auth";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+
+import Logo from "@/components/ui/Logo";
+import { useAuth } from "@/hooks/useAuth";
+import { resendCandidateActivation } from "@/services/auth";
+import { errorAlertCls, inputCls } from "@/styles/forms";
 import { EMAIL_RE } from "@/utils/validators";
+
+import AuthShell from "./components/AuthShell";
 
 export default function LoginPage() {
   const { t } = useTranslation('auth');
@@ -120,7 +124,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+    <AuthShell>
       <div className="w-full max-w-sm space-y-8 rounded-xl border border-white/10 border-t-copper/50 bg-card sm:max-w-md">
         <div className="px-6 pt-8 text-center sm:px-8">
           <div className="flex justify-center">
@@ -133,7 +137,7 @@ export default function LoginPage() {
 
         <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
           {error && (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
+            <div className={errorAlertCls}>
               {error}
               {pendingActivationEmail && (
                 <div className="mt-2 text-xs text-white/60">
@@ -241,6 +245,6 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }

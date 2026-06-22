@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { textareaCls } from "@/styles/forms";
-import { DECISION_META, UNDECIDED_CHIP_BG, type Decision } from "./triageTypes";
+
 import { IconArrowRight, IconCheck, IconClose } from "./TriageIcons";
+import { DECISION_META, UNDECIDED_CHIP_BG, type Decision } from "./triageTypes";
 
 /** Resolves a Decision's icon key to the actual SVG component. */
 function DecisionIcon({

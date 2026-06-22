@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
-import PageHeader from "@/components/ui/PageHeader";
+
 import LegalProse from "@/components/ui/LegalProse";
+import PageHeader from "@/components/ui/PageHeader";
+import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 
 interface PolicyLayoutProps {
   titleKey: string;

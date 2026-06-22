@@ -1,29 +1,32 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { createJob } from "@/services/adminJobs";
-import { getActiveCompanies } from "@/services/adminCompanies";
+import { useTranslation } from "react-i18next";
+
+import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
+import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
+import Eyebrow from "@/components/ui/Eyebrow";
+import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
+import JobTagsInput from "@/components/ui/JobTagsInput";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
-import { JOB_CREATE_FIELD_ORDER, validateJob } from "@/utils/validators";
-import {
-  JOB_REQ_MIN_COUNT,
-  JOB_SHORT_DESC_MAX,
-  JobStatus,
-} from "@/types/api";
+import { getActiveCompanies } from "@/services/adminCompanies";
+import { createJob } from "@/services/adminJobs";
+import { ghostInputCls, selectCls } from "@/styles/forms";
 import type {
   ActiveCompanyRead,
   JobAdminCreate,
   JobRead,
   JobRequirementItem,
 } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
-import Button from "@/components/ui/Button";
-import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
-import Eyebrow from "@/components/ui/Eyebrow";
-import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
-import JobTagsInput from "@/components/ui/JobTagsInput";
+import {
+  JOB_REQ_MIN_COUNT,
+  JOB_SHORT_DESC_MAX,
+  JobStatus,
+} from "@/types/api";
 import { focusFirstError } from "@/utils/focusFirstError";
-import { ghostInputCls, selectCls } from "@/styles/forms";
+import { JOB_CREATE_FIELD_ORDER, validateJob } from "@/utils/validators";
+
 import {
   FeaturedStarButton,
   SalaryRangeField,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import {
   DndContext,
   KeyboardSensor,
@@ -18,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
+
 import { ghostInputCls } from "@/styles/forms";
 import {
   JOB_REQ_MAX_COUNT,

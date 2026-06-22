@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import {
   motion,
   useAnimationFrame,
   useMotionValue,
   useReducedMotion,
 } from "motion/react";
-import { fadeRise } from "./landingMotionUtils";
+import { useTranslation } from "react-i18next";
+
 import LandingEyebrow from "./LandingEyebrow";
+import { fadeRise } from "./landingMotionUtils";
 
 /* Client logo marquee: marks drift by in color; on hover or drag the
    track pauses and drops to mono.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+
 import { getApplications } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import {

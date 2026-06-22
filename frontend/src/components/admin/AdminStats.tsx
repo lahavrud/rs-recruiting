@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import { getActiveCompanies } from "@/services/adminCompanies";
-import { getJobs } from "@/services/adminJobs";
+import { Link } from "react-router-dom";
+
+import { APPLICATION_STATUS_META } from "@/constants/statusColors";
 import { getApplications } from "@/services/adminApplications";
 import { getCandidates } from "@/services/adminCandidates";
+import { getActiveCompanies } from "@/services/adminCompanies";
+import { getJobs } from "@/services/adminJobs";
 import {
   ApplicationStatus,
   JobStatus,
   type ApplicationWithDetails,
 } from "@/types/api";
-import { APPLICATION_STATUS_META } from "@/constants/statusColors";
 
 /**
  * Dashboard stats block. Three sub-sections, all fed by parallel first-page

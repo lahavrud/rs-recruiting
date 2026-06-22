@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+
 import { requestDataExport } from "@/services/candidate";
+
 import SettingsCard from "./SettingsCard";
 
 export default function DataExportSection() {

@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link, useParams } from "react-router-dom";
+
 import Eyebrow from "@/components/ui/Eyebrow";
-import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import FadeInImage from "@/components/ui/FadeInImage";
+import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import { getArticle } from "@/content/articles";
+import { useFetch } from "@/hooks/useFetch";
 import { getPublicJobs } from "@/services/jobs";
-import type { JobPublicRead } from "@/types/api";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 
 const RELATED_JOBS_LIMIT = 6;
@@ -21,27 +21,13 @@ function formatSalary(min: number | null, max: number | null): string | null {
 
 function RelatedJobs() {
   const { t } = useTranslation(['https', 'ui']);
-  const [jobs, setJobs] = useState<JobPublicRead[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Silent on failure — the section just won't render if the API is down.
+  const { data: jobs, loading } = useFetch(
+    () => getPublicJobs().then((page) => page.items.slice(0, RELATED_JOBS_LIMIT)),
+    [],
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    getPublicJobs()
-      .then((page) => {
-        if (!cancelled) setJobs(page.items.slice(0, RELATED_JOBS_LIMIT));
-      })
-      .catch(() => {
-        // Silent — section just won't render if the API is down.
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (loading || jobs.length === 0) return null;
+  if (loading || !jobs || jobs.length === 0) return null;
 
   return (
     <section className="mt-16 border-t border-white/8 pt-10">

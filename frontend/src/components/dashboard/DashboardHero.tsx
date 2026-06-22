@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
+
 import type {
   CandidateApplicationsPage,
   CandidateMeRead,
 } from "@/services/candidate";
+
 import { profileCompletionPercent } from "./dashboardUtils";
 
 // ─── Hero ─────────────────────────────────────────────────────────────────

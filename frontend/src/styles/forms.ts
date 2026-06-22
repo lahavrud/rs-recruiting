@@ -6,6 +6,14 @@ export const textareaCls = `${inputCls} resize-y`;
 
 export const selectCls = inputCls;
 
+/** Base danger-alert box; combine with a padding utility at the call site. */
+export const errorAlertBaseCls = "rounded-lg border border-danger/20 bg-danger/10 text-sm text-danger";
+
+export const errorAlertCls = `${errorAlertBaseCls} p-3`;
+
+// Larger padding variant used by full-page error states (vs. inline form alerts).
+export const errorAlertClsLg = `${errorAlertBaseCls} p-6`;
+
 // Ghost variants: content-like at rest, reveal as inputs on hover/focus.
 // Use -mx-1.5 + px-1.5 so the field aligns flush with surrounding text.
 export const ghostInputCls =

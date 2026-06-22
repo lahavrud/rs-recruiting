@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import Eyebrow from "@/components/ui/Eyebrow";
+
 import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
+import Eyebrow from "@/components/ui/Eyebrow";
 
 interface CandidatesFilterPanelProps {
   filterOpen: boolean;

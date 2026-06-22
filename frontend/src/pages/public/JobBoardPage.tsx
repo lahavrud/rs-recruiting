@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDebounce } from "@/hooks/useDebounce";
-import { useSearchParams } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import { getPublicJobs } from "@/services/jobs";
-import { useInfiniteList } from "@/hooks/useInfiniteList";
+import { useSearchParams } from "react-router-dom";
+
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useInfiniteList } from "@/hooks/useInfiniteList";
+import { getPublicJobs } from "@/services/jobs";
+import { errorAlertClsLg } from "@/styles/forms";
 import type { JobPublicRead } from "@/types/api";
-import JobBoardHero from "./components/JobBoardHero";
-import JobCardGrid from "./components/JobCardGrid";
-import JobBoardFilterPanel from "./components/JobBoardFilterPanel";
-import type { SalaryBounds } from "./components/JobBoardFilterPanel";
-import { getSalaryBounds, formatSalaryShort } from "./components/jobBoardUtils";
-import { FilterSidebarSkeleton, SearchBarSkeleton } from "./components/JobBoardSkeletons";
+
 import JobBoardFilterChip from "./components/JobBoardFilterChip";
+import JobBoardFilterPanel from "./components/JobBoardFilterPanel";
+import JobBoardHero from "./components/JobBoardHero";
+import { FilterSidebarSkeleton, SearchBarSkeleton } from "./components/JobBoardSkeletons";
+import { getSalaryBounds, formatSalaryShort } from "./components/jobBoardUtils";
+import JobCardGrid from "./components/JobCardGrid";
 import MobileFilterDrawer from "./components/MobileFilterDrawer";
+
+import type { SalaryBounds } from "./components/JobBoardFilterPanel";
+
 
 export default function JobBoardPage() {
   const { t } = useTranslation(['common', 'http', 'https', 'lg', 'publicJobs']);
@@ -194,7 +200,7 @@ export default function JobBoardPage() {
 
   if (fetchError) {
     return (
-      <div className="rounded-lg border border-danger/20 bg-danger/10 p-6 text-center text-sm text-danger">
+      <div className={`${errorAlertClsLg} text-center`}>
         {t("publicJobs:board.errorLoad")}
       </div>
     );

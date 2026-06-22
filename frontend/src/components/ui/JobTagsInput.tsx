@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   DndContext,
   KeyboardSensor,
@@ -18,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
+
 import { JOB_TAG_MAX_COUNT, JOB_TAG_MAX_LEN } from "@/types/api";
 
 const TAG_EDIT_MIN_CHARS = 4;

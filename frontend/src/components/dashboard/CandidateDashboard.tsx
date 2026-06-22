@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
+
 import {
   getMe,
   listMyApplications,
   type CandidateApplicationsPage,
   type CandidateMeRead,
 } from "@/services/candidate";
+
+import { BrowseJobsCta } from "./DashboardBrowseJobsCta";
 import { Hero } from "./DashboardHero";
 import { ProfileCompletion } from "./DashboardProfileCompletion";
 import { RecentApplications } from "./DashboardRecentApplications";
-import { BrowseJobsCta } from "./DashboardBrowseJobsCta";
 
 /**
  * Candidate dashboard.

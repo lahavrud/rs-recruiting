@@ -1,8 +1,10 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
-import { formatDate } from "@/utils/formatDate";
 import type { JobPublicRead } from "@/types/api";
+import { formatDate } from "@/utils/formatDate";
+
 import { CardSkeleton } from "./JobBoardSkeletons";
 
 /** Compact card-style salary: "12,000–15,000 ₪", "מ-12,000 ₪", or "עד 15,000 ₪". */

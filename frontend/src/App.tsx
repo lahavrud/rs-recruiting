@@ -1,23 +1,24 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Suspense, useEffect } from "react";
+
 import { HelmetProvider } from "react-helmet-async";
-import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/guards/ProtectedRoute";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+
 import AdminRoute from "@/components/guards/AdminRoute";
 import CandidateRoute from "@/components/guards/CandidateRoute";
 import CompanyRoute from "@/components/guards/CompanyRoute";
+import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import AppShell from "@/components/layout/AppShell";
 import CookieConsent from "@/components/ui/CookieConsent";
 import RouteErrorBoundary from "@/components/ui/RouteErrorBoundary";
-import { lazyWithRetry } from "@/utils/lazyWithRetry";
-
+import { AuthProvider } from "@/contexts/AuthContext";
 // Eager — entry funnels Google + direct visits land on most often. Keeping
 // these in the main bundle is critical for LCP / Core Web Vitals on the
 // pages that receive organic search traffic.
-import LandingPage from "@/pages/public/LandingPage";
+import LoginPage from "@/pages/LoginPage";
 import JobBoardPage from "@/pages/public/JobBoardPage";
 import JobDetailPage from "@/pages/public/JobDetailPage";
-import LoginPage from "@/pages/LoginPage";
+import LandingPage from "@/pages/public/LandingPage";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
 
 // Lazy — secondary public pages + every behind-auth screen. Chunked out so
 // they don't bloat the initial download for a visitor landing on / or /jobs.

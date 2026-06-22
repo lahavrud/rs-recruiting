@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "motion/react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import { staggerContainer, fadeRise, VIEWPORT_ONCE } from "./landingMotionUtils";
 
 /* Closing CTA: heading on the start side, the two actions on the end

@@ -1,10 +1,13 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import Field from "@/components/ui/Field";
+import { useTranslation } from "react-i18next";
+
 import Button from "@/components/ui/Button";
-import { inputCls } from "@/styles/forms";
+import Field from "@/components/ui/Field";
 import { patchMe, type CandidateMeRead } from "@/services/candidate";
+import { inputCls } from "@/styles/forms";
+
 import ResumeCard from "./ResumeCard";
 
 // These fields exist purely to prefill the public apply form for returning

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import Dialog from "./Dialog";
+
 import Button from "./Button";
+import Dialog from "./Dialog";
 
 interface ConfirmDialogProps {
   open: boolean;

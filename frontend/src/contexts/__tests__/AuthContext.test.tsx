@@ -1,6 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
 import { useContext } from "react";
+
+import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
+
 import { AuthContext, AuthProvider } from "@/contexts/AuthContext";
 import { UserRole } from "@/types/api";
 

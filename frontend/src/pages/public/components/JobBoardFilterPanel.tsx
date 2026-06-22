@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
-import SearchInput from "@/components/ui/SearchInput";
+
 import RangeSlider from "@/components/ui/RangeSlider";
+import SearchInput from "@/components/ui/SearchInput";
+
 import { SALARY_STEP, formatSalaryShort } from "./jobBoardUtils";
+
 import type { SalaryBounds } from "./jobBoardUtils";
 
 export type { SalaryBounds };

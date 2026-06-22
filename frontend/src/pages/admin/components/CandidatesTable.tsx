@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
-import type { CandidateProfileRead } from "@/types/api";
+
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
-import KebabButton from "@/components/ui/KebabButton";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
+import KebabButton from "@/components/ui/KebabButton";
 import ResumeButton from "@/components/ui/ResumeViewer";
+import type { CandidateProfileRead } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 

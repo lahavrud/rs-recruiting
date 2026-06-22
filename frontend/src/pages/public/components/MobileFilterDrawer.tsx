@@ -1,6 +1,8 @@
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+
 import JobBoardFilterPanel from "./JobBoardFilterPanel";
+
 import type { FilterPanelProps } from "./JobBoardFilterPanel";
 
 interface MobileFilterDrawerProps extends FilterPanelProps {

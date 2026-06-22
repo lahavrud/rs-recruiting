@@ -1,9 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useDebounce } from "@/hooks/useDebounce";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { apiErrorKey } from "@/utils/apiError";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
+import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
+import NoResults from "@/components/ui/NoResults";
+import PageHeader from "@/components/ui/PageHeader";
+import TableSkeleton from "@/components/ui/TableSkeleton";
+import { JOB_STATUS_COLORS } from "@/constants/statusColors";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { useToast } from "@/hooks/useToast";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import {
   approveJob,
@@ -12,26 +26,15 @@ import {
   getJobs,
   rejectJob,
 } from "@/services/adminJobs";
-import type { JobRead } from "@/types/api";
 import { JobStatus } from "@/types/api";
-import { JOB_STATUS_COLORS } from "@/constants/statusColors";
-import PageHeader from "@/components/ui/PageHeader";
-import Button from "@/components/ui/Button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import EmptyState from "@/components/ui/EmptyState";
-import ErrorState from "@/components/ui/ErrorState";
-import TableSkeleton from "@/components/ui/TableSkeleton";
-import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import NoResults from "@/components/ui/NoResults";
-import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
-import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { useToast } from "@/hooks/useToast";
-import JobDialog from "./components/JobDialog";
+import type { JobRead } from "@/types/api";
+import { apiErrorKey } from "@/utils/apiError";
+
 import JobCreateDialog from "./components/JobCreateDialog";
+import JobDialog from "./components/JobDialog";
 import JobsFilterPanel from "./components/JobsFilterPanel";
-import JobsTable from "./components/JobsTable";
 import JobsList from "./components/JobsList";
+import JobsTable from "./components/JobsTable";
 
 const ALL_STATUSES = [
   JobStatus.PENDING_APPROVAL,

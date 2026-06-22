@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import { JobStatus, JOB_SHORT_DESC_MAX } from "@/types/api";
-import type { JobAdminUpdate, JobRead, JobRequirementItem } from "@/types/api";
+import { useNavigate } from "react-router-dom";
+
 import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
 import Eyebrow from "@/components/ui/Eyebrow";
 import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
 import JobTagsInput from "@/components/ui/JobTagsInput";
-import { ghostInputCls } from "@/styles/forms";
 import { getApplications } from "@/services/adminApplications";
+import { ghostInputCls } from "@/styles/forms";
+import { JobStatus, JOB_SHORT_DESC_MAX } from "@/types/api";
+import type { JobAdminUpdate, JobRead, JobRequirementItem } from "@/types/api";
+
 import { SalaryRangeField, StatusPills } from "./JobFormHelpers";
 
 const APP_FETCH_LIMIT = 100;

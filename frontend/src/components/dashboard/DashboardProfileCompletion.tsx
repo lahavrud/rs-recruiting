@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import type { CandidateMeRead } from "@/services/candidate";
+
 import { InlineEditor, type MissingKey } from "./DashboardInlineEditor";
 
 // Matches the `duration-200` on the expand/collapse transition below.

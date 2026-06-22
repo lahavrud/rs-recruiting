@@ -1,9 +1,11 @@
 import { type ChangeEvent, type FocusEvent } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import Eyebrow from "@/components/ui/Eyebrow";
-import type { CandidateApplicationForm } from "@/types/api";
-import { textareaCls as textareaBase } from "@/styles/forms";
 import Field from "@/components/ui/Field";
+import { textareaCls as textareaBase } from "@/styles/forms";
+import type { CandidateApplicationForm } from "@/types/api";
 
 const TEXT_FIELD_MAX = 2000;
 const textareaCls = textareaBase + " min-h-[96px]";

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { getApplications } from "@/services/adminApplications";
+
+import { CollapsibleSection } from "@/components/admin/AnimatedAccordion";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { getApplications } from "@/services/adminApplications";
 import type { JobRead } from "@/types/api";
-import { CollapsibleSection } from "@/components/admin/AnimatedAccordion";
 import { formatDate } from "@/utils/formatDate";
 
 /**

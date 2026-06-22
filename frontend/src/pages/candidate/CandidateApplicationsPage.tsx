@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import PageHeader from "@/components/ui/PageHeader";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+
 import CompanyName from "@/components/ui/CompanyName";
+import PageHeader from "@/components/ui/PageHeader";
+import { useFetch } from "@/hooks/useFetch";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import {
   listMyApplications,
   type CandidateApplicationListItem,
+  type CandidateApplicationsPage as ApplicationsPageResult,
 } from "@/services/candidate";
 
 const BANNER_DISMISS_MS = 4000;
@@ -16,7 +21,6 @@ export default function CandidateApplicationsPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<CandidateApplicationListItem[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [withdrawnBanner, setWithdrawnBanner] = useState(
@@ -34,24 +38,17 @@ export default function CandidateApplicationsPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const page = await listMyApplications();
-        if (!alive) return;
-        setItems(page.items);
-        setCursor(page.next_cursor);
-      } catch {
-        if (alive) setError(t("candidate:applications.errors.loadFailed"));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [t]);
+  const { data: firstPage, loading, error: fetchError } = useFetch<ApplicationsPageResult>(
+    listMyApplications,
+    [],
+  );
+  useResetOnTrigger(firstPage, () => {
+    setItems(firstPage!.items);
+    setCursor(firstPage!.next_cursor);
+  });
+  useResetOnTrigger(fetchError, () =>
+    setError(t("candidate:applications.errors.loadFailed")),
+  );
 
   async function loadMore() {
     if (!cursor || loadingMore) return;

@@ -1,19 +1,23 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
+import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
+import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Dialog from "@/components/ui/Dialog";
+import { useConfirmableClose } from "@/hooks/useConfirmableClose";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { updateJob } from "@/services/adminJobs";
 import { JOB_REQ_MIN_COUNT, JobStatus } from "@/types/api";
 import type { JobAdminUpdate, JobRead } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
-import Button from "@/components/ui/Button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
-import { FeaturedStarButton } from "./JobFormHelpers";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import { JOB_EDIT_FIELD_ORDER, validateJob } from "@/utils/validators";
-import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
-import { useConfirmableClose } from "@/hooks/useConfirmableClose";
+
 import JobEditForm from "./JobEditForm";
+import { FeaturedStarButton } from "./JobFormHelpers";
+
 
 interface JobDialogProps {
   job: JobRead | null;

@@ -1,13 +1,14 @@
+import type { ReactNode } from "react";
+
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import type { ReactNode } from "react";
-import { AuthContext, type AuthContextType } from "@/contexts/AuthContext";
-import type { AuthUser } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/api";
+
 import AdminRoute from "@/components/guards/AdminRoute";
-import CompanyRoute from "@/components/guards/CompanyRoute";
 import CandidateRoute from "@/components/guards/CandidateRoute";
+import CompanyRoute from "@/components/guards/CompanyRoute";
 import ProtectedRoute from "@/components/guards/ProtectedRoute";
+import { AuthContext, type AuthContextType, AuthUser  } from "@/contexts/AuthContext";
+import { UserRole } from "@/types/api";
 
 function makeCtx(user: AuthUser | null): AuthContextType {
   return {

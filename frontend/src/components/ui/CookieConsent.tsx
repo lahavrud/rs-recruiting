@@ -1,5 +1,7 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import { getConsent, saveConsent, applyGtmConsent } from "@/utils/consent";
 
 export default function CookieConsent() {
