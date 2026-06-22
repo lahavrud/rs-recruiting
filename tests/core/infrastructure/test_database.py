@@ -116,6 +116,12 @@ class TestInitDbMigrationFailure:
 
     @pytest.mark.asyncio
     async def test_failed_migration_is_logged_and_raised(self, monkeypatch, caplog):
+        # Use a fresh engine bound to this worker's isolated test database —
+        # the module-level `engine` is bound to the unsuffixed base DATABASE_URL
+        # (read before conftest rewrites it per-worker) and is shared, unmanaged
+        # infrastructure that other tests in this file deliberately avoid.
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        monkeypatch.setattr(database_module, "engine", test_engine)
         monkeypatch.setattr(
             database_module, "_MIGRATIONS", ["SELECT * FROM nonexistent_table_xyz"]
         )
