@@ -704,7 +704,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
         )
         candidate = result.scalar_one()
         assert candidate.tos_accepted_at is not None
-        assert candidate.tos_version == "1.0"
+        assert candidate.tos_version == "1.1"
 
         audit = await session.execute(
             select(AuditLog).where(
@@ -715,7 +715,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
         )
         event = audit.scalar_one_or_none()
         assert event is not None
-        assert event.detail == "terms_version=1.0"
+        assert event.detail == "terms_version=1.1"
 
 
 # ── Sprint 11 / #606 — claim + logged-in API surfaces ─────────────────────────
