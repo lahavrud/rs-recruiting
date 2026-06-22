@@ -84,8 +84,8 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
 # Stable, opaque error codes returned in the HTTP ``detail`` field. The
 # frontend maps these to localised user-facing strings; backends never
 # emit ``str(exception)`` here because exception messages contain
-# user-supplied data (emails, internal IDs) that leak via the HTTP
-# response (issue #648).
+# user-supplied data (emails, internal IDs) that would otherwise leak via
+# the HTTP response.
 EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     # Not found
     JobNotFoundError: "job_not_found",

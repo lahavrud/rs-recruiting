@@ -188,7 +188,7 @@ class CandidateProfileRead(BaseModel):
 
 
 class CandidateMeRead(BaseModel):
-    """Self-service candidate profile read (Sprint 11 / #608).
+    """Self-service candidate profile read.
 
     Returned by ``GET /api/candidate/me``. Pulls ``email`` from the linked
     ``User`` (since the auth identity is the source of truth) and exposes
@@ -212,7 +212,7 @@ class CandidateMeRead(BaseModel):
 
 
 class CandidateMeUpdate(BaseModel):
-    """Self-service candidate profile update (Sprint 11 / #608).
+    """Self-service candidate profile update.
 
     Editable fields only: ``full_name``, ``phone``, ``linkedin_url``,
     ``resume_filename`` (basename only — see validator).
@@ -351,7 +351,7 @@ class ApplicationWithDetails(BaseModel):
 
 
 # --------------------------------------------------------------------------
-# Candidate-facing application views (Sprint 11 / #609)
+# Candidate-facing application views
 #
 # Deliberately omit raw ``status`` and ``admin_notes`` — the candidate sees
 # only the derived ``editable`` boolean. WITHDRAWN rows are filtered upstream

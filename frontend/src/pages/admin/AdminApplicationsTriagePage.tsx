@@ -14,9 +14,9 @@ import {
   SummaryScreen,
   SwipeHint,
   UndoToast,
-} from "./components/triageComponents";
-import { IconClose } from "./components/triageIcons";
-import { CandidateCard } from "./components/triageCandidateCard";
+} from "./components/TriageComponents";
+import { IconClose } from "./components/TriageIcons";
+import { CandidateCard } from "./components/TriageCandidateCard";
 import { type Decision } from "./components/triageTypes";
 import { useTriageQueue, type TriageItem } from "./components/useTriageQueue";
 

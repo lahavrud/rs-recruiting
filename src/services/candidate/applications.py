@@ -2,7 +2,7 @@
 
 The candidate-facing API deliberately never exposes raw ``Application.status``
 or ``admin_notes``. WITHDRAWN applications are filtered out entirely (the
-candidate can re-apply per the partial unique index added in #604, so showing
+candidate can re-apply per the partial unique index, so showing
 a withdrawn row would be misleading — and the spec treats withdrawn rows as
 if they don't exist for this candidate). Only the derived ``editable`` flag
 (true iff ``status == NEW``) leaks across the boundary.
@@ -21,6 +21,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.infrastructure.storage_helpers import delete_file_best_effort
 from src.core.services.storage import StorageProvider
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, Job
@@ -259,10 +260,9 @@ async def edit_my_application(
     await session.commit()
 
     if old_resume_key and old_resume_key != app.resume_path:
-        try:
-            await storage.delete_file(old_resume_key)
-        except Exception:
-            logger.exception("Failed to delete old resume snapshot %s", old_resume_key)
+        await delete_file_best_effort(
+            storage, old_resume_key, logger, context="old resume snapshot"
+        )
 
     return _build_detail(app)
 
@@ -277,7 +277,7 @@ async def withdraw_my_application(
 
     Gates: foreign/non-existent → 404, already WITHDRAWN → 404, non-NEW → 409.
     The row is preserved for admin visibility; only the candidate's list
-    filters it out (per #609).
+    filters it out.
     """
     query = select(Application).where(
         Application.id == application_id,  # pyright: ignore[reportArgumentType]

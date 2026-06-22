@@ -1,4 +1,4 @@
-"""Candidate GDPR data export (Sprint 11 / #608).
+"""Candidate GDPR data export.
 
 Flow:
 
@@ -17,8 +17,8 @@ Flow:
    verifies it's unused + unexpired, streams the ZIP, and marks
    ``used=True``.
 
-Cleanup of expired / used rows + the underlying ZIP objects lands in
-issue #10's nightly cron. Until then, the rows pile up; storage costs
+Cleanup of expired / used rows + the underlying ZIP objects is left for a
+future scheduled job. Until then, the rows pile up; storage costs
 are bounded by the per-user 24h rate limit.
 """
 
@@ -46,7 +46,7 @@ DATA_EXPORT_TTL_HOURS = 24
 
 # Audit actions the candidate is allowed to see in their own export. We pick
 # from the set of actions whose ``actor_user_id`` would be the candidate
-# themselves. Deletion-related actions (#611) are listed here pre-emptively;
+# themselves. Deletion-related actions are listed here pre-emptively;
 # they're harmless when they don't exist yet (the SELECT just returns 0
 # rows for them).
 CANDIDATE_VISIBLE_AUDIT_ACTIONS = (
@@ -187,7 +187,7 @@ async def _build_zip_bytes(
     """Assemble the ZIP in memory.
 
     ``data.json`` at the top, then one ``resumes/<filename>`` per
-    application that has a resume snapshot (#604). Best-effort on
+    application that has a resume snapshot. Best-effort on
     individual resume fetches — a storage outage on one resume
     shouldn't deny the whole export.
     """
@@ -233,8 +233,8 @@ async def build_and_persist_export(
     payload = _serialize_export(user, profile, applications, audit_entries)
     zip_bytes = await _build_zip_bytes(payload, applications, storage)
 
-    # `exports/<user_id>/<uuid>.zip` — namespaced by user so the cleanup
-    # cron in #10 can prefix-list. UUID keeps multiple retained exports
+    # `exports/<user_id>/<uuid>.zip` — namespaced by user so a future
+    # cleanup job can prefix-list. UUID keeps multiple retained exports
     # from colliding.
     storage_key = f"exports/{user_id}/{secrets.token_urlsafe(16)}.zip"
     await storage.upload_file(

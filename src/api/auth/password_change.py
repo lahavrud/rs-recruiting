@@ -1,4 +1,4 @@
-"""Authenticated in-session password change endpoint (Sprint 11 / #608)."""
+"""Authenticated in-session password change endpoint."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession

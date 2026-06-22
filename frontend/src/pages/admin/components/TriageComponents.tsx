@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { textareaCls } from "@/styles/forms";
 import { DECISION_META, UNDECIDED_CHIP_BG, type Decision } from "./triageTypes";
-import { IconArrowRight, IconCheck, IconClose } from "./triageIcons";
+import { IconArrowRight, IconCheck, IconClose } from "./TriageIcons";
 
 /** Resolves a Decision's icon key to the actual SVG component. */
 function DecisionIcon({
