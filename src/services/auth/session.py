@@ -208,6 +208,14 @@ async def logout_user(
             await session.delete(db_token)
 
 
+async def get_invite_by_hash(token: str, session: AsyncSession) -> InviteToken | None:
+    """Look up an invite token record by its hashed value, or None."""
+    result = await session.execute(
+        select(InviteToken).where(InviteToken.token_hash == hash_token(token))  # type: ignore[arg-type]
+    )
+    return result.scalar_one_or_none()
+
+
 async def mark_invite_used(token: str, session: AsyncSession) -> None:
     """Mark the invite DB record as used after successful registration."""
     result = await session.execute(

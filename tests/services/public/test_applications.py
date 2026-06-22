@@ -17,7 +17,10 @@ from src.services.exceptions import (
     EmailAlreadyExistsError,
     JobNotFoundError,
 )
-from src.services.public.applications import create_candidate_profile
+from src.services.public.applications import (
+    create_candidate_profile,
+    get_candidate_profile,
+)
 
 _PDF_BYTES = b"%PDF-1.4" + b"\x00" * 50
 
@@ -715,3 +718,53 @@ async def test_logged_in_candidate_apply_uses_session_email(
     # form email.
     assert result.id == profile.id
     assert result.email == "session@example.com"
+
+
+# ── get_candidate_profile ────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_profile_returns_linked_profile(session: AsyncSession):
+    """get_candidate_profile finds the CandidateProfile linked to the user."""
+    user = User(
+        email="linked@example.com",
+        hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    profile = CandidateProfile(
+        user_id=user.id,
+        full_name="Linked Candidate",
+        email="linked@example.com",
+        phone="050-000-2222",
+    )
+    session.add(profile)
+    await session.commit()
+    await session.refresh(profile)
+
+    result = await get_candidate_profile(user.id, session)
+
+    assert result is not None
+    assert result.id == profile.id
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_profile_returns_none_when_unlinked(
+    session: AsyncSession,
+):
+    """get_candidate_profile returns None when the user has no profile."""
+    user = User(
+        email="unlinked@example.com",
+        hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    result = await get_candidate_profile(user.id, session)
+
+    assert result is None

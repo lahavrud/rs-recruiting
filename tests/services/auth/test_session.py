@@ -11,10 +11,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.security import get_password_hash, hash_token
-from src.enums import UserRole
-from src.models import RefreshToken, UsedRefreshToken, User
+from src.enums import InviteTokenStatus, UserRole
+from src.models import InviteToken, RefreshToken, UsedRefreshToken, User
 from src.services.auth.session import (
     create_user_tokens,
+    get_invite_by_hash,
     logout_user,
     refresh_user_tokens,
 )
@@ -372,3 +373,48 @@ async def test_replay_after_logout_nukes_sessions(
         await refresh_user_tokens(raw, session)
 
     mock_nuke.assert_awaited_once_with(user.id)
+
+
+# ── get_invite_by_hash ───────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_invite_by_hash_returns_matching_record(session: AsyncSession):
+    """get_invite_by_hash finds the InviteToken row by its hashed token."""
+    admin = User(
+        email="invite-admin@example.com",
+        hashed_password=get_password_hash("password"),
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+    session.add(admin)
+    await session.commit()
+    await session.refresh(admin)
+
+    raw_token = "raw-invite-token"
+    invite = InviteToken(
+        token_hash=hash_token(raw_token),
+        email="invitee@example.com",
+        status=InviteTokenStatus.PENDING,
+        created_by_admin_id=admin.id,
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=2),
+    )
+    session.add(invite)
+    await session.commit()
+    await session.refresh(invite)
+
+    record = await get_invite_by_hash(raw_token, session)
+
+    assert record is not None
+    assert record.id == invite.id
+    assert record.email == "invitee@example.com"
+
+
+@pytest.mark.asyncio
+async def test_get_invite_by_hash_returns_none_for_unknown_token(
+    session: AsyncSession,
+):
+    """get_invite_by_hash returns None when no record matches the hash."""
+    record = await get_invite_by_hash("not-a-real-invite-token", session)
+
+    assert record is None
