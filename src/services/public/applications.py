@@ -18,7 +18,7 @@ from src.core.services.storage import get_storage_provider
 # in `_application_helpers`. See `tests/conftest.py::_EMAIL_TASK_TARGETS`.
 from src.core.tasks import enqueue_email_task  # noqa: F401
 from src.enums import JobStatus
-from src.models import Job, User
+from src.models import CandidateProfile, Job, User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
 from src.services.exceptions import EmailAlreadyExistsError, JobNotFoundError
 from src.services.public._application_helpers import (
@@ -219,3 +219,15 @@ async def create_candidate_profile(
         )
     )
     return CandidateProfileRead.model_validate(candidate)
+
+
+async def get_candidate_profile(
+    user_id: int, session: AsyncSession
+) -> CandidateProfile | None:
+    """Look up the CandidateProfile linked to a given user, or None."""
+    result = await session.execute(
+        select(CandidateProfile).where(
+            CandidateProfile.user_id == user_id  # type: ignore[arg-type]
+        )
+    )
+    return result.scalar_one_or_none()
