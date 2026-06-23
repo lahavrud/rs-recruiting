@@ -1,7 +1,11 @@
 name: Sandbox Deploy
 
-# Deploys the backend to the sandbox EKS cluster's sandbox-dev/sandbox-staging
-# namespaces on every merge to main. The sandbox cluster is ephemeral (see
+# Deploys the backend to the sandbox EKS cluster's sandbox-dev namespace on
+# every merge to main — fast feedback, no gate. sandbox-staging is a
+# deliberate promotion step instead (an RC tag push, see
+# sandbox-promote.yml's promote-staging job), not a second copy of dev: dev
+# and staging used to deploy in lockstep here, which meant "staging" wasn't
+# actually staging anything. The sandbox cluster is ephemeral (see
 # rs-recruiting-infra/tofu/sandbox) — when it's down, the active-flag check
 # below skips every later step, so a merge to main never fails just because
 # nobody has the cluster up.
@@ -89,7 +93,7 @@ jobs:
           path: gitops
           fetch-depth: 1
 
-      - name: Bump image tag in sandbox-dev + sandbox-staging overlays
+      - name: Bump image tag in sandbox-dev overlay
         if: steps.check.outputs.active == 'true'
         env:
           IMAGE_REPO: ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend
@@ -97,11 +101,8 @@ jobs:
         run: |
           set -euo pipefail
           cd gitops
-          for env in sandbox-dev sandbox-staging; do
-            f="envs/${env}/backend-values.yaml"
-            yq -i '.image.repository = strenv(IMAGE_REPO)' "$f"
-            yq -i '.image.tag = strenv(IMAGE_TAG)' "$f"
-          done
+          yq -i '.image.repository = strenv(IMAGE_REPO)' envs/sandbox-dev/backend-values.yaml
+          yq -i '.image.tag = strenv(IMAGE_TAG)' envs/sandbox-dev/backend-values.yaml
 
       - name: Commit and push
         if: steps.check.outputs.active == 'true'
@@ -110,10 +111,10 @@ jobs:
           cd gitops
           git config user.name "rs-recruiting-ci[bot]"
           git config user.email "rs-recruiting-ci[bot]@users.noreply.github.com"
-          git add envs/sandbox-dev/backend-values.yaml envs/sandbox-staging/backend-values.yaml
+          git add envs/sandbox-dev/backend-values.yaml
           if git diff --cached --quiet; then
             echo "No overlay changes to commit"
             exit 0
           fi
-          git commit -m "deploy(backend): sandbox-dev + sandbox-staging -> ${GITHUB_SHA}"
+          git commit -m "deploy(backend): sandbox-dev -> ${GITHUB_SHA}"
           git push
