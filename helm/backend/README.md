@@ -5,6 +5,20 @@ EKS cluster (see `rs-recruiting-infra/tofu/sandbox`).
 
 ## Install
 
+`sandbox-dev`/`sandbox-staging`/`sandbox-prod` are all ArgoCD-managed (#20) —
+ArgoCD syncs this chart against the values overlay in each namespace's
+`envs/<namespace>/backend-values.yaml` in
+[`rs-recruiting-gitops`](https://github.com/lahavrud/rs-recruiting-gitops),
+itself bootstrapped from a root `Application` that `rs-recruiting-infra`
+applies once. There's no manual `helm install` step for any of the three —
+each overlay sets `existingSecret: backend-secrets`, a Secret Tofu creates
+per namespace from the real RDS `DATABASE_URL` and a generated
+`JWT_SECRET_KEY` (see `rs-recruiting-infra`'s environment module), so no
+real secret material lives in this chart, this repo, or the public gitops
+repo.
+
+For a one-off manual install against a namespace ArgoCD doesn't own:
+
 ```bash
 cat > secrets.values.yaml <<EOF   # gitignored — never commit this file
 secrets:
@@ -50,9 +64,9 @@ same ALB, prefixed per sub-environment so they don't collide on the one ALB:
 | `sandbox-staging` | `/staging` | `/staging` |
 | `sandbox-dev` | _(no CloudFront)_ | `/dev` — set by hand, see Install above |
 
-`sandbox-staging`/`sandbox-prod` get their override from the ArgoCD
-Application's values overlay once #20 lands; `sandbox-dev` is never
-ArgoCD-managed, so the override is just a `--set` on `helm install`.
+All three get their `pathPrefix` override from the matching ArgoCD
+Application's values overlay (#20) — there's no per-namespace `--set`
+anymore now that `sandbox-dev` is ArgoCD-managed too.
 
 ## Known gaps
 

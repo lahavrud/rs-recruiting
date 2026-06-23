@@ -71,11 +71,20 @@ env:
   allowedOrigins: "http://localhost:3000"
   frontendBaseUrl: "http://localhost:3000"
 
-# Secret runtime config — rendered into a Kubernetes Secret (templates/secret.yaml).
-# Do NOT put real values here. Override at install time, e.g.:
+# Name of a pre-existing Secret (DATABASE_URL + JWT_SECRET_KEY keys) to mount
+# instead of rendering one from `secrets` below. Set by the ArgoCD
+# Application's values overlay (#20) for sandbox-dev/staging/prod — Tofu
+# creates "backend-secrets" in each namespace from real RDS/JWT values it
+# already knows (rs-recruiting-infra's environment module), so no secret
+# material ever needs to go in this repo or the gitops repo. Leave empty for
+# a manual `helm install`, which falls back to `secrets` below instead.
+existingSecret: ""
+
+# Secret runtime config — rendered into a Kubernetes Secret (templates/secret.yaml)
+# only when existingSecret above is empty. Do NOT put real values here.
+# Override at install time, e.g.:
 #   helm install backend . -f secrets.values.yaml   (secrets.values.yaml gitignored)
 #   helm install backend . --set-string secrets.jwtSecretKey=...
-# or via the ArgoCD Application's own values source once #20 lands.
 secrets:
   databaseUrl: ""
   jwtSecretKey: ""

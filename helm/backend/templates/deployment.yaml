@@ -25,7 +25,7 @@ spec:
               containerPort: 8000
           envFrom:
             - secretRef:
-                name: {{ include "backend.fullname" . }}
+                name: {{ .Values.existingSecret | default (include "backend.fullname" .) }}
           env:
             - name: ENVIRONMENT
               value: {{ .Values.env.environment | quote }}
