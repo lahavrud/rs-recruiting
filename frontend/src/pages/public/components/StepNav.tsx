@@ -5,16 +5,16 @@ const TOTAL_STEPS = 3;
 
 export default function StepNav({
   step,
-  submitting,
-  privacyAccepted,
-  termsAccepted,
+  isSubmitting,
+  isPrivacyAccepted,
+  isTermsAccepted,
   onBack,
   onNext,
 }: {
   step: Step;
-  submitting: boolean;
-  privacyAccepted: boolean;
-  termsAccepted: boolean;
+  isSubmitting: boolean;
+  isPrivacyAccepted: boolean;
+  isTermsAccepted: boolean;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -44,10 +44,10 @@ export default function StepNav({
             key="step-final-submit"
             type="submit"
             form="apply-form"
-            disabled={submitting || !privacyAccepted || !termsAccepted}
+            disabled={isSubmitting || !isPrivacyAccepted || !isTermsAccepted}
             className="rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50 sm:px-8 sm:py-3 sm:text-base"
           >
-            {submitting
+            {isSubmitting
               ? t("publicJobs:application.submittingText")
               : t("publicJobs:application.submitText")}
           </button>

@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 interface FilterPillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  active: boolean;
+  isActive: boolean;
   /** Use px-2.5 instead of px-3 — for dense tag rows (e.g. locations). */
   compact?: boolean;
   children: ReactNode;
@@ -12,7 +12,7 @@ interface FilterPillProps extends ButtonHTMLAttributes<HTMLButtonElement> {
  * Active = copper fill; inactive = white/15 border that brightens on hover.
  */
 export default function FilterPill({
-  active,
+  isActive,
   compact = false,
   className = "",
   children,
@@ -24,7 +24,7 @@ export default function FilterPill({
       type="button"
       {...props}
       className={`rounded-full ${padX} py-1 text-xs font-medium transition ${
-        active
+        isActive
           ? "bg-copper text-white"
           : "border border-white/15 text-white/55 hover:border-white/30 hover:text-white/85"
       } ${className}`}

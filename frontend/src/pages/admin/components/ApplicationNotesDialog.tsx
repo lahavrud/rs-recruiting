@@ -24,20 +24,20 @@ export default function ApplicationNotesDialog({
   onSaved,
   onError,
 }: NotesDialogProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [notes, setNotes] = useState<string>(app?.admin_notes ?? "");
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
     if (!app) return;
-    setSaving(true);
+    setIsSaving(true);
     try {
       const updated = await updateApplicationNotes(app.id, notes.trim() ? notes : null);
       onSaved(updated);
     } catch {
       onError();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -52,18 +52,11 @@ export default function ApplicationNotesDialog({
       size="md"
       footer={
         <>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             {t("common:cancel")}
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("common:saving") : t("common:save")}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? t("common:saving") : t("common:save")}
           </Button>
         </>
       }

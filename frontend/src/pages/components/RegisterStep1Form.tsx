@@ -27,7 +27,7 @@ type FieldErrors = Partial<
 interface Props {
   form: FormState;
   fieldErrors: FieldErrors;
-  emailPreFilled: boolean;
+  isEmailPreFilled: boolean;
   logoInputRef: RefObject<HTMLInputElement | null>;
   onFieldChange: (e: ChangeEvent<HTMLInputElement>) => void;
   onFieldBlur: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -38,7 +38,7 @@ interface Props {
 export default function RegisterStep1Form({
   form,
   fieldErrors,
-  emailPreFilled,
+  isEmailPreFilled,
   logoInputRef,
   onFieldChange,
   onFieldBlur,
@@ -201,8 +201,8 @@ export default function RegisterStep1Form({
               value={form.email}
               onChange={onFieldChange}
               onBlur={onFieldBlur}
-              readOnly={emailPreFilled}
-              className={`${INPUT_CLS} ${emailPreFilled ? "cursor-not-allowed opacity-60" : ""}`}
+              readOnly={isEmailPreFilled}
+              className={`${INPUT_CLS} ${isEmailPreFilled ? "cursor-not-allowed opacity-60" : ""}`}
               placeholder={t("auth:register.emailPlaceholder")}
               autoComplete="email"
               dir="ltr"

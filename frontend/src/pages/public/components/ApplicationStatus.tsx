@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { errorAlertClsLg } from "@/styles/forms";
 
 interface ApplicationStatusProps {
-  loading: boolean;
+  isLoading: boolean;
   error: string | null;
 }
 
@@ -16,10 +16,10 @@ interface ApplicationStatusProps {
  * Returns null when neither condition is active so the parent can render
  * the main form unaffected.
  */
-export default function ApplicationStatus({ loading, error }: ApplicationStatusProps) {
+export default function ApplicationStatus({ isLoading, error }: ApplicationStatusProps) {
   const { t } = useTranslation('publicJobs');
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center py-24">
         <div className="text-white/30">

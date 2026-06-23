@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 
 interface Props {
-  contractOpen: boolean;
-  termsOpen: boolean;
-  privacyOpen: boolean;
+  isContractOpen: boolean;
+  isTermsOpen: boolean;
+  isPrivacyOpen: boolean;
   onCloseContract: () => void;
   onCloseTerms: () => void;
   onClosePrivacy: () => void;
@@ -54,9 +54,9 @@ function ModalShell({
 }
 
 export default function RegisterModals({
-  contractOpen,
-  termsOpen,
-  privacyOpen,
+  isContractOpen,
+  isTermsOpen,
+  isPrivacyOpen,
   onCloseContract,
   onCloseTerms,
   onClosePrivacy,
@@ -67,7 +67,7 @@ export default function RegisterModals({
 
   return (
     <>
-      {contractOpen && (
+      {isContractOpen && (
         <ModalShell
           title={t("auth:register.agreementSectionService")}
           onClose={onCloseContract}
@@ -87,7 +87,7 @@ export default function RegisterModals({
         </ModalShell>
       )}
 
-      {termsOpen && (
+      {isTermsOpen && (
         <ModalShell
           title={t("auth:register.agreementSectionSiteTerms")}
           onClose={onCloseTerms}
@@ -107,7 +107,7 @@ export default function RegisterModals({
         </ModalShell>
       )}
 
-      {privacyOpen && (
+      {isPrivacyOpen && (
         <ModalShell
           title={t("auth:register.agreementSectionPrivacy")}
           onClose={onClosePrivacy}

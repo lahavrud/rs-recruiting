@@ -10,15 +10,15 @@ export default function IdentityStep({
   fieldErrors,
   onChange,
   onBlur,
-  emailReadOnly = false,
+  isEmailReadOnly = false,
 }: {
   form: Omit<CandidateApplicationForm, "job_id">;
   fieldErrors: Record<string, string>;
   onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onBlur: (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  emailReadOnly?: boolean;
+  isEmailReadOnly?: boolean;
 }) {
-  const { t } = useTranslation(['publicJobs', 'sm']);
+  const { t } = useTranslation(["publicJobs", "sm"]);
   return (
     <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5">
       <Field
@@ -60,12 +60,10 @@ export default function IdentityStep({
           placeholder={t("publicJobs:application.placeholders.email")}
           autoComplete="email"
           aria-invalid={!!fieldErrors.email}
-          readOnly={emailReadOnly}
-          aria-readonly={emailReadOnly}
+          readOnly={isEmailReadOnly}
+          aria-readonly={isEmailReadOnly}
           title={
-            emailReadOnly
-              ? t("publicJobs:application.emailLockedHint")
-              : undefined
+            isEmailReadOnly ? t("publicJobs:application.emailLockedHint") : undefined
           }
         />
       </Field>

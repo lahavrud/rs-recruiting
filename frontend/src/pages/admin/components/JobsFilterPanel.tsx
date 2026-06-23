@@ -30,8 +30,8 @@ export interface FilterState {
   uniqueLocations: string[];
   selectedLocations: string[];
   setSelectedLocations: Dispatch<SetStateAction<string[]>>;
-  featuredOnly: boolean;
-  setFeaturedOnly: Dispatch<SetStateAction<boolean>>;
+  isFeaturedOnly: boolean;
+  setIsFeaturedOnly: Dispatch<SetStateAction<boolean>>;
 }
 
 export interface SalaryFilterState {
@@ -50,8 +50,8 @@ export interface CompanyFilterState {
 
 export interface UIState {
   activeFilterCount: number;
-  filterOpen: boolean;
-  setFilterOpen: Dispatch<SetStateAction<boolean>>;
+  isFilterOpen: boolean;
+  setIsFilterOpen: Dispatch<SetStateAction<boolean>>;
   clearFilters: () => void;
 }
 
@@ -79,14 +79,14 @@ export default function JobsFilterPanel({
     uniqueLocations,
     selectedLocations,
     setSelectedLocations,
-    featuredOnly,
-    setFeaturedOnly,
+    isFeaturedOnly,
+    setIsFeaturedOnly,
   } = filters;
   const { salaryBounds, effectiveSalaryRange, isSalaryActive, setSalaryRange } =
     salary;
   const { uniqueCompanies, companyFilter, setCompanyFilter, companyNameById } =
     company;
-  const { activeFilterCount, filterOpen, setFilterOpen } = ui;
+  const { activeFilterCount, isFilterOpen, setIsFilterOpen } = ui;
   const { t } = useTranslation(['admin', 'common', 'publicJobs']);
 
   return (
@@ -98,16 +98,16 @@ export default function JobsFilterPanel({
             value={query}
             onChange={setQuery}
             placeholder={t("admin:jobs.searchPlaceholder")}
-            clearable
+            isClearable
           />
         </div>
         <button
           type="button"
-          onClick={() => setFilterOpen((o) => !o)}
-          aria-expanded={filterOpen}
+          onClick={() => setIsFilterOpen((o) => !o)}
+          aria-expanded={isFilterOpen}
           aria-label={t("admin:jobs.openFilters")}
           className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-200 active:scale-95 ${
-            filterOpen
+            isFilterOpen
               ? "border-copper/50 bg-copper/10 text-white"
               : "border-white/15 bg-card-raised/40 text-white/75 hover:border-copper/40 hover:text-white"
           }`}
@@ -161,10 +161,10 @@ export default function JobsFilterPanel({
               }
             />
           ))}
-          {featuredOnly && (
+          {isFeaturedOnly && (
             <ActiveFilterChip
               label={t("admin:jobs.featuredOnly")}
-              onRemove={() => setFeaturedOnly(false)}
+              onRemove={() => setIsFeaturedOnly(false)}
             />
           )}
         </div>
@@ -173,13 +173,13 @@ export default function JobsFilterPanel({
       {/* Animated filter panel — grid-rows 0fr→1fr */}
       <div
         className={`mb-4 grid transition-[grid-template-rows] duration-300 ease-out ${
-          filterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isFilterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden">
           <div
             className={`space-y-4 rounded-md border border-white/8 bg-card/40 p-4 transition-opacity duration-200 ${
-              filterOpen ? "opacity-100 delay-100" : "opacity-0"
+              isFilterOpen ? "opacity-100 delay-100" : "opacity-0"
             }`}
           >
             <div>
@@ -190,7 +190,7 @@ export default function JobsFilterPanel({
                 {filterTabs.map((tab) => (
                   <FilterPill
                     key={tab}
-                    active={filter === tab}
+                    isActive={filter === tab}
                     onClick={() => setFilter(tab)}
                   >
                     {tab === ALL_FILTER
@@ -208,21 +208,21 @@ export default function JobsFilterPanel({
                 <div className="flex flex-wrap gap-1.5">
                   <FilterPill
                     compact
-                    active={selectedLocations.length === 0}
+                    isActive={selectedLocations.length === 0}
                     onClick={() => setSelectedLocations([])}
                   >
                     {t("publicJobs:board.allLocations")}
                   </FilterPill>
                   {uniqueLocations.map((loc) => {
-                    const active = selectedLocations.includes(loc);
+                    const isActive = selectedLocations.includes(loc);
                     return (
                       <FilterPill
                         key={loc}
                         compact
-                        active={active}
+                        isActive={isActive}
                         onClick={() =>
                           setSelectedLocations((prev) =>
-                            active
+                            isActive
                               ? prev.filter((x) => x !== loc)
                               : [...prev, loc],
                           )
@@ -279,8 +279,8 @@ export default function JobsFilterPanel({
               <label className="mt-auto inline-flex items-center gap-2 text-sm text-white/80">
                 <input
                   type="checkbox"
-                  checked={featuredOnly}
-                  onChange={(e) => setFeaturedOnly(e.target.checked)}
+                  checked={isFeaturedOnly}
+                  onChange={(e) => setIsFeaturedOnly(e.target.checked)}
                   className="size-4 rounded border-white/20 bg-well text-copper focus:ring-copper"
                 />
                 {t("admin:jobs.featuredOnly")}

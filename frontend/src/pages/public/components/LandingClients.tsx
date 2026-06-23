@@ -47,11 +47,11 @@ function wrap(min: number, max: number, v: number): number {
 
 export default function LandingClients() {
   const { t } = useTranslation('landing');
-  const reduceMotion = useReducedMotion();
+  const shouldReduceMotion = useReducedMotion();
 
-  const [hovering, setHovering] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const paused = hovering || dragging || Boolean(reduceMotion);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const isPaused = isHovering || isDragging || Boolean(shouldReduceMotion);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const setRef = useRef<HTMLDivElement>(null);
@@ -88,7 +88,7 @@ export default function LandingClients() {
     const w = setWidth.current;
     if (!w) return;
     const current = x.get();
-    if (!paused) {
+    if (!isPaused) {
       x.set(wrap(-w, 0, current - (SPEED_PX_S * delta) / 1000));
     } else if (current < -w || current > 0) {
       // While dragging, only step in to re-wrap at the loop seam.
@@ -104,7 +104,7 @@ export default function LandingClients() {
     <section className="shrink-0 border-y border-white/8">
       <motion.div
         variants={fadeRise}
-        initial={reduceMotion ? false : "hidden"}
+        initial={shouldReduceMotion ? false : "hidden"}
         whileInView="visible"
         viewport={{ once: true, amount: 0.4 }}
         className="mx-auto max-w-7xl bg-section px-6 py-[clamp(0.5rem,2dvh,1.25rem)] sm:px-12"
@@ -123,17 +123,17 @@ export default function LandingClients() {
             WebkitMaskImage:
               "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
           }}
-          onPointerEnter={() => setHovering(true)}
-          onPointerLeave={() => setHovering(false)}
+          onPointerEnter={() => setIsHovering(true)}
+          onPointerLeave={() => setIsHovering(false)}
         >
           <motion.div
             drag="x"
             dragMomentum={false}
-            onDragStart={() => setDragging(true)}
-            onDragEnd={() => setDragging(false)}
+            onDragStart={() => setIsDragging(true)}
+            onDragEnd={() => setIsDragging(false)}
             style={{ x }}
             className={`flex w-max cursor-grab items-center active:cursor-grabbing ${
-              paused ? "marquee-paused" : ""
+              isPaused ? "marquee-paused" : ""
             }`}
           >
             {Array.from({ length: copies }, (_, copy) => (

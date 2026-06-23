@@ -39,7 +39,7 @@ export interface LookupMaps {
 
 export interface UIState {
   activeFilterCount: number;
-  filterOpen: boolean;
+  isFilterOpen: boolean;
   statusLabels: Record<string, string>;
 }
 
@@ -67,8 +67,8 @@ export default function ApplicationsFilterPanel({
     setCompanyFilter,
   } = filterState;
   const { allJobs, companyNameById, jobTitleById } = lookupMaps;
-  const { activeFilterCount, filterOpen, statusLabels } = uiState;
-  const { t } = useTranslation(['admin', 'common']);
+  const { activeFilterCount, isFilterOpen, statusLabels } = uiState;
+  const { t } = useTranslation(["admin", "common"]);
   const filterTabs: FilterValue[] = [ALL_FILTER, ...ALL_STATUSES];
 
   return (
@@ -114,13 +114,13 @@ export default function ApplicationsFilterPanel({
       {/* Filter panel — animated open/close */}
       <div
         className={`mb-4 grid transition-[grid-template-rows] duration-300 ease-out ${
-          filterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isFilterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden">
           <div
             className={`space-y-4 rounded-md border border-white/8 bg-card/40 p-4 transition-opacity duration-200 ${
-              filterOpen ? "opacity-100 delay-100" : "opacity-0"
+              isFilterOpen ? "opacity-100 delay-100" : "opacity-0"
             }`}
           >
             <div>
@@ -131,7 +131,7 @@ export default function ApplicationsFilterPanel({
                 {filterTabs.map((tab) => (
                   <FilterPill
                     key={tab}
-                    active={filter === tab}
+                    isActive={filter === tab}
                     onClick={() => setFilter(tab)}
                   >
                     {tab === ALL_FILTER

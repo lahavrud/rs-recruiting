@@ -40,9 +40,7 @@ export default function JobApplicationHeader({
       {/* Compact job header */}
       <div className="mb-8 flex items-start justify-between gap-4 rounded-xl border border-white/8 bg-card p-5 sm:p-6">
         <div className="min-w-0">
-          <Eyebrow>
-            {t("publicJobs:application.applyFor")}
-          </Eyebrow>
+          <Eyebrow>{t("publicJobs:application.applyFor")}</Eyebrow>
           <h1 className="mt-1 truncate text-lg font-semibold text-white/90 sm:text-xl">
             {job?.title}
           </h1>

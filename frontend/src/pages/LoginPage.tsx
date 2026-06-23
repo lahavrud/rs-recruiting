@@ -8,8 +8,8 @@ import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { resendCandidateActivation } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
-import { EMAIL_RE } from "@/utils/validators";
 import { apiErrorKey } from "@/utils/apiError";
+import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
 

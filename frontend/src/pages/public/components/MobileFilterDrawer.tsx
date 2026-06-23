@@ -56,7 +56,7 @@ export default function MobileFilterDrawer({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-5">
-          <JobBoardFilterPanel {...filterPanelProps} showSearch />
+          <JobBoardFilterPanel {...filterPanelProps} shouldShowSearch />
         </div>
         <div className="border-t border-white/8 px-5 py-3">
           <button

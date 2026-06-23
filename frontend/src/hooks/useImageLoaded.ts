@@ -12,13 +12,13 @@ import { useEffect, useState } from "react";
  * For plain `<img>` elements, prefer `<FadeInImage>` (uses native onLoad).
  */
 export function useImageLoaded(src: string): boolean {
-  const [loaded, setLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const img = new Image();
     const finish = () => {
-      if (!cancelled) setLoaded(true);
+      if (!cancelled) setIsLoaded(true);
     };
     img.onload = finish;
     img.onerror = finish;
@@ -30,5 +30,5 @@ export function useImageLoaded(src: string): boolean {
     };
   }, [src]);
 
-  return loaded;
+  return isLoaded;
 }

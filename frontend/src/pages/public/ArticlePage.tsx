@@ -20,20 +20,18 @@ function formatSalary(min: number | null, max: number | null): string | null {
 }
 
 function RelatedJobs() {
-  const { t } = useTranslation(['https', 'ui']);
+  const { t } = useTranslation(["https", "ui"]);
   // Silent on failure — the section just won't render if the API is down.
-  const { data: jobs, loading } = useFetch(
+  const { data: jobs, loading: isLoading } = useFetch(
     () => getPublicJobs().then((page) => page.items.slice(0, RELATED_JOBS_LIMIT)),
     [],
   );
 
-  if (loading || !jobs || jobs.length === 0) return null;
+  if (isLoading || !jobs || jobs.length === 0) return null;
 
   return (
     <section className="mt-16 border-t border-white/8 pt-10">
-      <Eyebrow>
-        משרות פתוחות
-      </Eyebrow>
+      <Eyebrow>משרות פתוחות</Eyebrow>
       <div className="mt-3 h-px w-8 bg-copper/40" />
       <h2 className="mt-4 text-xl font-semibold text-white/90 sm:text-2xl">
         משרות פתוחות בתחום
@@ -53,9 +51,7 @@ function RelatedJobs() {
               >
                 <h3 className="text-sm font-semibold text-white/90">{j.title}</h3>
                 <p className="mt-1.5 text-xs text-white/45">{j.location}</p>
-                {salary && (
-                  <p className="mt-2 text-xs text-copper/80">{salary}</p>
-                )}
+                {salary && <p className="mt-2 text-xs text-copper/80">{salary}</p>}
               </Link>
             </li>
           );
@@ -119,7 +115,12 @@ export default function ArticlePage() {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "מאמרים", item: `${SITE_URL}/articles` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "מאמרים",
+        item: `${SITE_URL}/articles`,
+      },
       { "@type": "ListItem", position: 3, name: article.title, item: canonical },
     ],
   };

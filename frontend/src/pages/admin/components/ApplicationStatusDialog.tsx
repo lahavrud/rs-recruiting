@@ -6,8 +6,8 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationStatus } from "@/services/adminApplications";
 import { SELECT_CLS, TEXTAREA_CLS } from "@/styles/forms";
-import { ApplicationStatus } from "@/types/enums";
 import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 const ALL_STATUSES = [
   ApplicationStatus.NEW,
   ApplicationStatus.APPROVED_BY_ADMIN,
@@ -38,12 +38,12 @@ export default function ApplicationStatusDialog({
   onSaved,
   onError,
 }: StatusDialogProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [newStatus, setNewStatus] = useState<string>(
     app?.status ?? ApplicationStatus.NEW,
   );
   const [notes, setNotes] = useState<string>(app?.admin_notes ?? "");
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Re-seed form fields whenever the target application changes.
   const lastAppId = useRef<number | null>(null);
@@ -60,7 +60,7 @@ export default function ApplicationStatusDialog({
 
   async function handleSave() {
     if (!app) return;
-    setSaving(true);
+    setIsSaving(true);
     const body: ApplicationStatusUpdate = {
       status: newStatus as ApplicationStatusUpdate["status"],
       admin_notes: notes.trim() || null,
@@ -71,7 +71,7 @@ export default function ApplicationStatusDialog({
     } catch {
       onError();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -88,18 +88,11 @@ export default function ApplicationStatusDialog({
       size="md"
       footer={
         <>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             {t("common:cancel")}
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("common:saving") : t("common:save")}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? t("common:saving") : t("common:save")}
           </Button>
         </>
       }

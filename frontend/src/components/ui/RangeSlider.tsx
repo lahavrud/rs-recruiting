@@ -9,9 +9,9 @@ interface RangeSliderProps {
   formatValue?: (n: number) => string;
   ariaLabelMin?: string;
   ariaLabelMax?: string;
-  showLabels?: boolean;
+  shouldShowLabels?: boolean;
   /** Enlarges thumbs from size-5 to size-7. */
-  large?: boolean;
+  isLarge?: boolean;
 }
 
 // Two full static strings so Tailwind's scanner sees every class name.
@@ -40,11 +40,11 @@ export default function RangeSlider({
   formatValue = (n) => n.toString(),
   ariaLabelMin,
   ariaLabelMax,
-  showLabels = true,
-  large = false,
+  shouldShowLabels = true,
+  isLarge = false,
 }: RangeSliderProps) {
   const [valMin, valMax] = value;
-  const thumbCls = large ? THUMB_LG : THUMB_MD;
+  const thumbCls = isLarge ? THUMB_LG : THUMB_MD;
 
   const handleMinChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,7 +70,7 @@ export default function RangeSlider({
     // Inherit page direction (RTL). The min thumb anchors to the start of
     // the inline axis (right in RTL, left in LTR) and labels follow suit.
     <div className="select-none">
-      <div className={`relative ${large ? "h-7" : "h-5"}`}>
+      <div className={`relative ${isLarge ? "h-7" : "h-5"}`}>
         <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/8" />
         <div
           className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-copper/70"
@@ -87,7 +87,7 @@ export default function RangeSlider({
           value={valMin}
           onChange={handleMinChange}
           aria-label={ariaLabelMin}
-          className={`pointer-events-none absolute inset-x-0 top-0 w-full appearance-none bg-transparent ${large ? "h-7" : "h-5"} ${thumbCls}`}
+          className={`pointer-events-none absolute inset-x-0 top-0 w-full appearance-none bg-transparent ${isLarge ? "h-7" : "h-5"} ${thumbCls}`}
         />
         <input
           type="range"
@@ -97,10 +97,10 @@ export default function RangeSlider({
           value={valMax}
           onChange={handleMaxChange}
           aria-label={ariaLabelMax}
-          className={`pointer-events-none absolute inset-x-0 top-0 w-full appearance-none bg-transparent ${large ? "h-7" : "h-5"} ${thumbCls}`}
+          className={`pointer-events-none absolute inset-x-0 top-0 w-full appearance-none bg-transparent ${isLarge ? "h-7" : "h-5"} ${thumbCls}`}
         />
       </div>
-      {showLabels && (
+      {shouldShowLabels && (
         <div className="mt-2 flex justify-between text-xs font-medium text-white/55">
           <span>{formatValue(valMin)}</span>
           <span>{formatValue(valMax)}</span>

@@ -68,7 +68,7 @@ export default function LandingPage() {
     return () => lenis.destroy();
   }, []);
 
-  const { data: jobsPage, loading: jobsLoading } = useFetch(getPublicJobs, []);
+  const { data: jobsPage, loading: isJobsLoading } = useFetch(getPublicJobs, []);
   const jobs = jobsPage?.items ?? [];
 
   function handleSearch(e: React.FormEvent) {
@@ -106,7 +106,7 @@ export default function LandingPage() {
 
       <LandingSectors />
 
-      <LandingFeaturedJobs jobs={jobs} loading={jobsLoading} />
+      <LandingFeaturedJobs jobs={jobs} isLoading={isJobsLoading} />
 
       <LandingClosingCta />
     </div>

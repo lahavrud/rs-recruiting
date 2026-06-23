@@ -11,7 +11,7 @@ export type { SalaryBounds };
 
 export interface FilterPanelProps {
   /** When true, render a search input at the top of the panel. */
-  showSearch?: boolean;
+  shouldShowSearch?: boolean;
   query: string;
   onQueryChange: (q: string) => void;
   locations: string[];
@@ -27,7 +27,7 @@ export interface FilterPanelProps {
 }
 
 export default function JobBoardFilterPanel({
-  showSearch = false,
+  shouldShowSearch = false,
   query,
   onQueryChange,
   locations,
@@ -45,7 +45,7 @@ export default function JobBoardFilterPanel({
 
   return (
     <div className="space-y-6">
-      {showSearch && (
+      {shouldShowSearch && (
         <div>
           <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-copper">
             {t("common:search")}
@@ -54,8 +54,8 @@ export default function JobBoardFilterPanel({
             value={query}
             onChange={onQueryChange}
             placeholder={t("publicJobs:board.searchPlaceholder")}
-            disableShortcut
-            clearable
+            isShortcutDisabled
+            isClearable
           />
         </div>
       )}

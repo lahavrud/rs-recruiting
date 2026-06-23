@@ -28,7 +28,7 @@ export default function CandidatesTable({
   sentinelRef,
   isFetchingMore,
 }: CandidatesTableProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
 
   return (
     <>
@@ -96,10 +96,7 @@ export default function CandidatesTable({
                   )}
                 </td>
                 <td className="px-4 py-3 text-white/40">{formatDate(c.created_at)}</td>
-                <td
-                  className="px-4 py-3 text-end"
-                  onClick={(e) => e.stopPropagation()}
-                >
+                <td className="px-4 py-3 text-end" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu
                     ariaLabel={t("admin:candidates.rowActionsLabel")}
                     trigger={<KebabButton size="sm" />}

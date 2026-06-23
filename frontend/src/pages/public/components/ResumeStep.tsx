@@ -23,18 +23,18 @@ export default function ResumeStep({
 }) {
   const { t } = useTranslation('publicJobs');
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   function onDragOver(e: DragEvent<HTMLButtonElement>) {
     e.preventDefault();
-    if (!dragging) setDragging(true);
+    if (!isDragging) setIsDragging(true);
   }
   function onDragLeave() {
-    setDragging(false);
+    setIsDragging(false);
   }
   function onDrop(e: DragEvent<HTMLButtonElement>) {
     e.preventDefault();
-    setDragging(false);
+    setIsDragging(false);
     const dropped = e.dataTransfer.files?.[0] ?? null;
     onFile(dropped);
   }
@@ -42,11 +42,11 @@ export default function ResumeStep({
   // Logged-in candidate w/ a profile resume on file and no new pick yet —
   // show the "use saved resume" card so submitting w/o an upload reuses
   // it server-side (no extra storage cost, no re-upload).
-  const showSavedResume = !file && savedResumeFilename;
+  const isShowingSavedResume = !file && savedResumeFilename;
 
   return (
     <div>
-      {showSavedResume ? (
+      {isShowingSavedResume ? (
         <div className="flex items-center gap-3 rounded-xl border border-copper/30 bg-card-raised p-4">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-copper/15 text-copper">
             <svg
@@ -132,14 +132,14 @@ export default function ResumeStep({
           aria-label={t("publicJobs:application.resumeUpload")}
           className={[
             "flex w-full flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors duration-200",
-            dragging
+            isDragging
               ? "border-copper bg-copper/10"
               : "border-white/15 bg-card hover:border-copper/40 hover:bg-card-raised",
           ].join(" ")}
         >
           <span
             className={`flex size-12 items-center justify-center rounded-full border transition-colors ${
-              dragging
+              isDragging
                 ? "border-copper bg-copper/20 text-copper"
                 : "border-copper/30 bg-copper/10 text-copper"
             }`}

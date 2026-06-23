@@ -59,24 +59,24 @@ export function ProfileCompletion({
     );
   }
 
-  const slots: { key: MissingKey; filled: boolean; label: string }[] = [
+  const slots: { key: MissingKey; isFilled: boolean; label: string }[] = [
     {
       key: "phone",
-      filled: !!me.phone,
+      isFilled: !!me.phone,
       label: t("dashboard:candidate.profileCompletion.fields.phone"),
     },
     {
       key: "linkedin",
-      filled: !!me.linkedin_url,
+      isFilled: !!me.linkedin_url,
       label: t("dashboard:candidate.profileCompletion.fields.linkedin"),
     },
     {
       key: "resume",
-      filled: !!me.resume_path,
+      isFilled: !!me.resume_path,
       label: t("dashboard:candidate.profileCompletion.fields.resume"),
     },
   ];
-  const missing = slots.filter((s) => !s.filled);
+  const missing = slots.filter((s) => !s.isFilled);
 
   // Profile is complete — render nothing. The nudge has served its
   // purpose and the dashboard reclaims the vertical space.

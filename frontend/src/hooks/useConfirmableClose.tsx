@@ -26,11 +26,11 @@ export function useConfirmableClose({
   onClose,
 }: UseConfirmableCloseArgs): UseConfirmableCloseResult {
   const { t } = useTranslation('common');
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   function handleClose() {
     if (isDirty) {
-      setOpen(true);
+      setIsOpen(true);
     } else {
       onClose();
     }
@@ -38,15 +38,15 @@ export function useConfirmableClose({
 
   const discardConfirm = (
     <ConfirmDialog
-      open={open}
-      onOpenChange={(o) => !o && setOpen(false)}
+      open={isOpen}
+      onOpenChange={(o) => !o && setIsOpen(false)}
       title={t("common:discardTitle")}
       message={t("common:discardMessage")}
       cancelLabel={t("common:continueEditing")}
       confirmLabel={t("common:discard")}
       variant="danger"
       onConfirm={() => {
-        setOpen(false);
+        setIsOpen(false);
         onClose();
       }}
     />

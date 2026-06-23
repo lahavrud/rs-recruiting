@@ -18,8 +18,8 @@ import { getMe as getCandidateMe, type CandidateMeRead } from "@/services/candid
 import { getPublicJob, submitApplication } from "@/services/jobs";
 import { errorAlertBaseCls } from "@/styles/forms";
 import type { CandidateApplicationForm } from "@/types/candidates";
-import type { JobPublicRead } from "@/types/jobs";
 import { UserRole } from "@/types/enums";
+import type { JobPublicRead } from "@/types/jobs";
 import { trackEvent } from "@/utils/analytics";
 import {
   RESUME_ALLOWED_EXTENSIONS,
@@ -69,7 +69,7 @@ const STEP_3_FIELDS = [
 // ── Page ──────────────────────────────────────────────────────────────────
 
 export default function ApplicationPage() {
-  const { t } = useTranslation('publicJobs');
+  const { t } = useTranslation("publicJobs");
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const jobId = id !== undefined ? Number.parseInt(id, 10) : NaN;
@@ -226,7 +226,7 @@ export default function ApplicationPage() {
   // Logged-in candidate: prefill identity + autofill fields from
   // /api/candidate/me so they don't retype data they already gave us. If
   // the profile already has a resume_path, expose the "use saved resume"
-  // affordance — isSubmitting without a new file lets the backend reuse the
+  // affordance — submitting without a new file lets the backend reuse the
   // existing snapshot (PR B / backend resume_required fallback). Failure is
   // non-fatal — the form still works without prefill — so the fetch
   // swallows its own error and resolves `null`.
@@ -268,9 +268,7 @@ export default function ApplicationPage() {
     }
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!(RESUME_ALLOWED_EXTENSIONS as readonly string[]).includes(ext)) {
-      setResumeError(
-        t("publicJobs:application.resumeErrors.invalidExtension"),
-      );
+      setResumeError(t("publicJobs:application.resumeErrors.invalidExtension"));
       return;
     }
     if (file.size > RESUME_MAX_FILE_SIZE_BYTES) {

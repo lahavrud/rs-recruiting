@@ -26,7 +26,7 @@ export default function CandidateEditDialog({
   onSaved,
   onError,
 }: EditProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [form, setForm] = useState<CandidateProfileUpdate>({});
   const [initialForm, setInitialForm] = useState<CandidateProfileUpdate>({});
   const [saving, setSaving] = useState(false);
@@ -147,7 +147,10 @@ export default function CandidateEditDialog({
               className={INPUT_CLS}
             />
           </Field>
-          <Field label={t("admin:candidates.fields.linkedin")} error={errors.linkedin_url}>
+          <Field
+            label={t("admin:candidates.fields.linkedin")}
+            error={errors.linkedin_url}
+          >
             <input
               type="url"
               value={form.linkedin_url ?? ""}

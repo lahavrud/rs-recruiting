@@ -17,18 +17,18 @@ export default function FadeInImage({
   onLoad,
   ...rest
 }: FadeInImageProps) {
-  const [loaded, setLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   return (
     <img
       {...rest}
       onLoad={(e) => {
-        setLoaded(true);
+        setIsLoaded(true);
         onLoad?.(e);
       }}
       className={className}
       style={{
         ...style,
-        opacity: loaded ? 1 : 0,
+        opacity: isLoaded ? 1 : 0,
         transition: `opacity ${fadeMs}ms ease-out`,
       }}
     />

@@ -27,25 +27,25 @@ export default function MobileEntityCard({
   children: ReactNode;
 }) {
   const { t } = useTranslation(['common', 'http']);
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   return (
     <div
       className={`relative overflow-hidden rounded-xl border bg-card transition-colors duration-200 ${
-        open
+        isOpen
           ? "border-copper/40 bg-card-raised"
           : "border-white/8 hover:border-white/15"
       }`}
     >
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-label={open ? t("common:collapse") : t("common:expand")}
+        onClick={() => setIsOpen((o) => !o)}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? t("common:collapse") : t("common:expand")}
         className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 pe-12 text-start active:scale-[0.99]"
       >
         <span
           className={`inline-flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${
-            open
+            isOpen
               ? "border-copper bg-copper/15 text-copper"
               : "border-white/15 text-white/45"
           }`}
@@ -54,7 +54,7 @@ export default function MobileEntityCard({
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 16 16"
             fill="currentColor"
-            className={`size-3.5 transition-transform duration-300 ease-out ${open ? "rotate-180" : ""}`}
+            className={`size-3.5 transition-transform duration-300 ease-out ${isOpen ? "rotate-180" : ""}`}
             aria-hidden="true"
           >
             <path
@@ -72,19 +72,19 @@ export default function MobileEntityCard({
       {actions && <div className="absolute end-1 top-2">{actions}</div>}
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden">
           <div
             className={`border-t border-white/8 px-4 py-4 transition-opacity duration-200 ${
-              open ? "opacity-100 delay-100" : "opacity-0"
+              isOpen ? "opacity-100 delay-100" : "opacity-0"
             }`}
           >
             {children}
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => setIsOpen(false)}
               className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/15 px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-copper/50 hover:text-copper active:scale-[0.99]"
             >
               <svg

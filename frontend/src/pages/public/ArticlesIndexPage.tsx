@@ -15,7 +15,12 @@ export default function ArticlesIndexPage() {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "מאמרים", item: `${SITE_URL}/articles` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "מאמרים",
+        item: `${SITE_URL}/articles`,
+      },
     ],
   };
   const itemList = {
@@ -45,9 +50,7 @@ export default function ArticlesIndexPage() {
       />
 
       <header className="mb-10">
-        <Eyebrow>
-          מאמרים
-        </Eyebrow>
+        <Eyebrow>מאמרים</Eyebrow>
         <div className="mt-3 h-px w-8 bg-copper/40" />
         <h1 className="mt-4 text-2xl font-semibold text-white/90 sm:text-3xl">
           מדריכים וניתוחי שוק
