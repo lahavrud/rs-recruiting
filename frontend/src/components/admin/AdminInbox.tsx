@@ -7,12 +7,7 @@ import { getApplications } from "@/services/adminApplications";
 import { getPendingCompanies } from "@/services/adminCompanies";
 import { getInvites } from "@/services/adminInvites";
 import { getJobs } from "@/services/adminJobs";
-import {
-  ApplicationStatus,
-  InviteTokenStatus,
-  JobStatus,
-} from "@/types/api";
-
+import { ApplicationStatus, InviteTokenStatus, JobStatus } from "@/types/enums";
 /**
  * "What's waiting for me?" queue on the admin dashboard.
  *
@@ -30,7 +25,7 @@ import {
 
 const LIMIT = 50;
 
-type Stat = { n: number; capped: boolean } | null;
+type Stat = { n: number; isCapped: boolean } | null;
 
 interface ItemConfig {
   key: string;
@@ -43,7 +38,7 @@ interface ItemConfig {
 }
 
 export default function AdminInbox() {
-  const { t } = useTranslation('dashboard');
+  const { t } = useTranslation("dashboard");
   const [invites, setInvites] = useState<Stat>(null);
   const [companies, setCompanies] = useState<Stat>(null);
   const [jobs, setJobs] = useState<Stat>(null);
@@ -52,7 +47,7 @@ export default function AdminInbox() {
   useEffect(() => {
     const ctrl = new AbortController();
     function toStat<T>(page: { items: T[]; next_cursor: string | null }): Stat {
-      return { n: page.items.length, capped: page.next_cursor != null };
+      return { n: page.items.length, isCapped: page.next_cursor != null };
     }
     getInvites({ status: InviteTokenStatus.PENDING, limit: LIMIT }, ctrl.signal)
       .then((p) => setInvites(toStat(p)))
@@ -63,10 +58,7 @@ export default function AdminInbox() {
     getJobs({ status: JobStatus.PENDING_APPROVAL, limit: LIMIT }, ctrl.signal)
       .then((p) => setJobs(toStat(p)))
       .catch(() => {});
-    getApplications(
-      { status: ApplicationStatus.NEW, limit: LIMIT },
-      ctrl.signal,
-    )
+    getApplications({ status: ApplicationStatus.NEW, limit: LIMIT }, ctrl.signal)
       .then((p) => setApplications(toStat(p)))
       .catch(() => {});
     return () => ctrl.abort();
@@ -120,9 +112,7 @@ export default function AdminInbox() {
           {t("dashboard:inbox.title")}
         </p>
         {allClear && (
-          <p className="text-xs text-white/40">
-            {t("dashboard:inbox.allClear")}
-          </p>
+          <p className="text-xs text-white/40">{t("dashboard:inbox.allClear")}</p>
         )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -135,18 +125,15 @@ export default function AdminInbox() {
 }
 
 function InboxCard({ item }: { item: ItemConfig }) {
-  const loading = item.stat == null;
-  const empty = !loading && item.stat!.n === 0;
-  const display = loading
-    ? "—"
-    : item.stat!.capped
-      ? `${item.stat!.n}+`
-      : item.stat!.n;
+  const stat = item.stat;
+  const isLoading = stat == null;
+  const isEmpty = !isLoading && stat.n === 0;
+  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
   return (
     <Link
       to={item.to}
       className={`group block rounded-xl border p-4 transition duration-200 ${
-        empty
+        isEmpty
           ? "border-white/8 bg-card hover:border-white/15"
           : "border-copper/25 bg-card hover:border-copper/45 hover:bg-card-raised"
       }`}
@@ -154,7 +141,7 @@ function InboxCard({ item }: { item: ItemConfig }) {
       <div className="flex items-center justify-between">
         <span
           className={`inline-flex size-8 items-center justify-center rounded-full ${
-            empty ? "bg-white/5 text-white/35" : "bg-copper/15 text-copper"
+            isEmpty ? "bg-white/5 text-white/35" : "bg-copper/15 text-copper"
           }`}
         >
           {item.icon}
@@ -162,7 +149,7 @@ function InboxCard({ item }: { item: ItemConfig }) {
         <span
           aria-hidden="true"
           className={`size-4 transition group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 ${
-            empty ? "text-white/20" : "text-copper/60"
+            isEmpty ? "text-white/20" : "text-copper/60"
           }`}
         >
           <ChevronIcon />
@@ -170,58 +157,101 @@ function InboxCard({ item }: { item: ItemConfig }) {
       </div>
       <p
         className={`mt-3 text-3xl font-semibold leading-none ${
-          loading
-            ? "text-white/25"
-            : empty
-              ? "text-white/45"
-              : "text-white/95"
+          isLoading ? "text-white/25" : isEmpty ? "text-white/45" : "text-white/95"
         }`}
       >
         {display}
       </p>
       <p className="mt-2 text-sm font-medium text-white/80">{item.label}</p>
-      <p className="mt-1 text-xs text-white/40">
-        {empty ? item.empty : item.hint}
-      </p>
+      <p className="mt-1 text-xs text-white/40">{isEmpty ? item.empty : item.hint}</p>
     </Link>
   );
 }
 
 function EnvelopeIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9 6 9-6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      className="size-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 7l9 6 9-6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+      />
     </svg>
   );
 }
 
 function UserCheckIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 4l2 2 4-4" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      className="size-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 4l2 2 4-4"
+      />
     </svg>
   );
 }
 
 function BriefcaseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      className="size-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+      />
     </svg>
   );
 }
 
 function DocumentIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h6" />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      className="size-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Zm0 0v6h6M8 13h8m-8 4h6"
+      />
     </svg>
   );
 }
 
 function ChevronIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor" className="size-4 rtl:rotate-180" aria-hidden="true">
+    <svg
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      className="size-4 rtl:rotate-180"
+      aria-hidden="true"
+    >
       <path
         fillRule="evenodd"
         d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06L7.28 11.78a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z"

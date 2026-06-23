@@ -15,8 +15,8 @@ import "@/i18n"; // initialize i18next so t() resolves to real Hebrew strings
 import Toaster from "@/components/ui/Toaster";
 import { ToastProvider } from "@/contexts/ToastContext";
 import AdminApplicationsTriagePage from "@/pages/admin/AdminApplicationsTriagePage";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
-
+import { type ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 // ── Service mocks ─────────────────────────────────────────────────────────
 
 const {
@@ -142,9 +142,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     mockGetActiveCompanies.mockResolvedValueOnce(companiesPage);
 
     renderPage();
-    expect(
-      await screen.findByText(/אירעה שגיאה בטעינת המועמדים/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/אירעה שגיאה בטעינת המועמדים/)).toBeInTheDocument();
   });
 
   it("approve button calls updateApplicationStatus with APPROVED_BY_ADMIN", async () => {
@@ -165,9 +163,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     });
     // The undo button only renders inside the UndoToast — its presence is
     // the cleanest signal that the optimistic decision committed.
-    expect(
-      await screen.findByRole("button", { name: /^בטל$/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^בטל$/ })).toBeInTheDocument();
   });
 
   it("reject button calls updateApplicationStatus with REJECTED", async () => {
@@ -186,9 +182,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     expect(mockUpdateApplicationStatus).toHaveBeenCalledWith(1, {
       status: ApplicationStatus.REJECTED,
     });
-    expect(
-      await screen.findByRole("button", { name: /^בטל$/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /^בטל$/ })).toBeInTheDocument();
   });
 
   it("rolls back local state and shows an error toast when save fails", async () => {
@@ -205,9 +199,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /^אישור$/ }));
 
     // Error toast surfaces
-    expect(
-      await screen.findByText(/לא הצלחנו לשמור את ההחלטה/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/לא הצלחנו לשמור את ההחלטה/)).toBeInTheDocument();
     // The undo affordance from the optimistic toast should also be gone
     // (rollback hides pendingUndo), and the revisit banner on the prev card
     // disappears because decisions[appId] was deleted.

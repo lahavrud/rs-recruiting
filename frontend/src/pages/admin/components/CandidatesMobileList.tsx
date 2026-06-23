@@ -6,7 +6,7 @@ import DropdownMenu, {
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
-import type { CandidateProfileRead } from "@/types/api";
+import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 import { CandidateDetailBody } from "./CandidateDetailDialog";
@@ -23,7 +23,7 @@ export default function CandidatesMobileList({
   onEdit,
   onDelete,
 }: CandidatesMobileListProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
 
   return (
     <div className="space-y-2 md:hidden">
@@ -59,7 +59,9 @@ export default function CandidatesMobileList({
             key={c.id}
             title={<span className="truncate text-white/85">{c.full_name}</span>}
             badge={
-              <span className="text-[11px] text-white/40">{formatDate(c.created_at)}</span>
+              <span className="text-[11px] text-white/40">
+                {formatDate(c.created_at)}
+              </span>
             }
             actions={actions}
           >

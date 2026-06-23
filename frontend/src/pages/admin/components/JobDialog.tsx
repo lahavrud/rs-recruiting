@@ -9,8 +9,9 @@ import Dialog from "@/components/ui/Dialog";
 import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { updateJob } from "@/services/adminJobs";
-import { JOB_REQ_MIN_COUNT, JobStatus } from "@/types/api";
-import type { JobAdminUpdate, JobRead } from "@/types/api";
+import { JobStatus } from "@/types/enums";
+import { JOB_REQ_MIN_COUNT } from "@/types/jobs";
+import type { JobAdminUpdate, JobRead } from "@/types/jobs";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import { JOB_EDIT_FIELD_ORDER, validateJob } from "@/utils/validators";
@@ -58,13 +59,13 @@ export default function JobDialog({
   onApprove,
   onReject,
 }: JobDialogProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
 
   const [form, setForm] = useState<JobAdminUpdate>({});
   const [initialForm, setInitialForm] = useState<JobAdminUpdate>({});
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   // Seed form whenever a new job session starts (new job opened, or job updated after save).
   useResetOnTrigger(job, () => {
@@ -103,7 +104,7 @@ export default function JobDialog({
 
   async function save() {
     if (!job || !validate()) return;
-    setSaving(true);
+    setIsSaving(true);
     try {
       const payload: JobAdminUpdate = {
         ...form,
@@ -120,7 +121,7 @@ export default function JobDialog({
     } catch {
       onError();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -141,23 +142,28 @@ export default function JobDialog({
         </Button>
       )}
       {isDirty && (
-        <Button variant="ghost" onClick={revert} disabled={saving} className="flex-1 sm:flex-none">
+        <Button
+          variant="ghost"
+          onClick={revert}
+          disabled={isSaving}
+          className="flex-1 sm:flex-none"
+        >
           {t("common:revertChanges")}
         </Button>
       )}
       <Button
         variant="danger"
-        onClick={() => setDeleteOpen(true)}
+        onClick={() => setIsDeleteOpen(true)}
         className="flex-1 sm:order-first sm:me-auto sm:flex-none"
       >
         {t("admin:jobs.deleteAction")}
       </Button>
       <Button
         onClick={() => void save()}
-        disabled={saving || !isDirty}
+        disabled={isSaving || !isDirty}
         className="w-full sm:w-auto"
       >
-        {saving ? t("common:saving") : t("common:save")}
+        {isSaving ? t("common:saving") : t("common:save")}
       </Button>
     </div>
   );
@@ -181,7 +187,7 @@ export default function JobDialog({
                 className="w-full bg-transparent text-3xl font-semibold leading-snug text-white/90 placeholder:text-white/25 outline-none"
               />
               <FeaturedStarButton
-                active={form.is_featured ?? false}
+                isActive={form.is_featured ?? false}
                 onToggleRequest={() => set("is_featured", !(form.is_featured ?? false))}
               />
             </div>
@@ -221,13 +227,16 @@ export default function JobDialog({
       {discardConfirm}
 
       <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
         title={t("admin:jobs.deleteConfirmTitle")}
         message={t("admin:jobs.deleteConfirmMessage")}
         confirmLabel={t("admin:jobs.deleteConfirmYes")}
         variant="danger"
-        onConfirm={() => { setDeleteOpen(false); onDelete(); }}
+        onConfirm={() => {
+          setIsDeleteOpen(false);
+          onDelete();
+        }}
       />
     </>
   );

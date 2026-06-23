@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 import { CardSkeleton } from "./JobBoardSkeletons";
@@ -17,7 +17,7 @@ function formatCardSalary(min: number | null, max: number | null): string | null
 }
 
 interface JobCardGridProps {
-  loading: boolean;
+  isLoading: boolean;
   filtered: JobPublicRead[];
   hasActiveFilter: boolean;
   searchParamsString: string;
@@ -26,16 +26,16 @@ interface JobCardGridProps {
 }
 
 export default function JobCardGrid({
-  loading,
+  isLoading,
   filtered,
   hasActiveFilter,
   searchParamsString,
   onClearFilters,
   sentinelRef,
 }: JobCardGridProps) {
-  const { t } = useTranslation(['common', 'http', 'publicJobs']);
+  const { t } = useTranslation(["common", "http", "publicJobs"]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
         {Array.from({ length: 6 }).map((_, i) => (

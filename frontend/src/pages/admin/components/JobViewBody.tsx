@@ -7,7 +7,7 @@ import { CollapsibleSection } from "@/components/admin/AnimatedAccordion";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { getApplications } from "@/services/adminApplications";
-import type { JobRead } from "@/types/api";
+import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 /**
@@ -16,15 +16,13 @@ import { formatDate } from "@/utils/formatDate";
  * enough that it doesn't visually overlap the title.
  */
 export function FeaturedDesktopSash() {
-  const { t } = useTranslation(['admin', 'common', 'http', 'publicJobs']);
+  const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   return (
     <span
       className="pointer-events-none absolute right-0 top-0 z-20 h-7 w-7 overflow-hidden"
       aria-label={t("publicJobs:board.featured")}
     >
-      <span
-        className="absolute top-1 -right-3 inline-flex w-12 origin-center rotate-45 items-center justify-center bg-gradient-to-r from-copper via-gold to-gold-light py-px text-white shadow-[0_1px_2px_rgba(0,0,0,0.5)]"
-      >
+      <span className="absolute top-1 -right-3 inline-flex w-12 origin-center rotate-45 items-center justify-center bg-gradient-to-r from-copper via-gold to-gold-light py-px text-white shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
         <svg
           viewBox="0 0 24 24"
           fill="currentColor"
@@ -51,7 +49,7 @@ export function JobDetailBody({
   companyName?: string;
   onLeavePage?: () => void;
 }) {
-  const { t } = useTranslation(['admin', 'common', 'http', 'publicJobs']);
+  const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   const navigate = useNavigate();
 
   // Lazy-fetch application count for this job. `null` = loading, number = total.
@@ -60,7 +58,7 @@ export function JobDetailBody({
   const APP_FETCH_LIMIT = 100;
   const [applicationCount, setApplicationCount] = useState<{
     n: number;
-    capped: boolean;
+    isCapped: boolean;
   } | null>(null);
   useEffect(() => {
     const ctrl = new AbortController();
@@ -68,7 +66,7 @@ export function JobDetailBody({
       .then((page) =>
         setApplicationCount({
           n: page.items.length,
-          capped: page.items.length === APP_FETCH_LIMIT,
+          isCapped: page.items.length === APP_FETCH_LIMIT,
         }),
       )
       .catch(() => {});
@@ -84,7 +82,10 @@ export function JobDetailBody({
     <div className="space-y-4 text-sm">
       {/* Header strip: status + featured ribbon eyebrow only */}
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge label={statusLabels[job.status]} colorCls={statusColors[job.status]} />
+        <StatusBadge
+          label={statusLabels[job.status]}
+          colorCls={statusColors[job.status]}
+        />
         {job.is_featured && (
           <span className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-gold">
             <svg
@@ -128,7 +129,7 @@ export function JobDetailBody({
           <span className="font-medium text-copper/85">
             {applicationCount == null
               ? "…"
-              : applicationCount.capped
+              : applicationCount.isCapped
                 ? `${applicationCount.n}+`
                 : applicationCount.n}
           </span>
@@ -162,9 +163,7 @@ export function JobDetailBody({
 
       {/* Short description: lifted into a subtle well so it doesn't compete with the metadata */}
       <div className="rounded-md border border-white/6 bg-well/30 px-3 py-2.5">
-        <Eyebrow>
-          {t("admin:jobs.fields.shortDescription")}
-        </Eyebrow>
+        <Eyebrow>{t("admin:jobs.fields.shortDescription")}</Eyebrow>
         <p className="mt-1 leading-relaxed text-white/80">{job.short_description}</p>
       </div>
 
@@ -214,28 +213,30 @@ export function MobileJobCard({
   companyName?: string;
   actions: React.ReactNode;
 }) {
-  const { t } = useTranslation(['admin', 'common', 'http', 'publicJobs']);
-  const [open, setOpen] = useState(false);
+  const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
+  const [isOpen, setIsOpen] = useState(false);
   return (
     <div
       className={`relative overflow-hidden rounded-xl border bg-card transition-colors duration-200 ${
-        open ? "border-copper/40 bg-card-raised" : "border-white/8 hover:border-white/15"
+        isOpen
+          ? "border-copper/40 bg-card-raised"
+          : "border-white/8 hover:border-white/15"
       }`}
     >
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-label={open ? t("admin:jobs.collapseLabel") : t("admin:jobs.expandLabel")}
+        onClick={() => setIsOpen((o) => !o)}
+        aria-expanded={isOpen}
+        aria-label={isOpen ? t("admin:jobs.collapseLabel") : t("admin:jobs.expandLabel")}
         className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 pe-12 text-start active:scale-[0.99]"
       >
         <span
           className={`inline-flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${
             job.is_featured
-              ? open
+              ? isOpen
                 ? "border-gold bg-gold/25 text-gold"
                 : "border-gold/50 bg-gold/10 text-gold"
-              : open
+              : isOpen
                 ? "border-copper bg-copper/15 text-copper"
                 : "border-white/15 text-white/45"
           }`}
@@ -244,7 +245,7 @@ export function MobileJobCard({
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 16 16"
             fill="currentColor"
-            className={`size-3.5 transition-transform duration-300 ease-out ${open ? "rotate-180" : ""}`}
+            className={`size-3.5 transition-transform duration-300 ease-out ${isOpen ? "rotate-180" : ""}`}
             aria-hidden="true"
           >
             <path
@@ -254,21 +255,22 @@ export function MobileJobCard({
             />
           </svg>
         </span>
-        <p className="min-w-0 flex-1 truncate font-medium text-white/85">
-          {job.title}
-        </p>
-        <StatusBadge label={statusLabels[job.status]} colorCls={statusColors[job.status]} />
+        <p className="min-w-0 flex-1 truncate font-medium text-white/85">{job.title}</p>
+        <StatusBadge
+          label={statusLabels[job.status]}
+          colorCls={statusColors[job.status]}
+        />
       </button>
       <div className="absolute end-1 top-2">{actions}</div>
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden">
           <div
             className={`border-t border-white/8 px-4 py-4 transition-opacity duration-200 ${
-              open ? "opacity-100 delay-100" : "opacity-0"
+              isOpen ? "opacity-100 delay-100" : "opacity-0"
             }`}
           >
             <JobDetailBody
@@ -279,7 +281,7 @@ export function MobileJobCard({
             />
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => setIsOpen(false)}
               className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/15 px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-copper/50 hover:text-copper active:scale-[0.99]"
             >
               <svg

@@ -8,7 +8,7 @@ import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { useToast } from "@/hooks/useToast";
 import { updateCompanyProfile } from "@/services/adminCompanies";
-import type { CompanyProfileAdminUpdate, CompanyProfileRead } from "@/types/api";
+import type { CompanyProfileAdminUpdate, CompanyProfileRead } from "@/types/auth";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import {
@@ -38,11 +38,11 @@ function seedFromProfile(p: CompanyProfileRead): CompanyProfileAdminUpdate {
 }
 
 export default function EditCompanyDialog({ profile, onClose, onSaved }: EditProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const toast = useToast();
   const [form, setForm] = useState<CompanyProfileAdminUpdate>({});
   const [initialForm, setInitialForm] = useState<CompanyProfileAdminUpdate>({});
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useResetOnTrigger(profile, () => {
@@ -53,7 +53,10 @@ export default function EditCompanyDialog({ profile, onClose, onSaved }: EditPro
     setErrors({});
   });
 
-  function set<K extends keyof CompanyProfileAdminUpdate>(key: K, value: CompanyProfileAdminUpdate[K]) {
+  function set<K extends keyof CompanyProfileAdminUpdate>(
+    key: K,
+    value: CompanyProfileAdminUpdate[K],
+  ) {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (errors[key as string]) {
       setErrors((prev) => {
@@ -75,7 +78,7 @@ export default function EditCompanyDialog({ profile, onClose, onSaved }: EditPro
       focusFirstError(e, COMPANY_PROFILE_FIELD_ORDER);
       return;
     }
-    setSaving(true);
+    setIsSaving(true);
     try {
       const updated = await updateCompanyProfile(profile.id, {
         ...form,
@@ -85,7 +88,7 @@ export default function EditCompanyDialog({ profile, onClose, onSaved }: EditPro
     } catch {
       toast.error(t("admin:companies.errors.saveFailed"));
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -101,18 +104,11 @@ export default function EditCompanyDialog({ profile, onClose, onSaved }: EditPro
         size="lg"
         footer={
           <>
-            <Button
-              variant="ghost"
-              onClick={handleClose}
-              disabled={saving}
-            >
+            <Button variant="ghost" onClick={handleClose} disabled={isSaving}>
               {t("common:cancel")}
             </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? t("common:saving") : t("common:save")}
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving ? t("common:saving") : t("common:save")}
             </Button>
           </>
         }

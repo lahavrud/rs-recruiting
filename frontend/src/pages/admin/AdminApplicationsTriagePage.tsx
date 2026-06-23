@@ -66,11 +66,11 @@ function CarouselSlot({
  *   - Minimal chrome: labels recede, content leads.
  */
 export default function AdminApplicationsTriagePage() {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
   const navigate = useNavigate();
   const toast = useToast();
   const { items, isLoading, error, reload } = useTriageQueue();
-  const [showResume, setShowResume] = useState(false);
+  const [isResumeOpen, setIsResumeOpen] = useState(false);
 
   const {
     index,
@@ -83,8 +83,8 @@ export default function AdminApplicationsTriagePage() {
     pendingUndo,
     setPendingUndo,
     stripItems,
-    showHelp,
-    setShowHelp,
+    isHelpOpen,
+    setIsHelpOpen,
     jumpTo,
     goNext,
     goPrev,
@@ -96,16 +96,16 @@ export default function AdminApplicationsTriagePage() {
     flying,
     isSwapping,
     isDragging,
-    hintSeen,
-    setHintSeen,
+    isHintSeen,
+    setIsHintSeen,
     onTouchStart,
     onTouchMove,
     onTouchEnd,
     SLIDE_MS,
   } = useTriageSession({
     items,
-    showResume,
-    onCloseResume: () => setShowResume(false),
+    isResumeOpen,
+    onCloseResume: () => setIsResumeOpen(false),
     onExit: () => navigate("/admin/applications"),
     toast,
     t,
@@ -144,8 +144,8 @@ export default function AdminApplicationsTriagePage() {
     );
   }
 
-  const allDecided = decidedCount === total && !pendingUndo;
-  if (allDecided) {
+  const areAllDecided = decidedCount === total && !pendingUndo;
+  if (areAllDecided) {
     return (
       <SummaryScreen
         decisions={Object.fromEntries(
@@ -171,7 +171,9 @@ export default function AdminApplicationsTriagePage() {
           aria-label={t("admin:applications.triage.exitAria")}
         >
           <IconClose />
-          <span className="hidden sm:inline">{t("admin:applications.triage.exit")}</span>
+          <span className="hidden sm:inline">
+            {t("admin:applications.triage.exit")}
+          </span>
         </button>
 
         {/* Absolute-centered title — fills the header, pointer-events-none
@@ -182,7 +184,10 @@ export default function AdminApplicationsTriagePage() {
               current: index + 1,
               total,
             })}
-            <span className="hidden text-white/40 sm:inline"> · {current.job.title}</span>
+            <span className="hidden text-white/40 sm:inline">
+              {" "}
+              · {current.job.title}
+            </span>
           </p>
           {decidedCount > 0 && (
             <p className="mt-0.5 text-[11px] text-white/40">
@@ -193,7 +198,7 @@ export default function AdminApplicationsTriagePage() {
 
         <button
           type="button"
-          onClick={() => setShowHelp((s) => !s)}
+          onClick={() => setIsHelpOpen((s) => !s)}
           className="relative z-10 hidden shrink-0 rounded-sm border border-white/10 px-2.5 py-1.5 text-xs text-white/45 transition hover:border-copper/40 hover:text-white sm:inline-flex"
           aria-label={t("admin:applications.triage.keyboardShortcutsAria")}
         >
@@ -202,11 +207,7 @@ export default function AdminApplicationsTriagePage() {
       </header>
 
       {/* ── Session status strip — one chip per candidate ──────────────── */}
-      <SessionStatusStrip
-        items={stripItems}
-        currentIndex={index}
-        onJump={jumpTo}
-      />
+      <SessionStatusStrip items={stripItems} currentIndex={index} onJump={jumpTo} />
 
       {/* ── Body — single column, generous breathing room ──────────────── */}
       <div
@@ -228,9 +229,7 @@ export default function AdminApplicationsTriagePage() {
                   ? "translateX(200vw)"
                   : `translateX(calc(100vw + ${dragX}px))`,
             transition:
-              isSwapping || isDragging
-                ? "none"
-                : `transform ${SLIDE_MS}ms ease-out`,
+              isSwapping || isDragging ? "none" : `transform ${SLIDE_MS}ms ease-out`,
           }}
         >
           {/* DOM order: next, current, prev — in RTL flex this places next on
@@ -240,9 +239,9 @@ export default function AdminApplicationsTriagePage() {
             {nextApp && (
               <CandidateCard
                 app={nextApp}
-                active={false}
+                isActive={false}
                 decision={decisions[nextApp.id]?.decision ?? null}
-                onOpenResume={() => setShowResume(true)}
+                onOpenResume={() => setIsResumeOpen(true)}
                 onUndoDecision={() => clearDecisionFor(nextApp.id)}
               />
             )}
@@ -251,9 +250,9 @@ export default function AdminApplicationsTriagePage() {
           <CarouselSlot app={current}>
             <CandidateCard
               app={current}
-              active
+              isActive
               decision={decisions[current.id]?.decision ?? null}
-              onOpenResume={() => setShowResume(true)}
+              onOpenResume={() => setIsResumeOpen(true)}
               onUndoDecision={() => clearDecisionFor(current.id)}
             />
           </CarouselSlot>
@@ -262,9 +261,9 @@ export default function AdminApplicationsTriagePage() {
             {prevApp && (
               <CandidateCard
                 app={prevApp}
-                active={false}
+                isActive={false}
                 decision={decisions[prevApp.id]?.decision ?? null}
-                onOpenResume={() => setShowResume(true)}
+                onOpenResume={() => setIsResumeOpen(true)}
                 onUndoDecision={() => clearDecisionFor(prevApp.id)}
               />
             )}
@@ -305,9 +304,7 @@ export default function AdminApplicationsTriagePage() {
             onDismiss={() => setPendingUndo(null)}
           />
         )}
-        {!hintSeen && index === 0 && (
-          <SwipeHint onDismiss={() => setHintSeen(true)} />
-        )}
+        {!isHintSeen && index === 0 && <SwipeHint onDismiss={() => setIsHintSeen(true)} />}
 
         <div className="mx-auto flex max-w-3xl items-center justify-center gap-3 lg:gap-4">
           {/* Mobile: swipe navigates. Desktop: side arrows + keyboard. No
@@ -320,12 +317,12 @@ export default function AdminApplicationsTriagePage() {
       </footer>
 
       {/* ── True overlays (modals — top-level so they cover the whole page) */}
-      {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
-      {showResume && current.candidate.resume_path && (
+      {isHelpOpen && <HelpOverlay onClose={() => setIsHelpOpen(false)} />}
+      {isResumeOpen && current.candidate.resume_path && (
         <ResumeViewer
           candidateName={current.candidate.full_name}
           resumePath={current.candidate.resume_path}
-          onClose={() => setShowResume(false)}
+          onClose={() => setIsResumeOpen(false)}
         />
       )}
     </div>

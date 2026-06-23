@@ -6,8 +6,7 @@ import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/api";
-
+import { UserRole } from "@/types/enums";
 function getGreetingKey(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "dashboard:greeting.morning";
@@ -36,7 +35,7 @@ function nameFromEmail(email: string | undefined): string {
 }
 
 export default function DashboardPage() {
-  const { t } = useTranslation('dashboard');
+  const { t } = useTranslation("dashboard");
   const { user } = useAuth();
   const isAdmin = user?.role === UserRole.ADMIN;
   const isCandidate = user?.role === UserRole.CANDIDATE;
@@ -58,9 +57,7 @@ export default function DashboardPage() {
           the dashboard data) instead of the email-prefix shim. */}
       {!isCandidate && (
         <header className="mb-8 border-b border-white/8 pb-6 sm:mb-10 sm:pb-8">
-          <Eyebrow>
-            {today}
-          </Eyebrow>
+          <Eyebrow>{today}</Eyebrow>
           <h1 className="mt-3 text-2xl font-semibold text-white/90 sm:text-3xl">
             {greeting}
             {name && <span className="text-copper/85">{`, ${name}`}</span>}
@@ -104,15 +101,26 @@ export default function DashboardPage() {
 
 /** Admin call-to-actions: warmer button styles + brief copy. */
 function QuickActions() {
-  const { t } = useTranslation('dashboard');
+  const { t } = useTranslation("dashboard");
   const actions = [
     {
       to: "/admin/companies?view=invites&action=invite",
       label: t("dashboard:quickActions.invite.label"),
       hint: t("dashboard:quickActions.invite.hint"),
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9 6 9-6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          className="size-4"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 7l9 6 9-6M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+          />
         </svg>
       ),
     },
@@ -121,8 +129,19 @@ function QuickActions() {
       label: t("dashboard:quickActions.companies.label"),
       hint: t("dashboard:quickActions.companies.hint"),
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M13 9h.01M9 13h.01M13 13h.01M9 17h.01M13 17h.01" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          className="size-4"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M13 9h.01M9 13h.01M13 13h.01M9 17h.01M13 17h.01"
+          />
         </svg>
       ),
     },
@@ -131,8 +150,19 @@ function QuickActions() {
       label: t("dashboard:quickActions.jobs.label"),
       hint: t("dashboard:quickActions.jobs.hint"),
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          className="size-4"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M20 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2ZM8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+          />
         </svg>
       ),
     },
@@ -141,17 +171,26 @@ function QuickActions() {
       label: t("dashboard:quickActions.candidates.label"),
       hint: t("dashboard:quickActions.candidates.hint"),
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="size-4" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm14 0a4 4 0 1 0-2-7.5" />
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          className="size-4"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm14 0a4 4 0 1 0-2-7.5"
+          />
         </svg>
       ),
     },
   ];
   return (
     <div>
-      <Eyebrow className="mb-3">
-        {t("dashboard:quickActions.title")}
-      </Eyebrow>
+      <Eyebrow className="mb-3">{t("dashboard:quickActions.title")}</Eyebrow>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {actions.map((a) => (
           <Link
@@ -166,9 +205,7 @@ function QuickActions() {
               <span className="block truncate text-sm font-medium text-white/85">
                 {a.label}
               </span>
-              <span className="block truncate text-[11px] text-white/40">
-                {a.hint}
-              </span>
+              <span className="block truncate text-[11px] text-white/40">{a.hint}</span>
             </span>
           </Link>
         ))}

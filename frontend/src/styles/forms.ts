@@ -1,10 +1,10 @@
-export const inputCls =
+export const INPUT_CLS =
   "block w-full rounded-sm border border-white/10 bg-well px-3 py-2.5 text-sm text-white/85 sm:py-3 sm:text-base " +
   "placeholder:text-white/20 focus:border-copper/50 focus:ring-1 focus:ring-copper/20 focus:outline-none";
 
-export const textareaCls = `${inputCls} resize-y`;
+export const TEXTAREA_CLS = `${INPUT_CLS} resize-y`;
 
-export const selectCls = inputCls;
+export const SELECT_CLS = INPUT_CLS;
 
 /** Base danger-alert box; combine with a padding utility at the call site. */
 export const errorAlertBaseCls = "rounded-lg border border-danger/20 bg-danger/10 text-sm text-danger";

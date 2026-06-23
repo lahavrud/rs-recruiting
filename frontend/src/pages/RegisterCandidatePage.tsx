@@ -1,6 +1,5 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 
-import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 
@@ -10,7 +9,8 @@ import Field from "@/components/ui/Field";
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { registerCandidate } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import { apiErrorKey } from "@/utils/apiError";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
@@ -47,24 +47,24 @@ export default function RegisterCandidatePage() {
     password: "",
     passwordConfirm: "",
   });
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isPrivacyAccepted, setIsPrivacyAccepted] = useState(false);
+  const [isTermsAccepted, setIsTermsAccepted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   // Lock background scroll while a policy modal is open — matches the
   // company register's behavior so the page doesn't twitch on close.
   useEffect(() => {
-    if (termsOpen || privacyOpen) document.body.style.overflow = "hidden";
+    if (isTermsOpen || isPrivacyOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [termsOpen, privacyOpen]);
+  }, [isTermsOpen, isPrivacyOpen]);
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -123,10 +123,10 @@ export default function RegisterCandidatePage() {
       email: validateField("email", form.email),
       password: validateField("password", form.password),
       passwordConfirm: validateField("passwordConfirm", form.passwordConfirm),
-      privacy: privacyAccepted
+      privacy: isPrivacyAccepted
         ? ""
         : t("auth:register.validation.privacyRequired"),
-      terms: termsAccepted
+      terms: isTermsAccepted
         ? ""
         : t("auth:register.validation.termsRequired"),
     };
@@ -138,35 +138,32 @@ export default function RegisterCandidatePage() {
     e.preventDefault();
     setFormError(null);
     if (!validateAll()) return;
-    setSubmitting(true);
+    setIsSubmitting(true);
     try {
       await registerCandidate({
         email: form.email.trim().toLowerCase(),
         password: form.password,
         full_name: form.fullName.trim(),
-        privacy_accepted: privacyAccepted,
-        terms_accepted: termsAccepted,
+        privacy_accepted: isPrivacyAccepted,
+        terms_accepted: isTermsAccepted,
       });
-      setSubmitted(true);
+      setIsSubmitted(true);
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
-        if (status === 409)
-          setFormError(t("auth:registerCandidate.errors.emailExists"));
-        else if (status === 429)
-          setFormError(t("auth:registerCandidate.errors.tooManyAttempts"));
-        else if (status === 422)
-          setFormError(t("auth:registerCandidate.errors.validation"));
-        else setFormError(t("auth:registerCandidate.errors.generic"));
-      } else {
-        setFormError(t("auth:registerCandidate.errors.generic"));
-      }
+      setFormError(
+        t(
+          apiErrorKey(err, {
+            409: "auth:registerCandidate.errors.emailExists",
+            429: "auth:registerCandidate.errors.tooManyAttempts",
+            422: "auth:registerCandidate.errors.validation",
+          }),
+        ),
+      );
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
-  if (submitted) {
+  if (isSubmitted) {
     return (
       <AuthShell>
         <div className="w-full max-w-md space-y-6 rounded-xl border border-white/10 border-t-copper/50 bg-card p-8 text-center">
@@ -225,7 +222,7 @@ export default function RegisterCandidatePage() {
               value={form.fullName}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:registerCandidate.fullNamePlaceholder")}
             />
           </Field>
@@ -244,7 +241,7 @@ export default function RegisterCandidatePage() {
               onChange={handleChange}
               onBlur={handleBlur}
               dir="ltr"
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:registerCandidate.emailPlaceholder")}
             />
           </Field>
@@ -262,7 +259,7 @@ export default function RegisterCandidatePage() {
               value={form.password}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:register.passwordPlaceholder")}
             />
           </Field>
@@ -280,7 +277,7 @@ export default function RegisterCandidatePage() {
               value={form.passwordConfirm}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:register.confirmPlaceholder")}
             />
           </Field>
@@ -293,11 +290,11 @@ export default function RegisterCandidatePage() {
             <AgreementCard
               title={t("auth:register.agreementSectionSiteTerms")}
               readFullLabel={t("auth:register.agreementReadFull")}
-              onOpen={() => setTermsOpen(true)}
+              onOpen={() => setIsTermsOpen(true)}
               checkboxLabel={t("auth:register.termsCheckboxLabel")}
-              checked={termsAccepted}
+              isChecked={isTermsAccepted}
               onChange={(v) => {
-                setTermsAccepted(v);
+                setIsTermsAccepted(v);
                 if (v) setFieldErrors((p) => ({ ...p, terms: "" }));
               }}
               error={fieldErrors.terms}
@@ -306,11 +303,11 @@ export default function RegisterCandidatePage() {
               <AgreementCard
                 title={t("auth:register.agreementSectionPrivacy")}
                 readFullLabel={t("auth:register.agreementReadFull")}
-                onOpen={() => setPrivacyOpen(true)}
+                onOpen={() => setIsPrivacyOpen(true)}
                 checkboxLabel={t("auth:register.privacyCheckboxLabel")}
-                checked={privacyAccepted}
+                isChecked={isPrivacyAccepted}
                 onChange={(v) => {
-                  setPrivacyAccepted(v);
+                  setIsPrivacyAccepted(v);
                   if (v) setFieldErrors((p) => ({ ...p, privacy: "" }));
                 }}
                 error={fieldErrors.privacy}
@@ -320,10 +317,10 @@ export default function RegisterCandidatePage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={isSubmitting}
             className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting
+            {isSubmitting
               ? t("auth:register.submittingText")
               : t("auth:register.submitText")}
           </button>
@@ -338,34 +335,34 @@ export default function RegisterCandidatePage() {
 
       {/* Policy modals — body text lives in the `legal` namespace, shared
           with the standalone policy pages, so it stays in one place. */}
-      {termsOpen && (
+      {isTermsOpen && (
         <PolicyModal
           title={t("auth:register.agreementSectionSiteTerms")}
           body={t("legal:terms.body")}
           acceptLabel={t("common:confirm")}
           closeLabel={t("common:close")}
-          checked={termsAccepted}
+          isChecked={isTermsAccepted}
           onAccept={() => {
-            setTermsAccepted(true);
+            setIsTermsAccepted(true);
             setFieldErrors((p) => ({ ...p, terms: "" }));
-            setTermsOpen(false);
+            setIsTermsOpen(false);
           }}
-          onClose={() => setTermsOpen(false)}
+          onClose={() => setIsTermsOpen(false)}
         />
       )}
-      {privacyOpen && (
+      {isPrivacyOpen && (
         <PolicyModal
           title={t("auth:register.agreementSectionPrivacy")}
           body={t("legal:privacy.body")}
           acceptLabel={t("common:confirm")}
           closeLabel={t("common:close")}
-          checked={privacyAccepted}
+          isChecked={isPrivacyAccepted}
           onAccept={() => {
-            setPrivacyAccepted(true);
+            setIsPrivacyAccepted(true);
             setFieldErrors((p) => ({ ...p, privacy: "" }));
-            setPrivacyOpen(false);
+            setIsPrivacyOpen(false);
           }}
-          onClose={() => setPrivacyOpen(false)}
+          onClose={() => setIsPrivacyOpen(false)}
         />
       )}
     </AuthShell>
@@ -378,7 +375,7 @@ function AgreementCard({
   readFullLabel,
   onOpen,
   checkboxLabel,
-  checked,
+  isChecked,
   onChange,
   error,
 }: {
@@ -386,7 +383,7 @@ function AgreementCard({
   readFullLabel: string;
   onOpen: () => void;
   checkboxLabel: string;
-  checked: boolean;
+  isChecked: boolean;
   onChange: (v: boolean) => void;
   error?: string;
 }) {
@@ -405,7 +402,7 @@ function AgreementCard({
       <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-white/65">
         <input
           type="checkbox"
-          checked={checked}
+          checked={isChecked}
           onChange={(e) => onChange(e.target.checked)}
           className="accent-copper"
         />
@@ -422,7 +419,7 @@ function PolicyModal({
   body,
   acceptLabel,
   closeLabel,
-  checked,
+  isChecked,
   onAccept,
   onClose,
 }: {
@@ -430,7 +427,7 @@ function PolicyModal({
   body: string;
   acceptLabel: string;
   closeLabel: string;
-  checked: boolean;
+  isChecked: boolean;
   onAccept: () => void;
   onClose: () => void;
 }) {
@@ -487,7 +484,7 @@ function PolicyModal({
             onClick={onAccept}
             className="rounded-sm bg-copper px-4 py-1.5 text-sm font-medium text-white transition hover:bg-gold"
           >
-            {checked ? closeLabel : acceptLabel}
+            {isChecked ? closeLabel : acceptLabel}
           </button>
         </div>
       </div>

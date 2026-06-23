@@ -5,8 +5,8 @@ import DropdownMenu, {
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
-import type { JobRead } from "@/types/api";
-import { JobStatus } from "@/types/api";
+import { JobStatus } from "@/types/enums";
+import type { JobRead } from "@/types/jobs";
 
 import { MobileJobCard } from "./JobViewBody";
 
@@ -33,7 +33,7 @@ export default function JobsList({
   onDelete,
   onMailto,
 }: JobsListProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
 
   return (
     <div className="space-y-2 md:hidden">
@@ -47,9 +47,7 @@ export default function JobsList({
           actions={
             <DropdownMenu
               ariaLabel={t("admin:jobs.rowActionsLabel")}
-              trigger={
-                <KebabButton onClick={(e) => e.stopPropagation()} />
-              }
+              trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
             >
               <DropdownMenuItem onSelect={() => onEdit(job)}>
                 {t("admin:jobs.editAction")}
@@ -63,19 +61,13 @@ export default function JobsList({
                   <DropdownMenuItem onSelect={() => onApprove(job)}>
                     {t("admin:jobs.approve")}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    variant="danger"
-                    onSelect={() => onReject(job)}
-                  >
+                  <DropdownMenuItem variant="danger" onSelect={() => onReject(job)}>
                     {t("admin:jobs.reject")}
                   </DropdownMenuItem>
                 </>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="danger"
-                onSelect={() => onDelete(job)}
-              >
+              <DropdownMenuItem variant="danger" onSelect={() => onDelete(job)}>
                 {t("admin:jobs.deleteAction")}
               </DropdownMenuItem>
             </DropdownMenu>

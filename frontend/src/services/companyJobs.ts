@@ -4,8 +4,7 @@
  */
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type { JobCreate, JobRead, JobUpdate } from "@/types/api";
-
+import type { JobCreate, JobRead, JobUpdate } from "@/types/jobs";
 export async function getCompanyJobs(cursor: string | null = null): Promise<CursorPage<JobRead>> {
   const params: Record<string, string> = {};
   if (cursor) params.cursor = cursor;

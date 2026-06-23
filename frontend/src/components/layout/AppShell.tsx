@@ -57,27 +57,27 @@ export function PublicFooter() {
 }
 
 /* ── Public header ───────────────────────────────────────────────────────── */
-export function PublicHeader({ transparent = false }: { transparent?: boolean }) {
+export function PublicHeader({ isTransparent = false }: { isTransparent?: boolean }) {
   const { t } = useTranslation(["auth", "common", "http", "landing", "nav"]);
   const { isAuthenticated } = useAuth();
   const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  // When transparent=true, track scroll to solidify the bar
-  const [scrolled, setScrolled] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // When isTransparent=true, track scroll to solidify the bar
+  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    document.body.style.overflow = isMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [open]);
+  }, [isMenuOpen]);
 
   useEffect(() => {
-    if (!transparent) return;
-    const onScroll = () => setScrolled(window.scrollY > 60);
+    if (!isTransparent) return;
+    const onScroll = () => setIsScrolled(window.scrollY > 60);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [transparent]);
+  }, [isTransparent]);
 
   // Stagger delay for the mobile menu links cascading in on open
   const STAGGER_BASE_MS = 80;
@@ -92,7 +92,7 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
 
   // Glass style (landing page at top): white-tinted frosted glass
   // Solid style (all other pages, or after scrolling): dark void bar
-  const solid = !transparent || scrolled;
+  const isSolid = !isTransparent || isScrolled;
 
   const isLinkActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
 
@@ -102,14 +102,14 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
       <header
         className="fixed inset-x-0 top-0 z-40 transition-all duration-300"
         style={{
-          background: solid
-            ? "color-mix(in srgb, var(--color-void) 95%, transparent)"
+          background: isSolid
+            ? "color-mix(in srgb, var(--color-void) 95%, isTransparent)"
             : "rgba(255,255,255,0.06)",
           backdropFilter: "blur(12px)",
-          borderBottom: solid
-            ? "1px solid rgba(255,255,255,0.06)"
-            : "1px solid rgba(255,255,255,0.08)",
-          boxShadow: solid ? "0 8px 24px -16px rgba(0,0,0,0.6)" : "none",
+          borderBottom: isSolid
+            ? "1px isSolid rgba(255,255,255,0.06)"
+            : "1px isSolid rgba(255,255,255,0.08)",
+          boxShadow: isSolid ? "0 8px 24px -16px rgba(0,0,0,0.6)" : "none",
         }}
       >
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
@@ -124,13 +124,13 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
           {/* Desktop links */}
           <nav className="hidden items-center gap-7 sm:flex">
             {links.map((l) => {
-              const active = isLinkActive(l.to);
+              const isActive = isLinkActive(l.to);
               return (
                 <Link
                   key={l.to}
                   to={l.to}
                   className={`relative py-1 text-sm transition after:absolute after:inset-x-0 after:-bottom-1 after:h-px after:origin-center after:bg-copper after:transition-transform after:duration-300 ${
-                    active
+                    isActive
                       ? "text-white/90 after:scale-x-100"
                       : "text-white/45 after:scale-x-0 hover:text-white/80 hover:after:scale-x-100"
                   }`}
@@ -166,28 +166,28 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
             )}
           </nav>
 
-          {/* Mobile hamburger — morphs into an × when the menu is open */}
+          {/* Mobile hamburger — morphs into an × when the menu is isMenuOpen */}
           <button
-            onClick={() => setOpen((o) => !o)}
+            onClick={() => setIsMenuOpen((o) => !o)}
             aria-label={t("nav:menu")}
-            aria-expanded={open}
+            aria-expanded={isMenuOpen}
             className="relative z-[60] flex size-9 flex-col items-center justify-center gap-[5px] sm:hidden"
           >
             <span
               className="block h-px w-5 rounded-full bg-white/55 transition-all duration-300"
               style={{
-                transform: open ? "translateY(5.5px) rotate(45deg)" : "none",
+                transform: isMenuOpen ? "translateY(5.5px) rotate(45deg)" : "none",
               }}
             />
             <span
               className="block h-px w-5 rounded-full bg-white/55 transition-all duration-300"
-              style={{ opacity: open ? 0 : 1 }}
+              style={{ opacity: isMenuOpen ? 0 : 1 }}
             />
             <span
               className="block h-px w-3.5 self-end rounded-full bg-white/55 transition-all duration-300"
               style={{
-                width: open ? "1.25rem" : undefined,
-                transform: open ? "translateY(-5.5px) rotate(-45deg)" : "none",
+                width: isMenuOpen ? "1.25rem" : undefined,
+                transform: isMenuOpen ? "translateY(-5.5px) rotate(-45deg)" : "none",
               }}
             />
           </button>
@@ -199,19 +199,19 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
         <div
           className="fixed inset-0 z-50 flex flex-col bg-void"
           style={{
-            opacity: open ? 1 : 0,
-            pointerEvents: open ? "auto" : "none",
-            visibility: open ? "visible" : "hidden",
+            opacity: isMenuOpen ? 1 : 0,
+            pointerEvents: isMenuOpen ? "auto" : "none",
+            visibility: isMenuOpen ? "visible" : "hidden",
             transition: "opacity 0.25s ease",
             backgroundImage:
-              "radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--color-copper) 12%, transparent), transparent 55%)",
+              "radial-gradient(circle at 85% 0%, color-mix(in srgb, var(--color-copper) 12%, isTransparent), isTransparent 55%)",
           }}
         >
           {/* Top bar */}
           <div className="flex items-center border-b border-white/8 px-5 py-3.5">
             <Link
               to="/"
-              onClick={() => setOpen(false)}
+              onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-2.5"
             >
               <Logo size={26} />
@@ -224,25 +224,25 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
           {/* Links */}
           <nav className="flex flex-1 flex-col justify-center px-7">
             {links.map((l, i) => {
-              const active = isLinkActive(l.to);
+              const isActive = isLinkActive(l.to);
               return (
                 <Link
                   key={l.to}
                   to={l.to}
-                  onClick={() => setOpen(false)}
+                  onClick={() => setIsMenuOpen(false)}
                   className={`group flex items-center justify-between border-b border-white/8 py-6 text-2xl font-light transition-all duration-300 ${
-                    active ? "text-white" : "text-white/60 hover:text-white"
+                    isActive ? "text-white" : "text-white/60 hover:text-white"
                   }`}
                   style={{
-                    opacity: open ? 1 : 0,
-                    transform: open ? "translateY(0)" : "translateY(8px)",
-                    transitionDelay: open
+                    opacity: isMenuOpen ? 1 : 0,
+                    transform: isMenuOpen ? "translateY(0)" : "translateY(8px)",
+                    transitionDelay: isMenuOpen
                       ? `${STAGGER_BASE_MS + i * STAGGER_STEP_MS}ms`
                       : "0ms",
                   }}
                 >
                   <span className="flex items-center gap-3">
-                    {active && <span className="size-1.5 rounded-full bg-copper" />}
+                    {isActive && <span className="size-1.5 rounded-full bg-copper" />}
                     {l.label}
                   </span>
                   <svg
@@ -266,14 +266,14 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
             {isAuthenticated ? (
               <Link
                 to="/dashboard"
-                onClick={() => setOpen(false)}
+                onClick={() => setIsMenuOpen(false)}
                 className="relative mt-8 inline-flex items-center gap-2 self-start border border-white/15 px-7 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-white/70 transition-colors duration-300 hover:border-copper/50 hover:text-copper"
                 style={{
                   clipPath:
                     "polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px))",
-                  opacity: open ? 1 : 0,
-                  transform: open ? "translateY(0)" : "translateY(8px)",
-                  transitionDelay: open
+                  opacity: isMenuOpen ? 1 : 0,
+                  transform: isMenuOpen ? "translateY(0)" : "translateY(8px)",
+                  transitionDelay: isMenuOpen
                     ? `${STAGGER_BASE_MS + links.length * STAGGER_STEP_MS}ms`
                     : "0ms",
                   transitionProperty: "opacity, transform, color, border-color",
@@ -285,14 +285,14 @@ export function PublicHeader({ transparent = false }: { transparent?: boolean })
             ) : (
               <Link
                 to="/login"
-                onClick={() => setOpen(false)}
+                onClick={() => setIsMenuOpen(false)}
                 className="relative mt-8 inline-flex items-center gap-2 self-start bg-copper-dark px-7 py-3 text-xs font-semibold uppercase tracking-[0.15em] text-white transition-colors duration-300 hover:bg-copper"
                 style={{
                   clipPath:
                     "polygon(0 0, 100% 0, 100% 100%, 14px 100%, 0 calc(100% - 14px))",
-                  opacity: open ? 1 : 0,
-                  transform: open ? "translateY(0)" : "translateY(8px)",
-                  transitionDelay: open
+                  opacity: isMenuOpen ? 1 : 0,
+                  transform: isMenuOpen ? "translateY(0)" : "translateY(8px)",
+                  transitionDelay: isMenuOpen
                     ? `${STAGGER_BASE_MS + links.length * STAGGER_STEP_MS}ms`
                     : "0ms",
                   transitionProperty: "opacity, transform, background-color",
@@ -341,7 +341,7 @@ function isPublicShellPath(pathname: string): boolean {
 function ShellContent({ children }: Props) {
   const { isAuthenticated } = useAuth();
   const { pathname } = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Auth pages and the triage reviewer manage their own full-screen layout.
   // Triage uses `fixed inset-0` which would otherwise be contained by the
@@ -361,14 +361,14 @@ function ShellContent({ children }: Props) {
   // Public-content pages render in the public shell regardless of auth
   // state. PublicHeader switches its CTA based on `isAuthenticated`, so a
   // logged-in candidate still sees the "Dashboard" affordance there.
-  const publicShell = isPublicShellPath(pathname);
+  const isPublicShell = isPublicShellPath(pathname);
 
-  if (isAuthenticated && !publicShell) {
+  if (isAuthenticated && !isPublicShell) {
     return (
       <div className="flex h-screen flex-col">
-        <Header onMenuToggle={() => setSidebarOpen((o) => !o)} />
+        <Header onMenuToggle={() => setIsSidebarOpen((o) => !o)} />
         <div className="flex flex-1 overflow-hidden">
-          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
           <main
             key={pathname}
             className="page-enter flex-1 overflow-y-auto bg-page p-4 sm:p-6"
@@ -390,7 +390,7 @@ function ShellContent({ children }: Props) {
     <div
       className={`flex flex-col bg-void ${singleScreenRoutes.has(pathname) ? "h-dvh overflow-hidden" : "min-h-screen"}`}
     >
-      <PublicHeader transparent={heroRoutes.has(pathname)} />
+      <PublicHeader isTransparent={heroRoutes.has(pathname)} />
       {/* flex flex-col so children can use flex-1 to fill remaining height */}
       <main key={pathname} className="page-enter flex flex-1 flex-col">
         {children}

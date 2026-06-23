@@ -6,31 +6,31 @@ import { getConsent, saveConsent, applyGtmConsent } from "@/utils/consent";
 
 export default function CookieConsent() {
   const { t } = useTranslation('cookies');
-  const [visible, setVisible] = useState(() => getConsent() === null);
-  const [closing, setClosing] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [isVisible, setIsVisible] = useState(() => getConsent() === null);
+  const [isClosing, setIsClosing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAnalyticsEnabled, setIsAnalyticsEnabled] = useState(true);
 
-  if (!visible) return null;
+  if (!isVisible) return null;
 
-  function dismiss(analytics: boolean) {
-    saveConsent({ analytics });
-    applyGtmConsent(analytics);
-    setClosing(true);
-    setTimeout(() => setVisible(false), 260);
+  function dismiss(isAnalytics: boolean) {
+    saveConsent({ analytics: isAnalytics });
+    applyGtmConsent(isAnalytics);
+    setIsClosing(true);
+    setTimeout(() => setIsVisible(false), 260);
   }
 
   return (
     <div
       className={`fixed bottom-4 inset-x-4 sm:inset-x-auto sm:end-4 sm:w-80 z-50 ${
-        closing ? "animate-cookie-down" : "animate-cookie-up"
+        isClosing ? "animate-cookie-down" : "animate-cookie-up"
       }`}
     >
       <div className="overflow-hidden rounded-xl border border-white/10 bg-void shadow-2xl ring-1 ring-white/5">
         {/* Settings panel — animated expand/collapse */}
         <div
           className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out ${
-            settingsOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+            isSettingsOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
           }`}
         >
           <div className="space-y-4 border-b border-white/8 px-4 pb-4 pt-4">
@@ -64,16 +64,16 @@ export default function CookieConsent() {
                 dir="ltr"
                 type="button"
                 role="switch"
-                aria-checked={analyticsEnabled}
+                aria-checked={isAnalyticsEnabled}
                 aria-label={t("cookies:analytics.title")}
-                onClick={() => setAnalyticsEnabled((v) => !v)}
+                onClick={() => setIsAnalyticsEnabled((v) => !v)}
                 className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-copper/60 ${
-                  analyticsEnabled ? "bg-copper" : "bg-white/20"
+                  isAnalyticsEnabled ? "bg-copper" : "bg-white/20"
                 }`}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                    analyticsEnabled ? "translate-x-4" : "translate-x-0"
+                    isAnalyticsEnabled ? "translate-x-4" : "translate-x-0"
                   }`}
                 />
               </button>
@@ -81,7 +81,7 @@ export default function CookieConsent() {
 
             <button
               type="button"
-              onClick={() => dismiss(analyticsEnabled)}
+              onClick={() => dismiss(isAnalyticsEnabled)}
               className="w-full rounded-sm bg-copper/15 py-1.5 text-xs font-medium text-copper transition-colors hover:bg-copper/25"
             >
               {t("cookies:savePreferences")}
@@ -135,7 +135,7 @@ export default function CookieConsent() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setSettingsOpen((v) => !v)}
+              onClick={() => setIsSettingsOpen((v) => !v)}
               className="shrink-0 text-[11px] text-white/35 underline underline-offset-2 transition-colors hover:text-white/65"
             >
               {t("cookies:settings")}

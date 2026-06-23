@@ -9,7 +9,7 @@ import DropdownMenu, {
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
-import type { ApplicationWithDetails } from "@/types/api";
+import type { ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 import { ApplicationDetailBody } from "./ApplicationDetailDialog";
@@ -33,8 +33,8 @@ export default function ClosedApplicationsSection({
   onEditNotes,
   onDelete,
 }: Props) {
-  const { t } = useTranslation('admin');
-  const [open, setOpen] = useState(false);
+  const { t } = useTranslation("admin");
+  const [isOpen, setIsOpen] = useState(false);
 
   if (apps.length === 0) return null;
 
@@ -42,11 +42,11 @@ export default function ClosedApplicationsSection({
     <div className="mt-6">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setIsOpen((o) => !o)}
         className="flex w-full items-center gap-2 rounded-md border border-white/8 bg-card/40 px-4 py-3 text-sm text-white/50 transition hover:text-white/70"
       >
         <svg
-          className={`size-4 shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          className={`size-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
@@ -54,9 +54,7 @@ export default function ClosedApplicationsSection({
         >
           <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="font-medium">
-          {t("admin:applications.closedSection")}
-        </span>
+        <span className="font-medium">{t("admin:applications.closedSection")}</span>
         <span className="ms-auto rounded-full bg-white/8 px-2 py-0.5 text-xs">
           {apps.length}
         </span>
@@ -64,11 +62,13 @@ export default function ClosedApplicationsSection({
 
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${
-          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}
       >
         <div className="overflow-hidden">
-          <div className={`pt-2 transition-opacity duration-200 ${open ? "opacity-100 delay-100" : "opacity-0"}`}>
+          <div
+            className={`pt-2 transition-opacity duration-200 ${isOpen ? "opacity-100 delay-100" : "opacity-0"}`}
+          >
             {/* Mobile */}
             <div className="space-y-2 md:hidden">
               {apps.map((app) => {
@@ -127,7 +127,9 @@ export default function ClosedApplicationsSection({
                       className="cursor-pointer transition hover:bg-white/3"
                     >
                       <td className="px-4 py-3">
-                        <p className="font-medium text-white/60">{app.candidate.full_name}</p>
+                        <p className="font-medium text-white/60">
+                          {app.candidate.full_name}
+                        </p>
                         <p className="text-xs text-white/35">{app.candidate.email}</p>
                       </td>
                       <td className="px-4 py-3">
@@ -140,7 +142,9 @@ export default function ClosedApplicationsSection({
                           colorCls={statusColors[app.status]}
                         />
                       </td>
-                      <td className="px-4 py-3 text-white/35">{formatDate(app.created_at)}</td>
+                      <td className="px-4 py-3 text-white/35">
+                        {formatDate(app.created_at)}
+                      </td>
                       <td
                         className="px-4 py-3 text-end"
                         onClick={(e) => e.stopPropagation()}
@@ -159,7 +163,10 @@ export default function ClosedApplicationsSection({
                             {t("admin:applications.editNotesAction")}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="danger" onSelect={() => onDelete(app)}>
+                          <DropdownMenuItem
+                            variant="danger"
+                            onSelect={() => onDelete(app)}
+                          >
                             {t("admin:applications.deleteAction")}
                           </DropdownMenuItem>
                         </DropdownMenu>

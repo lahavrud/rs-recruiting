@@ -24,20 +24,24 @@ import {
   resendInvite,
   revokeInvite,
 } from "@/services/adminInvites";
-import type { InviteTokenRead } from "@/types/api";
-import { InviteTokenStatus } from "@/types/api";
+import { InviteTokenStatus } from "@/types/enums";
+import type { InviteTokenRead } from "@/types/invites";
 import { formatDate } from "@/utils/formatDate";
 
 import InviteFormDialog from "./InviteFormDialog";
 
 interface InvitesTabProps {
   query: string;
-  externalOpen?: boolean;
+  isExternalOpen?: boolean;
   onExternalClose?: () => void;
 }
 
-export default function CompanyInvitesTab({ query, externalOpen, onExternalClose }: InvitesTabProps) {
-  const { t } = useTranslation(['admin', 'md']);
+export default function CompanyInvitesTab({
+  query,
+  isExternalOpen,
+  onExternalClose,
+}: InvitesTabProps) {
+  const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
 
   const fetcher = useCallback(
@@ -64,23 +68,23 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
     return invites.filter((i) => i.email.toLowerCase().includes(q));
   }, [invites, query]);
 
-  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
   const [revokePending, setRevokePending] = useState<InviteTokenRead | null>(null);
   const [deletePending, setDeletePending] = useState<InviteTokenRead | null>(null);
-  const [pendingMutation, setPendingMutation] = useState(false);
+  const [isPendingMutation, setIsPendingMutation] = useState(false);
   const [resendingId, setResendingId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (externalOpen) {
+    if (isExternalOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShowInviteForm(true);
+      setIsInviteFormOpen(true);
       onExternalClose?.();
     }
-  }, [externalOpen, onExternalClose]);
+  }, [isExternalOpen, onExternalClose]);
 
   async function handleRevokeConfirm() {
     if (!revokePending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       await revokeInvite(revokePending.id);
       updateItem((i) => i.id === revokePending.id, {
@@ -92,13 +96,13 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
     } catch {
       toast.error(t("admin:companies.inviteList.revokeError"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
   async function handleDeleteConfirm() {
     if (!deletePending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       await deleteInvite(deletePending.id);
       removeItem((i) => i.id === deletePending.id);
@@ -107,7 +111,7 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
     } catch {
       toast.error(t("admin:companies.inviteList.deleteError"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
@@ -157,18 +161,12 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
           </DropdownMenuItem>
         )}
         {isPending && (
-          <DropdownMenuItem
-            variant="danger"
-            onSelect={() => setRevokePending(invite)}
-          >
+          <DropdownMenuItem variant="danger" onSelect={() => setRevokePending(invite)}>
             {t("admin:companies.revokeAction")}
           </DropdownMenuItem>
         )}
         {(canResend || isPending) && <DropdownMenuSeparator />}
-        <DropdownMenuItem
-          variant="danger"
-          onSelect={() => setDeletePending(invite)}
-        >
+        <DropdownMenuItem variant="danger" onSelect={() => setDeletePending(invite)}>
           {t("admin:companies.deleteInviteAction")}
         </DropdownMenuItem>
       </DropdownMenu>
@@ -257,16 +255,19 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
               </tbody>
             </table>
           </div>
-          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+          <InfiniteScrollFooter
+            sentinelRef={sentinelRef}
+            isFetchingMore={isFetchingMore}
+          />
         </>
       )}
 
       <InviteFormDialog
-        open={showInviteForm}
-        onClose={() => setShowInviteForm(false)}
+        open={isInviteFormOpen}
+        onClose={() => setIsInviteFormOpen(false)}
         onCreated={(invite) => {
           prependItem(invite);
-          setShowInviteForm(false);
+          setIsInviteFormOpen(false);
         }}
       />
 
@@ -277,7 +278,7 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
         message={t("admin:companies.inviteList.revokeConfirm")}
         confirmLabel={t("admin:companies.revokeAction")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleRevokeConfirm}
       />
 
@@ -288,7 +289,7 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
         message={t("admin:companies.inviteList.deleteConfirm")}
         confirmLabel={t("admin:companies.deleteInviteAction")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleDeleteConfirm}
       />
     </>
@@ -296,29 +297,23 @@ export default function CompanyInvitesTab({ query, externalOpen, onExternalClose
 }
 
 function InviteDetailBody({ invite }: { invite: InviteTokenRead }) {
-  const { t } = useTranslation(['admin', 'md']);
+  const { t } = useTranslation(["admin", "md"]);
   return (
     <dl className="grid grid-cols-1 gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-      <dt className="text-white/35">
-        {t("admin:companies.inviteList.columnStatus")}
-      </dt>
+      <dt className="text-white/35">{t("admin:companies.inviteList.columnStatus")}</dt>
       <dd>
         <InviteStatusBadge status={invite.status} />
       </dd>
-      <dt className="text-white/35">
-        {t("admin:companies.inviteList.columnCreated")}
-      </dt>
+      <dt className="text-white/35">{t("admin:companies.inviteList.columnCreated")}</dt>
       <dd className="text-white/70">{formatDate(invite.created_at)}</dd>
-      <dt className="text-white/35">
-        {t("admin:companies.inviteList.columnExpires")}
-      </dt>
+      <dt className="text-white/35">{t("admin:companies.inviteList.columnExpires")}</dt>
       <dd className="text-white/70">{formatDate(invite.expires_at)}</dd>
     </dl>
   );
 }
 
 function InviteStatusBadge({ status }: { status: string }) {
-  const { t } = useTranslation(['admin', 'md']);
+  const { t } = useTranslation(["admin", "md"]);
   const cls =
     status === InviteTokenStatus.PENDING
       ? "bg-warning/10 text-warning"
@@ -328,6 +323,9 @@ function InviteStatusBadge({ status }: { status: string }) {
           ? "bg-white/8 text-white/40"
           : "bg-danger/10 text-danger";
   return (
-    <StatusBadge label={t(`admin:companies.inviteStatusLabels.${status}`)} colorCls={cls} />
+    <StatusBadge
+      label={t(`admin:companies.inviteStatusLabels.${status}`)}
+      colorCls={cls}
+    />
   );
 }

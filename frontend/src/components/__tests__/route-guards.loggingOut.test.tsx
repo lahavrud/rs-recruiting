@@ -13,7 +13,7 @@ function loggingOutCtx(): AuthContextType {
   return {
     user: null,
     isAuthenticated: false,
-    loggingOut: true,
+    isLoggingOut: true,
     login: async () => {},
     logout: () => {},
   };
@@ -28,32 +28,32 @@ function renderWithCtx(guard: ReactNode) {
 }
 
 /**
- * When loggingOut=true the route guards must render null (not <Navigate to="/login">)
+ * When isLoggingOut=true the route guards must render null (not <Navigate to="/login">)
  * so the page-replacement completes without a flash of the login page.
  */
-describe("route guards — loggingOut sentinel", () => {
-  it("AdminRoute renders null while loggingOut=true", () => {
+describe("route guards — isLoggingOut sentinel", () => {
+  it("AdminRoute renders null while isLoggingOut=true", () => {
     const { container } = renderWithCtx(
       <AdminRoute><div>child</div></AdminRoute>,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("ProtectedRoute renders null while loggingOut=true", () => {
+  it("ProtectedRoute renders null while isLoggingOut=true", () => {
     const { container } = renderWithCtx(
       <ProtectedRoute><div>child</div></ProtectedRoute>,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("CompanyRoute renders null while loggingOut=true", () => {
+  it("CompanyRoute renders null while isLoggingOut=true", () => {
     const { container } = renderWithCtx(
       <CompanyRoute><div>child</div></CompanyRoute>,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("CandidateRoute renders null while loggingOut=true", () => {
+  it("CandidateRoute renders null while isLoggingOut=true", () => {
     const { container } = renderWithCtx(
       <CandidateRoute><div>child</div></CandidateRoute>,
     );

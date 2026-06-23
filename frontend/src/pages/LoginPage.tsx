@@ -7,14 +7,15 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { resendCandidateActivation } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import { apiErrorKey } from "@/utils/apiError";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
 
 export default function LoginPage() {
   const { t } = useTranslation('auth');
-  const { login, isAuthenticated, initializing } = useAuth();
+  const { login, isAuthenticated, isInitializing } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -24,9 +25,9 @@ export default function LoginPage() {
   const from = (queryRedirect?.startsWith("/") ? queryRedirect : null) ?? stateFrom ?? "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [isRememberMeChecked, setIsRememberMeChecked] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({ email: "", password: "" });
   // When login fails with `account_pending_activation`, expose a resend link
   // tied to the email the user just entered. Cleared on next attempt.
@@ -82,7 +83,7 @@ export default function LoginPage() {
     if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: "" }));
   }
 
-  if (initializing) return null;
+  if (isInitializing) return null;
   if (isAuthenticated) return <Navigate to={from} replace />;
 
   async function handleSubmit(e: FormEvent) {
@@ -91,35 +92,33 @@ export default function LoginPage() {
     setPendingActivationEmail(null);
     setResendState("idle");
     if (!validateForm()) return;
-    setSubmitting(true);
+    setIsSubmitting(true);
     try {
-      await login({ email, password, remember_me: rememberMe });
+      await login({ email, password, remember_me: isRememberMeChecked });
       navigate(from, { replace: true });
     } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const status = err.response?.status;
-        if (status === 429) {
-          setError(t("auth:login.errors.tooManyAttempts"));
-        } else if (status === 401) {
-          const detail = (err.response?.data?.detail ?? "") as string;
-          if (detail === "account_pending_activation") {
-            setError(t("auth:login.errors.pendingActivation"));
-            setPendingActivationEmail(email);
-          } else if (detail === "account_pending_approval") {
-            setError(t("auth:login.errors.pendingApproval"));
-          } else if (detail === "account_inactive") {
-            setError(t("auth:login.errors.accountInactive"));
-          } else {
-            setError(t("auth:login.errors.loginFailed"));
-          }
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 401) {
+        const detail = (axios.isAxiosError(err) ? err.response?.data?.detail : "") as string;
+        if (detail === "account_pending_activation") {
+          setError(t("auth:login.errors.pendingActivation"));
+          setPendingActivationEmail(email);
+        } else if (detail === "account_pending_approval") {
+          setError(t("auth:login.errors.pendingApproval"));
+        } else if (detail === "account_inactive") {
+          setError(t("auth:login.errors.accountInactive"));
         } else {
           setError(t("auth:login.errors.loginFailed"));
         }
+      } else if (status === 429) {
+        setError(t(apiErrorKey(err, { 429: "auth:login.errors.tooManyAttempts" })));
+      } else if (status !== undefined) {
+        setError(t("auth:login.errors.loginFailed"));
       } else {
         setError(t("auth:login.errors.unexpectedError"));
       }
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -175,7 +174,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={handleEmailChange}
                 onBlur={handleBlur}
-                className={`mt-1 ${inputCls}`}
+                className={`mt-1 ${INPUT_CLS}`}
                 placeholder={t("auth:login.emailPlaceholder")}
                 autoComplete="email"
               />
@@ -196,7 +195,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={handlePasswordChange}
                 onBlur={handleBlur}
-                className={`mt-1 ${inputCls}`}
+                className={`mt-1 ${INPUT_CLS}`}
                 placeholder={t("auth:login.passwordPlaceholder")}
                 autoComplete="current-password"
               />
@@ -209,8 +208,8 @@ export default function LoginPage() {
           <label className="flex cursor-pointer items-center gap-2 text-sm text-white/50">
             <input
               type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
+              checked={isRememberMeChecked}
+              onChange={(e) => setIsRememberMeChecked(e.target.checked)}
               className="h-4 w-4 cursor-pointer rounded border-white/20 bg-well accent-copper"
             />
             {t("auth:login.rememberMe")}
@@ -218,10 +217,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={isSubmitting}
             className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
+            {isSubmitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
           </button>
         </form>
 

@@ -26,8 +26,8 @@ import {
   getJobs,
   rejectJob,
 } from "@/services/adminJobs";
-import { JobStatus } from "@/types/api";
-import type { JobRead } from "@/types/api";
+import { JobStatus } from "@/types/enums";
+import type { JobRead } from "@/types/jobs";
 import { apiErrorKey } from "@/utils/apiError";
 
 import JobCreateDialog from "./components/JobCreateDialog";
@@ -48,7 +48,7 @@ type FilterValue = string;
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function AdminJobsPage() {
-  const { t } = useTranslation(['admin', 'md', 'publicJobs']);
+  const { t } = useTranslation(["admin", "md", "publicJobs"]);
   usePageTitle(t("admin:jobs.title"));
   const toast = useToast();
 
@@ -89,10 +89,10 @@ export default function AdminJobsPage() {
   const [searchParams] = useSearchParams();
 
   const [detail, setDetail] = useState<JobRead | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [deletePending, setDeletePending] = useState<JobRead | null>(null);
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
-  const [pendingMutation, setPendingMutation] = useState(false);
+  const [isPendingMutation, setIsPendingMutation] = useState(false);
 
   // Client-side filters (applied to the loaded set).
   // Status is the only filter that re-fetches server-side (see fetcher above);
@@ -101,9 +101,9 @@ export default function AdminJobsPage() {
   const debouncedQuery = useDebounce(query, 200);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
-  const [featuredOnly, setFeaturedOnly] = useState(false);
+  const [isFeaturedOnly, setIsFeaturedOnly] = useState(false);
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const uniqueLocations = useMemo(() => {
     const seen = new Set<string>();
@@ -118,7 +118,8 @@ export default function AdminJobsPage() {
   }, [jobs]);
 
   const salaryBounds = useMemo(() => {
-    let lo = Infinity, hi = -Infinity;
+    let lo = Infinity,
+      hi = -Infinity;
     for (const j of jobs) {
       if (j.salary_min != null) lo = Math.min(lo, j.salary_min);
       if (j.salary_max != null) hi = Math.max(hi, j.salary_max);
@@ -157,9 +158,14 @@ export default function AdminJobsPage() {
         ].some((s) => s.toLowerCase().includes(q));
         if (!matches) return false;
       }
-      if (selectedLocations.length > 0 && !selectedLocations.includes(j.location.trim())) return false;
-      if (companyFilter.length > 0 && !companyFilter.includes(j.company_id)) return false;
-      if (featuredOnly && !j.is_featured) return false;
+      if (
+        selectedLocations.length > 0 &&
+        !selectedLocations.includes(j.location.trim())
+      )
+        return false;
+      if (companyFilter.length > 0 && !companyFilter.includes(j.company_id))
+        return false;
+      if (isFeaturedOnly && !j.is_featured) return false;
       if (isSalaryActive) {
         const [filterLo, filterHi] = effectiveSalaryRange;
         if (j.salary_min != null || j.salary_max != null) {
@@ -175,7 +181,7 @@ export default function AdminJobsPage() {
     debouncedQuery,
     selectedLocations,
     companyFilter,
-    featuredOnly,
+    isFeaturedOnly,
     effectiveSalaryRange,
     isSalaryActive,
   ]);
@@ -184,14 +190,14 @@ export default function AdminJobsPage() {
     (debouncedQuery.trim() ? 1 : 0) +
     selectedLocations.length +
     companyFilter.length +
-    (featuredOnly ? 1 : 0) +
+    (isFeaturedOnly ? 1 : 0) +
     (isSalaryActive ? 1 : 0);
 
   function clearFilters() {
     setQuery("");
     setSelectedLocations([]);
     setCompanyFilter([]);
-    setFeaturedOnly(false);
+    setIsFeaturedOnly(false);
     setSalaryRange(null);
   }
 
@@ -288,7 +294,7 @@ export default function AdminJobsPage() {
 
   async function handleRejectConfirm() {
     if (!rejectPending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       await rejectJob(rejectPending.id);
       // Backend sets status to CLOSED on reject
@@ -301,13 +307,13 @@ export default function AdminJobsPage() {
     } catch {
       toast.error(t("admin:jobs.rejectError"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
   async function handleDeleteConfirm() {
     if (!deletePending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       await deleteJob(deletePending.id);
       removeItem((j) => j.id === deletePending.id);
@@ -317,7 +323,7 @@ export default function AdminJobsPage() {
     } catch {
       toast.error(t("admin:jobs.errors.deleteFailed"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
@@ -332,9 +338,7 @@ export default function AdminJobsPage() {
         eyebrow={t("admin:jobs.title")}
         subtitle={t("admin:jobs.subtitle")}
         action={
-          <Button onClick={() => setCreating(true)}>
-            {t("admin:jobs.newJob")}
-          </Button>
+          <Button onClick={() => setIsCreating(true)}>{t("admin:jobs.newJob")}</Button>
         }
       />
 
@@ -348,8 +352,8 @@ export default function AdminJobsPage() {
           uniqueLocations,
           selectedLocations,
           setSelectedLocations,
-          featuredOnly,
-          setFeaturedOnly,
+          isFeaturedOnly,
+          setIsFeaturedOnly,
         }}
         salary={{
           salaryBounds,
@@ -365,8 +369,8 @@ export default function AdminJobsPage() {
         }}
         ui={{
           activeFilterCount,
-          filterOpen,
-          setFilterOpen,
+          isFilterOpen,
+          setIsFilterOpen,
           clearFilters,
         }}
       />
@@ -420,13 +424,18 @@ export default function AdminJobsPage() {
             onMailto={openMailToCompany}
           />
 
-          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+          <InfiniteScrollFooter
+            sentinelRef={sentinelRef}
+            isFetchingMore={isFetchingMore}
+          />
         </>
       )}
 
       <JobDialog
         job={effectiveDetail}
-        companyName={effectiveDetail ? companyNameById.get(effectiveDetail.company_id) : undefined}
+        companyName={
+          effectiveDetail ? companyNameById.get(effectiveDetail.company_id) : undefined
+        }
         onClose={closeJob}
         onSaved={(updated) => {
           updateItem((j) => j.id === updated.id, updated);
@@ -449,12 +458,12 @@ export default function AdminJobsPage() {
       />
 
       <JobCreateDialog
-        open={creating}
-        onClose={() => setCreating(false)}
+        open={isCreating}
+        onClose={() => setIsCreating(false)}
         onCreated={(created) => {
           prependItem(created);
           toast.success(t("admin:jobs.createdToast"));
-          setCreating(false);
+          setIsCreating(false);
         }}
         onError={() => toast.error(t("admin:jobs.errors.createFailed"))}
       />
@@ -466,7 +475,7 @@ export default function AdminJobsPage() {
         message={t("admin:jobs.rejectConfirm")}
         confirmLabel={t("admin:jobs.reject")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleRejectConfirm}
       />
 
@@ -477,7 +486,7 @@ export default function AdminJobsPage() {
         message={t("admin:jobs.deleteConfirmMessage")}
         confirmLabel={t("admin:jobs.deleteConfirmYes")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleDeleteConfirm}
       />
     </div>

@@ -12,18 +12,11 @@ import JobTagsInput from "@/components/ui/JobTagsInput";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { createJob } from "@/services/adminJobs";
-import { ghostInputCls, selectCls } from "@/styles/forms";
-import type {
-  ActiveCompanyRead,
-  JobAdminCreate,
-  JobRead,
-  JobRequirementItem,
-} from "@/types/api";
-import {
-  JOB_REQ_MIN_COUNT,
-  JOB_SHORT_DESC_MAX,
-  JobStatus,
-} from "@/types/api";
+import { ghostInputCls, SELECT_CLS } from "@/styles/forms";
+import type { ActiveCompanyRead } from "@/types/companies";
+import { JobStatus } from "@/types/enums";
+import type { JobAdminCreate, JobRead, JobRequirementItem } from "@/types/jobs";
+import { JOB_REQ_MIN_COUNT, JOB_SHORT_DESC_MAX } from "@/types/jobs";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { JOB_CREATE_FIELD_ORDER, validateJob } from "@/utils/validators";
 
@@ -46,10 +39,15 @@ interface CreateProps {
   onError: () => void;
 }
 
-export default function JobCreateDialog({ open, onClose, onCreated, onError }: CreateProps) {
-  const { t } = useTranslation(['admin', 'common']);
+export default function JobCreateDialog({
+  open,
+  onClose,
+  onCreated,
+  onError,
+}: CreateProps) {
+  const { t } = useTranslation(["admin", "common"]);
   const [companies, setCompanies] = useState<ActiveCompanyRead[] | null>(null);
-  const [companiesError, setCompaniesError] = useState(false);
+  const [hasCompaniesError, setHasCompaniesError] = useState(false);
   const [form, setForm] = useState<Partial<JobAdminCreate>>({
     title: "",
     short_description: "",
@@ -62,12 +60,12 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
     salary_min: undefined,
     salary_max: undefined,
   });
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useResetOnTrigger(open, () => {
     setCompanies(null);
-    setCompaniesError(false);
+    setHasCompaniesError(false);
     setErrors({});
     setForm({
       title: "",
@@ -90,12 +88,15 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
       .then((page) => {
         setCompanies(page.items);
         if (page.items.length > 0) {
-          setForm((prev) => ({ ...prev, company_id: page.items[0].company_profile.id }));
+          setForm((prev) => ({
+            ...prev,
+            company_id: page.items[0].company_profile.id,
+          }));
         }
       })
       .catch((e) => {
         if (axios.isCancel(e)) return;
-        setCompaniesError(true);
+        setHasCompaniesError(true);
       });
     return () => ctrl.abort();
   }, [open]);
@@ -117,7 +118,7 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
 
   async function save() {
     if (!form.company_id || !validate()) return;
-    setSaving(true);
+    setIsSaving(true);
     try {
       const created = await createJob({
         company_id: form.company_id,
@@ -138,18 +139,18 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
     } catch {
       onError();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
   const footer = (
     <div className="flex w-full items-center gap-2">
       <span className="flex-1" aria-hidden="true" />
-      <Button variant="ghost" onClick={onClose} disabled={saving}>
+      <Button variant="ghost" onClick={onClose} disabled={isSaving}>
         {t("common:cancel")}
       </Button>
-      <Button onClick={() => void save()} disabled={saving}>
-        {saving ? t("common:saving") : t("common:save")}
+      <Button onClick={() => void save()} disabled={isSaving}>
+        {isSaving ? t("common:saving") : t("common:save")}
       </Button>
     </div>
   );
@@ -172,7 +173,7 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
                 className="w-full bg-transparent text-3xl font-semibold leading-snug text-white/90 placeholder:text-white/25 outline-none"
               />
               <FeaturedStarButton
-                active={form.is_featured ?? false}
+                isActive={form.is_featured ?? false}
                 onToggleRequest={() => set("is_featured", !(form.is_featured ?? false))}
               />
             </div>
@@ -201,11 +202,13 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
           <div className="space-y-2">
             {/* Company selector */}
             <div>
-              <Eyebrow as="label" htmlFor="company_id" dim className="mb-1.5 block">
+              <Eyebrow as="label" htmlFor="company_id" isDim className="mb-1.5 block">
                 {t("admin:jobs.fields.company")}
               </Eyebrow>
-              {companiesError ? (
-                <p className="text-xs text-danger">{t("admin:jobs.errors.companiesLoadFailed")}</p>
+              {hasCompaniesError ? (
+                <p className="text-xs text-danger">
+                  {t("admin:jobs.errors.companiesLoadFailed")}
+                </p>
               ) : companies == null ? (
                 <p className="text-xs text-white/35">{t("common:loading")}</p>
               ) : (
@@ -213,7 +216,7 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
                   id="company_id"
                   value={form.company_id ?? ""}
                   onChange={(e) => set("company_id", Number(e.target.value))}
-                  className={selectCls}
+                  className={SELECT_CLS}
                 >
                   {companies.map((row) => (
                     <option
@@ -230,10 +233,22 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
 
             {/* Location row — icon + label + ghost input */}
             <div className="-mx-1.5 flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 transition hover:border-white/10 hover:bg-white/3 focus-within:border-copper/30">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="size-3.5 shrink-0 text-white/30" aria-hidden="true">
-                <path fillRule="evenodd" d="m7.539 14.841.003.003.002.002a.755.755 0 0 0 .912 0l.002-.002.003-.003.012-.009a5.57 5.57 0 0 0 .19-.153 15.588 15.588 0 0 0 2.046-2.082c1.101-1.362 2.291-3.342 2.291-5.597A5 5 0 0 0 3 8c0 2.255 1.19 4.235 2.292 5.597a15.591 15.591 0 0 0 2.046 2.082 8.916 8.916 0 0 0 .19.153l.012.01ZM8 8.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1Z" clipRule="evenodd" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                className="size-3.5 shrink-0 text-white/30"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="m7.539 14.841.003.003.002.002a.755.755 0 0 0 .912 0l.002-.002.003-.003.012-.009a5.57 5.57 0 0 0 .19-.153 15.588 15.588 0 0 0 2.046-2.082c1.101-1.362 2.291-3.342 2.291-5.597A5 5 0 0 0 3 8c0 2.255 1.19 4.235 2.292 5.597a15.591 15.591 0 0 0 2.046 2.082 8.916 8.916 0 0 0 .19.153l.012.01ZM8 8.5a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1Z"
+                  clipRule="evenodd"
+                />
               </svg>
-              <span className="shrink-0 text-xs text-white/30">{t("admin:jobs.fields.location")}</span>
+              <span className="shrink-0 text-xs text-white/30">
+                {t("admin:jobs.fields.location")}
+              </span>
               <input
                 id="location"
                 name="location"
@@ -244,7 +259,9 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
                 className="min-w-[4ch] flex-1 bg-transparent text-sm text-white/60 placeholder:text-white/20 outline-none [field-sizing:content] focus:text-white/80"
               />
             </div>
-            {errors.location && <p className="text-xs text-danger">{errors.location}</p>}
+            {errors.location && (
+              <p className="text-xs text-danger">{errors.location}</p>
+            )}
 
             {/* Status */}
             <StatusPills
@@ -257,13 +274,16 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
 
           {/* ── Compensation ────────────────────────────────────── */}
           <div>
-            <Eyebrow as="label" htmlFor="salary_min" dim className="mb-1.5 block">
+            <Eyebrow as="label" htmlFor="salary_min" isDim className="mb-1.5 block">
               {t("admin:jobs.fields.salaryRange")}
             </Eyebrow>
             <SalaryRangeField
               min={form.salary_min}
               max={form.salary_max}
-              onChange={(lo, hi) => { set("salary_min", lo); set("salary_max", hi); }}
+              onChange={(lo, hi) => {
+                set("salary_min", lo);
+                set("salary_max", hi);
+              }}
               error={errors.salary_min ?? errors.salary_max}
             />
           </div>
@@ -272,7 +292,9 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
 
           {/* ── Content ─────────────────────────────────────────── */}
           <div className="space-y-10">
-            <Eyebrow dim className="mb-1.5 block">{t("admin:jobs.formSections.content")}</Eyebrow>
+            <Eyebrow isDim className="mb-1.5 block">
+              {t("admin:jobs.formSections.content")}
+            </Eyebrow>
 
             <div>
               <label className={subLabelCls} htmlFor="short_description">
@@ -289,8 +311,10 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
                 className={ghostInputCls}
               />
               <p className="mt-1 text-[11px] text-white/35">
-                <bdi>{(form.short_description ?? "").length} / {JOB_SHORT_DESC_MAX}</bdi>
-                {" "}{t("admin:jobs.fields.shortDescriptionHint")}
+                <bdi>
+                  {(form.short_description ?? "").length} / {JOB_SHORT_DESC_MAX}
+                </bdi>{" "}
+                {t("admin:jobs.fields.shortDescriptionHint")}
               </p>
               {errors.short_description && (
                 <p className="mt-1 text-xs text-danger">{errors.short_description}</p>
@@ -318,7 +342,9 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
 
           {/* ── Lists ───────────────────────────────────────────── */}
           <div>
-            <Eyebrow dim className="mb-1.5 block">{t("admin:jobs.fields.requirements")}</Eyebrow>
+            <Eyebrow isDim className="mb-1.5 block">
+              {t("admin:jobs.fields.requirements")}
+            </Eyebrow>
             <JobRequirementsInput
               value={form.requirements ?? []}
               onChange={(reqs: JobRequirementItem[]) => set("requirements", reqs)}
@@ -327,7 +353,9 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
           </div>
 
           <div>
-            <Eyebrow dim className="mb-1.5 block">{t("admin:jobs.fields.tags")}</Eyebrow>
+            <Eyebrow isDim className="mb-1.5 block">
+              {t("admin:jobs.fields.tags")}
+            </Eyebrow>
             <JobTagsInput
               value={form.tags ?? []}
               onChange={(tags: string[]) => set("tags", tags)}
@@ -336,7 +364,6 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
           </div>
         </div>
       </Dialog>
-
     </>
   );
 }

@@ -3,23 +3,22 @@ import { type ChangeEvent, type FocusEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import Field from "@/components/ui/Field";
-import { inputCls } from "@/styles/forms";
-import type { CandidateApplicationForm } from "@/types/api";
-
+import { INPUT_CLS } from "@/styles/forms";
+import type { CandidateApplicationForm } from "@/types/candidates";
 export default function IdentityStep({
   form,
   fieldErrors,
   onChange,
   onBlur,
-  emailReadOnly = false,
+  isEmailReadOnly = false,
 }: {
   form: Omit<CandidateApplicationForm, "job_id">;
   fieldErrors: Record<string, string>;
   onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   onBlur: (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  emailReadOnly?: boolean;
+  isEmailReadOnly?: boolean;
 }) {
-  const { t } = useTranslation(['publicJobs', 'sm']);
+  const { t } = useTranslation(["publicJobs", "sm"]);
   return (
     <div className="grid gap-4 sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5">
       <Field
@@ -36,7 +35,7 @@ export default function IdentityStep({
           value={form.full_name}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.fullName")}
           autoComplete="name"
           aria-invalid={!!fieldErrors.full_name}
@@ -57,16 +56,14 @@ export default function IdentityStep({
           value={form.email}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.email")}
           autoComplete="email"
           aria-invalid={!!fieldErrors.email}
-          readOnly={emailReadOnly}
-          aria-readonly={emailReadOnly}
+          readOnly={isEmailReadOnly}
+          aria-readonly={isEmailReadOnly}
           title={
-            emailReadOnly
-              ? t("publicJobs:application.emailLockedHint")
-              : undefined
+            isEmailReadOnly ? t("publicJobs:application.emailLockedHint") : undefined
           }
         />
       </Field>
@@ -84,7 +81,7 @@ export default function IdentityStep({
           value={form.phone}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.phone")}
           autoComplete="tel"
           aria-invalid={!!fieldErrors.phone}
@@ -105,7 +102,7 @@ export default function IdentityStep({
           value={form.linkedin_url}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.linkedin")}
           aria-invalid={!!fieldErrors.linkedin_url}
         />

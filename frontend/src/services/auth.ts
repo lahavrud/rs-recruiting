@@ -1,10 +1,6 @@
 import api from "@/services/api";
-import type {
-  InviteMetadataPublic,
-  LoginRequest,
-  TokenResponse,
-  UserWithCompanyRead,
-} from "@/types/api";
+import type { LoginRequest, TokenResponse, UserWithCompanyRead } from "@/types/auth";
+import type { InviteMetadataPublic } from "@/types/invites";
 import { getToken, removeToken, setToken } from "@/utils/token";
 
 export async function login(credentials: LoginRequest): Promise<TokenResponse> {
@@ -39,9 +35,7 @@ export async function refreshTokens(signal?: AbortSignal): Promise<TokenResponse
   return response.data;
 }
 
-export async function getInviteMetadata(
-  token: string,
-): Promise<InviteMetadataPublic> {
+export async function getInviteMetadata(token: string): Promise<InviteMetadataPublic> {
   const res = await api.get<InviteMetadataPublic>(`/auth/invite/${token}`);
   return res.data;
 }
@@ -78,10 +72,7 @@ export async function validateResetToken(token: string): Promise<void> {
   await api.get("/auth/reset-password/validate", { params: { token } });
 }
 
-export async function resetPassword(
-  token: string,
-  newPassword: string,
-): Promise<void> {
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await api.post("/auth/reset-password", {
     token,
     new_password: newPassword,
@@ -98,9 +89,7 @@ export function logout(): void {
   // instead of axios so the request survives the navigation that almost
   // always follows logout() — otherwise Firefox cancels it mid-flight and
   // logs `NS_BINDING_ABORTED`.
-  const baseURL = import.meta.env.DEV
-    ? ""
-    : (import.meta.env.VITE_API_BASE_URL ?? "");
+  const baseURL = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_BASE_URL ?? "");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };

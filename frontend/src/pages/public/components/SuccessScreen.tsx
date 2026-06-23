@@ -1,15 +1,14 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import type { JobPublicRead } from "@/types/api";
-
+import type { JobPublicRead } from "@/types/jobs";
 interface SuccessScreenProps {
   job: JobPublicRead | null;
-  claimAccount: boolean;
+  isClaimingAccount: boolean;
 }
 
-export default function SuccessScreen({ job, claimAccount }: SuccessScreenProps) {
-  const { t } = useTranslation('publicJobs');
+export default function SuccessScreen({ job, isClaimingAccount }: SuccessScreenProps) {
+  const { t } = useTranslation("publicJobs");
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-8">
@@ -26,7 +25,7 @@ export default function SuccessScreen({ job, claimAccount }: SuccessScreenProps)
             <span className="text-white/70">{job?.title}</span>.{" "}
             {t("publicJobs:application.submittedDetail")}
           </p>
-          {claimAccount && (
+          {isClaimingAccount && (
             <p className="mt-4 rounded-lg border border-copper/20 bg-copper/5 px-4 py-3 text-sm leading-relaxed text-white/65">
               {t("publicJobs:application.claim.accountCreated")}
             </p>

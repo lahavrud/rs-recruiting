@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { patchMe, type CandidateMeRead } from "@/services/candidate";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 function initialsFor(name: string, email: string): string {
   const source = name?.trim() || email?.split("@", 1)[0] || "";
@@ -84,7 +84,7 @@ export default function IdentitySection({
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setFullName(e.target.value)
               }
-              className={inputCls}
+              className={INPUT_CLS}
               required
               minLength={2}
               maxLength={100}

@@ -9,6 +9,7 @@ import { type SignatureCanvasRef } from "@/components/ui/SignatureCanvas";
 import { useAuth } from "@/hooks/useAuth";
 import { getInviteMetadata, register } from "@/services/auth";
 import { errorAlertCls } from "@/styles/forms";
+import { apiErrorKey } from "@/utils/apiError";
 
 import AuthShell from "./components/AuthShell";
 import RegisterModals from "./components/RegisterModals";
@@ -121,21 +122,21 @@ export default function RegisterPage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [form, setForm] = useState<FormState>(EMPTY);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isPrivacyAccepted, setIsPrivacyAccepted] = useState(false);
+  const [isTermsAccepted, setIsTermsAccepted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<FormState & { logo: string; signature: string; privacy: string; terms: string }>
   >({});
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [contractOpen, setContractOpen] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [metadataLoading, setMetadataLoading] = useState(() => !!inviteToken);
-  const [tokenInvalid, setTokenInvalid] = useState(false);
-  const [emailPreFilled, setEmailPreFilled] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isContractOpen, setIsContractOpen] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isMetadataLoading, setIsMetadataLoading] = useState(() => !!inviteToken);
+  const [isTokenInvalid, setIsTokenInvalid] = useState(false);
+  const [isEmailPreFilled, setIsEmailPreFilled] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const sigCanvasRef = useRef<SignatureCanvasRef>(null);
 
@@ -144,24 +145,24 @@ export default function RegisterPage() {
     getInviteMetadata(inviteToken)
       .then((meta) => {
         setForm((prev) => ({ ...prev, email: meta.email ?? prev.email }));
-        if (meta.email) setEmailPreFilled(true);
+        if (meta.email) setIsEmailPreFilled(true);
       })
-      .catch(() => setTokenInvalid(true))
-      .finally(() => setMetadataLoading(false));
+      .catch(() => setIsTokenInvalid(true))
+      .finally(() => setIsMetadataLoading(false));
   }, [inviteToken]);
 
   useEffect(() => {
-    if (contractOpen || termsOpen || privacyOpen)
+    if (isContractOpen || isTermsOpen || isPrivacyOpen)
       document.body.style.overflow = "hidden";
     else document.body.style.overflow = "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [contractOpen, termsOpen, privacyOpen]);
+  }, [isContractOpen, isTermsOpen, isPrivacyOpen]);
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
-  if (!inviteToken || tokenInvalid) {
+  if (!inviteToken || isTokenInvalid) {
     return (
       <AuthShell className="px-4">
         <div className="w-full max-w-md rounded-xl border border-white/10 bg-card p-8 text-center">
@@ -185,7 +186,7 @@ export default function RegisterPage() {
     );
   }
 
-  if (metadataLoading) {
+  if (isMetadataLoading) {
     return (
       <AuthShell className="">
         <p className="text-sm text-white/30">{t("common:loading")}</p>
@@ -245,8 +246,8 @@ export default function RegisterPage() {
   function validateStep2(): boolean {
     const errors = {
       signature: val.validateSignature(sigCanvasRef.current?.isEmpty() ?? true),
-      terms: val.validateTerms(termsAccepted),
-      privacy: val.validatePrivacy(privacyAccepted),
+      terms: val.validateTerms(isTermsAccepted),
+      privacy: val.validatePrivacy(isPrivacyAccepted),
     };
     setFieldErrors((prev) => ({ ...prev, ...errors }));
     return Object.values(errors).every((e) => !e);
@@ -264,7 +265,9 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!validateStep2()) return;
 
-    const dataUrl = sigCanvasRef.current!.toDataURL();
+    const sigCanvas = sigCanvasRef.current;
+    if (!sigCanvas) return;
+    const dataUrl = sigCanvas.toDataURL();
     const sigBase64 = dataUrl.split(",")[1] ?? "";
 
     const fd = new FormData();
@@ -279,15 +282,15 @@ export default function RegisterPage() {
     if (form.contactLandlinePhone.trim())
       fd.append("contact_landline_phone", form.contactLandlinePhone.trim());
     fd.append("agreement_signature", sigBase64);
-    fd.append("privacy_accepted", String(privacyAccepted));
-    fd.append("terms_accepted", String(termsAccepted));
+    fd.append("privacy_accepted", String(isPrivacyAccepted));
+    fd.append("terms_accepted", String(isTermsAccepted));
     fd.append("logo", logoFile!);
 
-    setSubmitting(true);
+    setIsSubmitting(true);
     setSubmitError(null);
     try {
       await register(fd, inviteToken!);
-      setSuccess(true);
+      setIsSuccess(true);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status;
@@ -301,24 +304,26 @@ export default function RegisterPage() {
               password: t("auth:register.validation.passwordComplexity"),
             }));
           else setSubmitError(t("auth:register.errors.failed"));
-        } else if (status === 429) {
-          setSubmitError(t("auth:register.errors.tooManyAttempts"));
-        } else if (status === 400) {
-          setSubmitError(t("auth:register.errors.invalidToken"));
-        } else if (status === 409) {
-          setSubmitError(t("auth:register.errors.emailExists"));
         } else {
-          setSubmitError(t("auth:register.errors.failed"));
+          setSubmitError(
+            t(
+              apiErrorKey(err, {
+                429: "auth:register.errors.tooManyAttempts",
+                400: "auth:register.errors.invalidToken",
+                409: "auth:register.errors.emailExists",
+              }),
+            ),
+          );
         }
       } else {
         setSubmitError(t("auth:register.errors.unexpected"));
       }
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
-  if (success) {
+  if (isSuccess) {
     return (
       <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
@@ -377,7 +382,7 @@ export default function RegisterPage() {
           <RegisterStep1Form
             form={form}
             fieldErrors={fieldErrors}
-            emailPreFilled={emailPreFilled}
+            isEmailPreFilled={isEmailPreFilled}
             logoInputRef={logoInputRef}
             onFieldChange={handleChange}
             onFieldBlur={handleBlur}
@@ -388,23 +393,23 @@ export default function RegisterPage() {
 
         {step === 2 && (
           <RegisterStep2Form
-            termsAccepted={termsAccepted}
-            privacyAccepted={privacyAccepted}
+            isTermsAccepted={isTermsAccepted}
+            isPrivacyAccepted={isPrivacyAccepted}
             fieldErrors={fieldErrors}
-            submitting={submitting}
+            isSubmitting={isSubmitting}
             sigCanvasRef={sigCanvasRef}
             onTermsChange={(accepted) => {
-              setTermsAccepted(accepted);
+              setIsTermsAccepted(accepted);
               if (accepted) setFieldErrors((prev) => ({ ...prev, terms: "" }));
             }}
             onPrivacyChange={(accepted) => {
-              setPrivacyAccepted(accepted);
+              setIsPrivacyAccepted(accepted);
               if (accepted) setFieldErrors((prev) => ({ ...prev, privacy: "" }));
             }}
             onSignatureBegin={() => setFieldErrors((prev) => ({ ...prev, signature: "" }))}
-            onOpenContract={() => setContractOpen(true)}
-            onOpenTerms={() => setTermsOpen(true)}
-            onOpenPrivacy={() => setPrivacyOpen(true)}
+            onOpenContract={() => setIsContractOpen(true)}
+            onOpenTerms={() => setIsTermsOpen(true)}
+            onOpenPrivacy={() => setIsPrivacyOpen(true)}
             onBack={() => { setStep(1); setSubmitError(null); }}
             onSubmit={handleSubmit}
           />
@@ -419,21 +424,21 @@ export default function RegisterPage() {
       </div>
 
       <RegisterModals
-        contractOpen={contractOpen}
-        termsOpen={termsOpen}
-        privacyOpen={privacyOpen}
-        onCloseContract={() => setContractOpen(false)}
-        onCloseTerms={() => setTermsOpen(false)}
-        onClosePrivacy={() => setPrivacyOpen(false)}
+        isContractOpen={isContractOpen}
+        isTermsOpen={isTermsOpen}
+        isPrivacyOpen={isPrivacyOpen}
+        onCloseContract={() => setIsContractOpen(false)}
+        onCloseTerms={() => setIsTermsOpen(false)}
+        onClosePrivacy={() => setIsPrivacyOpen(false)}
         onAcceptTerms={() => {
-          setTermsAccepted(true);
+          setIsTermsAccepted(true);
           setFieldErrors((prev) => ({ ...prev, terms: "" }));
-          setTermsOpen(false);
+          setIsTermsOpen(false);
         }}
         onAcceptPrivacy={() => {
-          setPrivacyAccepted(true);
+          setIsPrivacyAccepted(true);
           setFieldErrors((prev) => ({ ...prev, privacy: "" }));
-          setPrivacyOpen(false);
+          setIsPrivacyOpen(false);
         }}
       />
     </div>

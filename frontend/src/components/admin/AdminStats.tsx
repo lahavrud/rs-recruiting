@@ -8,12 +8,8 @@ import { getApplications } from "@/services/adminApplications";
 import { getCandidates } from "@/services/adminCandidates";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import {
-  ApplicationStatus,
-  JobStatus,
-  type ApplicationWithDetails,
-} from "@/types/api";
-
+import { type ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus, JobStatus } from "@/types/enums";
 /**
  * Dashboard stats block. Three sub-sections, all fed by parallel first-page
  * fetches (capped at 100 items each — backend's MAX_LIMIT):
@@ -24,10 +20,10 @@ import {
  */
 
 const LIMIT = 100;
-type Stat = { n: number; capped: boolean } | null;
+type Stat = { n: number; isCapped: boolean } | null;
 
 export default function AdminStats() {
-  const { t } = useTranslation(['common', 'dashboard']);
+  const { t } = useTranslation(["common", "dashboard"]);
   const [activeCompanies, setActiveCompanies] = useState<Stat>(null);
   const [publishedJobs, setPublishedJobs] = useState<Stat>(null);
   const [candidates, setCandidates] = useState<Stat>(null);
@@ -37,7 +33,7 @@ export default function AdminStats() {
   useEffect(() => {
     const ctrl = new AbortController();
     function toStat<T>(page: { items: T[]; next_cursor: string | null }): Stat {
-      return { n: page.items.length, capped: page.next_cursor != null };
+      return { n: page.items.length, isCapped: page.next_cursor != null };
     }
     getActiveCompanies({ limit: LIMIT }, ctrl.signal)
       .then((p) => setActiveCompanies(toStat(p)))
@@ -48,10 +44,7 @@ export default function AdminStats() {
     getCandidates({ limit: LIMIT }, ctrl.signal)
       .then((p) => setCandidates(toStat(p)))
       .catch(() => {});
-    getApplications(
-      { status: ApplicationStatus.HIRED, limit: LIMIT },
-      ctrl.signal,
-    )
+    getApplications({ status: ApplicationStatus.HIRED, limit: LIMIT }, ctrl.signal)
       .then((p) => setHired(toStat(p)))
       .catch(() => {});
     getApplications({ limit: LIMIT }, ctrl.signal)
@@ -105,27 +98,23 @@ export default function AdminStats() {
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
         <ApplicationStatusBar counts={statusBreakdown} />
-        <TopJobsList jobs={topJobs} loading={appCache.length === 0} />
+        <TopJobsList jobs={topJobs} isLoading={appCache.length === 0} />
       </div>
     </div>
   );
 }
 
 function KpiCard({ label, stat }: { label: string; stat: Stat }) {
-  const loading = stat == null;
-  const empty = !loading && stat!.n === 0;
-  const display = loading
-    ? "—"
-    : stat!.capped
-      ? `${stat!.n}+`
-      : stat!.n;
+  const isLoading = stat == null;
+  const isEmpty = !isLoading && stat.n === 0;
+  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
   return (
     <div className="group rounded-xl border border-white/8 bg-card p-4 transition hover:border-copper/30 hover:bg-card-raised">
       <p
         className={`text-3xl font-semibold leading-none transition ${
-          loading
+          isLoading
             ? "text-white/25"
-            : empty
+            : isEmpty
               ? "text-white/45"
               : "text-white/95 group-hover:text-copper/95"
         }`}
@@ -137,12 +126,8 @@ function KpiCard({ label, stat }: { label: string; stat: Stat }) {
   );
 }
 
-function ApplicationStatusBar({
-  counts,
-}: {
-  counts: { [k: string]: number };
-}) {
-  const { t } = useTranslation(['common', 'dashboard']);
+function ApplicationStatusBar({ counts }: { counts: { [k: string]: number } }) {
+  const { t } = useTranslation(["common", "dashboard"]);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const segments = [
     { status: ApplicationStatus.NEW, n: counts[ApplicationStatus.NEW] ?? 0 },
@@ -181,10 +166,7 @@ function ApplicationStatusBar({
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
             {segments.map((seg) => (
-              <div
-                key={seg.status}
-                className="inline-flex items-center gap-1.5"
-              >
+              <div key={seg.status} className="inline-flex items-center gap-1.5">
                 <span
                   className={`size-2.5 rounded-full ${APPLICATION_STATUS_META[seg.status].dotClass}`}
                   aria-hidden="true"
@@ -204,24 +186,22 @@ function ApplicationStatusBar({
 
 function TopJobsList({
   jobs,
-  loading,
+  isLoading,
 }: {
   jobs: { id: number; title: string; count: number }[];
-  loading: boolean;
+  isLoading: boolean;
 }) {
-  const { t } = useTranslation(['common', 'dashboard']);
+  const { t } = useTranslation(["common", "dashboard"]);
   const maxCount = jobs[0]?.count ?? 0;
   return (
     <div className="rounded-xl border border-white/8 bg-card p-4">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
         {t("dashboard:stats.topJobs")}
       </p>
-      {loading ? (
+      {isLoading ? (
         <p className="mt-3 text-sm text-white/40">{t("common:loading")}</p>
       ) : jobs.length === 0 ? (
-        <p className="mt-3 text-sm text-white/40">
-          {t("dashboard:stats.noTopJobs")}
-        </p>
+        <p className="mt-3 text-sm text-white/40">{t("dashboard:stats.noTopJobs")}</p>
       ) : (
         <ol className="mt-3 space-y-2">
           {jobs.map((j) => (

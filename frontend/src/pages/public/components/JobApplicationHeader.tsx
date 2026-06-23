@@ -2,15 +2,18 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 
 interface JobApplicationHeaderProps {
   job: JobPublicRead | null;
   jobId: number;
 }
 
-export default function JobApplicationHeader({ job, jobId }: JobApplicationHeaderProps) {
-  const { t } = useTranslation(['http', 'publicJobs']);
+export default function JobApplicationHeader({
+  job,
+  jobId,
+}: JobApplicationHeaderProps) {
+  const { t } = useTranslation(["http", "publicJobs"]);
 
   return (
     <>
@@ -37,9 +40,7 @@ export default function JobApplicationHeader({ job, jobId }: JobApplicationHeade
       {/* Compact job header */}
       <div className="mb-8 flex items-start justify-between gap-4 rounded-xl border border-white/8 bg-card p-5 sm:p-6">
         <div className="min-w-0">
-          <Eyebrow>
-            {t("publicJobs:application.applyFor")}
-          </Eyebrow>
+          <Eyebrow>{t("publicJobs:application.applyFor")}</Eyebrow>
           <h1 className="mt-1 truncate text-lg font-semibold text-white/90 sm:text-xl">
             {job?.title}
           </h1>

@@ -7,7 +7,7 @@ import {
   uploadResume,
   type CandidateMeRead,
 } from "@/services/candidate";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 export type MissingKey = "phone" | "linkedin" | "resume";
 
@@ -29,18 +29,18 @@ export function InlineEditor({
 }) {
   const { t } = useTranslation(['common', 'dashboard', 'https']);
   const [value, setValue] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSave() {
-    setSubmitting(true);
+    setIsSubmitting(true);
     setError(null);
     try {
       const trimmed = value.trim();
       if (!trimmed) {
         setError(t("dashboard:candidate.profileCompletion.inline.required"));
-        setSubmitting(false);
+        setIsSubmitting(false);
         return;
       }
       const patch =
@@ -50,14 +50,14 @@ export function InlineEditor({
     } catch {
       setError(t("dashboard:candidate.profileCompletion.inline.error"));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
   async function handleResumePick(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSubmitting(true);
+    setIsSubmitting(true);
     setError(null);
     try {
       const next = await uploadResume(file);
@@ -65,7 +65,7 @@ export function InlineEditor({
     } catch {
       setError(t("dashboard:candidate.profileCompletion.inline.resumeError"));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -80,10 +80,10 @@ export function InlineEditor({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={submitting}
+          disabled={isSubmitting}
           className="rounded-sm bg-copper px-3 py-1 text-xs font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {submitting
+          {isSubmitting
             ? t("common:submitting")
             : t("dashboard:candidate.profileCompletion.inline.resumePick")}
         </button>
@@ -127,16 +127,16 @@ export function InlineEditor({
             ? "050-000-0000"
             : "https://linkedin.com/in/your-handle"
         }
-        className={`${inputCls} max-w-xs py-1.5 text-xs`}
+        className={`${INPUT_CLS} max-w-xs py-1.5 text-xs`}
         maxLength={field === "phone" ? 30 : 500}
       />
       <button
         type="button"
         onClick={handleSave}
-        disabled={submitting || !value.trim()}
+        disabled={isSubmitting || !value.trim()}
         className="rounded-sm bg-copper px-3 py-1.5 text-xs font-medium text-white transition hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {submitting ? t("common:submitting") : t("common:save")}
+        {isSubmitting ? t("common:submitting") : t("common:save")}
       </button>
       <button
         type="button"

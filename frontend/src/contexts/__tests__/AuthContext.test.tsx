@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { AuthContext, AuthProvider } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/api";
+import { UserRole } from "@/types/enums";
 
 vi.mock("@sentry/react", () => ({ setUser: vi.fn() }));
 
@@ -22,10 +22,7 @@ const ACCESS_TOKEN_KEY = "access_token";
 
 function makeJwt(payload: Record<string, unknown>): string {
   const toBase64Url = (obj: unknown) =>
-    btoa(JSON.stringify(obj))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
+    btoa(JSON.stringify(obj)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   return `${toBase64Url({ alg: "HS256", typ: "JWT" })}.${toBase64Url(payload)}.fakesig`;
 }
 
@@ -35,7 +32,7 @@ function Consumer() {
   return (
     <>
       <span data-testid="authenticated">{String(ctx.isAuthenticated)}</span>
-      <span data-testid="initializing">{String(ctx.initializing)}</span>
+      <span data-testid="isInitializing">{String(ctx.isInitializing)}</span>
       <span data-testid="role">{ctx.user?.role ?? "none"}</span>
     </>
   );
@@ -64,7 +61,7 @@ describe("AuthContext initial state", () => {
     );
 
     expect(screen.getByTestId("authenticated").textContent).toBe("true");
-    expect(screen.getByTestId("initializing").textContent).toBe("false");
+    expect(screen.getByTestId("isInitializing").textContent).toBe("false");
     expect(screen.getByTestId("role").textContent).toBe(UserRole.ADMIN);
     expect(mockRefreshTokens).not.toHaveBeenCalled();
   });
@@ -92,12 +89,12 @@ describe("AuthContext initial state", () => {
       </AuthProvider>,
     );
 
-    // During refresh probe, initializing=true and not authenticated
-    expect(screen.getByTestId("initializing").textContent).toBe("true");
+    // During refresh probe, isInitializing=true and not authenticated
+    expect(screen.getByTestId("isInitializing").textContent).toBe("true");
     expect(screen.getByTestId("authenticated").textContent).toBe("false");
 
     await waitFor(() =>
-      expect(screen.getByTestId("initializing").textContent).toBe("false"),
+      expect(screen.getByTestId("isInitializing").textContent).toBe("false"),
     );
     expect(screen.getByTestId("authenticated").textContent).toBe("true");
     expect(mockLogout).not.toHaveBeenCalled();
@@ -120,7 +117,7 @@ describe("AuthContext initial state", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId("initializing").textContent).toBe("false"),
+      expect(screen.getByTestId("isInitializing").textContent).toBe("false"),
     );
     expect(screen.getByTestId("authenticated").textContent).toBe("false");
     expect(localStorage.getItem(ACCESS_TOKEN_KEY)).toBeNull();
@@ -134,8 +131,8 @@ describe("AuthContext initial state", () => {
       </AuthProvider>,
     );
 
-    // No probe fired — initializing starts and stays false for users with no token
-    expect(screen.getByTestId("initializing").textContent).toBe("false");
+    // No probe fired — isInitializing starts and stays false for users with no token
+    expect(screen.getByTestId("isInitializing").textContent).toBe("false");
     expect(screen.getByTestId("authenticated").textContent).toBe("false");
     expect(screen.getByTestId("role").textContent).toBe("none");
     expect(mockRefreshTokens).not.toHaveBeenCalled();
@@ -159,7 +156,7 @@ describe("AuthContext initial state", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId("initializing").textContent).toBe("false"),
+      expect(screen.getByTestId("isInitializing").textContent).toBe("false"),
     );
     expect(mockLogout).not.toHaveBeenCalled();
   });

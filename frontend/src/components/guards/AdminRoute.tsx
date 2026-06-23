@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/api";
+import { UserRole } from "@/types/enums";
 
 /** Renders children only for authenticated admins; redirects otherwise. */
 export default function AdminRoute({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, initializing, loggingOut } = useAuth();
+  const { user, isAuthenticated, isInitializing, isLoggingOut } = useAuth();
   const location = useLocation();
 
-  if (loggingOut || initializing) return null;
+  if (isLoggingOut || isInitializing) return null;
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }

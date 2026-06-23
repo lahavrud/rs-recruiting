@@ -1,11 +1,7 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type {
-  CandidateApplicationForm,
-  CandidateProfileRead,
-  JobPublicRead,
-} from "@/types/api";
-
+import type { CandidateApplicationForm, CandidateProfileRead } from "@/types/candidates";
+import type { JobPublicRead } from "@/types/jobs";
 /** Fetch one page of published jobs for the public job board. */
 export async function getPublicJobs(cursor: string | null = null): Promise<CursorPage<JobPublicRead>> {
   const params: Record<string, string> = {};

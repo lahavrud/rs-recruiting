@@ -26,7 +26,7 @@ import {
   JOB_REQ_MIN_COUNT,
   JOB_REQ_TEXT_MAX,
   type JobRequirementItem,
-} from "@/types/api";
+} from "@/types/jobs";
 
 interface Props {
   value: JobRequirementItem[];
@@ -84,7 +84,7 @@ function SortableReqItem({
   id,
 }: ReqItemProps) {
   const { t } = useTranslation(["common"]);
-  const [editing, setEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(req.text);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -101,12 +101,12 @@ function SortableReqItem({
     } else {
       onUpdate(index, trimmed);
     }
-    setEditing(false);
+    setIsEditing(false);
   };
 
   const startEdit = () => {
     setDraft(req.text);
-    setEditing(true);
+    setIsEditing(true);
   };
 
   return (
@@ -139,9 +139,12 @@ function SortableReqItem({
       </span>
 
       {/* Copper bullet */}
-      <span aria-hidden="true" className="inline-block size-1.5 shrink-0 rounded-full bg-copper/60" />
+      <span
+        aria-hidden="true"
+        className="inline-block size-1.5 shrink-0 rounded-full bg-copper/60"
+      />
 
-      {editing ? (
+      {isEditing ? (
         <input
           type="text"
           autoFocus
@@ -149,8 +152,14 @@ function SortableReqItem({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-            if (e.key === "Escape") { setDraft(req.text); setEditing(false); }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              setDraft(req.text);
+              setIsEditing(false);
+            }
           }}
           onPointerDown={(e) => e.stopPropagation()}
           maxLength={JOB_REQ_TEXT_MAX}
@@ -163,7 +172,9 @@ function SortableReqItem({
           className="flex-1 cursor-pointer select-none text-sm leading-relaxed"
         >
           {req.text ? (
-            <span className="text-white/80 transition-colors hover:text-white/95">{req.text}</span>
+            <span className="text-white/80 transition-colors hover:text-white/95">
+              {req.text}
+            </span>
           ) : (
             <span className="italic text-white/25">{placeholder}</span>
           )}
@@ -228,18 +239,23 @@ export default function JobRequirementsInput({ value, onChange, error }: Props) 
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_DELAY_MS, tolerance: TOUCH_TOLERANCE_PX } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: TOUCH_DELAY_MS, tolerance: TOUCH_TOLERANCE_PX },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
-    const oldIndex = renderIds.indexOf(active.id as number);
-    const newIndex = renderIds.indexOf(over.id as number);
-    if (oldIndex === -1 || newIndex === -1) return;
-    setIds((prev) => arrayMove(prev, oldIndex, newIndex));
-    onChange(arrayMove(value, oldIndex, newIndex));
-  }, [renderIds, value, onChange]);
+  const handleDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (!over || active.id === over.id) return;
+      const oldIndex = renderIds.indexOf(active.id as number);
+      const newIndex = renderIds.indexOf(over.id as number);
+      if (oldIndex === -1 || newIndex === -1) return;
+      setIds((prev) => arrayMove(prev, oldIndex, newIndex));
+      onChange(arrayMove(value, oldIndex, newIndex));
+    },
+    [renderIds, value, onChange],
+  );
 
   const update = (i: number, text: string) => {
     const next = value.slice();
@@ -293,7 +309,10 @@ export default function JobRequirementsInput({ value, onChange, error }: Props) 
       {draftNew !== null && (
         <div className="mt-0.5 flex items-center gap-2 py-0.5">
           <span className="size-3.5 shrink-0" aria-hidden="true" />
-          <span aria-hidden="true" className="inline-block size-1.5 shrink-0 rounded-full bg-copper/60" />
+          <span
+            aria-hidden="true"
+            className="inline-block size-1.5 shrink-0 rounded-full bg-copper/60"
+          />
           <input
             type="text"
             autoFocus
@@ -301,7 +320,10 @@ export default function JobRequirementsInput({ value, onChange, error }: Props) 
             onChange={(e) => setDraftNew(e.target.value)}
             onBlur={commitNew}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
               if (e.key === "Escape") setDraftNew(null);
             }}
             maxLength={JOB_REQ_TEXT_MAX}

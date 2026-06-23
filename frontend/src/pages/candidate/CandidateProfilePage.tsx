@@ -34,7 +34,7 @@ export default function CandidateProfilePage() {
   const [me, setMe] = useState<CandidateMeRead | null>(null);
   // Settings group is collapsed by default — it's account controls
   // (password, GDPR export), secondary to the profile content above.
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { data: fetchedMe, loading, error: fetchError } = useFetch(getMe, []);
   useResetOnTrigger(fetchedMe, () => setMe(fetchedMe));
@@ -83,8 +83,8 @@ export default function CandidateProfilePage() {
       <div className="mt-10">
         <button
           type="button"
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-expanded={settingsOpen}
+          onClick={() => setIsSettingsOpen((v) => !v)}
+          aria-expanded={isSettingsOpen}
           aria-controls="candidate-settings-panel"
           className="group flex w-full items-center justify-between gap-2 border-b border-white/8 pb-2 transition-colors hover:border-white/15"
         >
@@ -97,7 +97,7 @@ export default function CandidateProfilePage() {
             stroke="currentColor"
             strokeWidth="1.8"
             className={`size-4 text-white/40 transition-transform duration-200 ease-out ${
-              settingsOpen ? "rotate-180" : ""
+              isSettingsOpen ? "rotate-180" : ""
             }`}
             aria-hidden="true"
           >
@@ -113,8 +113,8 @@ export default function CandidateProfilePage() {
           id="candidate-settings-panel"
           className="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
           style={{
-            gridTemplateRows: settingsOpen ? "1fr" : "0fr",
-            opacity: settingsOpen ? 1 : 0,
+            gridTemplateRows: isSettingsOpen ? "1fr" : "0fr",
+            opacity: isSettingsOpen ? 1 : 0,
           }}
         >
           <div className="overflow-hidden">

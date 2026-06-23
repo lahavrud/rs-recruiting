@@ -15,8 +15,8 @@ import {
   getPendingCompanies,
 } from "@/services/adminCompanies";
 import { getInvites } from "@/services/adminInvites";
-import type { CompanyProfileRead } from "@/types/api";
-import { InviteTokenStatus } from "@/types/api";
+import type { CompanyProfileRead } from "@/types/auth";
+import { InviteTokenStatus } from "@/types/enums";
 
 import CompanyActiveTab from "./components/CompanyActiveTab";
 import CompanyInvitesTab from "./components/CompanyInvitesTab";
@@ -28,7 +28,7 @@ type Tab = "active" | "pending" | "invites";
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function AdminCompaniesPage() {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   usePageTitle(t("admin:companies.title"));
   const toast = useToast();
   const [view, setView] = useState<Tab>(() => {
@@ -38,8 +38,8 @@ export default function AdminCompaniesPage() {
   });
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
-  const [creating, setCreating] = useState(false);
-  const [inviting, setInviting] = useState(() => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [isInviting, setIsInviting] = useState(() => {
     return new URLSearchParams(window.location.search).get("action") === "invite";
   });
   const [externalDetail, setExternalDetail] = useState<CompanyProfileRead | null>(null);
@@ -75,19 +75,19 @@ export default function AdminCompaniesPage() {
 
   function handleInvite() {
     setView("invites");
-    setInviting(true);
+    setIsInviting(true);
   }
 
   // View counts shown in the segmented pills. First-page fetches; capped
   // counts surface as "N+".
-  type ViewCount = { n: number; capped: boolean } | null;
+  type ViewCount = { n: number; isCapped: boolean } | null;
   const [pendingCount, setPendingCount] = useState<ViewCount>(null);
   const [activeCount, setActiveCount] = useState<ViewCount>(null);
   const [invitesCount, setInvitesCount] = useState<ViewCount>(null);
   useEffect(() => {
     const ctrl = new AbortController();
     function toCount<T>(p: { items: T[]; next_cursor: string | null }): ViewCount {
-      return { n: p.items.length, capped: p.next_cursor != null };
+      return { n: p.items.length, isCapped: p.next_cursor != null };
     }
     getPendingCompanies({ limit: 100 }, ctrl.signal)
       .then((p) => setPendingCount(toCount(p)))
@@ -95,10 +95,7 @@ export default function AdminCompaniesPage() {
     getActiveCompanies({ limit: 100 }, ctrl.signal)
       .then((p) => setActiveCount(toCount(p)))
       .catch(() => {});
-    getInvites(
-      { status: InviteTokenStatus.PENDING, limit: 100 },
-      ctrl.signal,
-    )
+    getInvites({ status: InviteTokenStatus.PENDING, limit: 100 }, ctrl.signal)
       .then((p) => setInvitesCount(toCount(p)))
       .catch(() => {});
     return () => ctrl.abort();
@@ -106,7 +103,7 @@ export default function AdminCompaniesPage() {
 
   function formatCount(c: ViewCount): string {
     if (c == null) return "—";
-    return c.capped ? `${c.n}+` : String(c.n);
+    return c.isCapped ? `${c.n}+` : String(c.n);
   }
 
   const viewCounts: Record<Tab, ViewCount> = {
@@ -114,7 +111,6 @@ export default function AdminCompaniesPage() {
     active: activeCount,
     invites: invitesCount,
   };
-
 
   return (
     <div>
@@ -127,7 +123,7 @@ export default function AdminCompaniesPage() {
         action={
           <div className="flex w-full gap-2 sm:w-auto sm:items-center">
             <button
-              onClick={() => setCreating(true)}
+              onClick={() => setIsCreating(true)}
               className="flex-1 rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold sm:flex-initial"
             >
               {t("admin:companies.newCompany")}
@@ -164,18 +160,14 @@ export default function AdminCompaniesPage() {
                 <span>{t(`admin:companies.tabs.${key}`)}</span>
                 <span
                   className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${
-                    active
-                      ? "bg-white/20 text-white"
-                      : "bg-white/8 text-white/55"
+                    active ? "bg-white/20 text-white" : "bg-white/8 text-white/55"
                   }`}
                 >
                   {formatCount(c)}
                 </span>
               </button>
               {/* Mobile-only flex-wrap break after the first pill. */}
-              {i === 0 && (
-                <div className="basis-full sm:hidden" aria-hidden="true" />
-              )}
+              {i === 0 && <div className="basis-full sm:hidden" aria-hidden="true" />}
             </Fragment>
           );
         })}
@@ -191,7 +183,7 @@ export default function AdminCompaniesPage() {
               ? t("admin:companies.inviteList.searchPlaceholder")
               : t("admin:companies.searchPlaceholder")
           }
-          clearable
+          isClearable
         />
       </div>
 
@@ -215,16 +207,16 @@ export default function AdminCompaniesPage() {
       {view === "invites" && (
         <CompanyInvitesTab
           query={debouncedQuery}
-          externalOpen={inviting}
-          onExternalClose={() => setInviting(false)}
+          isExternalOpen={isInviting}
+          onExternalClose={() => setIsInviting(false)}
         />
       )}
 
       <CreateCompanyDialog
-        open={creating}
-        onClose={() => setCreating(false)}
+        open={isCreating}
+        onClose={() => setIsCreating(false)}
         onCreated={(profile) => {
-          setCreating(false);
+          setIsCreating(false);
           setView("active");
           setExternalDetail(profile);
         }}

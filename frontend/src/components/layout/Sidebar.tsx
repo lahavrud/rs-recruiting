@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/api";
+import { UserRole } from "@/types/enums";
 
 interface NavItem {
   labelKey: string;
@@ -17,7 +17,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { t } = useTranslation('nav');
+  const { t } = useTranslation("nav");
   const { user } = useAuth();
 
   const adminNav: NavItem[] = [
@@ -102,8 +102,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             className="rounded-sm p-1 text-white/30 transition hover:bg-white/5 hover:text-white/60"
             aria-label={t("nav:closeNavigation")}
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

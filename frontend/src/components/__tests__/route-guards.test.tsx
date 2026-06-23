@@ -8,13 +8,12 @@ import CandidateRoute from "@/components/guards/CandidateRoute";
 import CompanyRoute from "@/components/guards/CompanyRoute";
 import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import { AuthContext, type AuthContextType, AuthUser  } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/api";
-
+import { UserRole } from "@/types/enums";
 function makeCtx(user: AuthUser | null): AuthContextType {
   return {
     user,
     isAuthenticated: user !== null,
-    loggingOut: false,
+    isLoggingOut: false,
     login: async () => {},
     logout: () => {},
   };
@@ -42,25 +41,45 @@ describe("route guards — unauthenticated redirects to /login", () => {
   const unauthCtx = makeCtx(null);
 
   it("AdminRoute", () => {
-    renderGuard(<AdminRoute><div data-testid="child" /></AdminRoute>, unauthCtx);
+    renderGuard(
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
+      unauthCtx,
+    );
     expect(screen.getByTestId("login-page")).toBeDefined();
     expect(screen.queryByTestId("child")).toBeNull();
   });
 
   it("CompanyRoute", () => {
-    renderGuard(<CompanyRoute><div data-testid="child" /></CompanyRoute>, unauthCtx);
+    renderGuard(
+      <CompanyRoute>
+        <div data-testid="child" />
+      </CompanyRoute>,
+      unauthCtx,
+    );
     expect(screen.getByTestId("login-page")).toBeDefined();
     expect(screen.queryByTestId("child")).toBeNull();
   });
 
   it("CandidateRoute", () => {
-    renderGuard(<CandidateRoute><div data-testid="child" /></CandidateRoute>, unauthCtx);
+    renderGuard(
+      <CandidateRoute>
+        <div data-testid="child" />
+      </CandidateRoute>,
+      unauthCtx,
+    );
     expect(screen.getByTestId("login-page")).toBeDefined();
     expect(screen.queryByTestId("child")).toBeNull();
   });
 
   it("ProtectedRoute", () => {
-    renderGuard(<ProtectedRoute><div data-testid="child" /></ProtectedRoute>, unauthCtx);
+    renderGuard(
+      <ProtectedRoute>
+        <div data-testid="child" />
+      </ProtectedRoute>,
+      unauthCtx,
+    );
     expect(screen.getByTestId("login-page")).toBeDefined();
     expect(screen.queryByTestId("child")).toBeNull();
   });
@@ -69,7 +88,9 @@ describe("route guards — unauthenticated redirects to /login", () => {
 describe("route guards — wrong role redirects to /dashboard", () => {
   it("AdminRoute rejects COMPANY", () => {
     renderGuard(
-      <AdminRoute><div data-testid="child" /></AdminRoute>,
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
       makeCtx(makeUser(UserRole.COMPANY)),
     );
     expect(screen.getByTestId("dashboard-page")).toBeDefined();
@@ -78,7 +99,9 @@ describe("route guards — wrong role redirects to /dashboard", () => {
 
   it("AdminRoute rejects CANDIDATE", () => {
     renderGuard(
-      <AdminRoute><div data-testid="child" /></AdminRoute>,
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
       makeCtx(makeUser(UserRole.CANDIDATE)),
     );
     expect(screen.getByTestId("dashboard-page")).toBeDefined();
@@ -86,7 +109,9 @@ describe("route guards — wrong role redirects to /dashboard", () => {
 
   it("CompanyRoute rejects ADMIN", () => {
     renderGuard(
-      <CompanyRoute><div data-testid="child" /></CompanyRoute>,
+      <CompanyRoute>
+        <div data-testid="child" />
+      </CompanyRoute>,
       makeCtx(makeUser(UserRole.ADMIN)),
     );
     expect(screen.getByTestId("dashboard-page")).toBeDefined();
@@ -95,7 +120,9 @@ describe("route guards — wrong role redirects to /dashboard", () => {
 
   it("CandidateRoute rejects ADMIN", () => {
     renderGuard(
-      <CandidateRoute><div data-testid="child" /></CandidateRoute>,
+      <CandidateRoute>
+        <div data-testid="child" />
+      </CandidateRoute>,
       makeCtx(makeUser(UserRole.ADMIN)),
     );
     expect(screen.getByTestId("dashboard-page")).toBeDefined();
@@ -106,7 +133,9 @@ describe("route guards — wrong role redirects to /dashboard", () => {
 describe("route guards — correct role renders children", () => {
   it("AdminRoute renders children for ADMIN", () => {
     renderGuard(
-      <AdminRoute><div data-testid="child" /></AdminRoute>,
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
       makeCtx(makeUser(UserRole.ADMIN)),
     );
     expect(screen.getByTestId("child")).toBeDefined();
@@ -114,7 +143,9 @@ describe("route guards — correct role renders children", () => {
 
   it("CompanyRoute renders children for COMPANY", () => {
     renderGuard(
-      <CompanyRoute><div data-testid="child" /></CompanyRoute>,
+      <CompanyRoute>
+        <div data-testid="child" />
+      </CompanyRoute>,
       makeCtx(makeUser(UserRole.COMPANY)),
     );
     expect(screen.getByTestId("child")).toBeDefined();
@@ -122,7 +153,9 @@ describe("route guards — correct role renders children", () => {
 
   it("CandidateRoute renders children for CANDIDATE", () => {
     renderGuard(
-      <CandidateRoute><div data-testid="child" /></CandidateRoute>,
+      <CandidateRoute>
+        <div data-testid="child" />
+      </CandidateRoute>,
       makeCtx(makeUser(UserRole.CANDIDATE)),
     );
     expect(screen.getByTestId("child")).toBeDefined();
@@ -130,7 +163,9 @@ describe("route guards — correct role renders children", () => {
 
   it("ProtectedRoute renders children for any authenticated user", () => {
     renderGuard(
-      <ProtectedRoute><div data-testid="child" /></ProtectedRoute>,
+      <ProtectedRoute>
+        <div data-testid="child" />
+      </ProtectedRoute>,
       makeCtx(makeUser(UserRole.COMPANY)),
     );
     expect(screen.getByTestId("child")).toBeDefined();

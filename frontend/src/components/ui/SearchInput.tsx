@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useDebounce } from "@/hooks/useDebounce";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 interface SearchInputProps {
   /** Initial value, used only for uncontrolled internal state. */
@@ -17,9 +17,9 @@ interface SearchInputProps {
   /** Override the debounce delay in ms. Default: 300. */
   delay?: number;
   /** Disable the global `/` keyboard shortcut. */
-  disableShortcut?: boolean;
+  isShortcutDisabled?: boolean;
   /** Show a clear (X) button on the trailing side when the input has a value. */
-  clearable?: boolean;
+  isClearable?: boolean;
   className?: string;
   ariaLabel?: string;
 }
@@ -35,8 +35,8 @@ export default function SearchInput({
   onChange,
   placeholder,
   delay = 300,
-  disableShortcut = false,
-  clearable = false,
+  isShortcutDisabled = false,
+  isClearable = false,
   className = "",
   ariaLabel,
 }: SearchInputProps) {
@@ -54,7 +54,7 @@ export default function SearchInput({
   }, [debounced, isControlled]);
 
   useEffect(() => {
-    if (disableShortcut) return;
+    if (isShortcutDisabled) return;
     const handler = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -73,7 +73,7 @@ export default function SearchInput({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [disableShortcut]);
+  }, [isShortcutDisabled]);
 
   const handleClear = () => {
     if (isControlled) {
@@ -84,7 +84,7 @@ export default function SearchInput({
     inputRef.current?.focus();
   };
 
-  const showClear = clearable && value.length > 0;
+  const isShowingClear = isClearable && value.length > 0;
   // Hide native webkit search clear button so our custom X is the only one.
   const noNativeClear =
     "[&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none";
@@ -104,16 +104,16 @@ export default function SearchInput({
       }}
       placeholder={placeholder ?? t("common:searchPlaceholder")}
       aria-label={ariaLabel ?? t("common:search")}
-      className={`${inputCls} ${noNativeClear} ${showClear ? "pe-9" : ""} ${className}`}
+      className={`${INPUT_CLS} ${noNativeClear} ${isShowingClear ? "pe-9" : ""} ${className}`}
     />
   );
 
-  if (!clearable) return input;
+  if (!isClearable) return input;
 
   return (
     <div className="relative">
       {input}
-      {showClear && (
+      {isShowingClear && (
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}

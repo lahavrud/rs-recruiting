@@ -9,7 +9,7 @@ import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import { getApplications } from "@/services/adminApplications";
-import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/api";
+import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
@@ -26,11 +26,11 @@ export default function CandidateDetailDialog({
   onEdit,
   onDelete,
 }: DetailProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [applications, setApplications] = useState<ApplicationWithDetails[] | null>(
     null,
   );
-  const [appsError, setAppsError] = useState(false);
+  const [hasAppsError, setHasAppsError] = useState(false);
   const [resumeViewerOpen, setResumeViewerOpen] = useState(false);
 
   useEffect(() => {
@@ -40,18 +40,18 @@ export default function CandidateDetailDialog({
     /* eslint-disable react-hooks/set-state-in-effect */
     if (!candidate) {
       setApplications(null);
-      setAppsError(false);
+      setHasAppsError(false);
       return;
     }
     const ctrl = new AbortController();
     setApplications(null);
-    setAppsError(false);
+    setHasAppsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     getApplications({ candidate_id: candidate.id, limit: 100 }, ctrl.signal)
       .then((page) => setApplications(page.items))
       .catch((e) => {
         if (axios.isCancel(e)) return;
-        setAppsError(true);
+        setHasAppsError(true);
       });
     return () => ctrl.abort();
   }, [candidate]);
@@ -72,16 +72,14 @@ export default function CandidateDetailDialog({
           <Button variant="danger" onClick={onDelete}>
             {t("admin:candidates.deleteAction")}
           </Button>
-          <Button onClick={onEdit}>
-            {t("admin:candidates.editAction")}
-          </Button>
+          <Button onClick={onEdit}>{t("admin:candidates.editAction")}</Button>
         </>
       }
     >
       <CandidateDetailBody
         candidate={c}
         applications={applications}
-        appsError={appsError}
+        hasAppsError={hasAppsError}
         onLeavePage={onClose}
         onResumeViewerChange={setResumeViewerOpen}
       />
@@ -93,41 +91,41 @@ export default function CandidateDetailDialog({
 export function CandidateDetailBody({
   candidate,
   applications: appsProp,
-  appsError: appsErrorProp,
+  hasAppsError: hasAppsErrorProp,
   onLeavePage,
   onResumeViewerChange,
 }: {
   candidate: CandidateProfileRead;
   applications?: ApplicationWithDetails[] | null;
-  appsError?: boolean;
+  hasAppsError?: boolean;
   onLeavePage?: () => void;
   onResumeViewerChange?: (open: boolean) => void;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const navigate = useNavigate();
   const c = candidate;
 
   // Self-fetch the applications list when the parent didn't pass one (mobile).
   const useLocal = appsProp === undefined;
   const [localApps, setLocalApps] = useState<ApplicationWithDetails[] | null>(null);
-  const [localAppsError, setLocalAppsError] = useState(false);
+  const [hasLocalAppsError, setHasLocalAppsError] = useState(false);
   useEffect(() => {
     if (!useLocal) return;
     const ctrl = new AbortController();
     /* eslint-disable react-hooks/set-state-in-effect */
     setLocalApps(null);
-    setLocalAppsError(false);
+    setHasLocalAppsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     getApplications({ candidate_id: candidate.id, limit: 100 }, ctrl.signal)
       .then((page) => setLocalApps(page.items))
       .catch((e) => {
         if (axios.isCancel(e)) return;
-        setLocalAppsError(true);
+        setHasLocalAppsError(true);
       });
     return () => ctrl.abort();
   }, [candidate.id, useLocal]);
   const applications = useLocal ? localApps : appsProp;
-  const appsError = useLocal ? localAppsError : (appsErrorProp ?? false);
+  const hasAppsError = useLocal ? hasLocalAppsError : (hasAppsErrorProp ?? false);
 
   return (
     <div className="space-y-5 text-sm">
@@ -165,7 +163,7 @@ export function CandidateDetailBody({
 
       <div className="border-t border-white/8 pt-4">
         <Eyebrow>{t("admin:candidates.applicationsSection")}</Eyebrow>
-        {appsError ? (
+        {hasAppsError ? (
           <p className="mt-3 text-xs text-danger">
             {t("admin:candidates.errors.applicationsLoadFailed")}
           </p>

@@ -2,8 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTriageQueue } from "@/pages/admin/components/useTriageQueue";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
-
+import { type ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 // ── Mocks ─────────────────────────────────────────────────────────────────
 // Hoisted so they're available before the service modules are evaluated.
 const { mockGetApplications, mockGetActiveCompanies } = vi.hoisted(() => ({
@@ -169,9 +169,7 @@ describe("useTriageQueue", () => {
 
   it("stops after MAX_PAGES pages to avoid unbounded fetching", async () => {
     // Every page returns a cursor, but the hook should cap at 5 pages
-    mockGetApplications.mockResolvedValue(
-      appsPage([makeApp(1)], "always-more"),
-    );
+    mockGetApplications.mockResolvedValue(appsPage([makeApp(1)], "always-more"));
     mockGetActiveCompanies.mockResolvedValueOnce(companiesPage());
 
     const { result } = renderHook(() => useTriageQueue());

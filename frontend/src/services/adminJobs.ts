@@ -1,7 +1,7 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type { JobAdminCreate, JobAdminUpdate, JobRead, JobStatus } from "@/types/api";
-
+import type { JobStatus } from "@/types/enums";
+import type { JobAdminCreate, JobAdminUpdate, JobRead } from "@/types/jobs";
 export interface JobListParams {
   status?: JobStatus;
   cursor?: string | null;

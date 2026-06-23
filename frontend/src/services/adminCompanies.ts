@@ -1,13 +1,15 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
 import type {
-  ActiveCompanyRead,
-  ApprovedCompanyRead,
   CompanyProfileAdminCreate,
   CompanyProfileAdminUpdate,
   CompanyProfileRead,
+} from "@/types/auth";
+import type {
+  ActiveCompanyRead,
+  ApprovedCompanyRead,
   PendingCompanyRead,
-} from "@/types/api";
+} from "@/types/companies";
 
 export interface PendingCompaniesParams {
   cursor?: string | null;

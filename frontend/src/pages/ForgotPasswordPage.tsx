@@ -1,13 +1,13 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
 
-import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import { apiErrorKey } from "@/utils/apiError";
 
 import AuthShell from "./components/AuthShell";
 
@@ -47,11 +47,7 @@ export default function ForgotPasswordPage() {
       await requestPasswordReset(email.trim());
       setSubmitted(true);
     } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 429) {
-        setError(t("auth:forgotPassword.errors.tooManyAttempts"));
-      } else {
-        setError(t("auth:forgotPassword.errors.unexpected"));
-      }
+      setError(t(apiErrorKey(err, { 429: "auth:forgotPassword.errors.tooManyAttempts" })));
     } finally {
       setSubmitting(false);
     }
@@ -114,7 +110,7 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={handleChange}
               onBlur={(e) => setEmailError(validate(e.target.value))}
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
               placeholder={t("auth:forgotPassword.emailPlaceholder")}
               autoComplete="email"
               dir="ltr"

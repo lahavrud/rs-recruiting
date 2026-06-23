@@ -2,11 +2,11 @@ import { useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 import { checkPasswordComplexity } from "@/utils/passwordComplexity";
 
 export default function ClaimAccountSection({
-  enabled,
+  isEnabled,
   onToggle,
   password,
   onPasswordChange,
@@ -14,7 +14,7 @@ export default function ClaimAccountSection({
   onPasswordConfirmChange,
   error,
 }: {
-  enabled: boolean;
+  isEnabled: boolean;
   onToggle: (v: boolean) => void;
   password: string;
   onPasswordChange: (v: string) => void;
@@ -24,7 +24,7 @@ export default function ClaimAccountSection({
 }) {
   const { t } = useTranslation(['publicJobs', 'sm']);
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
   function validatePassword(val: string): string | null {
@@ -43,7 +43,7 @@ export default function ClaimAccountSection({
       <label className="flex cursor-pointer items-start gap-2.5">
         <input
           type="checkbox"
-          checked={enabled}
+          checked={isEnabled}
           onChange={(e) => onToggle(e.target.checked)}
           className="mt-0.5 size-4 shrink-0 cursor-pointer accent-copper"
         />
@@ -55,7 +55,7 @@ export default function ClaimAccountSection({
         {t("publicJobs:application.claim.description")}
       </p>
 
-      {enabled && (
+      {isEnabled && (
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <label
@@ -72,15 +72,15 @@ export default function ClaimAccountSection({
               value={password}
               onChange={(e) => {
                 onPasswordChange(e.target.value);
-                if (passwordTouched) setPasswordError(validatePassword(e.target.value));
+                if (isPasswordTouched) setPasswordError(validatePassword(e.target.value));
                 if (confirmError && passwordConfirm) setConfirmError(validateConfirm(passwordConfirm, e.target.value));
               }}
               onBlur={(e) => {
-                setPasswordTouched(true);
+                setIsPasswordTouched(true);
                 setPasswordError(validatePassword(e.target.value));
               }}
               aria-invalid={!!passwordError}
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
             />
             {passwordError ? (
               <p className="mt-1 text-xs text-danger">{passwordError}</p>
@@ -109,7 +109,7 @@ export default function ClaimAccountSection({
               }}
               onBlur={(e) => setConfirmError(validateConfirm(e.target.value, password))}
               aria-invalid={!!confirmError}
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
             />
             {confirmError && (
               <p className="mt-1 text-xs text-danger">{confirmError}</p>

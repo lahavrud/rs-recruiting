@@ -3,8 +3,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import RangeSlider from "@/components/ui/RangeSlider";
-import { JobStatus } from "@/types/api";
-
+import { JobStatus } from "@/types/enums";
 const ALL_STATUSES = [
   JobStatus.PENDING_APPROVAL,
   JobStatus.PUBLISHED,
@@ -20,29 +19,29 @@ export { default as Field } from "@/components/ui/Field";
 
 /** Featured-toggle as a star button. Click opens a confirm dialog in the parent. */
 export function FeaturedStarButton({
-  active,
+  isActive,
   onToggleRequest,
 }: {
-  active: boolean;
+  isActive: boolean;
   onToggleRequest: () => void;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   return (
     <button
       type="button"
       onClick={onToggleRequest}
-      aria-pressed={active}
+      aria-pressed={isActive}
       aria-label={t("admin:jobs.fields.featuredToggleAria")}
-      title={t(active ? "admin:jobs.featuredOnHint" : "admin:jobs.featuredOffHint")}
+      title={t(isActive ? "admin:jobs.featuredOnHint" : "admin:jobs.featuredOffHint")}
       className={`inline-flex size-10 shrink-0 items-center justify-center rounded-sm border transition duration-200 active:scale-90 ${
-        active
+        isActive
           ? "border-gold/60 bg-gold/15 text-gold hover:bg-gold/25"
           : "border-white/15 text-white/40 hover:border-gold/40 hover:text-gold/80"
       }`}
     >
       <svg
         viewBox="0 0 24 24"
-        fill={active ? "currentColor" : "none"}
+        fill={isActive ? "currentColor" : "none"}
         stroke="currentColor"
         strokeWidth="1.6"
         strokeLinejoin="round"
@@ -83,7 +82,7 @@ export function StatusPills({
   value: JobStatus;
   onChange: (s: JobStatus) => void;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const activeIdx = ALL_STATUSES.indexOf(value);
   const cfg = STATUS_SEGMENT_CONFIG[value];
 
@@ -106,24 +105,24 @@ export function StatusPills({
       />
 
       {ALL_STATUSES.map((s) => {
-        const active = value === s;
+        const isActive = value === s;
         const c = STATUS_SEGMENT_CONFIG[s];
         return (
           <button
             key={s}
             type="button"
             role="radio"
-            aria-checked={active}
+            aria-checked={isActive}
             onClick={() => onChange(s)}
             className={`relative z-10 flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors duration-200 ${
-              active ? c.activeCls : "text-white/38 hover:text-white/60"
+              isActive ? c.activeCls : "text-white/38 hover:text-white/60"
             }`}
           >
             {/* Status dot — scales in when segment activates */}
             <span
               aria-hidden="true"
               className={`size-1.5 shrink-0 rounded-full transition-[opacity,transform] duration-200 ${c.dotCls} ${
-                active ? "scale-100 opacity-100" : "scale-0 opacity-0"
+                isActive ? "scale-100 opacity-100" : "scale-0 opacity-0"
               }`}
             />
             {t(`admin:jobs.statusLabels.${s}`)}
@@ -165,7 +164,17 @@ interface SalaryBubbleProps {
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
 }
 
-function SalaryBubble({ value, draft, pct, caretOffsetPx, ariaLabel, onFocus, onChange, onBlur, onKeyDown }: SalaryBubbleProps) {
+function SalaryBubble({
+  value,
+  draft,
+  pct,
+  caretOffsetPx,
+  ariaLabel,
+  onFocus,
+  onChange,
+  onBlur,
+  onKeyDown,
+}: SalaryBubbleProps) {
   const tipX = caretOffsetPx;
   const tipY = CARET_REACH_PX;
   return (
@@ -174,7 +183,9 @@ function SalaryBubble({ value, draft, pct, caretOffsetPx, ariaLabel, onFocus, on
       style={{ insetInlineStart: `${pct}%`, transform: "translateX(50%)" }}
     >
       <div className="inline-flex items-center gap-0.5 rounded border border-copper/30 bg-card px-2 py-1 text-sm shadow-sm shadow-black/40">
-        <span className="shrink-0 text-white/35" aria-hidden="true">₪</span>
+        <span className="shrink-0 text-white/35" aria-hidden="true">
+          ₪
+        </span>
         <input
           type="text"
           inputMode="numeric"
@@ -196,8 +207,10 @@ function SalaryBubble({ value, draft, pct, caretOffsetPx, ariaLabel, onFocus, on
         style={{ width: "1px", height: "0px" }}
       >
         <line
-          x1={0} y1={0}
-          x2={tipX} y2={tipY}
+          x1={0}
+          y1={0}
+          x2={tipX}
+          y2={tipY}
           stroke="rgba(184,115,51,0.3)"
           strokeWidth="1"
         />
@@ -221,7 +234,7 @@ export function SalaryRangeField({
   onChange: (lo: number, hi: number) => void;
   error?: string;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
 
   // Must be declared before any computation that uses containerWidth.
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,8 +249,14 @@ export function SalaryRangeField({
     return () => observer.disconnect();
   }, []);
 
-  const lo = Math.max(SALARY_FORM_MIN, Math.min(min ?? SALARY_FORM_MIN, SALARY_FORM_MAX));
-  const hi = Math.max(Math.min(SALARY_FORM_MAX, Math.max(max ?? SALARY_FORM_MAX, SALARY_FORM_MIN)), lo);
+  const lo = Math.max(
+    SALARY_FORM_MIN,
+    Math.min(min ?? SALARY_FORM_MIN, SALARY_FORM_MAX),
+  );
+  const hi = Math.max(
+    Math.min(SALARY_FORM_MAX, Math.max(max ?? SALARY_FORM_MAX, SALARY_FORM_MIN)),
+    lo,
+  );
 
   // null = showing locale-formatted value; non-null = user is actively typing
   const [draftLo, setDraftLo] = useState<string | null>(null);
@@ -251,7 +270,8 @@ export function SalaryRangeField({
   // When a thumb is near 0 % or 100 %, translateX(50 %) would push half the
   // bubble outside the container; clamping prevents that. The caret then angles
   // to show where the thumb actually is (same mechanism as collision avoidance).
-  const edgePadPct = containerWidth > 0 ? (BUBBLE_HALF_WIDTH_PX / containerWidth) * 100 : 0;
+  const edgePadPct =
+    containerWidth > 0 ? (BUBBLE_HALF_WIDTH_PX / containerWidth) * 100 : 0;
   const clampToBounds = (pct: number) =>
     Math.max(edgePadPct, Math.min(100 - edgePadPct, pct));
 
@@ -271,14 +291,20 @@ export function SalaryRangeField({
   const commitLo = () => {
     if (draftLo === null) return;
     const n = parseInt(draftLo, RADIX);
-    onChange(isNaN(n) ? lo : Math.max(SALARY_FORM_MIN, Math.min(n, hi - SALARY_FORM_STEP)), hi);
+    onChange(
+      isNaN(n) ? lo : Math.max(SALARY_FORM_MIN, Math.min(n, hi - SALARY_FORM_STEP)),
+      hi,
+    );
     setDraftLo(null);
   };
 
   const commitHi = () => {
     if (draftHi === null) return;
     const n = parseInt(draftHi, RADIX);
-    onChange(lo, isNaN(n) ? hi : Math.max(lo + SALARY_FORM_STEP, Math.min(n, SALARY_FORM_MAX)));
+    onChange(
+      lo,
+      isNaN(n) ? hi : Math.max(lo + SALARY_FORM_STEP, Math.min(n, SALARY_FORM_MAX)),
+    );
     setDraftHi(null);
   };
 
@@ -300,16 +326,23 @@ export function SalaryRangeField({
         <div>
           <p className="mb-1 text-[10px] text-white/40">{t("common:salaryMin")}</p>
           <div className={inputBoxCls}>
-            <span className="shrink-0 text-white/35" aria-hidden="true">₪</span>
+            <span className="shrink-0 text-white/35" aria-hidden="true">
+              ₪
+            </span>
             <input
               type="text"
               inputMode="numeric"
               value={draftLo ?? lo.toLocaleString("he-IL")}
-              onFocus={() => { if (draftLo === null) setDraftLo(String(lo)); }}
+              onFocus={() => {
+                if (draftLo === null) setDraftLo(String(lo));
+              }}
               onChange={(e) => setDraftLo(e.target.value)}
               onBlur={commitLo}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); commitLo(); }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitLo();
+                }
                 if (e.key === "Escape") setDraftLo(null);
               }}
               aria-label={t("common:salaryMin")}
@@ -320,16 +353,23 @@ export function SalaryRangeField({
         <div>
           <p className="mb-1 text-[10px] text-white/40">{t("common:salaryMax")}</p>
           <div className={inputBoxCls}>
-            <span className="shrink-0 text-white/35" aria-hidden="true">₪</span>
+            <span className="shrink-0 text-white/35" aria-hidden="true">
+              ₪
+            </span>
             <input
               type="text"
               inputMode="numeric"
               value={draftHi ?? hi.toLocaleString("he-IL")}
-              onFocus={() => { if (draftHi === null) setDraftHi(String(hi)); }}
+              onFocus={() => {
+                if (draftHi === null) setDraftHi(String(hi));
+              }}
               onChange={(e) => setDraftHi(e.target.value)}
               onBlur={commitHi}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); commitHi(); }
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitHi();
+                }
                 if (e.key === "Escape") setDraftHi(null);
               }}
               aria-label={t("common:salaryMax")}
@@ -348,11 +388,16 @@ export function SalaryRangeField({
             pct={displayLoPct}
             caretOffsetPx={loCaretOffsetPx}
             ariaLabel={t("common:salaryMin")}
-            onFocus={() => { if (draftLo === null) setDraftLo(String(lo)); }}
+            onFocus={() => {
+              if (draftLo === null) setDraftLo(String(lo));
+            }}
             onChange={setDraftLo}
             onBlur={commitLo}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commitLo(); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitLo();
+              }
               if (e.key === "Escape") setDraftLo(null);
             }}
           />
@@ -362,11 +407,16 @@ export function SalaryRangeField({
             pct={displayHiPct}
             caretOffsetPx={hiCaretOffsetPx}
             ariaLabel={t("common:salaryMax")}
-            onFocus={() => { if (draftHi === null) setDraftHi(String(hi)); }}
+            onFocus={() => {
+              if (draftHi === null) setDraftHi(String(hi));
+            }}
             onChange={setDraftHi}
             onBlur={commitHi}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { e.preventDefault(); commitHi(); }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitHi();
+              }
               if (e.key === "Escape") setDraftHi(null);
             }}
           />
@@ -380,7 +430,7 @@ export function SalaryRangeField({
             onChange={([newLo, newHi]) => onChange(newLo, newHi)}
             ariaLabelMin={t("common:salaryMin")}
             ariaLabelMax={t("common:salaryMax")}
-            showLabels={false}
+            shouldShowLabels={false}
           />
         </div>
       </div>
@@ -389,7 +439,9 @@ export function SalaryRangeField({
         <span>₪{SALARY_FORM_MIN.toLocaleString("he-IL")}</span>
         <span>₪{SALARY_FORM_MAX.toLocaleString("he-IL")}</span>
       </div>
-      <p className="text-start text-[11px] text-white/30">{t("common:salaryPerMonth")}</p>
+      <p className="text-start text-[11px] text-white/30">
+        {t("common:salaryPerMonth")}
+      </p>
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );

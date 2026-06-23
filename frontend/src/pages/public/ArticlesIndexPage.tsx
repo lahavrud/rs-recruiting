@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import Eyebrow from "@/components/ui/Eyebrow";
 import FadeInImage from "@/components/ui/FadeInImage";
 import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
-import { articles } from "@/content/articles";
+import { ARTICLES } from "@/content/articles";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 
 const PAGE_TITLE = "RS Recruiting — מאמרים ומדריכים";
@@ -15,15 +15,20 @@ export default function ArticlesIndexPage() {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "מאמרים", item: `${SITE_URL}/articles` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "מאמרים",
+        item: `${SITE_URL}/articles`,
+      },
     ],
   };
   const itemList = {
     "@type": "ItemList",
     name: PAGE_TITLE,
     url: `${SITE_URL}/articles`,
-    numberOfItems: articles.length,
-    itemListElement: articles.map((a, i) => ({
+    numberOfItems: ARTICLES.length,
+    itemListElement: ARTICLES.map((a, i) => ({
       "@type": "ListItem",
       position: i + 1,
       name: a.title,
@@ -45,9 +50,7 @@ export default function ArticlesIndexPage() {
       />
 
       <header className="mb-10">
-        <Eyebrow>
-          מאמרים
-        </Eyebrow>
+        <Eyebrow>מאמרים</Eyebrow>
         <div className="mt-3 h-px w-8 bg-copper/40" />
         <h1 className="mt-4 text-2xl font-semibold text-white/90 sm:text-3xl">
           מדריכים וניתוחי שוק
@@ -55,11 +58,11 @@ export default function ArticlesIndexPage() {
         <p className="mt-2 text-sm text-white/45">{PAGE_DESCRIPTION}</p>
       </header>
 
-      {articles.length === 0 ? (
+      {ARTICLES.length === 0 ? (
         <p className="text-sm text-white/40">אין כרגע מאמרים זמינים.</p>
       ) : (
         <ul className="space-y-5">
-          {articles.map((a) => (
+          {ARTICLES.map((a) => (
             <li key={a.slug}>
               <Link
                 to={`/articles/${a.slug}`}

@@ -284,11 +284,11 @@ export default function ResumeButton({
   onOpenChange?: (open: boolean) => void;
 }) {
   const { t } = useTranslation(['common', 'http', 'resume']);
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const text = label ?? t("resume:triggerLabel");
 
   function handleSetOpen(v: boolean) {
-    setOpen(v);
+    setIsOpen(v);
     onOpenChange?.(v);
   }
 
@@ -307,7 +307,7 @@ export default function ResumeButton({
       >
         {text} ↗
       </button>
-      {open && (
+      {isOpen && (
         <ResumeViewer
           candidateName={candidateName}
           resumePath={resumePath}

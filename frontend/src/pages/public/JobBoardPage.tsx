@@ -8,7 +8,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import { getPublicJobs } from "@/services/jobs";
 import { errorAlertClsLg } from "@/styles/forms";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 
 import JobBoardFilterChip from "./components/JobBoardFilterChip";
 import JobBoardFilterPanel from "./components/JobBoardFilterPanel";
@@ -25,12 +25,12 @@ export default function JobBoardPage() {
   const { t } = useTranslation(['common', 'http', 'https', 'lg', 'publicJobs']);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const fetcher = useCallback((cursor: string | null) => getPublicJobs(cursor), []);
   const {
     items: jobs,
-    isLoading: loading,
+    isLoading,
     error: fetchError,
     sentinelRef,
   } = useInfiniteList<JobPublicRead>(fetcher);
@@ -48,19 +48,20 @@ export default function JobBoardPage() {
   const [salaryRange, setSalaryRange] = useState<[number, number] | null>(() => {
     const lo = initialSmin ? Number(initialSmin) : null;
     const hi = initialSmax ? Number(initialSmax) : null;
-    if (lo == null || hi == null || !Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+    if (lo == null || hi == null || !Number.isFinite(lo) || !Number.isFinite(hi))
+      return null;
     return [lo, hi];
   });
 
   // Lock body scroll while the mobile filter drawer is open.
   useEffect(() => {
-    if (!drawerOpen) return;
+    if (!isDrawerOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [drawerOpen]);
+  }, [isDrawerOpen]);
 
   const onSearch = useCallback((v: string) => setQuery(v), []);
 
@@ -150,7 +151,9 @@ export default function JobBoardPage() {
   }, [jobs, debouncedQuery, selectedLocations, effectiveSalaryRange, isSalaryActive]);
 
   const activeFilterCount =
-    (debouncedQuery.trim() ? 1 : 0) + selectedLocations.length + (isSalaryActive ? 1 : 0);
+    (debouncedQuery.trim() ? 1 : 0) +
+    selectedLocations.length +
+    (isSalaryActive ? 1 : 0);
   const hasActiveFilter = activeFilterCount > 0;
 
   const handleSalaryChange = useCallback((next: [number, number]) => {
@@ -180,7 +183,7 @@ export default function JobBoardPage() {
         },
       ],
     };
-    if (loading || jobs.length === 0) {
+    if (isLoading || jobs.length === 0) {
       return { "@context": "https://schema.org", "@graph": [breadcrumb] };
     }
     const itemList = {
@@ -196,7 +199,7 @@ export default function JobBoardPage() {
       })),
     };
     return { "@context": "https://schema.org", "@graph": [breadcrumb, itemList] };
-  }, [loading, jobs, t]);
+  }, [isLoading, jobs, t]);
 
   if (fetchError) {
     return (
@@ -221,7 +224,7 @@ export default function JobBoardPage() {
     onClearAll: clearFilters,
   } as const;
 
-  const showFilters = !loading && jobs.length > 0;
+  const isShowingFilters = !isLoading && jobs.length > 0;
 
   return (
     <div className="pb-14">
@@ -239,15 +242,15 @@ export default function JobBoardPage() {
       <div className="mx-auto max-w-4xl px-6 pt-10">
         <div
           className={
-            loading || showFilters ? "lg:grid lg:grid-cols-[240px_1fr] lg:gap-8" : ""
+            isLoading || isShowingFilters ? "lg:grid lg:grid-cols-[240px_1fr] lg:gap-8" : ""
           }
         >
           {/* Filter sidebar — sticky offset accounts for fixed navbar */}
-          {loading ? (
+          {isLoading ? (
             <aside className="hidden lg:sticky lg:top-28 lg:block lg:self-start">
               <FilterSidebarSkeleton />
             </aside>
-          ) : showFilters ? (
+          ) : isShowingFilters ? (
             <aside className="hidden lg:sticky lg:top-28 lg:block lg:self-start">
               <div className="rounded-xl border border-white/8 bg-card-raised/40 p-5">
                 <p className="mb-4 text-sm font-medium text-white/85">
@@ -261,14 +264,14 @@ export default function JobBoardPage() {
           {/* Results column */}
           <div className="min-w-0">
             {/* Mobile filter trigger (search bar is in hero) */}
-            {loading && <SearchBarSkeleton />}
-            {!loading && jobs.length > 0 && (
+            {isLoading && <SearchBarSkeleton />}
+            {!isLoading && jobs.length > 0 && (
               <div className="mb-5 flex items-stretch gap-2">
                 <div className="flex-1" />
-                {showFilters && (
+                {isShowingFilters && (
                   <button
                     type="button"
-                    onClick={() => setDrawerOpen(true)}
+                    onClick={() => setIsDrawerOpen(true)}
                     className="relative inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/15 bg-card-raised/40 px-3 text-sm font-medium text-white/75 transition hover:border-copper/40 hover:text-white lg:hidden"
                     aria-label={t("publicJobs:board.openFilters")}
                   >
@@ -296,7 +299,7 @@ export default function JobBoardPage() {
               </div>
             )}
 
-            {!loading && hasActiveFilter && (
+            {!isLoading && hasActiveFilter && (
               <div className="mb-4 space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   {query.trim() && (
@@ -324,13 +327,15 @@ export default function JobBoardPage() {
                 <p className="text-xs text-white/40">
                   {filtered.length === 1
                     ? t("publicJobs:board.resultsCount.one")
-                    : t("publicJobs:board.resultsCount.other", { count: filtered.length })}
+                    : t("publicJobs:board.resultsCount.other", {
+                        count: filtered.length,
+                      })}
                 </p>
               </div>
             )}
 
             <JobCardGrid
-              loading={loading}
+              isLoading={isLoading}
               filtered={filtered}
               hasActiveFilter={hasActiveFilter}
               searchParamsString={searchParams.toString()}
@@ -342,11 +347,11 @@ export default function JobBoardPage() {
 
         {/* Mobile filter drawer — portaled to body so it escapes the page-enter
             transform (which creates a containing block for fixed elements). */}
-        {showFilters && (
+        {isShowingFilters && (
           <MobileFilterDrawer
             {...baseFilterPanelProps}
-            open={drawerOpen}
-            onClose={() => setDrawerOpen(false)}
+            open={isDrawerOpen}
+            onClose={() => setIsDrawerOpen(false)}
             filteredCount={filtered.length}
           />
         )}

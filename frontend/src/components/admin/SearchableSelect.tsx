@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { inputCls, selectCls } from "@/styles/forms";
+import { INPUT_CLS, SELECT_CLS } from "@/styles/forms";
 
 interface Option<T> {
   value: T;
@@ -32,7 +32,7 @@ export default function SearchableSelect<T extends string | number>({
   searchPlaceholder,
 }: Props<T>) {
   const { t } = useTranslation(['common', 'http']);
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -40,14 +40,14 @@ export default function SearchableSelect<T extends string | number>({
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   function close() {
-    setOpen(false);
+    setIsOpen(false);
     setQuery("");
   }
 
   // Recompute trigger position when opening + on scroll/resize so the
   // popover stays glued to the trigger as the page moves under it.
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     function measure() {
       const el = triggerRef.current;
       if (el) setRect(el.getBoundingClientRect());
@@ -59,10 +59,10 @@ export default function SearchableSelect<T extends string | number>({
       window.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
     };
-  }, [open]);
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     function onPointer(e: MouseEvent | TouchEvent) {
       const target = e.target as Node;
       if (
@@ -83,7 +83,7 @@ export default function SearchableSelect<T extends string | number>({
       document.removeEventListener("keydown", onKey);
       window.clearTimeout(id);
     };
-  }, [open]);
+  }, [isOpen]);
 
   const selected = useMemo(
     () => options.find((o) => o.value === value),
@@ -100,10 +100,10 @@ export default function SearchableSelect<T extends string | number>({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => (open ? close() : setOpen(true))}
+        onClick={() => (isOpen ? close() : setIsOpen(true))}
         aria-haspopup="listbox"
-        aria-expanded={open}
-        className={`${selectCls} flex w-full items-center justify-between gap-2 text-start transition-colors duration-200 active:scale-[0.99] ${open ? "border-copper/40" : ""}`}
+        aria-expanded={isOpen}
+        className={`${SELECT_CLS} flex w-full items-center justify-between gap-2 text-start transition-colors duration-200 active:scale-[0.99] ${isOpen ? "border-copper/40" : ""}`}
       >
         <span className={selected ? "truncate text-white/85" : "truncate text-white/40"}>
           {selected ? selected.label : placeholder}
@@ -112,7 +112,7 @@ export default function SearchableSelect<T extends string | number>({
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 16 16"
           fill="currentColor"
-          className={`size-3.5 shrink-0 text-white/40 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={`size-3.5 shrink-0 text-white/40 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
           aria-hidden="true"
         >
           <path
@@ -125,7 +125,7 @@ export default function SearchableSelect<T extends string | number>({
       {createPortal(
         <div
           ref={popoverRef}
-          aria-hidden={!open}
+          aria-hidden={!isOpen}
           style={
             rect
               ? {
@@ -137,7 +137,7 @@ export default function SearchableSelect<T extends string | number>({
               : { position: "fixed", visibility: "hidden" }
           }
           className={`z-[100] origin-top overflow-hidden rounded-md border border-white/10 bg-card-raised shadow-2xl shadow-black/60 transition duration-150 ease-out ${
-            open
+            isOpen
               ? "opacity-100 translate-y-0 pointer-events-auto"
               : "opacity-0 -translate-y-1 pointer-events-none"
           }`}
@@ -149,7 +149,7 @@ export default function SearchableSelect<T extends string | number>({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder ?? t("common:searchPlaceholder")}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </div>
           <div role="listbox" className="max-h-60 overflow-y-auto py-1">

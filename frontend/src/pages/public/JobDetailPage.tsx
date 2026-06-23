@@ -9,7 +9,7 @@ import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import { useFetch } from "@/hooks/useFetch";
 import { getPublicJob } from "@/services/jobs";
 import { errorAlertClsLg } from "@/styles/forms";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { trackEvent } from "@/utils/analytics";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 import { formatSalary } from "@/utils/salary";
@@ -17,10 +17,7 @@ import { formatSalary } from "@/utils/salary";
 const JOB_POSTING_VALID_DAYS = 90;
 
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function buildDescriptionHtml(job: JobPublicRead): string {
@@ -72,7 +69,11 @@ function DetailSkeleton() {
             <div className="mb-3 h-3 w-20 rounded bg-white/6" />
             <div className="space-y-2">
               {[1, 0.9, 0.85, 0.7, 0.8].map((w, i) => (
-                <div key={i} className="h-3 rounded bg-white/5" style={{ width: `${w * 100}%` }} />
+                <div
+                  key={i}
+                  className="h-3 rounded bg-white/5"
+                  style={{ width: `${w * 100}%` }}
+                />
               ))}
             </div>
           </div>
@@ -84,7 +85,10 @@ function DetailSkeleton() {
               {[0.85, 0.7, 0.78, 0.6].map((w, i) => (
                 <li key={i} className="flex items-center gap-2">
                   <span className="inline-block size-1.5 shrink-0 rounded-full bg-white/15" />
-                  <div className="h-3 rounded bg-white/5" style={{ width: `${w * 100}%` }} />
+                  <div
+                    className="h-3 rounded bg-white/5"
+                    style={{ width: `${w * 100}%` }}
+                  />
                 </li>
               ))}
             </ul>
@@ -134,7 +138,7 @@ function LocationIcon() {
 }
 
 export default function JobDetailPage() {
-  const { t } = useTranslation(['common', 'http', 'https', 'lg', 'publicJobs']);
+  const { t } = useTranslation(["common", "http", "https", "lg", "publicJobs"]);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -148,7 +152,11 @@ export default function JobDetailPage() {
     if (!validId) navigate("/jobs", { replace: true });
   }, [validId, navigate]);
 
-  const { data: job, loading, error: fetchError } = useFetch<JobPublicRead | null>(async () => {
+  const {
+    data: job,
+    loading: isLoading,
+    error: fetchError,
+  } = useFetch<JobPublicRead | null>(async () => {
     if (!validId) return null;
     return getPublicJob(jobId);
   }, [jobId, validId]);
@@ -164,7 +172,7 @@ export default function JobDetailPage() {
     trackEvent("job_view", { job_id: job.id, job_title: job.title });
   }, [job]);
 
-  if (loading) return <DetailSkeleton />;
+  if (isLoading) return <DetailSkeleton />;
 
   if (error || !job) {
     return (
@@ -220,23 +228,44 @@ export default function JobDetailPage() {
     hiringOrganization: { "@type": "Organization", name: SITE_NAME, sameAs: SITE_URL },
     jobLocation: {
       "@type": "Place",
-      address: { "@type": "PostalAddress", addressLocality: job.location, addressCountry: "IL" },
-    },
-    ...(job.salary_min != null && job.salary_max != null ? {
-      baseSalary: {
-        "@type": "MonetaryAmount",
-        currency: "ILS",
-        value: { "@type": "QuantitativeValue", minValue: job.salary_min, maxValue: job.salary_max, unitText: "MONTH" },
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: job.location,
+        addressCountry: "IL",
       },
-    } : {}),
+    },
+    ...(job.salary_min != null && job.salary_max != null
+      ? {
+          baseSalary: {
+            "@type": "MonetaryAmount",
+            currency: "ILS",
+            value: {
+              "@type": "QuantitativeValue",
+              minValue: job.salary_min,
+              maxValue: job.salary_max,
+              unitText: "MONTH",
+            },
+          },
+        }
+      : {}),
   };
 
   const breadcrumb = {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: t("publicJobs:board.title"), item: `${SITE_URL}/jobs` },
-      { "@type": "ListItem", position: 3, name: job.title, item: `${SITE_URL}/jobs/${job.id}` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: t("publicJobs:board.title"),
+        item: `${SITE_URL}/jobs`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: job.title,
+        item: `${SITE_URL}/jobs/${job.id}`,
+      },
     ],
   };
 
@@ -307,7 +336,6 @@ export default function JobDetailPage() {
                 {job.location}
               </p>
             </div>
-
           </div>
           {job.tags.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -337,9 +365,7 @@ export default function JobDetailPage() {
 
           {/* About the role */}
           <div>
-            <Eyebrow className="mb-3">
-              {t("publicJobs:detail.aboutRole")}
-            </Eyebrow>
+            <Eyebrow className="mb-3">{t("publicJobs:detail.aboutRole")}</Eyebrow>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/65 sm:text-[15px]">
               {job.description}
             </p>
@@ -348,9 +374,7 @@ export default function JobDetailPage() {
           {/* Requirements */}
           {job.requirements.length > 0 && (
             <div className="mt-8">
-              <Eyebrow className="mb-3">
-                {t("publicJobs:detail.requirements")}
-              </Eyebrow>
+              <Eyebrow className="mb-3">{t("publicJobs:detail.requirements")}</Eyebrow>
               <ul className="space-y-2 text-sm leading-relaxed text-white/65 sm:text-[15px]">
                 {job.requirements.map((req, i) => (
                   <li key={i} className="flex items-start gap-2">

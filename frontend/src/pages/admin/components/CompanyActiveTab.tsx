@@ -22,7 +22,8 @@ import {
   deleteOrphanCompany,
   getActiveCompanies,
 } from "@/services/adminCompanies";
-import type { ActiveCompanyRead, CompanyProfileRead } from "@/types/api";
+import type { CompanyProfileRead } from "@/types/auth";
+import type { ActiveCompanyRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
 import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";
@@ -34,8 +35,12 @@ interface ActiveTabProps {
   onExternalDetailClose?: () => void;
 }
 
-export default function CompanyActiveTab({ query, externalDetail, onExternalDetailClose }: ActiveTabProps) {
-  const { t } = useTranslation(['admin', 'md']);
+export default function CompanyActiveTab({
+  query,
+  externalDetail,
+  onExternalDetailClose,
+}: ActiveTabProps) {
+  const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
 
   const fetcher = useCallback(
@@ -68,15 +73,14 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
         p.contact_mobile_phone,
         p.contact_landline_phone ?? "",
         u?.email ?? "",
-      ]
-        .some((s) => s.toLowerCase().includes(q));
+      ].some((s) => s.toLowerCase().includes(q));
     });
   }, [companies, query]);
 
   const [detail, setDetail] = useState<CompanyProfileRead | null>(null);
   const [editing, setEditing] = useState<CompanyProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<ActiveCompanyRead | null>(null);
-  const [pendingMutation, setPendingMutation] = useState(false);
+  const [isPendingMutation, setIsPendingMutation] = useState(false);
 
   useEffect(() => {
     if (externalDetail) {
@@ -88,7 +92,7 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
 
   async function handleDelete() {
     if (!deletePending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       if (deletePending.user) {
         await deleteCompany(deletePending.user.id);
@@ -101,7 +105,7 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
     } catch {
       toast.error(t("admin:companies.active.deleteError"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
@@ -140,9 +144,10 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
                   </DropdownMenuItem>
                   {row.user?.email && (
                     <DropdownMenuItem
-                      onSelect={() =>
-                        window.open(`mailto:${row.user!.email}`, "_self")
-                      }
+                      onSelect={() => {
+                        const email = row.user?.email;
+                        if (email) window.open(`mailto:${email}`, "_self");
+                      }}
                     >
                       {t("admin:companies.emailAction")}
                     </DropdownMenuItem>
@@ -232,9 +237,10 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
                         </DropdownMenuItem>
                         {row.user?.email && (
                           <DropdownMenuItem
-                            onSelect={() =>
-                              window.open(`mailto:${row.user!.email}`, "_self")
-                            }
+                            onSelect={() => {
+                              const email = row.user?.email;
+                              if (email) window.open(`mailto:${email}`, "_self");
+                            }}
                           >
                             {t("admin:companies.emailAction")}
                           </DropdownMenuItem>
@@ -254,7 +260,10 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
             </table>
           </div>
 
-          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+          <InfiniteScrollFooter
+            sentinelRef={sentinelRef}
+            isFetchingMore={isFetchingMore}
+          />
         </>
       )}
 
@@ -289,11 +298,13 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
       <ConfirmDialog
         open={deletePending != null}
         onOpenChange={(o) => !o && setDeletePending(null)}
-        title={t("admin:companies.deleteConfirmTitle", { name: deletePending?.company_profile.name ?? "" })}
+        title={t("admin:companies.deleteConfirmTitle", {
+          name: deletePending?.company_profile.name ?? "",
+        })}
         message={t("admin:companies.active.deleteConfirm")}
         confirmLabel={t("admin:companies.deleteAction")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleDelete}
       />
     </>

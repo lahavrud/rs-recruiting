@@ -5,9 +5,8 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationNotes } from "@/services/adminApplications";
-import { textareaCls } from "@/styles/forms";
-import type { ApplicationWithDetails } from "@/types/api";
-
+import { TEXTAREA_CLS } from "@/styles/forms";
+import type { ApplicationWithDetails } from "@/types/candidates";
 interface NotesDialogProps {
   app: ApplicationWithDetails | null;
   onClose: () => void;
@@ -25,20 +24,20 @@ export default function ApplicationNotesDialog({
   onSaved,
   onError,
 }: NotesDialogProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [notes, setNotes] = useState<string>(app?.admin_notes ?? "");
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
     if (!app) return;
-    setSaving(true);
+    setIsSaving(true);
     try {
       const updated = await updateApplicationNotes(app.id, notes.trim() ? notes : null);
       onSaved(updated);
     } catch {
       onError();
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -53,18 +52,11 @@ export default function ApplicationNotesDialog({
       size="md"
       footer={
         <>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            disabled={saving}
-          >
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
             {t("common:cancel")}
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? t("common:saving") : t("common:save")}
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? t("common:saving") : t("common:save")}
           </Button>
         </>
       }
@@ -74,7 +66,7 @@ export default function ApplicationNotesDialog({
         onChange={(e) => setNotes(e.target.value)}
         rows={5}
         maxLength={5000}
-        className={textareaCls}
+        className={TEXTAREA_CLS}
         placeholder={t("admin:applications.modal.notesPlaceholder")}
       />
       {notes.length > 4800 && (

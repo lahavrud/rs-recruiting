@@ -6,8 +6,8 @@ import DropdownMenu, {
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
-import type { JobRead } from "@/types/api";
-import { JobStatus } from "@/types/api";
+import { JobStatus } from "@/types/enums";
+import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 import { FeaturedDesktopSash } from "./JobViewBody";
@@ -35,28 +35,18 @@ export default function JobsTable({
   onDelete,
   onMailto,
 }: JobsTableProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
 
   return (
     <div className="hidden overflow-x-auto rounded-xl border border-white/8 bg-card md:block">
       <table className="min-w-full divide-y divide-white/6 text-sm">
         <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
           <tr>
-            <th className="px-4 py-3 text-start">
-              {t("admin:jobs.fields.title")}
-            </th>
-            <th className="px-4 py-3 text-start">
-              {t("admin:jobs.fields.location")}
-            </th>
-            <th className="px-4 py-3 text-start">
-              {t("common:salary")}
-            </th>
-            <th className="px-4 py-3 text-start">
-              {t("admin:jobs.fields.status")}
-            </th>
-            <th className="px-4 py-3 text-start">
-              {t("admin:jobs.submittedLabel")}
-            </th>
+            <th className="px-4 py-3 text-start">{t("admin:jobs.fields.title")}</th>
+            <th className="px-4 py-3 text-start">{t("admin:jobs.fields.location")}</th>
+            <th className="px-4 py-3 text-start">{t("common:salary")}</th>
+            <th className="px-4 py-3 text-start">{t("admin:jobs.fields.status")}</th>
+            <th className="px-4 py-3 text-start">{t("admin:jobs.submittedLabel")}</th>
             <th className="px-4 py-3 text-end" aria-hidden />
           </tr>
         </thead>
@@ -85,13 +75,8 @@ export default function JobsTable({
                   colorCls={statusColors[job.status]}
                 />
               </td>
-              <td className="px-4 py-3 text-white/40">
-                {formatDate(job.created_at)}
-              </td>
-              <td
-                className="px-4 py-3 text-end"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <td className="px-4 py-3 text-white/40">{formatDate(job.created_at)}</td>
+              <td className="px-4 py-3 text-end" onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu
                   ariaLabel={t("admin:jobs.rowActionsLabel")}
                   trigger={<KebabButton size="sm" />}
@@ -111,19 +96,13 @@ export default function JobsTable({
                       <DropdownMenuItem onSelect={() => onApprove(job)}>
                         {t("admin:jobs.approve")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="danger"
-                        onSelect={() => onReject(job)}
-                      >
+                      <DropdownMenuItem variant="danger" onSelect={() => onReject(job)}>
                         {t("admin:jobs.reject")}
                       </DropdownMenuItem>
                     </>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="danger"
-                    onSelect={() => onDelete(job)}
-                  >
+                  <DropdownMenuItem variant="danger" onSelect={() => onDelete(job)}>
                     {t("admin:jobs.deleteAction")}
                   </DropdownMenuItem>
                 </DropdownMenu>

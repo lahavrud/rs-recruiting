@@ -34,7 +34,8 @@ import {
 } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { type ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 import ApplicationDetailDialog, { ApplicationDetailBody } from "./components/ApplicationDetailDialog";
@@ -45,7 +46,10 @@ import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
 import { IconSparkle } from "./components/TriageIcons";
 
 
-const CLOSED_STATUSES = new Set<ApplicationStatus>([ApplicationStatus.JOB_CLOSED, ApplicationStatus.WITHDRAWN]);
+const CLOSED_STATUSES = new Set<ApplicationStatus>([
+  ApplicationStatus.JOB_CLOSED,
+  ApplicationStatus.WITHDRAWN,
+]);
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
@@ -53,7 +57,7 @@ type FilterValue = string;
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function AdminApplicationsPage() {
-  const { t } = useTranslation(['admin', 'md']);
+  const { t } = useTranslation(["admin", "md"]);
   usePageTitle(t("admin:applications.title"));
   const toast = useToast();
   const navigate = useNavigate();
@@ -119,22 +123,22 @@ export default function AdminApplicationsPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<ApplicationWithDetails | null>(
     null,
   );
-  const [pendingDelete, setPendingDelete] = useState(false);
+  const [isPendingDelete, setIsPendingDelete] = useState(false);
 
   // Client-side filters (status + job/candidate are server-side via fetcher).
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
 
   // Cache of all jobs and active companies for the filter selects.
-  const [allJobs, setAllJobs] = useState<{ id: number; title: string; company_id: number }[]>([]);
+  const [allJobs, setAllJobs] = useState<
+    { id: number; title: string; company_id: number }[]
+  >([]);
   const [companyNameById, setCompanyNameById] = useState<Map<number, string>>(
     new Map(),
   );
-  const [jobTitleById, setJobTitleById] = useState<Map<number, string>>(
-    new Map(),
-  );
+  const [jobTitleById, setJobTitleById] = useState<Map<number, string>>(new Map());
   useEffect(() => {
     const ctrl = new AbortController();
     Promise.all([
@@ -191,7 +195,6 @@ export default function AdminApplicationsPage() {
     (filterCandidateId != null ? 1 : 0) +
     companyFilter.length;
 
-
   // Auto-open application passed via navigation state (e.g. from Candidate detail)
   useAutoOpenFromRouteState<ApplicationWithDetails>("autoOpen", setDetail);
 
@@ -216,7 +219,7 @@ export default function AdminApplicationsPage() {
 
   async function handleDeleteConfirm() {
     if (!deleteCandidate) return;
-    setPendingDelete(true);
+    setIsPendingDelete(true);
     try {
       await deleteApplication(deleteCandidate.id);
       removeItem((a) => a.id === deleteCandidate.id);
@@ -226,7 +229,7 @@ export default function AdminApplicationsPage() {
     } catch {
       toast.error(t("admin:applications.errors.deleteFailed"));
     } finally {
-      setPendingDelete(false);
+      setIsPendingDelete(false);
     }
   }
 
@@ -253,16 +256,16 @@ export default function AdminApplicationsPage() {
             value={query}
             onChange={setQuery}
             placeholder={t("admin:applications.searchPlaceholder")}
-            clearable
+            isClearable
           />
         </div>
         <button
           type="button"
-          onClick={() => setFilterOpen((o) => !o)}
-          aria-expanded={filterOpen}
+          onClick={() => setIsFilterOpen((o) => !o)}
+          aria-expanded={isFilterOpen}
           aria-label={t("admin:applications.openFilters")}
           className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-200 active:scale-95 ${
-            filterOpen
+            isFilterOpen
               ? "border-copper/50 bg-copper/10 text-white"
               : "border-white/15 bg-card-raised/40 text-white/75 hover:border-copper/40 hover:text-white"
           }`}
@@ -291,7 +294,7 @@ export default function AdminApplicationsPage() {
           setCompanyFilter,
         }}
         lookupMaps={{ allJobs, companyNameById, jobTitleById }}
-        uiState={{ activeFilterCount, filterOpen, statusLabels: STATUS_LABELS }}
+        uiState={{ activeFilterCount, isFilterOpen, statusLabels: STATUS_LABELS }}
       />
 
       {isLoading ? (
@@ -353,7 +356,10 @@ export default function AdminApplicationsPage() {
                     </div>
                   }
                   badge={
-                    <StatusBadge label={STATUS_LABELS[app.status]} colorCls={APPLICATION_STATUS_COLORS[app.status]} />
+                    <StatusBadge
+                      label={STATUS_LABELS[app.status]}
+                      colorCls={APPLICATION_STATUS_COLORS[app.status]}
+                    />
                   }
                   actions={actions}
                 >
@@ -401,7 +407,10 @@ export default function AdminApplicationsPage() {
                       <p className="text-xs text-white/40">{app.job.location}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <StatusBadge label={STATUS_LABELS[app.status]} colorCls={APPLICATION_STATUS_COLORS[app.status]} />
+                      <StatusBadge
+                        label={STATUS_LABELS[app.status]}
+                        colorCls={APPLICATION_STATUS_COLORS[app.status]}
+                      />
                     </td>
                     <td className="px-4 py-3 text-white/40">
                       {formatDate(app.created_at)}
@@ -441,7 +450,10 @@ export default function AdminApplicationsPage() {
           </div>
 
           {/* Sentinel for IntersectionObserver */}
-          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+          <InfiniteScrollFooter
+            sentinelRef={sentinelRef}
+            isFetchingMore={isFetchingMore}
+          />
 
           <ClosedApplicationsSection
             apps={closedFiltered}
@@ -520,7 +532,7 @@ export default function AdminApplicationsPage() {
         message={t("admin:applications.deleteConfirm")}
         confirmLabel={t("admin:applications.deleteConfirmYes")}
         variant="danger"
-        isPending={pendingDelete}
+        isPending={isPendingDelete}
         onConfirm={handleDeleteConfirm}
       />
     </div>

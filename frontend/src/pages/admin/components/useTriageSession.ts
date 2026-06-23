@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { updateApplicationStatus } from "@/services/adminApplications";
-import { ApplicationStatus } from "@/types/api";
+import { ApplicationStatus } from "@/types/enums";
 
 import { type Decision } from "./triageTypes";
 import { type TriageItem } from "./useTriageQueue";
@@ -20,7 +20,7 @@ const SLIDE_MS = 240;
 interface UseTriageSessionArgs {
   items: TriageItem[];
   /** Whether the resume modal is currently open — gates decision/nav keys. */
-  showResume: boolean;
+  isResumeOpen: boolean;
   onCloseResume: () => void;
   onExit: () => void;
   toast: { error: (msg: string) => void };
@@ -37,7 +37,7 @@ interface UseTriageSessionArgs {
  */
 export function useTriageSession({
   items,
-  showResume,
+  isResumeOpen,
   onCloseResume,
   onExit,
   toast,
@@ -45,7 +45,7 @@ export function useTriageSession({
 }: UseTriageSessionArgs) {
   const [index, setIndex] = useState(0);
   const [decisions, setDecisions] = useState<Record<number, DecisionEntry>>({});
-  const [showHelp, setShowHelp] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [pendingUndo, setPendingUndo] = useState<{
     appId: number;
     decision: Decision;
@@ -78,15 +78,15 @@ export function useTriageSession({
   const [isDragging, setIsDragging] = useState(false);
   // Persist hint-seen so it shows once per user, not once per session
   const carouselRef = useRef<HTMLDivElement>(null);
-  const [hintSeen, setHintSeenRaw] = useState<boolean>(() => {
+  const [isHintSeen, setIsHintSeenRaw] = useState<boolean>(() => {
     try {
       return localStorage.getItem(SWIPE_HINT_KEY) === "1";
     } catch {
       return false;
     }
   });
-  const setHintSeen = useCallback((seen: boolean) => {
-    setHintSeenRaw(seen);
+  const setIsHintSeen = useCallback((seen: boolean) => {
+    setIsHintSeenRaw(seen);
     if (seen) {
       try {
         localStorage.setItem(SWIPE_HINT_KEY, "1");
@@ -275,10 +275,10 @@ export function useTriageSession({
         if (dx < 0 && !nextApp) clamped = Math.max(dx * 0.3, -40);
         else if (dx > 0 && !prevApp) clamped = Math.min(dx * 0.3, 40);
         setDragX(clamped);
-        setHintSeen(true);
+        setIsHintSeen(true);
       }
     },
-    [prevApp, nextApp, setHintSeen],
+    [prevApp, nextApp, setIsHintSeen],
   );
 
   const onTouchEnd = useCallback(() => {
@@ -316,17 +316,17 @@ export function useTriageSession({
         return;
       }
       if (e.key === "Escape") {
-        if (showResume) onCloseResume();
+        if (isResumeOpen) onCloseResume();
         else onExit();
         return;
       }
       // When the resume modal is open, only Esc (handled above) and ? matter.
       // Decisions and nav should not fire underneath an open modal.
-      if (showResume) {
+      if (isResumeOpen) {
         if (e.key !== "?") return;
       }
       if (e.key === "?") {
-        setShowHelp((s) => !s);
+        setIsHelpOpen((s) => !s);
         return;
       }
       const k = e.key.toLowerCase();
@@ -350,7 +350,7 @@ export function useTriageSession({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [decide, goNext, goPrev, onExit, onCloseResume, undo, pendingUndo, showResume]);
+  }, [decide, goNext, goPrev, onExit, onCloseResume, undo, pendingUndo, isResumeOpen]);
 
   return {
     index,
@@ -363,8 +363,8 @@ export function useTriageSession({
     pendingUndo,
     setPendingUndo,
     stripItems,
-    showHelp,
-    setShowHelp,
+    isHelpOpen,
+    setIsHelpOpen,
     jumpTo,
     goNext,
     goPrev,
@@ -377,8 +377,8 @@ export function useTriageSession({
     flying,
     isSwapping,
     isDragging,
-    hintSeen,
-    setHintSeen,
+    isHintSeen,
+    setIsHintSeen,
     onTouchStart,
     onTouchMove,
     onTouchEnd,

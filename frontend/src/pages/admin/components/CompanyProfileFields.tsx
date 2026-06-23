@@ -2,38 +2,32 @@ import { useTranslation } from "react-i18next";
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import Field from "@/components/ui/Field";
-import { inputCls } from "@/styles/forms";
-import type {
-  CompanyProfileAdminCreate,
-  CompanyProfileAdminUpdate,
-} from "@/types/api";
-
+import { INPUT_CLS } from "@/styles/forms";
+import type { CompanyProfileAdminCreate, CompanyProfileAdminUpdate } from "@/types/auth";
 interface ProfileFieldsProps {
   form: CompanyProfileAdminUpdate | Partial<CompanyProfileAdminCreate>;
   setField: (key: string, value: string) => void;
   errors?: Record<string, string>;
   /** If true, mark required fields with an asterisk and show inline hints. */
-  showRequired?: boolean;
+  isRequiredVisible?: boolean;
 }
 
 export default function CompanyProfileFields({
   form,
   setField,
   errors,
-  showRequired = false,
+  isRequiredVisible = false,
 }: ProfileFieldsProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
   return (
     <div className="space-y-5">
       {/* Section: Company */}
       <section>
-        <Eyebrow className="mb-3">
-          {t("admin:companies.formSections.company")}
-        </Eyebrow>
+        <Eyebrow className="mb-3">{t("admin:companies.formSections.company")}</Eyebrow>
         <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Field
             label={t("admin:companies.fields.name")}
-            required={showRequired}
+            required={isRequiredVisible}
             full
             name="name"
             error={errors?.name}
@@ -42,15 +36,15 @@ export default function CompanyProfileFields({
               type="text"
               value={form.name ?? ""}
               onChange={(e) => setField("name", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("admin:companies.placeholders.name")}
               aria-invalid={!!errors?.name}
             />
           </Field>
           <Field
             label={t("admin:companies.fields.companyId")}
-            required={showRequired}
-            hint={showRequired ? t("admin:companies.hints.companyId") : undefined}
+            required={isRequiredVisible}
+            hint={isRequiredVisible ? t("admin:companies.hints.companyId") : undefined}
             name="company_id"
             error={errors?.company_id}
           >
@@ -59,7 +53,7 @@ export default function CompanyProfileFields({
               inputMode="numeric"
               value={form.company_id ?? ""}
               onChange={(e) => setField("company_id", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder="123456789"
               aria-invalid={!!errors?.company_id}
               maxLength={9}
@@ -67,7 +61,7 @@ export default function CompanyProfileFields({
           </Field>
           <Field
             label={t("admin:companies.fields.address")}
-            required={showRequired}
+            required={isRequiredVisible}
             name="address"
             error={errors?.address}
           >
@@ -75,7 +69,7 @@ export default function CompanyProfileFields({
               type="text"
               value={form.address ?? ""}
               onChange={(e) => setField("address", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("admin:companies.placeholders.address")}
               aria-invalid={!!errors?.address}
             />
@@ -85,13 +79,11 @@ export default function CompanyProfileFields({
 
       {/* Section: Contact person */}
       <section>
-        <Eyebrow className="mb-3">
-          {t("admin:companies.formSections.contact")}
-        </Eyebrow>
+        <Eyebrow className="mb-3">{t("admin:companies.formSections.contact")}</Eyebrow>
         <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Field
             label={t("admin:companies.fields.contactEmail")}
-            required={showRequired}
+            required={isRequiredVisible}
             full
             name="contact_email"
             error={errors?.contact_email}
@@ -100,7 +92,7 @@ export default function CompanyProfileFields({
               type="email"
               value={form.contact_email ?? ""}
               onChange={(e) => setField("contact_email", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder="contact@example.com"
               autoComplete="email"
               aria-invalid={!!errors?.contact_email}
@@ -108,7 +100,7 @@ export default function CompanyProfileFields({
           </Field>
           <Field
             label={t("admin:companies.fields.contactFirstName")}
-            required={showRequired}
+            required={isRequiredVisible}
             name="contact_first_name"
             error={errors?.contact_first_name}
           >
@@ -116,14 +108,14 @@ export default function CompanyProfileFields({
               type="text"
               value={form.contact_first_name ?? ""}
               onChange={(e) => setField("contact_first_name", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               autoComplete="given-name"
               aria-invalid={!!errors?.contact_first_name}
             />
           </Field>
           <Field
             label={t("admin:companies.fields.contactLastName")}
-            required={showRequired}
+            required={isRequiredVisible}
             name="contact_last_name"
             error={errors?.contact_last_name}
           >
@@ -131,15 +123,15 @@ export default function CompanyProfileFields({
               type="text"
               value={form.contact_last_name ?? ""}
               onChange={(e) => setField("contact_last_name", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               autoComplete="family-name"
               aria-invalid={!!errors?.contact_last_name}
             />
           </Field>
           <Field
             label={t("admin:companies.fields.contactMobile")}
-            required={showRequired}
-            hint={showRequired ? t("admin:companies.hints.mobile") : undefined}
+            required={isRequiredVisible}
+            hint={isRequiredVisible ? t("admin:companies.hints.mobile") : undefined}
             name="contact_mobile_phone"
             error={errors?.contact_mobile_phone}
           >
@@ -147,22 +139,19 @@ export default function CompanyProfileFields({
               type="tel"
               value={form.contact_mobile_phone ?? ""}
               onChange={(e) => setField("contact_mobile_phone", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder="0501234567"
               autoComplete="tel"
               aria-invalid={!!errors?.contact_mobile_phone}
               maxLength={10}
             />
           </Field>
-          <Field
-            label={t("admin:companies.fields.contactLandline")}
-            optional
-          >
+          <Field label={t("admin:companies.fields.contactLandline")} optional>
             <input
               type="tel"
               value={form.contact_landline_phone ?? ""}
               onChange={(e) => setField("contact_landline_phone", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder="03-1234567"
               autoComplete="tel"
             />

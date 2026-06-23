@@ -8,8 +8,8 @@ import Field from "@/components/ui/Field";
 import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { updateCandidate } from "@/services/adminCandidates";
-import { inputCls } from "@/styles/forms";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
+import { INPUT_CLS } from "@/styles/forms";
+import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/candidates";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import { EMAIL_RE, MOBILE_RE } from "@/utils/validators";
 
@@ -26,7 +26,7 @@ export default function CandidateEditDialog({
   onSaved,
   onError,
 }: EditProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [form, setForm] = useState<CandidateProfileUpdate>({});
   const [initialForm, setInitialForm] = useState<CandidateProfileUpdate>({});
   const [saving, setSaving] = useState(false);
@@ -128,7 +128,7 @@ export default function CandidateEditDialog({
               type="text"
               value={form.full_name ?? ""}
               onChange={(e) => set("full_name", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </Field>
           <Field label={t("admin:candidates.fields.email")} error={errors.email}>
@@ -136,7 +136,7 @@ export default function CandidateEditDialog({
               type="email"
               value={form.email ?? ""}
               onChange={(e) => set("email", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </Field>
           <Field label={t("admin:candidates.fields.phone")} error={errors.phone}>
@@ -144,15 +144,18 @@ export default function CandidateEditDialog({
               type="tel"
               value={form.phone ?? ""}
               onChange={(e) => set("phone", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </Field>
-          <Field label={t("admin:candidates.fields.linkedin")} error={errors.linkedin_url}>
+          <Field
+            label={t("admin:candidates.fields.linkedin")}
+            error={errors.linkedin_url}
+          >
             <input
               type="url"
               value={form.linkedin_url ?? ""}
               onChange={(e) => set("linkedin_url", e.target.value)}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </Field>
         </div>

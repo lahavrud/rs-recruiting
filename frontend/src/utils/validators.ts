@@ -4,8 +4,8 @@ import {
   JOB_REQ_MIN_COUNT,
   JOB_SHORT_DESC_MAX,
   JOB_TITLE_MAX,
-} from "@/types/api";
-import type { JobRequirementItem } from "@/types/api";
+} from "@/types/jobs";
+import type { JobRequirementItem } from "@/types/jobs";
 
 import type { TFunction } from "i18next";
 
@@ -21,10 +21,7 @@ export function sanitizeLinkedInUrl(
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
-    if (
-      parsed.protocol !== "https:" ||
-      !parsed.hostname.endsWith("linkedin.com")
-    ) {
+    if (parsed.protocol !== "https:" || !parsed.hostname.endsWith("linkedin.com")) {
       return undefined;
     }
     return url;
@@ -97,8 +94,7 @@ export function validateCompanyProfile(
   else if (!COMPANY_ID_RE.test(form.company_id))
     e.company_id = t("admin:companies.validation.companyId");
   if (!form.address?.trim()) e.address = t("common:validation.required");
-  if (!form.contact_email?.trim())
-    e.contact_email = t("common:validation.required");
+  if (!form.contact_email?.trim()) e.contact_email = t("common:validation.required");
   else if (!EMAIL_RE.test(form.contact_email))
     e.contact_email = t("admin:companies.validation.email");
   if (!form.contact_first_name?.trim())
@@ -146,9 +142,7 @@ export function validateJob(
   if (!form.description?.trim()) e.description = t("common:validation.required");
   else if (form.description.length > JOB_DESC_MAX)
     e.description = t("common:validation.tooLong", { max: JOB_DESC_MAX });
-  const filledReqs = (form.requirements ?? []).filter(
-    (r) => r.text.trim().length > 0,
-  );
+  const filledReqs = (form.requirements ?? []).filter((r) => r.text.trim().length > 0);
   if (filledReqs.length < JOB_REQ_MIN_COUNT)
     e.requirements = t("common:validation.requirementsMin", { min: JOB_REQ_MIN_COUNT });
   if (form.salary_min == null || form.salary_min < 0)

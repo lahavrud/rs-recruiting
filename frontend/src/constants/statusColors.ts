@@ -1,4 +1,4 @@
-import { ApplicationStatus, JobStatus } from "@/types/api";
+import { ApplicationStatus, JobStatus } from "@/types/enums";
 
 export const JOB_STATUS_COLORS: Record<string, string> = {
   [JobStatus.PENDING_APPROVAL]: "bg-warning/10 text-warning",
@@ -15,7 +15,10 @@ export const APPLICATION_STATUS_COLORS: Record<string, string> = {
   [ApplicationStatus.WITHDRAWN]: "bg-white/3 text-white/25",
 };
 
-export const APPLICATION_STATUS_META: Record<string, { barClass: string; dotClass: string }> = {
+export const APPLICATION_STATUS_META: Record<
+  string,
+  { barClass: string; dotClass: string }
+> = {
   [ApplicationStatus.NEW]: {
     barClass: "bg-copper/85",
     dotClass: "bg-copper/85",

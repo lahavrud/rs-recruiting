@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import Field from "@/components/ui/Field";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 interface FormState {
   email: string;
@@ -27,7 +27,7 @@ type FieldErrors = Partial<
 interface Props {
   form: FormState;
   fieldErrors: FieldErrors;
-  emailPreFilled: boolean;
+  isEmailPreFilled: boolean;
   logoInputRef: RefObject<HTMLInputElement | null>;
   onFieldChange: (e: ChangeEvent<HTMLInputElement>) => void;
   onFieldBlur: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -38,7 +38,7 @@ interface Props {
 export default function RegisterStep1Form({
   form,
   fieldErrors,
-  emailPreFilled,
+  isEmailPreFilled,
   logoInputRef,
   onFieldChange,
   onFieldBlur,
@@ -62,7 +62,7 @@ export default function RegisterStep1Form({
               value={form.companyName}
               onChange={onFieldChange}
               onBlur={onFieldBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder="Acme בע״מ"
               autoComplete="organization"
             />
@@ -78,7 +78,7 @@ export default function RegisterStep1Form({
                 value={form.companyId}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder="123456789"
                 dir="ltr"
               />
@@ -92,7 +92,7 @@ export default function RegisterStep1Form({
                 value={form.address}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder={t("auth:register.addressPlaceholder")}
                 autoComplete="street-address"
               />
@@ -130,7 +130,7 @@ export default function RegisterStep1Form({
                 value={form.contactFirstName}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder={t("auth:register.contactFirstNamePlaceholder")}
                 autoComplete="given-name"
               />
@@ -147,7 +147,7 @@ export default function RegisterStep1Form({
                 value={form.contactLastName}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder={t("auth:register.contactLastNamePlaceholder")}
                 autoComplete="family-name"
               />
@@ -166,7 +166,7 @@ export default function RegisterStep1Form({
                 value={form.contactMobilePhone}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder={t("auth:register.contactMobilePhonePlaceholder")}
                 autoComplete="tel"
                 dir="ltr"
@@ -179,7 +179,7 @@ export default function RegisterStep1Form({
                 maxLength={15}
                 value={form.contactLandlinePhone}
                 onChange={onFieldChange}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder={t("auth:register.contactLandlinePhonePlaceholder")}
                 dir="ltr"
               />
@@ -201,8 +201,8 @@ export default function RegisterStep1Form({
               value={form.email}
               onChange={onFieldChange}
               onBlur={onFieldBlur}
-              readOnly={emailPreFilled}
-              className={`${inputCls} ${emailPreFilled ? "cursor-not-allowed opacity-60" : ""}`}
+              readOnly={isEmailPreFilled}
+              className={`${INPUT_CLS} ${isEmailPreFilled ? "cursor-not-allowed opacity-60" : ""}`}
               placeholder={t("auth:register.emailPlaceholder")}
               autoComplete="email"
               dir="ltr"
@@ -217,7 +217,7 @@ export default function RegisterStep1Form({
                 value={form.password}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder="••••••••"
                 autoComplete="new-password"
               />
@@ -230,7 +230,7 @@ export default function RegisterStep1Form({
                 value={form.confirm}
                 onChange={onFieldChange}
                 onBlur={onFieldBlur}
-                className={inputCls}
+                className={INPUT_CLS}
                 placeholder="••••••••"
                 autoComplete="new-password"
               />

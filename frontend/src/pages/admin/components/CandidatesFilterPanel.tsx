@@ -4,7 +4,7 @@ import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
 import Eyebrow from "@/components/ui/Eyebrow";
 
 interface CandidatesFilterPanelProps {
-  filterOpen: boolean;
+  isFilterOpen: boolean;
   companyFilter: number[];
   setCompanyFilter: (next: number[]) => void;
   jobFilter: number[];
@@ -14,7 +14,7 @@ interface CandidatesFilterPanelProps {
 }
 
 export default function CandidatesFilterPanel({
-  filterOpen,
+  isFilterOpen,
   companyFilter,
   setCompanyFilter,
   jobFilter,
@@ -27,13 +27,13 @@ export default function CandidatesFilterPanel({
   return (
     <div
       className={`mb-4 grid transition-[grid-template-rows] duration-300 ease-out ${
-        filterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        isFilterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
       }`}
     >
       <div className="overflow-hidden">
         <div
           className={`grid grid-cols-1 gap-3 rounded-md border border-white/8 bg-card/40 p-4 transition-opacity duration-200 sm:grid-cols-2 ${
-            filterOpen ? "opacity-100 delay-100" : "opacity-0"
+            isFilterOpen ? "opacity-100 delay-100" : "opacity-0"
           }`}
         >
           {/* Company first → in RTL it lands on the visual right */}

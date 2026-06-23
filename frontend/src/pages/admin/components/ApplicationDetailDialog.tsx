@@ -5,7 +5,8 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { type ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
@@ -24,7 +25,7 @@ export default function ApplicationDetailDialog({
   onEditNotes,
   onDelete,
 }: DetailProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   if (!app) return null;
   const c = app.candidate;
   const isWithdrawn = app.status === ApplicationStatus.WITHDRAWN;
@@ -37,16 +38,10 @@ export default function ApplicationDetailDialog({
       size="lg"
       footer={
         <>
-          <Button
-            variant="danger"
-            onClick={onDelete}
-          >
+          <Button variant="danger" onClick={onDelete}>
             {t("admin:applications.deleteAction")}
           </Button>
-          <Button
-            variant="ghost"
-            onClick={onEditNotes}
-          >
+          <Button variant="ghost" onClick={onEditNotes}>
             {t("admin:applications.editNotesAction")}
           </Button>
           {!isWithdrawn && (
@@ -70,7 +65,7 @@ export function ApplicationDetailBody({
   app: ApplicationWithDetails;
   onLeavePage?: () => void;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const navigate = useNavigate();
   const c = app.candidate;
   const linkBtnCls =
@@ -169,9 +164,7 @@ export function ApplicationDetailBody({
 
       {app.admin_notes && (
         <div className="rounded-md border border-white/8 bg-card p-3 text-white/70">
-          <Eyebrow>
-            {t("admin:applications.modal.adminNotes")}
-          </Eyebrow>
+          <Eyebrow>{t("admin:applications.modal.adminNotes")}</Eyebrow>
           <p className="mt-1 whitespace-pre-wrap">{app.admin_notes}</p>
         </div>
       )}

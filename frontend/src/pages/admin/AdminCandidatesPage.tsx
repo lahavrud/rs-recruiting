@@ -21,7 +21,7 @@ import { getApplications } from "@/services/adminApplications";
 import { deleteCandidate, getCandidate, getCandidates } from "@/services/adminCandidates";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/api";
+import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/candidates";
 import { apiErrorKey } from "@/utils/apiError";
 
 import CandidateDetailDialog from "./components/CandidateDetailDialog";
@@ -31,7 +31,7 @@ import CandidatesMobileList from "./components/CandidatesMobileList";
 import CandidatesTable from "./components/CandidatesTable";
 
 export default function AdminCandidatesPage() {
-  const { t } = useTranslation(['admin', 'common', 'md']);
+  const { t } = useTranslation(["admin", "common", "md"]);
   usePageTitle(t("admin:candidates.title"));
   const toast = useToast();
 
@@ -60,13 +60,15 @@ export default function AdminCandidatesPage() {
   // Client-side filters on the loaded candidate set.
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [jobFilter, setJobFilter] = useState<number[]>([]);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
 
   // Cache jobs + companies for the filter selects, and applications for the
   // candidate→job / candidate→company lookup.
-  const [allJobs, setAllJobs] = useState<{ id: number; title: string; company_id: number }[]>([]);
+  const [allJobs, setAllJobs] = useState<
+    { id: number; title: string; company_id: number }[]
+  >([]);
   const [companyNameById, setCompanyNameById] = useState<Map<number, string>>(
     new Map(),
   );
@@ -200,16 +202,16 @@ export default function AdminCandidatesPage() {
             value={query}
             onChange={setQuery}
             placeholder={t("admin:candidates.searchPlaceholder")}
-            clearable
+            isClearable
           />
         </div>
         <button
           type="button"
-          onClick={() => setFilterOpen((o) => !o)}
-          aria-expanded={filterOpen}
+          onClick={() => setIsFilterOpen((o) => !o)}
+          aria-expanded={isFilterOpen}
           aria-label={t("admin:candidates.openFilters")}
           className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-200 active:scale-95 ${
-            filterOpen
+            isFilterOpen
               ? "border-copper/50 bg-copper/10 text-white"
               : "border-white/15 bg-card-raised/40 text-white/75 hover:border-copper/40 hover:text-white"
           }`}
@@ -250,7 +252,7 @@ export default function AdminCandidatesPage() {
       )}
 
       <CandidatesFilterPanel
-        filterOpen={filterOpen}
+        isFilterOpen={isFilterOpen}
         companyFilter={companyFilter}
         setCompanyFilter={setCompanyFilter}
         jobFilter={jobFilter}

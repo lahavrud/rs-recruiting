@@ -8,7 +8,8 @@ import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { resetPassword, validateResetToken } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import { apiErrorKey } from "@/utils/apiError";
 
 import AuthShell from "./components/AuthShell";
 
@@ -21,8 +22,8 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ password: "", confirm: "" });
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [tokenInvalidated, setTokenInvalidated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,19 +75,20 @@ export default function ResetPasswordPage() {
     setFieldErrors(errors);
     if (errors.password || errors.confirm) return;
 
-    setSubmitting(true);
+    setIsSubmitting(true);
     setError(null);
     try {
       await resetPassword(token!, password);
-      setSuccess(true);
+      setIsSuccess(true);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status;
         // 400 here means the token was valid at page-load but expired or got
         // used between then and submit — same UX as a stale link on arrival.
         if (status === 400) setTokenInvalidated(true);
-        else if (status === 429) setError(t("auth:resetPassword.errors.tooManyAttempts"));
-        else if (status === 422) {
+        else if (status === 429) {
+          setError(t(apiErrorKey(err, { 429: "auth:resetPassword.errors.tooManyAttempts" })));
+        } else if (status === 422) {
           const detail = err.response?.data?.detail;
           const errs = Array.isArray(detail) ? detail : [];
           const pwErr = errs.find((e: { loc?: string[] }) =>
@@ -103,7 +105,7 @@ export default function ResetPasswordPage() {
         setError(t("auth:resetPassword.errors.unexpected"));
       }
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -139,7 +141,7 @@ export default function ResetPasswordPage() {
     );
   }
 
-  if (success) {
+  if (isSuccess) {
     return (
       <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
@@ -201,7 +203,7 @@ export default function ResetPasswordPage() {
                   password: validatePassword(e.target.value),
                 }))
               }
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
               autoComplete="new-password"
             />
             {fieldErrors.password && (
@@ -226,7 +228,7 @@ export default function ResetPasswordPage() {
                   confirm: validateConfirm(e.target.value, password),
                 }))
               }
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
               autoComplete="new-password"
             />
             {fieldErrors.confirm && (
@@ -236,10 +238,10 @@ export default function ResetPasswordPage() {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={isSubmitting}
             className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting
+            {isSubmitting
               ? t("auth:resetPassword.submittingText")
               : t("auth:resetPassword.submitText")}
           </button>

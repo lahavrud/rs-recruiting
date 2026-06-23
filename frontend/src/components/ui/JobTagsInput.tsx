@@ -20,8 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 
-import { JOB_TAG_MAX_COUNT, JOB_TAG_MAX_LEN } from "@/types/api";
-
+import { JOB_TAG_MAX_COUNT, JOB_TAG_MAX_LEN } from "@/types/jobs";
 const TAG_EDIT_MIN_CHARS = 4;
 
 interface Props {
@@ -67,7 +66,7 @@ function SortableTag({
   onEdit: (next: string) => void;
 }) {
   const { t } = useTranslation(["common"]);
-  const [editing, setEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(tag);
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -77,7 +76,7 @@ function SortableTag({
     const trimmed = draft.trim();
     if (trimmed && trimmed !== tag) onEdit(trimmed);
     else setDraft(tag);
-    setEditing(false);
+    setIsEditing(false);
   };
 
   return (
@@ -86,17 +85,23 @@ function SortableTag({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`inline-flex items-center rounded-full border text-xs font-medium text-copper ${
         isDragging ? "z-50 opacity-50" : ""
-      } ${editing ? "border-copper/50 bg-copper/18 ps-2 pe-1 py-1" : "border-copper/35 bg-copper/12 ps-0 pe-1 py-0"}`}
+      } ${isEditing ? "border-copper/50 bg-copper/18 ps-2 pe-1 py-1" : "border-copper/35 bg-copper/12 ps-0 pe-1 py-0"}`}
     >
-      {editing ? (
+      {isEditing ? (
         <input
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
-            if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-            if (e.key === "Escape") { setDraft(tag); setEditing(false); }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+            if (e.key === "Escape") {
+              setDraft(tag);
+              setIsEditing(false);
+            }
           }}
           maxLength={JOB_TAG_MAX_LEN}
           className="inline-block bg-transparent text-copper outline-none"
@@ -108,7 +113,10 @@ function SortableTag({
           <span
             {...attributes}
             {...listeners}
-            onClick={() => { setDraft(tag); setEditing(true); }}
+            onClick={() => {
+              setDraft(tag);
+              setIsEditing(true);
+            }}
             title={t("common:editTag")}
             className="cursor-grab select-none px-2 py-1 active:cursor-grabbing"
           >
@@ -148,7 +156,7 @@ function AddTagPill({
   onAdd: (tag: string) => void;
 }) {
   const { t } = useTranslation(["common"]);
-  const [editing, setEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const placeholder = useMemo(() => pickRandom(TAG_PLACEHOLDER_POOL), []);
 
@@ -162,10 +170,10 @@ function AddTagPill({
       onAdd(trimmed);
     }
     setDraft("");
-    setEditing(false);
+    setIsEditing(false);
   };
 
-  if (editing) {
+  if (isEditing) {
     return (
       <span className="inline-flex items-center rounded-full border border-copper/50 bg-copper/15 py-1 px-2.5 text-xs font-medium">
         <input
@@ -174,8 +182,14 @@ function AddTagPill({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); }
-            if (e.key === "Escape") { setDraft(""); setEditing(false); }
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commit();
+            }
+            if (e.key === "Escape") {
+              setDraft("");
+              setIsEditing(false);
+            }
           }}
           maxLength={JOB_TAG_MAX_LEN}
           placeholder={placeholder}
@@ -189,7 +203,7 @@ function AddTagPill({
   return (
     <button
       type="button"
-      onClick={() => setEditing(true)}
+      onClick={() => setIsEditing(true)}
       aria-label={t("common:addTag")}
       className="inline-flex items-center gap-1 rounded-full border border-dashed border-copper/40 py-1 px-2 text-xs font-medium text-copper/70 transition hover:border-copper/65 hover:text-copper"
     >
@@ -217,34 +231,44 @@ export default function JobTagsInput({ value, onChange, error }: Props) {
   // values; two useSortable({ id: tag }) calls with the same string corrupt the
   // internal hit map and make drops silently no-op or reorder the wrong item.
   const uniqValue = useMemo(
-    () => value.filter((tag, i, arr) => arr.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) === i),
+    () =>
+      value.filter(
+        (tag, i, arr) =>
+          arr.findIndex((t) => t.toLowerCase() === tag.toLowerCase()) === i,
+      ),
     [value],
   );
   useEffect(() => {
     if (uniqValue.length !== value.length) onChange(uniqValue);
-  // onChange is a stable prop; value is the real trigger — uniqValue derives from it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // onChange is a stable prop; value is the real trigger — uniqValue derives from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const canAdd = uniqValue.length < JOB_TAG_MAX_COUNT;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: TOUCH_DELAY_MS, tolerance: TOUCH_TOLERANCE_PX } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: TOUCH_DELAY_MS, tolerance: TOUCH_TOLERANCE_PX },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const handleDragEnd = useCallback(({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return;
-    const oldIndex = uniqValue.indexOf(active.id as string);
-    const newIndex = uniqValue.indexOf(over.id as string);
-    if (oldIndex === -1 || newIndex === -1) return;
-    onChange(arrayMove(uniqValue, oldIndex, newIndex));
-  }, [uniqValue, onChange]);
+  const handleDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (!over || active.id === over.id) return;
+      const oldIndex = uniqValue.indexOf(active.id as string);
+      const newIndex = uniqValue.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+      onChange(arrayMove(uniqValue, oldIndex, newIndex));
+    },
+    [uniqValue, onChange],
+  );
 
   const remove = (tag: string) => onChange(uniqValue.filter((t) => t !== tag));
   const edit = (oldTag: string, newTag: string) => {
-    if (uniqValue.some((t) => t.toLowerCase() === newTag.toLowerCase() && t !== oldTag)) return;
+    if (uniqValue.some((t) => t.toLowerCase() === newTag.toLowerCase() && t !== oldTag))
+      return;
     onChange(uniqValue.map((t) => (t === oldTag ? newTag : t)));
   };
 

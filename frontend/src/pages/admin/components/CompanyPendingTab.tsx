@@ -24,14 +24,15 @@ import {
   getPendingCompanies,
   rejectCompany,
 } from "@/services/adminCompanies";
-import type { CompanyProfileRead, PendingCompanyRead } from "@/types/api";
+import type { CompanyProfileRead } from "@/types/auth";
+import type { PendingCompanyRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
 import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";
 
 
 export default function CompanyPendingTab({ query }: { query: string }) {
-  const { t } = useTranslation(['admin', 'md']);
+  const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
 
   const fetcher = useCallback(
@@ -66,7 +67,7 @@ export default function CompanyPendingTab({ query }: { query: string }) {
   }, [companies, query]);
 
   const [rejectPending, setRejectPending] = useState<PendingCompanyRead | null>(null);
-  const [pendingMutation, setPendingMutation] = useState(false);
+  const [isPendingMutation, setIsPendingMutation] = useState(false);
   const [detail, setDetail] = useState<CompanyProfileRead | null>(null);
   const [approvingId, setApprovingId] = useState<number | null>(null);
   // Optimistic set: IDs approved this session before the list reloads.
@@ -87,7 +88,11 @@ export default function CompanyPendingTab({ query }: { query: string }) {
       await approveCompany(row.user.id);
       setApprovedIds((prev) => new Set(prev).add(row.user.id));
       toast.success(
-        t(alreadySent ? "admin:companies.resendApprovalToast" : "admin:companies.approvedToast"),
+        t(
+          alreadySent
+            ? "admin:companies.resendApprovalToast"
+            : "admin:companies.approvedToast",
+        ),
       );
     } catch {
       toast.error(t("admin:companies.approveError"));
@@ -99,7 +104,7 @@ export default function CompanyPendingTab({ query }: { query: string }) {
 
   async function handleRejectConfirm() {
     if (!rejectPending) return;
-    setPendingMutation(true);
+    setIsPendingMutation(true);
     try {
       await rejectCompany(rejectPending.user.id);
       removeItem((c) => c.user.id === rejectPending.user.id);
@@ -108,7 +113,7 @@ export default function CompanyPendingTab({ query }: { query: string }) {
     } catch {
       toast.error(t("admin:companies.rejectError"));
     } finally {
-      setPendingMutation(false);
+      setIsPendingMutation(false);
     }
   }
 
@@ -254,7 +259,10 @@ export default function CompanyPendingTab({ query }: { query: string }) {
             ))}
           </div>
 
-          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+          <InfiniteScrollFooter
+            sentinelRef={sentinelRef}
+            isFetchingMore={isFetchingMore}
+          />
         </>
       )}
 
@@ -262,7 +270,7 @@ export default function CompanyPendingTab({ query }: { query: string }) {
         profile={detail}
         onClose={() => setDetail(null)}
         onEdit={() => setDetail(null)}
-        hideEditButton
+        isEditButtonHidden
       />
 
       <ConfirmDialog
@@ -272,7 +280,7 @@ export default function CompanyPendingTab({ query }: { query: string }) {
         message={t("admin:companies.rejectConfirm")}
         confirmLabel={t("admin:companies.rejectAction")}
         variant="danger"
-        isPending={pendingMutation}
+        isPending={isPendingMutation}
         onConfirm={handleRejectConfirm}
       />
     </>

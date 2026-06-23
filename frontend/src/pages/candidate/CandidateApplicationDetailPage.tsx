@@ -18,7 +18,7 @@ import {
   type CandidateApplicationDetail,
   type CandidateApplicationMyAnswers,
 } from "@/services/candidate";
-import { textareaCls } from "@/styles/forms";
+import { TEXTAREA_CLS } from "@/styles/forms";
 
 export default function CandidateApplicationDetailPage() {
   const { t } = useTranslation('candidate');
@@ -403,7 +403,7 @@ function EditField({
     <div>
       <label className="block text-xs uppercase tracking-wide text-white/50">{label}</label>
       <textarea
-        className={`${textareaCls} mt-1`}
+        className={`${TEXTAREA_CLS} mt-1`}
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}

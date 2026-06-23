@@ -13,10 +13,10 @@ interface FieldErrors {
 }
 
 interface Props {
-  termsAccepted: boolean;
-  privacyAccepted: boolean;
+  isTermsAccepted: boolean;
+  isPrivacyAccepted: boolean;
   fieldErrors: FieldErrors;
-  submitting: boolean;
+  isSubmitting: boolean;
   sigCanvasRef: RefObject<SignatureCanvasRef | null>;
   onTermsChange: (accepted: boolean) => void;
   onPrivacyChange: (accepted: boolean) => void;
@@ -29,10 +29,10 @@ interface Props {
 }
 
 export default function RegisterStep2Form({
-  termsAccepted,
-  privacyAccepted,
+  isTermsAccepted,
+  isPrivacyAccepted,
   fieldErrors,
-  submitting,
+  isSubmitting,
   sigCanvasRef,
   onTermsChange,
   onPrivacyChange,
@@ -94,7 +94,7 @@ export default function RegisterStep2Form({
             <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-white/60">
               <input
                 type="checkbox"
-                checked={termsAccepted}
+                checked={isTermsAccepted}
                 onChange={(e) => onTermsChange(e.target.checked)}
                 className="accent-copper"
               />
@@ -127,7 +127,7 @@ export default function RegisterStep2Form({
             <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm text-white/60">
               <input
                 type="checkbox"
-                checked={privacyAccepted}
+                checked={isPrivacyAccepted}
                 onChange={(e) => onPrivacyChange(e.target.checked)}
                 className="accent-copper"
               />
@@ -167,11 +167,11 @@ export default function RegisterStep2Form({
           </Button>
           <Button
             type="submit"
-            disabled={submitting}
+            disabled={isSubmitting}
             size="lg"
             className="flex-[2]"
           >
-            {submitting ? t("auth:register.submittingText") : t("auth:register.submitText")}
+            {isSubmitting ? t("auth:register.submittingText") : t("auth:register.submitText")}
           </Button>
         </div>
       </div>

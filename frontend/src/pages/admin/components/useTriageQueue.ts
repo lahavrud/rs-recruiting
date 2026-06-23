@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getApplications } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
-import {
-  ApplicationStatus,
-  type ApplicationWithDetails,
-} from "@/types/api";
+import type { ApplicationWithDetails } from "@/types/candidates";
+import { ApplicationStatus } from "@/types/enums";
 
 /**
  * One candidate ready for triage — `ApplicationWithDetails` plus the resolved
@@ -51,10 +49,7 @@ export function useTriageQueue() {
       // We need the full list, so iterate cursor pages serially.
       // Companies can be fetched in parallel with the first apps page.
       const [firstAppsPage, companiesPage] = await Promise.all([
-        getApplications(
-          { status: ApplicationStatus.NEW, limit: PAGE_SIZE },
-          signal,
-        ),
+        getApplications({ status: ApplicationStatus.NEW, limit: PAGE_SIZE }, signal),
         getActiveCompanies({ limit: PAGE_SIZE }, signal),
       ]);
 

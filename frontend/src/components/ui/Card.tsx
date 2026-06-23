@@ -4,7 +4,7 @@ interface CardProps {
   children: ReactNode;
   className?: string;
   padding?: "sm" | "md" | "lg";
-  hover?: boolean;
+  isHoverable?: boolean;
 }
 
 const paddingCls = {
@@ -17,12 +17,12 @@ export default function Card({
   children,
   className = "",
   padding = "md",
-  hover = false,
+  isHoverable = false,
 }: CardProps) {
   return (
     <div
       className={`rounded-xl border border-line bg-surface shadow-sm ${paddingCls[padding]} ${
-        hover ? "transition hover:border-copper/30 hover:shadow-md" : ""
+        isHoverable ? "transition hover:border-copper/30 hover:shadow-md" : ""
       } ${className}`}
     >
       {children}

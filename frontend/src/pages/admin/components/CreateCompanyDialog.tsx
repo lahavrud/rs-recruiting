@@ -9,7 +9,7 @@ import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { useToast } from "@/hooks/useToast";
 import { adminCreateCompany } from "@/services/adminCompanies";
-import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/api";
+import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/auth";
 import { focusFirstError } from "@/utils/focusFirstError";
 import {
   COMPANY_PROFILE_FIELD_ORDER,
@@ -25,14 +25,14 @@ interface CreateProps {
 }
 
 export default function CreateCompanyDialog({ open, onClose, onCreated }: CreateProps) {
-  const { t } = useTranslation(['active', 'admin', 'common']);
+  const { t } = useTranslation(["active", "admin", "common"]);
   const toast = useToast();
   const [form, setForm] = useState<Partial<CompanyProfileAdminCreate>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [confirmCreateOpen, setConfirmCreateOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isConfirmCreateOpen, setIsConfirmCreateOpen] = useState(false);
 
-  const isDirty = !saving && Object.values(form).some((v) => v != null && v !== "");
+  const isDirty = !isSaving && Object.values(form).some((v) => v != null && v !== "");
   const { handleClose: requestClose, discardConfirm } = useConfirmableClose({
     isDirty,
     onClose,
@@ -41,7 +41,7 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
   useResetOnTrigger(open, () => {
     setForm({});
     setErrors({});
-    setConfirmCreateOpen(false);
+    setIsConfirmCreateOpen(false);
   });
 
   function set<K extends keyof CompanyProfileAdminCreate>(
@@ -71,12 +71,12 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
 
   function requestSave() {
     if (!validate()) return;
-    setConfirmCreateOpen(true);
+    setIsConfirmCreateOpen(true);
   }
 
   async function executeSave() {
-    setConfirmCreateOpen(false);
-    setSaving(true);
+    setIsConfirmCreateOpen(false);
+    setIsSaving(true);
     try {
       const created = await adminCreateCompany({
         name: form.name!,
@@ -93,7 +93,7 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
     } catch {
       toast.error(t("admin:companies.errors.createFailed"));
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   }
 
@@ -103,25 +103,19 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
     <>
       <Dialog
         open={open}
-        onOpenChange={(o) => { if (!o) requestClose(); }}
+        onOpenChange={(o) => {
+          if (!o) requestClose();
+        }}
         title={t("admin:companies.newCompanyModalTitle")}
         description={t("admin:companies.newCompanyModalDescription")}
         size="lg"
         footer={
           <>
-            <Button
-              variant="ghost"
-              onClick={requestClose}
-              disabled={saving}
-            >
+            <Button variant="ghost" onClick={requestClose} disabled={isSaving}>
               {t("common:cancel")}
             </Button>
-            <Button
-              onClick={requestSave}
-              disabled={saving}
-              className="active:scale-95"
-            >
-              {saving ? t("common:saving") : t("admin:companies.createSubmit")}
+            <Button onClick={requestSave} disabled={isSaving} className="active:scale-95">
+              {isSaving ? t("common:saving") : t("admin:companies.createSubmit")}
             </Button>
           </>
         }
@@ -135,7 +129,7 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
             )
           }
           errors={errors}
-          showRequired
+          isRequiredVisible
         />
         {hasErrors && (
           <p className="mt-3 text-xs text-danger">
@@ -144,8 +138,8 @@ export default function CreateCompanyDialog({ open, onClose, onCreated }: Create
         )}
       </Dialog>
       <ConfirmDialog
-        open={confirmCreateOpen}
-        onOpenChange={(o) => !o && setConfirmCreateOpen(false)}
+        open={isConfirmCreateOpen}
+        onOpenChange={(o) => !o && setIsConfirmCreateOpen(false)}
         title={t("admin:companies.createConfirmTitle")}
         message={t("admin:companies.createConfirmMessage", { name: form.name })}
         confirmLabel={t("admin:companies.createSubmit")}

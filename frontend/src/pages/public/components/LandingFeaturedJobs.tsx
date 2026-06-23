@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { formatSalary } from "@/utils/salary";
 
 import LandingEyebrow from "./LandingEyebrow";
@@ -23,12 +23,12 @@ const DRAG_THRESHOLD_PX = 60;
 const SHUFFLE_S = 0.55;
 
 /** Resting transform for a card sitting `depth` cards behind the front. */
-function stackPose(depth: number, hidden: boolean) {
+function stackPose(depth: number, isHidden: boolean) {
   return {
     x: depth * -14,
     y: depth * -18,
     scale: 1 - depth * 0.05,
-    opacity: hidden ? 0 : 1 - depth * 0.28,
+    opacity: isHidden ? 0 : 1 - depth * 0.28,
   };
 }
 
@@ -93,13 +93,13 @@ function JobCard({ job, order }: { job: JobPublicRead; order: number }) {
    card dissolves back into the stack while the next one settles forward. */
 export default function LandingFeaturedJobs({
   jobs,
-  loading,
+  isLoading,
 }: {
   jobs: JobPublicRead[];
-  loading: boolean;
+  isLoading: boolean;
 }) {
   const { t } = useTranslation(["landing"]);
-  const reduceMotion = useReducedMotion();
+  const shouldReduceMotion = useReducedMotion();
 
   const featuredJobs = useMemo(
     () => jobs.filter((j) => j.is_featured).slice(0, MAX_CARDS),
@@ -108,7 +108,7 @@ export default function LandingFeaturedJobs({
   const count = featuredJobs.length;
 
   const [index, setIndex] = useState(0);
-  const [hovering, setHovering] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
   // Swallows the click that follows a drag so the card doesn't navigate.
   const draggedRef = useRef(false);
 
@@ -116,21 +116,21 @@ export default function LandingFeaturedJobs({
   const prev = () => setIndex((i) => (i - 1 + count) % count);
 
   useEffect(() => {
-    if (reduceMotion || hovering || count < 2) return;
+    if (shouldReduceMotion || isHovering || count < 2) return;
     const id = setInterval(() => {
       setIndex((i) => (i + 1) % count);
     }, AUTO_ADVANCE_MS);
     return () => clearInterval(id);
     // `index` restarts the timer after manual navigation.
-  }, [reduceMotion, hovering, count, index]);
+  }, [shouldReduceMotion, isHovering, count, index]);
 
-  if (loading || count === 0) return null;
+  if (isLoading || count === 0) return null;
 
   return (
     <section className="border-y border-white/6 bg-section py-24 sm:py-32">
       <motion.div
         variants={staggerContainer}
-        initial={reduceMotion ? false : "hidden"}
+        initial={shouldReduceMotion ? false : "hidden"}
         whileInView="visible"
         viewport={VIEWPORT_ONCE}
         className="mx-auto grid max-w-7xl items-center gap-16 px-6 sm:px-12 lg:grid-cols-2 lg:gap-20"
@@ -200,13 +200,13 @@ export default function LandingFeaturedJobs({
         <motion.div
           variants={fadeRise}
           className="relative h-[26rem] sm:h-[27rem]"
-          onPointerEnter={() => setHovering(true)}
-          onPointerLeave={() => setHovering(false)}
+          onPointerEnter={() => setIsHovering(true)}
+          onPointerLeave={() => setIsHovering(false)}
         >
           {featuredJobs.map((job, i) => {
             const depth = (i - index + count) % count;
             const isFront = depth === 0;
-            const hidden = depth >= MAX_VISIBLE_DEPTH;
+            const isHidden = depth >= MAX_VISIBLE_DEPTH;
 
             return (
               <motion.div
@@ -216,8 +216,8 @@ export default function LandingFeaturedJobs({
                   zIndex: count - depth,
                   pointerEvents: isFront ? "auto" : "none",
                 }}
-                animate={stackPose(depth, hidden)}
-                transition={{ duration: reduceMotion ? 0 : SHUFFLE_S, ease: EASE_OUT }}
+                animate={stackPose(depth, isHidden)}
+                transition={{ duration: shouldReduceMotion ? 0 : SHUFFLE_S, ease: EASE_OUT }}
                 drag={isFront && count > 1 ? "x" : false}
                 dragConstraints={{ left: 0, right: 0 }}
                 dragElastic={0.4}

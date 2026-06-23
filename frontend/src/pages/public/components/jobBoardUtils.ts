@@ -1,5 +1,5 @@
-import type { JobPublicRead } from "@/types/api";
-import { SALARY_FALLBACK } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
+import { SALARY_FALLBACK } from "@/types/jobs";
 
 export const SALARY_STEP = 500;
 

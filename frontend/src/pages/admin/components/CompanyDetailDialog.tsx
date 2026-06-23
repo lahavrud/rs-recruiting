@@ -8,42 +8,40 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { getJobs } from "@/services/adminJobs";
-import type { CompanyProfileRead, JobRead } from "@/types/api";
-
+import type { CompanyProfileRead } from "@/types/auth";
+import type { JobRead } from "@/types/jobs";
 interface DetailProps {
   profile: CompanyProfileRead | null;
   onClose: () => void;
   onEdit: () => void;
   /** Pending tab shows the same body but hides the Edit CTA. */
-  hideEditButton?: boolean;
+  isEditButtonHidden?: boolean;
 }
 
 export default function CompanyDetailDialog({
   profile,
   onClose,
   onEdit,
-  hideEditButton = false,
+  isEditButtonHidden = false,
 }: DetailProps) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const [jobs, setJobs] = useState<JobRead[] | null>(null);
-  const [jobsError, setJobsError] = useState(false);
+  const [hasJobsError, setHasJobsError] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
     const ctrl = new AbortController();
     /* eslint-disable react-hooks/set-state-in-effect */
     setJobs(null);
-    setJobsError(false);
+    setHasJobsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     // No backend ?company_id= filter on /admin/jobs yet; fetch first page and
     // filter client-side. Adequate while companies have ~5 jobs each.
     getJobs({ limit: 100 }, ctrl.signal)
-      .then((page) =>
-        setJobs(page.items.filter((j) => j.company_id === profile.id)),
-      )
+      .then((page) => setJobs(page.items.filter((j) => j.company_id === profile.id)))
       .catch((e) => {
         if (axios.isCancel(e)) return;
-        setJobsError(true);
+        setHasJobsError(true);
       });
     return () => ctrl.abort();
   }, [profile]);
@@ -58,16 +56,17 @@ export default function CompanyDetailDialog({
       description={t("admin:companies.detailDescription")}
       size="lg"
       footer={
-        hideEditButton ? undefined : (
-          <Button
-            onClick={onEdit}
-          >
-            {t("admin:companies.editAction")}
-          </Button>
+        isEditButtonHidden ? undefined : (
+          <Button onClick={onEdit}>{t("admin:companies.editAction")}</Button>
         )
       }
     >
-      <CompanyDetailBody profile={profile} jobs={jobs} jobsError={jobsError} onLeavePage={onClose} />
+      <CompanyDetailBody
+        profile={profile}
+        jobs={jobs}
+        hasJobsError={hasJobsError}
+        onLeavePage={onClose}
+      />
     </Dialog>
   );
 }
@@ -79,18 +78,18 @@ export default function CompanyDetailDialog({
 export function CompanyDetailBody({
   profile,
   jobs: jobsProp,
-  jobsError: jobsErrorProp,
+  hasJobsError: hasJobsErrorProp,
   onLeavePage,
 }: {
   profile: CompanyProfileRead;
   jobs?: JobRead[] | null;
-  jobsError?: boolean;
+  hasJobsError?: boolean;
   onLeavePage?: () => void;
 }) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const navigate = useNavigate();
   const [localJobs, setLocalJobs] = useState<JobRead[] | null>(null);
-  const [localJobsError, setLocalJobsError] = useState(false);
+  const [hasLocalJobsError, setHasLocalJobsError] = useState(false);
   // Self-fetch the jobs list when the parent didn't provide one (mobile inline).
   const useLocal = jobsProp === undefined;
   useEffect(() => {
@@ -98,7 +97,7 @@ export function CompanyDetailBody({
     const ctrl = new AbortController();
     /* eslint-disable react-hooks/set-state-in-effect */
     setLocalJobs(null);
-    setLocalJobsError(false);
+    setHasLocalJobsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     getJobs({ limit: 100 }, ctrl.signal)
       .then((page) =>
@@ -106,12 +105,12 @@ export function CompanyDetailBody({
       )
       .catch((e) => {
         if (axios.isCancel(e)) return;
-        setLocalJobsError(true);
+        setHasLocalJobsError(true);
       });
     return () => ctrl.abort();
   }, [profile.id, useLocal]);
   const jobs = useLocal ? localJobs : jobsProp;
-  const jobsError = useLocal ? localJobsError : (jobsErrorProp ?? false);
+  const hasJobsError = useLocal ? hasLocalJobsError : (hasJobsErrorProp ?? false);
   return (
     <div className="space-y-4 text-sm">
       <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
@@ -171,10 +170,8 @@ export function CompanyDetailBody({
       </dl>
 
       <div className="border-t border-white/8 pt-4">
-        <Eyebrow>
-          {t("admin:companies.jobsSection")}
-        </Eyebrow>
-        {jobsError ? (
+        <Eyebrow>{t("admin:companies.jobsSection")}</Eyebrow>
+        {hasJobsError ? (
           <p className="mt-3 text-xs text-danger">
             {t("admin:companies.errors.jobsLoadFailed")}
           </p>

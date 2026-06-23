@@ -17,20 +17,20 @@ import type { TriageItem } from "./useTriageQueue";
  * current candidate and its prev/next siblings simultaneously so the slide
  * animation shows real content sliding in.
  *
- * `active=false` makes the card visually present but interaction-inert: no
+ * `isActive=false` makes the card visually present but interaction-inert: no
  * tabstops, disabled buttons, links without hrefs. This prevents tab-focus
  * from leaking into off-screen cards.
  */
 export function CandidateCard({
   app,
   decision,
-  active,
+  isActive,
   onOpenResume,
   onUndoDecision,
 }: {
   app: TriageItem;
   decision: Decision | null;
-  active: boolean;
+  isActive: boolean;
   onOpenResume: () => void;
   onUndoDecision: () => void;
 }) {
@@ -39,7 +39,7 @@ export function CandidateCard({
   return (
     <div
       className="h-full w-full shrink-0 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8"
-      aria-hidden={!active}
+      aria-hidden={!isActive}
     >
       <div className="mx-auto w-full max-w-2xl space-y-8">
         {decision && (
@@ -67,26 +67,26 @@ export function CandidateCard({
 
             <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <a
-                href={active ? `mailto:${app.candidate.email}` : undefined}
+                href={isActive ? `mailto:${app.candidate.email}` : undefined}
                 className="text-white/65 hover:text-copper"
-                tabIndex={active ? 0 : -1}
+                tabIndex={isActive ? 0 : -1}
               >
                 {app.candidate.email}
               </a>
               <a
-                href={active ? `tel:${app.candidate.phone}` : undefined}
+                href={isActive ? `tel:${app.candidate.phone}` : undefined}
                 className="text-white/65 hover:text-copper"
-                tabIndex={active ? 0 : -1}
+                tabIndex={isActive ? 0 : -1}
               >
                 {app.candidate.phone}
               </a>
               {app.candidate.linkedin_url && (
                 <a
-                  href={active ? sanitizeLinkedInUrl(app.candidate.linkedin_url) : undefined}
+                  href={isActive ? sanitizeLinkedInUrl(app.candidate.linkedin_url) : undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-copper hover:text-gold"
-                  tabIndex={active ? 0 : -1}
+                  tabIndex={isActive ? 0 : -1}
                 >
                   LinkedIn ↗
                 </a>
@@ -99,9 +99,9 @@ export function CandidateCard({
               <button
                 type="button"
                 onClick={onOpenResume}
-                disabled={!active}
+                disabled={!isActive}
                 className="inline-flex items-center gap-2 rounded-sm border border-white/10 bg-card/40 px-4 py-2 text-sm text-white/75 transition hover:border-copper/40 hover:bg-card/70 hover:text-white disabled:cursor-default disabled:opacity-60"
-                tabIndex={active ? 0 : -1}
+                tabIndex={isActive ? 0 : -1}
               >
                 <IconDocument />
                 <span>{t("admin:applications.triage.openResume")}</span>
