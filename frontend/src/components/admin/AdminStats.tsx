@@ -101,27 +101,23 @@ export default function AdminStats() {
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
         <ApplicationStatusBar counts={statusBreakdown} />
-        <TopJobsList jobs={topJobs} loading={appCache.length === 0} />
+        <TopJobsList jobs={topJobs} isLoading={appCache.length === 0} />
       </div>
     </div>
   );
 }
 
 function KpiCard({ label, stat }: { label: string; stat: Stat }) {
-  const loading = stat == null;
-  const empty = !loading && stat!.n === 0;
-  const display = loading
-    ? "—"
-    : stat!.capped
-      ? `${stat!.n}+`
-      : stat!.n;
+  const isLoading = stat == null;
+  const isEmpty = !isLoading && stat.n === 0;
+  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
   return (
     <div className="group rounded-xl border border-white/8 bg-card p-4 transition hover:border-copper/30 hover:bg-card-raised">
       <p
         className={`text-3xl font-semibold leading-none transition ${
-          loading
+          isLoading
             ? "text-white/25"
-            : empty
+            : isEmpty
               ? "text-white/45"
               : "text-white/95 group-hover:text-copper/95"
         }`}

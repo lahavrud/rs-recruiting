@@ -141,9 +141,10 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
                   </DropdownMenuItem>
                   {row.user?.email && (
                     <DropdownMenuItem
-                      onSelect={() =>
-                        window.open(`mailto:${row.user!.email}`, "_self")
-                      }
+                      onSelect={() => {
+                        const email = row.user?.email;
+                        if (email) window.open(`mailto:${email}`, "_self");
+                      }}
                     >
                       {t("admin:companies.emailAction")}
                     </DropdownMenuItem>
@@ -233,9 +234,10 @@ export default function CompanyActiveTab({ query, externalDetail, onExternalDeta
                         </DropdownMenuItem>
                         {row.user?.email && (
                           <DropdownMenuItem
-                            onSelect={() =>
-                              window.open(`mailto:${row.user!.email}`, "_self")
-                            }
+                            onSelect={() => {
+                              const email = row.user?.email;
+                              if (email) window.open(`mailto:${email}`, "_self");
+                            }}
                           >
                             {t("admin:companies.emailAction")}
                           </DropdownMenuItem>

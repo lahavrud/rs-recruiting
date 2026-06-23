@@ -17,9 +17,8 @@ import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe as getCandidateMe, type CandidateMeRead } from "@/services/candidate";
 import { getPublicJob, submitApplication } from "@/services/jobs";
 import { errorAlertBaseCls } from "@/styles/forms";
-import type { CandidateApplicationForm } from "@/types/candidates";
-import type { JobPublicRead } from "@/types/jobs";
-import { UserRole } from "@/types/enums";
+import type { CandidateApplicationForm, JobPublicRead } from "@/types/api";
+import { UserRole } from "@/types/api";
 import { trackEvent } from "@/utils/analytics";
 import {
   RESUME_ALLOWED_EXTENSIONS,
@@ -79,13 +78,16 @@ export default function ApplicationPage() {
   // backend ignores the form field, and we hide consent + the claim toggle
   // since consent was captured at activation (Sprint 11 / #605, #606).
   const isLoggedInCandidate = user?.role === UserRole.CANDIDATE;
+  const loggedInCandidateEmail = isLoggedInCandidate ? user.email : null;
 
   const [form, setForm] = useState<Omit<CandidateApplicationForm, "job_id">>(() =>
-    isLoggedInCandidate ? { ...EMPTY_FORM, email: user!.email } : EMPTY_FORM,
+    loggedInCandidateEmail !== null
+      ? { ...EMPTY_FORM, email: loggedInCandidateEmail }
+      : EMPTY_FORM,
   );
   // Anonymous-only claim toggle: when checked we send password +
   // password_confirm with the apply submission.
-  const [claimAccount, setClaimAccount] = useState(false);
+  const [isClaimingAccount, setIsClaimingAccount] = useState(false);
   const [claimPassword, setClaimPassword] = useState("");
   const [claimPasswordConfirm, setClaimPasswordConfirm] = useState("");
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -98,17 +100,17 @@ export default function ApplicationPage() {
   const [savedResumeFilename, setSavedResumeFilename] = useState<string | null>(
     null,
   );
-  const [profilePrefilled, setProfilePrefilled] = useState(false);
+  const [isProfilePrefilled, setIsProfilePrefilled] = useState(false);
 
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [termsOpen, setTermsOpen] = useState(false);
+  const [isPrivacyAccepted, setIsPrivacyAccepted] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isTermsAccepted, setIsTermsAccepted] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
 
   // Wizard state — track current step + the highest step reached so the
   // stepper only lets candidates jump back to steps they've completed.
@@ -159,13 +161,13 @@ export default function ApplicationPage() {
     // Consent only validated on the anonymous path — logged-in candidates
     // already accepted at activation time (Sprint 11 / #605).
     if (!isLoggedInCandidate) {
-      if (!privacyAccepted) {
+      if (!isPrivacyAccepted) {
         errors.privacy = t("publicJobs:application.validation.privacyRequired");
         ok = false;
       } else {
         delete errors.privacy;
       }
-      if (!termsAccepted) {
+      if (!isTermsAccepted) {
         errors.terms = t("publicJobs:application.validation.termsRequired");
         ok = false;
       } else {
@@ -195,11 +197,11 @@ export default function ApplicationPage() {
 
   // Lock body scroll when any legal modal is open
   useEffect(() => {
-    document.body.style.overflow = privacyOpen || termsOpen ? "hidden" : "";
+    document.body.style.overflow = isPrivacyOpen || isTermsOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [privacyOpen, termsOpen]);
+  }, [isPrivacyOpen, isTermsOpen]);
 
   // ── Job fetch ───────────────────────────────────────────────────────────
 
@@ -207,7 +209,7 @@ export default function ApplicationPage() {
     if (!Number.isFinite(jobId)) navigate("/jobs", { replace: true });
   }, [jobId, navigate]);
 
-  const { data: job, loading: jobLoading, error: jobFetchError } = useFetch<
+  const { data: job, loading: isJobLoading, error: jobFetchError } = useFetch<
     JobPublicRead | null
   >(async () => {
     if (!Number.isFinite(jobId)) return null;
@@ -223,7 +225,7 @@ export default function ApplicationPage() {
   // Logged-in candidate: prefill identity + autofill fields from
   // /api/candidate/me so they don't retype data they already gave us. If
   // the profile already has a resume_path, expose the "use saved resume"
-  // affordance — submitting without a new file lets the backend reuse the
+  // affordance — isSubmitting without a new file lets the backend reuse the
   // existing snapshot (PR B / backend resume_required fallback). Failure is
   // non-fatal — the form still works without prefill — so the fetch
   // swallows its own error and resolves `null`.
@@ -247,7 +249,7 @@ export default function ApplicationPage() {
     if (candidateMe!.resume_path) {
       setSavedResumeFilename(candidateMe!.resume_path.split("/").pop() ?? "resume");
     }
-    setProfilePrefilled(true);
+    setIsProfilePrefilled(true);
   });
 
   useEffect(() => {
@@ -347,7 +349,7 @@ export default function ApplicationPage() {
 
   async function doFinalSubmit() {
     if (!Number.isFinite(jobId)) return;
-    // Hard guard — submitting from anywhere other than the final step is a
+    // Hard guard — isSubmitting from anywhere other than the final step is a
     // bug. Bail out instead of POSTing a half-filled application.
     if (step !== TOTAL_STEPS) return;
     // Re-validate everything before final submit.
@@ -363,7 +365,7 @@ export default function ApplicationPage() {
 
     // Client-side guard for the claim password fields before the multipart
     // submission. The backend re-validates on the same source-of-truth.
-    if (!isLoggedInCandidate && claimAccount) {
+    if (!isLoggedInCandidate && isClaimingAccount) {
       if (claimPassword !== claimPasswordConfirm) {
         setClaimError(t("publicJobs:application.validation.passwordMismatch"));
         return;
@@ -376,18 +378,18 @@ export default function ApplicationPage() {
       setClaimError(null);
     }
 
-    setSubmitting(true);
+    setIsSubmitting(true);
     setSubmitError(null);
 
     try {
       await submitApplication(jobId, form, resumeFile, {
         password:
-          !isLoggedInCandidate && claimAccount && claimPassword
+          !isLoggedInCandidate && isClaimingAccount && claimPassword
             ? claimPassword
             : null,
       });
       trackEvent("apply_submit", { job_id: jobId, job_title: job?.title ?? "" });
-      setSuccess(true);
+      setIsSuccess(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       // 409 already_applied_editable carries an application_id — redirect
@@ -408,18 +410,18 @@ export default function ApplicationPage() {
       }
       setSubmitError(describeServerError(t, err));
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
   // ── Early returns ───────────────────────────────────────────────────────
 
-  if (jobLoading || jobError) {
-    return <ApplicationStatus loading={jobLoading} error={jobError} />;
+  if (isJobLoading || jobError) {
+    return <ApplicationStatus isLoading={isJobLoading} error={jobError} />;
   }
 
-  if (success) {
-    return <SuccessScreen job={job} claimAccount={claimAccount} />;
+  if (isSuccess) {
+    return <SuccessScreen job={job} isClaimingAccount={isClaimingAccount} />;
   }
 
   // ── Main render ─────────────────────────────────────────────────────────
@@ -452,13 +454,13 @@ export default function ApplicationPage() {
       <Stepper step={step} maxStep={maxStep} onJump={jumpTo} />
 
       <form id="apply-form" onSubmit={handleFormSubmit} className="mt-8 space-y-6" noValidate>
-        {isLoggedInCandidate && profilePrefilled && (
+        {isLoggedInCandidate && isProfilePrefilled && (
           <div className="flex items-center gap-2 rounded-lg border border-copper/20 bg-copper/5 px-3 py-2 text-xs text-white/70">
             <span className="rounded-sm bg-copper/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-copper">
               {t("publicJobs:application.prefilledTag")}
             </span>
             <span className="truncate">
-              {t("publicJobs:application.prefilledHint", { email: user!.email })}
+              {t("publicJobs:application.prefilledHint", { email: loggedInCandidateEmail })}
             </span>
           </div>
         )}
@@ -480,7 +482,7 @@ export default function ApplicationPage() {
               fieldErrors={fieldErrors}
               onChange={handleChange}
               onBlur={handleBlur}
-              emailReadOnly={isLoggedInCandidate}
+              isEmailReadOnly={isLoggedInCandidate}
             />
           )}
           {step === 2 && (
@@ -501,18 +503,18 @@ export default function ApplicationPage() {
                 fieldErrors={fieldErrors}
                 onChange={handleChange}
                 onBlur={handleBlur}
-                privacyAccepted={privacyAccepted}
-                onPrivacyChange={setPrivacyAccepted}
-                onPrivacyOpen={() => setPrivacyOpen(true)}
-                termsAccepted={termsAccepted}
-                onTermsChange={setTermsAccepted}
-                onTermsOpen={() => setTermsOpen(true)}
-                hideConsent={isLoggedInCandidate}
+                isPrivacyAccepted={isPrivacyAccepted}
+                onPrivacyChange={setIsPrivacyAccepted}
+                onPrivacyOpen={() => setIsPrivacyOpen(true)}
+                isTermsAccepted={isTermsAccepted}
+                onTermsChange={setIsTermsAccepted}
+                onTermsOpen={() => setIsTermsOpen(true)}
+                isConsentHidden={isLoggedInCandidate}
               />
               {!isLoggedInCandidate && (
                 <ClaimAccountSection
-                  enabled={claimAccount}
-                  onToggle={setClaimAccount}
+                  isEnabled={isClaimingAccount}
+                  onToggle={setIsClaimingAccount}
                   password={claimPassword}
                   onPasswordChange={setClaimPassword}
                   passwordConfirm={claimPasswordConfirm}
@@ -527,11 +529,11 @@ export default function ApplicationPage() {
       </form>
 
 
-      {privacyOpen && (
-        <PrivacyModal onClose={() => { setPrivacyAccepted(true); setPrivacyOpen(false); }} />
+      {isPrivacyOpen && (
+        <PrivacyModal onClose={() => { setIsPrivacyAccepted(true); setIsPrivacyOpen(false); }} />
       )}
-      {termsOpen && (
-        <TermsModal onClose={() => { setTermsAccepted(true); setTermsOpen(false); }} />
+      {isTermsOpen && (
+        <TermsModal onClose={() => { setIsTermsAccepted(true); setIsTermsOpen(false); }} />
       )}
     </div>
     </div>
@@ -541,9 +543,9 @@ export default function ApplicationPage() {
         Full-width because it's inside the full-width bg-page wrapper.      */}
     <StepNav
       step={step}
-      submitting={submitting}
-      privacyAccepted={isLoggedInCandidate ? true : privacyAccepted}
-      termsAccepted={isLoggedInCandidate ? true : termsAccepted}
+      isSubmitting={isSubmitting}
+      isPrivacyAccepted={isLoggedInCandidate ? true : isPrivacyAccepted}
+      isTermsAccepted={isLoggedInCandidate ? true : isTermsAccepted}
       onBack={handleBack}
       onNext={handleNext}
     />

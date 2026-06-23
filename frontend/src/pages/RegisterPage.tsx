@@ -264,7 +264,9 @@ export default function RegisterPage() {
     e.preventDefault();
     if (!validateStep2()) return;
 
-    const dataUrl = sigCanvasRef.current!.toDataURL();
+    const sigCanvas = sigCanvasRef.current;
+    if (!sigCanvas) return;
+    const dataUrl = sigCanvas.toDataURL();
     const sigBase64 = dataUrl.split(",")[1] ?? "";
 
     const fd = new FormData();

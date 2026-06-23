@@ -130,18 +130,15 @@ export default function AdminInbox() {
 }
 
 function InboxCard({ item }: { item: ItemConfig }) {
-  const loading = item.stat == null;
-  const empty = !loading && item.stat!.n === 0;
-  const display = loading
-    ? "—"
-    : item.stat!.capped
-      ? `${item.stat!.n}+`
-      : item.stat!.n;
+  const stat = item.stat;
+  const isLoading = stat == null;
+  const isEmpty = !isLoading && stat.n === 0;
+  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
   return (
     <Link
       to={item.to}
       className={`group block rounded-xl border p-4 transition duration-200 ${
-        empty
+        isEmpty
           ? "border-white/8 bg-card hover:border-white/15"
           : "border-copper/25 bg-card hover:border-copper/45 hover:bg-card-raised"
       }`}
