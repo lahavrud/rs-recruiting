@@ -1,0 +1,119 @@
+name: Sandbox Deploy
+
+# Deploys the backend to the sandbox EKS cluster's sandbox-dev/sandbox-staging
+# namespaces on every merge to main. The sandbox cluster is ephemeral (see
+# rs-recruiting-infra/tofu/sandbox) — when it's down, the active-flag check
+# below skips every later step, so a merge to main never fails just because
+# nobody has the cluster up.
+#
+# This workflow builds and pushes the backend image itself: unlike prod/
+# staging, nothing else in this repo builds an image on push to main (ci.yml's
+# docker-build job only runs on PRs, with push: false). It then writes the new
+# image tag into rs-recruiting-gitops, which ArgoCD is watching — see that
+# repo's apps/ and envs/ for the rest of the deploy flow.
+
+on:
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: sandbox-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to sandbox
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.SANDBOX_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Check sandbox active flag
+        id: check
+        run: |
+          if aws ssm get-parameter --name /rs-recruiting/sandbox/active --region us-east-1 > /dev/null 2>&1; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Sandbox is not up (no /rs-recruiting/sandbox/active SSM parameter) — skipping deploy."
+          fi
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+        id: ecr-login
+        if: steps.check.outputs.active == 'true'
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        if: steps.check.outputs.active == 'true'
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        if: steps.check.outputs.active == 'true'
+        with:
+          context: .
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend:${{ github.sha }}
+          cache-from: type=gha,scope=sandbox-backend
+          cache-to: type=gha,mode=max,scope=sandbox-backend
+
+      - name: Mint GitHub App token (gitops repo)
+        id: app-token
+        # TODO: pin to a commit SHA to match the repo's action-pinning convention.
+        uses: actions/create-github-app-token@v3
+        if: steps.check.outputs.active == 'true'
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          owner: lahavrud
+          repositories: rs-recruiting-gitops
+
+      - name: Checkout gitops repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: steps.check.outputs.active == 'true'
+        with:
+          repository: lahavrud/rs-recruiting-gitops
+          token: ${{ steps.app-token.outputs.token }}
+          path: gitops
+          fetch-depth: 1
+
+      - name: Bump image tag in sandbox-dev + sandbox-staging overlays
+        if: steps.check.outputs.active == 'true'
+        env:
+          IMAGE_REPO: ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cd gitops
+          for env in sandbox-dev sandbox-staging; do
+            f="envs/${env}/backend-values.yaml"
+            yq -i '.image.repository = strenv(IMAGE_REPO)' "$f"
+            yq -i '.image.tag = strenv(IMAGE_TAG)' "$f"
+          done
+
+      - name: Commit and push
+        if: steps.check.outputs.active == 'true'
+        run: |
+          set -euo pipefail
+          cd gitops
+          git config user.name "rs-recruiting-ci[bot]"
+          git config user.email "rs-recruiting-ci[bot]@users.noreply.github.com"
+          git add envs/sandbox-dev/backend-values.yaml envs/sandbox-staging/backend-values.yaml
+          if git diff --cached --quiet; then
+            echo "No overlay changes to commit"
+            exit 0
+          fi
+          git commit -m "deploy(backend): sandbox-dev + sandbox-staging -> ${GITHUB_SHA}"
+          git push
