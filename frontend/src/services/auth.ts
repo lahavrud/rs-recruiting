@@ -1,10 +1,6 @@
 import api from "@/services/api";
-import type {
-  InviteMetadataPublic,
-  LoginRequest,
-  TokenResponse,
-  UserWithCompanyRead,
-} from "@/types/api";
+import type { LoginRequest, TokenResponse, UserWithCompanyRead } from "@/types/auth";
+import type { InviteMetadataPublic } from "@/types/invites";
 import { getToken, removeToken, setToken } from "@/utils/token";
 
 export async function login(credentials: LoginRequest): Promise<TokenResponse> {

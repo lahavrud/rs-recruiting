@@ -9,7 +9,7 @@ import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { useToast } from "@/hooks/useToast";
 import { adminCreateCompany } from "@/services/adminCompanies";
-import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/api";
+import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/auth";
 import { focusFirstError } from "@/utils/focusFirstError";
 import {
   COMPANY_PROFILE_FIELD_ORDER,

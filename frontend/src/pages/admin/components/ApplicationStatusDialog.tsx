@@ -6,9 +6,8 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationStatus } from "@/services/adminApplications";
 import { selectCls, textareaCls } from "@/styles/forms";
-import { ApplicationStatus } from "@/types/api";
-import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/api";
-
+import { ApplicationStatus } from "@/types/enums";
+import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
 const ALL_STATUSES = [
   ApplicationStatus.NEW,
   ApplicationStatus.APPROVED_BY_ADMIN,

@@ -2,10 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getApplications } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
-import {
-  ApplicationStatus,
-  type ApplicationWithDetails,
-} from "@/types/api";
+import { ApplicationStatus } from "@/types/enums";
+import type { ApplicationWithDetails } from "@/types/candidates";
 
 /**
  * One candidate ready for triage — `ApplicationWithDetails` plus the resolved

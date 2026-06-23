@@ -26,8 +26,8 @@ import {
   getJobs,
   rejectJob,
 } from "@/services/adminJobs";
-import { JobStatus } from "@/types/api";
-import type { JobRead } from "@/types/api";
+import { JobStatus } from "@/types/enums";
+import type { JobRead } from "@/types/jobs";
 import { apiErrorKey } from "@/utils/apiError";
 
 import JobCreateDialog from "./components/JobCreateDialog";

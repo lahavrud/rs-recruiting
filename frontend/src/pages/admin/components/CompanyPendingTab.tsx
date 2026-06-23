@@ -24,7 +24,8 @@ import {
   getPendingCompanies,
   rejectCompany,
 } from "@/services/adminCompanies";
-import type { CompanyProfileRead, PendingCompanyRead } from "@/types/api";
+import type { CompanyProfileRead } from "@/types/auth";
+import type { PendingCompanyRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
 import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";

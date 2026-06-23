@@ -9,7 +9,7 @@ import DropdownMenu, {
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
-import type { ApplicationWithDetails } from "@/types/api";
+import type { ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 import { ApplicationDetailBody } from "./ApplicationDetailDialog";

@@ -9,8 +9,7 @@ import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
 import { createInvite } from "@/services/adminInvites";
 import { inputCls } from "@/styles/forms";
-import type { InviteTokenCreate, InviteTokenRead } from "@/types/api";
-
+import type { InviteTokenCreate, InviteTokenRead } from "@/types/invites";
 interface InviteFormProps {
   open: boolean;
   onClose: () => void;

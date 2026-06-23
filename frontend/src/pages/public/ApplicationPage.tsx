@@ -17,8 +17,9 @@ import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe as getCandidateMe, type CandidateMeRead } from "@/services/candidate";
 import { getPublicJob, submitApplication } from "@/services/jobs";
 import { errorAlertBaseCls } from "@/styles/forms";
-import type { CandidateApplicationForm, JobPublicRead } from "@/types/api";
-import { UserRole } from "@/types/api";
+import type { CandidateApplicationForm } from "@/types/candidates";
+import type { JobPublicRead } from "@/types/jobs";
+import { UserRole } from "@/types/enums";
 import { trackEvent } from "@/utils/analytics";
 import {
   RESUME_ALLOWED_EXTENSIONS,

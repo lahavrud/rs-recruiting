@@ -26,7 +26,7 @@ import {
   JOB_REQ_MIN_COUNT,
   JOB_REQ_TEXT_MAX,
   type JobRequirementItem,
-} from "@/types/api";
+} from "@/types/jobs";
 
 interface Props {
   value: JobRequirementItem[];

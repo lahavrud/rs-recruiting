@@ -8,12 +8,8 @@ import { getApplications } from "@/services/adminApplications";
 import { getCandidates } from "@/services/adminCandidates";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import {
-  ApplicationStatus,
-  JobStatus,
-  type ApplicationWithDetails,
-} from "@/types/api";
-
+import { ApplicationStatus, JobStatus } from "@/types/enums";
+import { type ApplicationWithDetails } from "@/types/candidates";
 /**
  * Dashboard stats block. Three sub-sections, all fed by parallel first-page
  * fetches (capped at 100 items each — backend's MAX_LIMIT):

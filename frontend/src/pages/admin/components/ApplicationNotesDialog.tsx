@@ -6,8 +6,7 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationNotes } from "@/services/adminApplications";
 import { textareaCls } from "@/styles/forms";
-import type { ApplicationWithDetails } from "@/types/api";
-
+import type { ApplicationWithDetails } from "@/types/candidates";
 interface NotesDialogProps {
   app: ApplicationWithDetails | null;
   onClose: () => void;

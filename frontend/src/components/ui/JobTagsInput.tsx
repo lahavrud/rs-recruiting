@@ -20,8 +20,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 
-import { JOB_TAG_MAX_COUNT, JOB_TAG_MAX_LEN } from "@/types/api";
-
+import { JOB_TAG_MAX_COUNT, JOB_TAG_MAX_LEN } from "@/types/jobs";
 const TAG_EDIT_MIN_CHARS = 4;
 
 interface Props {

@@ -22,7 +22,8 @@ import {
   deleteOrphanCompany,
   getActiveCompanies,
 } from "@/services/adminCompanies";
-import type { ActiveCompanyRead, CompanyProfileRead } from "@/types/api";
+import type { ActiveCompanyRead } from "@/types/companies";
+import type { CompanyProfileRead } from "@/types/auth";
 import { formatDate } from "@/utils/formatDate";
 
 import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";

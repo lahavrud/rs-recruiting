@@ -1,8 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import type { JobPublicRead } from "@/types/api";
-
+import type { JobPublicRead } from "@/types/jobs";
 interface SuccessScreenProps {
   job: JobPublicRead | null;
   claimAccount: boolean;

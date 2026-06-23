@@ -2,8 +2,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTriageQueue } from "@/pages/admin/components/useTriageQueue";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
-
+import { ApplicationStatus } from "@/types/enums";
+import { type ApplicationWithDetails } from "@/types/candidates";
 // ── Mocks ─────────────────────────────────────────────────────────────────
 // Hoisted so they're available before the service modules are evaluated.
 const { mockGetApplications, mockGetActiveCompanies } = vi.hoisted(() => ({

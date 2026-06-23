@@ -1,11 +1,7 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type {
-  InviteTokenCreate,
-  InviteTokenRead,
-  InviteTokenStatus,
-} from "@/types/api";
-
+import type { InviteTokenCreate, InviteTokenRead } from "@/types/invites";
+import type { InviteTokenStatus } from "@/types/enums";
 export interface InvitesListParams {
   cursor?: string | null;
   limit?: number;

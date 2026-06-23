@@ -4,8 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import Field from "@/components/ui/Field";
 import { inputCls } from "@/styles/forms";
-import type { CandidateApplicationForm } from "@/types/api";
-
+import type { CandidateApplicationForm } from "@/types/candidates";
 export default function IdentityStep({
   form,
   fieldErrors,

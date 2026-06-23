@@ -7,12 +7,7 @@ import { getApplications } from "@/services/adminApplications";
 import { getPendingCompanies } from "@/services/adminCompanies";
 import { getInvites } from "@/services/adminInvites";
 import { getJobs } from "@/services/adminJobs";
-import {
-  ApplicationStatus,
-  InviteTokenStatus,
-  JobStatus,
-} from "@/types/api";
-
+import { ApplicationStatus, InviteTokenStatus, JobStatus } from "@/types/enums";
 /**
  * "What's waiting for me?" queue on the admin dashboard.
  *

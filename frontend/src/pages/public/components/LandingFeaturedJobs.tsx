@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { formatSalary } from "@/utils/salary";
 
 import LandingEyebrow from "./LandingEyebrow";

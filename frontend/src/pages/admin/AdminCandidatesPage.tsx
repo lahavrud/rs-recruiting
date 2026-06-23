@@ -21,7 +21,7 @@ import { getApplications } from "@/services/adminApplications";
 import { deleteCandidate, getCandidate, getCandidates } from "@/services/adminCandidates";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/api";
+import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/candidates";
 import { apiErrorKey } from "@/utils/apiError";
 
 import CandidateDetailDialog from "./components/CandidateDetailDialog";

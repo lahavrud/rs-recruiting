@@ -3,8 +3,7 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import RangeSlider from "@/components/ui/RangeSlider";
-import { JobStatus } from "@/types/api";
-
+import { JobStatus } from "@/types/enums";
 const ALL_STATUSES = [
   JobStatus.PENDING_APPROVAL,
   JobStatus.PUBLISHED,

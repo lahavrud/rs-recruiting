@@ -13,17 +13,10 @@ import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { createJob } from "@/services/adminJobs";
 import { ghostInputCls, selectCls } from "@/styles/forms";
-import type {
-  ActiveCompanyRead,
-  JobAdminCreate,
-  JobRead,
-  JobRequirementItem,
-} from "@/types/api";
-import {
-  JOB_REQ_MIN_COUNT,
-  JOB_SHORT_DESC_MAX,
-  JobStatus,
-} from "@/types/api";
+import type { ActiveCompanyRead } from "@/types/companies";
+import type { JobAdminCreate, JobRead, JobRequirementItem } from "@/types/jobs";
+import { JOB_REQ_MIN_COUNT, JOB_SHORT_DESC_MAX } from "@/types/jobs";
+import { JobStatus } from "@/types/enums";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { JOB_CREATE_FIELD_ORDER, validateJob } from "@/utils/validators";
 

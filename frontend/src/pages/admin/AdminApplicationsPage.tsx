@@ -34,7 +34,8 @@ import {
 } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { ApplicationStatus } from "@/types/enums";
+import { type ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 import ApplicationDetailDialog, { ApplicationDetailBody } from "./components/ApplicationDetailDialog";

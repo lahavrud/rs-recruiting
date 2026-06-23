@@ -9,9 +9,9 @@ import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
 import JobTagsInput from "@/components/ui/JobTagsInput";
 import { getApplications } from "@/services/adminApplications";
 import { ghostInputCls } from "@/styles/forms";
-import { JobStatus, JOB_SHORT_DESC_MAX } from "@/types/api";
-import type { JobAdminUpdate, JobRead, JobRequirementItem } from "@/types/api";
-
+import { JobStatus } from "@/types/enums";
+import { JOB_SHORT_DESC_MAX } from "@/types/jobs";
+import type { JobAdminUpdate, JobRead, JobRequirementItem } from "@/types/jobs";
 import { SalaryRangeField, StatusPills } from "./JobFormHelpers";
 
 const APP_FETCH_LIMIT = 100;

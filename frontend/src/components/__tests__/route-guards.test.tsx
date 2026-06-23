@@ -8,8 +8,7 @@ import CandidateRoute from "@/components/guards/CandidateRoute";
 import CompanyRoute from "@/components/guards/CompanyRoute";
 import ProtectedRoute from "@/components/guards/ProtectedRoute";
 import { AuthContext, type AuthContextType, AuthUser  } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/api";
-
+import { UserRole } from "@/types/enums";
 function makeCtx(user: AuthUser | null): AuthContextType {
   return {
     user,

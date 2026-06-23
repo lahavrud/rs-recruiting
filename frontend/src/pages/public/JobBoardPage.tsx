@@ -8,8 +8,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import { getPublicJobs } from "@/services/jobs";
 import { errorAlertClsLg } from "@/styles/forms";
-import type { JobPublicRead } from "@/types/api";
-
+import type { JobPublicRead } from "@/types/jobs";
 import JobBoardFilterChip from "./components/JobBoardFilterChip";
 import JobBoardFilterPanel from "./components/JobBoardFilterPanel";
 import JobBoardHero from "./components/JobBoardHero";

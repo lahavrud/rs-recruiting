@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import FeaturedRibbon from "@/components/ui/FeaturedRibbon";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 import { CardSkeleton } from "./JobBoardSkeletons";

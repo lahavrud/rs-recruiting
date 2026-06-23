@@ -1,12 +1,7 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type {
-  ApplicationRead,
-  ApplicationStatus,
-  ApplicationStatusUpdate,
-  ApplicationWithDetails,
-} from "@/types/api";
-
+import type { ApplicationRead, ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
+import type { ApplicationStatus } from "@/types/enums";
 export interface ApplicationListParams {
   status?: ApplicationStatus;
   job_id?: number;

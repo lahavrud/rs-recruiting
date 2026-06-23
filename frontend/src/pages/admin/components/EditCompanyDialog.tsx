@@ -8,7 +8,7 @@ import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { useToast } from "@/hooks/useToast";
 import { updateCompanyProfile } from "@/services/adminCompanies";
-import type { CompanyProfileAdminUpdate, CompanyProfileRead } from "@/types/api";
+import type { CompanyProfileAdminUpdate, CompanyProfileRead } from "@/types/auth";
 import { focusFirstError } from "@/utils/focusFirstError";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import {

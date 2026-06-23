@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/api";
+import { UserRole } from "@/types/enums";
 
 /** Renders children only for authenticated company users; redirects otherwise. */
 export default function CompanyRoute({ children }: { children: ReactNode }) {

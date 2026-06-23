@@ -6,8 +6,7 @@ import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
 import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
 import Eyebrow from "@/components/ui/Eyebrow";
 import FilterPill from "@/components/ui/FilterPill";
-import { ApplicationStatus } from "@/types/api";
-
+import { ApplicationStatus } from "@/types/enums";
 const ALL_FILTER = "ALL";
 type FilterValue = string;
 

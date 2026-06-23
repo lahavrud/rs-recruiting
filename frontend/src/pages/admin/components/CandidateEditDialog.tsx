@@ -9,7 +9,7 @@ import { useConfirmableClose } from "@/hooks/useConfirmableClose";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { updateCandidate } from "@/services/adminCandidates";
 import { inputCls } from "@/styles/forms";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
+import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/candidates";
 import { isDirtyByJSON } from "@/utils/isDirty";
 import { EMAIL_RE, MOBILE_RE } from "@/utils/validators";
 

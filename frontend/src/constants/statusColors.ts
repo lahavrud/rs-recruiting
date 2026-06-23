@@ -1,4 +1,4 @@
-import { ApplicationStatus, JobStatus } from "@/types/api";
+import { ApplicationStatus, JobStatus } from "@/types/enums";
 
 export const JOB_STATUS_COLORS: Record<string, string> = {
   [JobStatus.PENDING_APPROVAL]: "bg-warning/10 text-warning",

@@ -6,7 +6,7 @@ import DropdownMenu, {
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
-import type { CandidateProfileRead } from "@/types/api";
+import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 import { CandidateDetailBody } from "./CandidateDetailDialog";

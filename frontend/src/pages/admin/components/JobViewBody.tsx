@@ -7,7 +7,7 @@ import { CollapsibleSection } from "@/components/admin/AnimatedAccordion";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { getApplications } from "@/services/adminApplications";
-import type { JobRead } from "@/types/api";
+import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 /**

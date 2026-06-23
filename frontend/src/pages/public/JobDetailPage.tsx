@@ -9,7 +9,7 @@ import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
 import { useFetch } from "@/hooks/useFetch";
 import { getPublicJob } from "@/services/jobs";
 import { errorAlertClsLg } from "@/styles/forms";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 import { trackEvent } from "@/utils/analytics";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 import { formatSalary } from "@/utils/salary";

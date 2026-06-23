@@ -5,7 +5,8 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { ApplicationStatus } from "@/types/enums";
+import { type ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 

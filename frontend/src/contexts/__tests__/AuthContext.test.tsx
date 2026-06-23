@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import { AuthContext, AuthProvider } from "@/contexts/AuthContext";
-import { UserRole } from "@/types/api";
+import { UserRole } from "@/types/enums";
 
 vi.mock("@sentry/react", () => ({ setUser: vi.fn() }));
 

@@ -4,8 +4,8 @@ import {
   JOB_REQ_MIN_COUNT,
   JOB_SHORT_DESC_MAX,
   JOB_TITLE_MAX,
-} from "@/types/api";
-import type { JobRequirementItem } from "@/types/api";
+} from "@/types/jobs";
+import type { JobRequirementItem } from "@/types/jobs";
 
 import type { TFunction } from "i18next";
 

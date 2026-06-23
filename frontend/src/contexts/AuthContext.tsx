@@ -11,7 +11,8 @@ import {
 import * as Sentry from "@sentry/react";
 
 import { login as loginService, logout as logoutService, refreshTokens } from "@/services/auth";
-import type { LoginRequest, UserRole  } from "@/types/api";
+import type { LoginRequest } from "@/types/auth";
+import type { UserRole } from "@/types/enums";
 import { getToken, inspectToken, removeToken } from "@/utils/token";
 
 export interface AuthUser {

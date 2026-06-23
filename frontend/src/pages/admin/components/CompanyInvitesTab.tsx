@@ -24,8 +24,8 @@ import {
   resendInvite,
   revokeInvite,
 } from "@/services/adminInvites";
-import type { InviteTokenRead } from "@/types/api";
-import { InviteTokenStatus } from "@/types/api";
+import type { InviteTokenRead } from "@/types/invites";
+import { InviteTokenStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 import InviteFormDialog from "./InviteFormDialog";

@@ -8,8 +8,8 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { getJobs } from "@/services/adminJobs";
-import type { CompanyProfileRead, JobRead } from "@/types/api";
-
+import type { CompanyProfileRead } from "@/types/auth";
+import type { JobRead } from "@/types/jobs";
 interface DetailProps {
   profile: CompanyProfileRead | null;
   onClose: () => void;

@@ -6,8 +6,7 @@ import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useAuth } from "@/hooks/useAuth";
-import { UserRole } from "@/types/api";
-
+import { UserRole } from "@/types/enums";
 function getGreetingKey(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "dashboard:greeting.morning";

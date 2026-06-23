@@ -6,8 +6,8 @@ import DropdownMenu, {
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
-import type { JobRead } from "@/types/api";
-import { JobStatus } from "@/types/api";
+import type { JobRead } from "@/types/jobs";
+import { JobStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 import { FeaturedDesktopSash } from "./JobViewBody";

@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next";
 import Eyebrow from "@/components/ui/Eyebrow";
 import Field from "@/components/ui/Field";
 import { inputCls } from "@/styles/forms";
-import type {
-  CompanyProfileAdminCreate,
-  CompanyProfileAdminUpdate,
-} from "@/types/api";
-
+import type { CompanyProfileAdminCreate, CompanyProfileAdminUpdate } from "@/types/auth";
 interface ProfileFieldsProps {
   form: CompanyProfileAdminUpdate | Partial<CompanyProfileAdminCreate>;
   setField: (key: string, value: string) => void;

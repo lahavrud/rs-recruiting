@@ -15,9 +15,8 @@ import {
   getPendingCompanies,
 } from "@/services/adminCompanies";
 import { getInvites } from "@/services/adminInvites";
-import type { CompanyProfileRead } from "@/types/api";
-import { InviteTokenStatus } from "@/types/api";
-
+import type { CompanyProfileRead } from "@/types/auth";
+import { InviteTokenStatus } from "@/types/enums";
 import CompanyActiveTab from "./components/CompanyActiveTab";
 import CompanyInvitesTab from "./components/CompanyInvitesTab";
 import CompanyPendingTab from "./components/CompanyPendingTab";

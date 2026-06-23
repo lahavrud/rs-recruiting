@@ -30,6 +30,21 @@ export default defineConfig([
       // Extract to co-located components/ subfolder per CLAUDE.md conventions.
       "max-lines": ["error", { max: 600, skipBlankLines: true, skipComments: true }],
 
+      // The "@/types/api" barrel was removed — import directly from the domain
+      // file instead (@/types/enums, auth, jobs, candidates, companies, invites, health).
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/types/api",
+              message:
+                "Import from the domain-specific type file instead (@/types/enums, @/types/auth, @/types/jobs, @/types/candidates, @/types/companies, @/types/invites, or @/types/health).",
+            },
+          ],
+        },
+      ],
+
       // Bare magic numbers: warn to encourage named constants.
       // HTTP status codes, small integers, and common boundary values are allowed.
       "no-magic-numbers": [

@@ -2,15 +2,18 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
-import type { JobPublicRead } from "@/types/api";
+import type { JobPublicRead } from "@/types/jobs";
 
 interface JobApplicationHeaderProps {
   job: JobPublicRead | null;
   jobId: number;
 }
 
-export default function JobApplicationHeader({ job, jobId }: JobApplicationHeaderProps) {
-  const { t } = useTranslation(['http', 'publicJobs']);
+export default function JobApplicationHeader({
+  job,
+  jobId,
+}: JobApplicationHeaderProps) {
+  const { t } = useTranslation(["http", "publicJobs"]);
 
   return (
     <>

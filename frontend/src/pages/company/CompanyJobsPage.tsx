@@ -16,13 +16,9 @@ import {
   updateJob,
 } from "@/services/companyJobs";
 import { errorAlertBaseCls, inputCls, textareaCls } from "@/styles/forms";
-import type {
-  JobCreate,
-  JobRead,
-  JobRequirementItem,
-  JobUpdate,
-} from "@/types/api";
-import { JobStatus, JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/api";
+import type { JobCreate, JobRead, JobRequirementItem, JobUpdate } from "@/types/jobs";
+import { JobStatus } from "@/types/enums";
+import { JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 const emptyRequirements = (): JobRequirementItem[] =>

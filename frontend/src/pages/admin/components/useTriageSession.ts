@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { updateApplicationStatus } from "@/services/adminApplications";
-import { ApplicationStatus } from "@/types/api";
+import { ApplicationStatus } from "@/types/enums";
 
 import { type Decision } from "./triageTypes";
 import { type TriageItem } from "./useTriageQueue";

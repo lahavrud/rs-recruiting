@@ -15,8 +15,8 @@ import "@/i18n"; // initialize i18next so t() resolves to real Hebrew strings
 import Toaster from "@/components/ui/Toaster";
 import { ToastProvider } from "@/contexts/ToastContext";
 import AdminApplicationsTriagePage from "@/pages/admin/AdminApplicationsTriagePage";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
-
+import { ApplicationStatus } from "@/types/enums";
+import { type ApplicationWithDetails } from "@/types/candidates";
 // ── Service mocks ─────────────────────────────────────────────────────────
 
 const {

@@ -1,7 +1,6 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
-
+import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/candidates";
 export interface CandidateListParams {
   cursor?: string | null;
   limit?: number;
