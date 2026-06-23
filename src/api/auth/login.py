@@ -1,6 +1,7 @@
 """Authentication endpoints — login, refresh, logout."""
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,7 +40,7 @@ _REFRESH_COOKIE = "refresh_token"
 _REMEMBER_ME_MAX_AGE = int(REFRESH_TTL_LONG.total_seconds())
 
 
-def _refresh_cookie_secure() -> bool:
+def _is_refresh_cookie_secure() -> bool:
     """Default the refresh cookie's ``Secure`` flag to True everywhere
     except the test suite and the staging environment.
 
@@ -59,11 +60,11 @@ def _refresh_cookie_secure() -> bool:
 def _set_refresh_cookie(
     response: Response, token: str, *, remember_me: bool = False
 ) -> None:
-    kwargs: dict = dict(
+    kwargs: dict[str, Any] = dict(
         key=_REFRESH_COOKIE,
         value=token,
         httponly=True,
-        secure=_refresh_cookie_secure(),
+        secure=_is_refresh_cookie_secure(),
         samesite="strict",
         path="/auth",
     )
@@ -77,7 +78,7 @@ def _clear_refresh_cookie(response: Response) -> None:
         key=_REFRESH_COOKIE,
         path="/auth",
         httponly=True,
-        secure=_refresh_cookie_secure(),
+        secure=_is_refresh_cookie_secure(),
         samesite="strict",
     )
 
@@ -162,7 +163,7 @@ async def refresh(
 async def logout(
     request: Request,
     response: Response,
-    payload: dict = Depends(get_token_payload),
+    payload: dict[str, Any] = Depends(get_token_payload),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Revoke the current session: delete the refresh-token row."""

@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import PageHeader from "@/components/ui/PageHeader";
+import { useFetch } from "@/hooks/useFetch";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe, type CandidateMeRead } from "@/services/candidate";
-import IdentitySection from "./components/IdentitySection";
+import { errorAlertClsLg } from "@/styles/forms";
+
 import ApplyAutofillSection from "./components/ApplyAutofillSection";
-import SecuritySection from "./components/SecuritySection";
 import DataExportSection from "./components/DataExportSection";
+import IdentitySection from "./components/IdentitySection";
+import SecuritySection from "./components/SecuritySection";
 
 /**
  * Candidate self-service profile (Sprint 11 / #608).
@@ -26,28 +32,13 @@ import DataExportSection from "./components/DataExportSection";
 export default function CandidateProfilePage() {
   const { t } = useTranslation('candidate');
   const [me, setMe] = useState<CandidateMeRead | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   // Settings group is collapsed by default — it's account controls
   // (password, GDPR export), secondary to the profile content above.
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const data = await getMe();
-        if (alive) setMe(data);
-      } catch {
-        if (alive) setLoadError(t("candidate:profile.errors.loadFailed"));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [t]);
+  const { data: fetchedMe, loading, error: fetchError } = useFetch(getMe, []);
+  useResetOnTrigger(fetchedMe, () => setMe(fetchedMe));
+  const loadError = fetchError ? t("candidate:profile.errors.loadFailed") : null;
 
   if (loading) {
     return (
@@ -59,7 +50,7 @@ export default function CandidateProfilePage() {
   if (loadError || !me) {
     return (
       <div className="mx-auto max-w-2xl">
-        <div className="rounded-lg border border-danger/20 bg-danger/10 p-6 text-sm text-danger">
+        <div className={errorAlertClsLg}>
           {loadError ?? t("candidate:profile.errors.loadFailed")}
         </div>
       </div>

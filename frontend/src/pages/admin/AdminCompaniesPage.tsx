@@ -1,7 +1,14 @@
 import { Fragment, useEffect, useState } from "react";
-import { useDebounce } from "@/hooks/useDebounce";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+
+import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
+import PageHeader from "@/components/ui/PageHeader";
+import SearchInput from "@/components/ui/SearchInput";
+import { useDebounce } from "@/hooks/useDebounce";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { useToast } from "@/hooks/useToast";
 import {
   getActiveCompanies,
   getCompanyProfile,
@@ -10,14 +17,10 @@ import {
 import { getInvites } from "@/services/adminInvites";
 import type { CompanyProfileRead } from "@/types/api";
 import { InviteTokenStatus } from "@/types/api";
-import PageHeader from "@/components/ui/PageHeader";
-import SearchInput from "@/components/ui/SearchInput";
-import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { useToast } from "@/hooks/useToast";
+
 import CompanyActiveTab from "./components/CompanyActiveTab";
-import CompanyPendingTab from "./components/CompanyPendingTab";
 import CompanyInvitesTab from "./components/CompanyInvitesTab";
+import CompanyPendingTab from "./components/CompanyPendingTab";
 import CreateCompanyDialog from "./components/CreateCompanyDialog";
 
 type Tab = "active" | "pending" | "invites";

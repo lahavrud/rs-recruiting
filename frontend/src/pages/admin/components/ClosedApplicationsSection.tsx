@@ -1,14 +1,17 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
-import type { ApplicationWithDetails } from "@/types/api";
-import StatusBadge from "@/components/ui/StatusBadge";
+
 import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
+import StatusBadge from "@/components/ui/StatusBadge";
+import type { ApplicationWithDetails } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
+
 import { ApplicationDetailBody } from "./ApplicationDetailDialog";
 
 interface Props {

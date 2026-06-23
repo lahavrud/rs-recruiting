@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { motion, useReducedMotion } from "motion/react";
-import { staggerContainer, fadeRise, VIEWPORT_ONCE } from "./landingMotionUtils";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import LandingEyebrow from "./LandingEyebrow";
+import { staggerContainer, fadeRise, VIEWPORT_ONCE } from "./landingMotionUtils";
 
 const SECTORS = [
   { titleKey: "landing:sectors.s1Title", subKey: "landing:sectors.s1Sub" },

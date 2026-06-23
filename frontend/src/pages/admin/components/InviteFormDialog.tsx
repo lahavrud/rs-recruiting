@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { createInvite } from "@/services/adminInvites";
-import Eyebrow from "@/components/ui/Eyebrow";
-import type { InviteTokenCreate, InviteTokenRead } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
+import { useTranslation } from "react-i18next";
+
 import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
+import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
+import { createInvite } from "@/services/adminInvites";
 import { inputCls } from "@/styles/forms";
+import type { InviteTokenCreate, InviteTokenRead } from "@/types/api";
 
 interface InviteFormProps {
   open: boolean;

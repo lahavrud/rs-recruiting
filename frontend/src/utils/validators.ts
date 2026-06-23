@@ -1,4 +1,3 @@
-import type { TFunction } from "i18next";
 import {
   JOB_DESC_MAX,
   JOB_LOCATION_MAX,
@@ -7,6 +6,8 @@ import {
   JOB_TITLE_MAX,
 } from "@/types/api";
 import type { JobRequirementItem } from "@/types/api";
+
+import type { TFunction } from "i18next";
 
 // ── URL sanitization ─────────────────────────────────────────────────────────
 

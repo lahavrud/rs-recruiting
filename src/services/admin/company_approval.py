@@ -56,7 +56,7 @@ async def approve_company(
     # after the admin rejects and later changes their mind.
     stale_result = await session.execute(
         select(ActivationToken).where(
-            ActivationToken.user_id == company_user_id,  # type: ignore[arg-type]
+            ActivationToken.user_id == company_user_id,  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
             ActivationToken.used == False,  # noqa: E712
         )
     )

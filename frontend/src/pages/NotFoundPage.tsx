@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import SeoHead from "@/components/ui/SeoHead";
 
 export default function NotFoundPage() {

@@ -1,13 +1,16 @@
 import { useTranslation } from "react-i18next";
-import type { CandidateProfileRead } from "@/types/api";
+
 import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
-import { CandidateDetailBody } from "./CandidateDetailDialog";
+import type { CandidateProfileRead } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
+
+import { CandidateDetailBody } from "./CandidateDetailDialog";
+
 
 interface CandidatesMobileListProps {
   candidates: CandidateProfileRead[];

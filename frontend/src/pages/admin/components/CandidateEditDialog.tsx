@@ -1,14 +1,16 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
-import { updateCandidate } from "@/services/adminCandidates";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
+
 import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
 import Field from "@/components/ui/Field";
-import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { useConfirmableClose } from "@/hooks/useConfirmableClose";
-import { isDirtyByJSON } from "@/utils/isDirty";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
+import { updateCandidate } from "@/services/adminCandidates";
 import { inputCls } from "@/styles/forms";
+import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/api";
+import { isDirtyByJSON } from "@/utils/isDirty";
 import { EMAIL_RE, MOBILE_RE } from "@/utils/validators";
 
 interface EditProps {

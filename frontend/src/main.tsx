@@ -1,5 +1,7 @@
-import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
+
+import * as Sentry from "@sentry/react";
+
 import App from "@/App";
 import ErrorFallback from "@/components/ErrorFallback";
 import "@/i18n";

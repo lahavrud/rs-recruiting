@@ -1,5 +1,6 @@
-import * as RadixDropdown from "@radix-ui/react-dropdown-menu";
 import type { ReactNode } from "react";
+
+import * as RadixDropdown from "@radix-ui/react-dropdown-menu";
 
 interface DropdownMenuProps {
   trigger: ReactNode;

@@ -75,7 +75,7 @@ async def list_applications(
     try:
         return await list_my_applications(
             session,
-            candidate_id=profile.id,  # type: ignore[arg-type]
+            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             cursor=cursor,
             limit=limit,
         )
@@ -94,7 +94,7 @@ async def get_application(
     try:
         return await get_my_application(
             session,
-            candidate_id=profile.id,  # type: ignore[arg-type]
+            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             application_id=application_id,
         )
     except ApplicationNotFoundError as exc:
@@ -138,7 +138,7 @@ async def edit_application(
     try:
         return await edit_my_application(
             session,
-            candidate_id=profile.id,  # type: ignore[arg-type]
+            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             application_id=application_id,
             data=ApplicationEditData(
                 service_concept=service_concept,
@@ -171,7 +171,7 @@ async def withdraw_application(
     try:
         await withdraw_my_application(
             session,
-            candidate_id=profile.id,  # type: ignore[arg-type]
+            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             application_id=application_id,
         )
     except ApplicationNotFoundError as exc:
@@ -196,7 +196,7 @@ async def download_application_resume(
     try:
         storage_key = await get_application_resume_key(
             session,
-            candidate_id=profile.id,  # type: ignore[arg-type]
+            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             application_id=application_id,
         )
     except ApplicationNotFoundError as exc:

@@ -1,7 +1,9 @@
-import type { TFunction } from "i18next";
 import axios from "axios";
-import { EMAIL_RE, MOBILE_RE } from "@/utils/validators";
+
 import { checkPasswordComplexity } from "@/utils/passwordComplexity";
+import { EMAIL_RE, MOBILE_RE } from "@/utils/validators";
+
+import type { TFunction } from "i18next";
 
 const TEXT_FIELD_MAX = 2000;
 

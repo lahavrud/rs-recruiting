@@ -7,7 +7,7 @@ from src.main import _HealthCheckLogFilter, app
 
 
 @pytest.mark.asyncio
-async def test_health_endpoint():
+async def test_health_endpoint_returns_200_with_json_status():
     """Test that the /health endpoint returns status 200 and correct JSON."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -36,9 +36,13 @@ def test_health_filter_drops_health_access_lines():
     assert f.filter(_make_record('127.0.0.1 - "GET /health HTTP/1.1" 200')) is False
 
 
-def test_health_filter_keeps_other_access_lines():
+def test_health_filter_keeps_api_requests():
     f = _HealthCheckLogFilter()
     assert f.filter(_make_record('127.0.0.1 - "GET /api/jobs HTTP/1.1" 200')) is True
+
+
+def test_health_filter_keeps_auth_requests():
+    f = _HealthCheckLogFilter()
     assert (
         f.filter(_make_record('127.0.0.1 - "POST /api/auth/login HTTP/1.1" 401'))
         is True

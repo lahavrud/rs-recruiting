@@ -135,7 +135,7 @@ async def replace_resume(
     size). The previous file is removed best-effort AFTER the new upload
     succeeds so a failed upload doesn't leave the candidate with no resume.
     """
-    from src.core.services.file_validation import validate_document_magic_bytes
+    from src.core.services.file_validation import is_valid_document_magic_bytes
 
     if not filename or not _SAFE_FILENAME.match(filename.replace(" ", "_")):
         raise ValueError("Unsafe resume filename")
@@ -145,7 +145,7 @@ async def replace_resume(
         raise ValueError("Invalid file type. Allowed: PDF, DOC, DOCX")
     if len(content) > _MAX_RESUME_BYTES:
         raise ValueError("File size exceeds 10MB limit")
-    if not validate_document_magic_bytes(content, ext):
+    if not is_valid_document_magic_bytes(content, ext):
         raise ValueError("Resume file content does not match the declared file type")
 
     new_key = await storage.upload_file(

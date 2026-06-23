@@ -1,11 +1,12 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "@/hooks/useAuth";
-import Eyebrow from "@/components/ui/Eyebrow";
-import { UserRole } from "@/types/api";
+import { Link } from "react-router-dom";
+
 import AdminInbox from "@/components/admin/AdminInbox";
 import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
+import Eyebrow from "@/components/ui/Eyebrow";
+import { useAuth } from "@/hooks/useAuth";
+import { UserRole } from "@/types/api";
 
 function getGreetingKey(): string {
   const hour = new Date().getHours();

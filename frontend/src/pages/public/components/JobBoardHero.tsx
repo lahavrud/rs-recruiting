@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import SearchInput from "@/components/ui/SearchInput";
 import { useImageLoaded } from "@/hooks/useImageLoaded";
 

@@ -1,7 +1,9 @@
-import axios from "axios";
 import { useEffect, useState } from "react";
+
+import axios from "axios";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+
 import { fetchResumeBlob } from "@/services/adminCandidates";
 import {
   buildResumeDownloadName,

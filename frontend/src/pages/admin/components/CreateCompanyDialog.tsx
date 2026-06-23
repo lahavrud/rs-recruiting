@@ -1,18 +1,21 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
-import { adminCreateCompany } from "@/services/adminCompanies";
-import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
+
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import { useToast } from "@/hooks/useToast";
-import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
+import Dialog from "@/components/ui/Dialog";
 import { useConfirmableClose } from "@/hooks/useConfirmableClose";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
+import { useToast } from "@/hooks/useToast";
+import { adminCreateCompany } from "@/services/adminCompanies";
+import type { CompanyProfileAdminCreate, CompanyProfileRead } from "@/types/api";
 import { focusFirstError } from "@/utils/focusFirstError";
 import {
   COMPANY_PROFILE_FIELD_ORDER,
   validateCompanyProfile,
 } from "@/utils/validators";
+
 import CompanyProfileFields from "./CompanyProfileFields";
 
 interface CreateProps {

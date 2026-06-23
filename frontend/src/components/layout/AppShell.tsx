@@ -1,13 +1,17 @@
 import { type ReactNode, useEffect, useState } from "react";
+
 import { createPortal } from "react-dom";
-import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useAuth } from "@/hooks/useAuth";
-import { ToastProvider } from "@/contexts/ToastContext";
-import Header from "./Header";
-import Sidebar from "./Sidebar";
+import { Link, useLocation } from "react-router-dom";
+
 import Logo from "@/components/ui/Logo";
 import Toaster from "@/components/ui/Toaster";
+import { ToastProvider } from "@/contexts/ToastContext";
+import { useAuth } from "@/hooks/useAuth";
+
+import Header from "./Header";
+import Sidebar from "./Sidebar";
+
 
 interface Props {
   children: ReactNode;

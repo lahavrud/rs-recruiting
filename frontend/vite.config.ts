@@ -1,9 +1,10 @@
 /// <reference types="vitest/config" />
-import path from "path";
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+
+import path from "path";
 
 /** Injects the Google Tag Manager <head> snippet + <noscript> fallback into
  *  index.html at build time. Conditional on VITE_GTM_ID so dev builds and

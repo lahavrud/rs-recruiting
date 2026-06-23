@@ -1,11 +1,15 @@
 import { type ChangeEvent, type FormEvent, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+import { Link, Navigate } from "react-router-dom";
+
+import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "@/services/auth";
-import Logo from "@/components/ui/Logo";
-import { inputCls } from "@/styles/forms";
+import { errorAlertCls, inputCls } from "@/styles/forms";
+
+import AuthShell from "./components/AuthShell";
 
 export default function ForgotPasswordPage() {
   const { t } = useTranslation('auth');
@@ -55,7 +59,7 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
           <div className="flex justify-center">
             <Logo size={32} />
@@ -76,12 +80,12 @@ export default function ForgotPasswordPage() {
             {t("auth:forgotPassword.success.backToLogin")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+    <AuthShell>
       <div className="w-full max-w-sm space-y-8 rounded-xl border border-white/10 border-t-copper/50 bg-card sm:max-w-md">
         <div className="px-6 pt-8 text-center sm:px-8">
           <div className="flex justify-center">
@@ -96,11 +100,7 @@ export default function ForgotPasswordPage() {
         </div>
 
         <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit} noValidate>
-          {error && (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
-              {error}
-            </div>
-          )}
+          {error && <div className={errorAlertCls}>{error}</div>}
 
           <div>
             <label htmlFor="email" className="block text-sm text-white/50">
@@ -141,6 +141,6 @@ export default function ForgotPasswordPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </AuthShell>
   );
 }

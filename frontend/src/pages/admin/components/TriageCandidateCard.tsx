@@ -1,4 +1,7 @@
 import { useTranslation } from "react-i18next";
+
+import { sanitizeLinkedInUrl } from "@/utils/validators";
+
 import {
   AnswerBlock,
   NoteField,
@@ -6,8 +9,8 @@ import {
 } from "./TriageComponents";
 import { IconDocument } from "./TriageIcons";
 import { formatTriageDate, type Decision } from "./triageTypes";
+
 import type { TriageItem } from "./useTriageQueue";
-import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 /**
  * One candidate's content card. Used inside the carousel — rendered for the

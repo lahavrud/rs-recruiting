@@ -106,7 +106,7 @@ async def _apply_as_anonymous(
         actor_user_id=None,
         action="candidate.consent",
         target_type="CandidateProfile",
-        target_id=candidate.id,  # type: ignore[arg-type]
+        target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
         ip_address=payload.consent_ip,
     )
@@ -115,7 +115,7 @@ async def _apply_as_anonymous(
         actor_user_id=None,
         action="candidate.terms_accept",
         target_type="CandidateProfile",
-        target_id=candidate.id,  # type: ignore[arg-type]
+        target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
         ip_address=payload.consent_ip,
     )
@@ -159,7 +159,7 @@ async def _apply_as_claim(
             actor_user_id=None,
             action="candidate_register_via_apply",
             target_type="CandidateProfile",
-            target_id=candidate.id,  # type: ignore[arg-type]
+            target_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             ip_address=payload.consent_ip,
         )
     except EmailAlreadyExistsError:
@@ -295,3 +295,15 @@ async def create_candidate_profile(
         )
     )
     return CandidateProfileRead.model_validate(candidate)
+
+
+async def get_candidate_profile(
+    user_id: int, session: AsyncSession
+) -> CandidateProfile | None:
+    """Look up the CandidateProfile linked to a given user, or None."""
+    result = await session.execute(
+        select(CandidateProfile).where(
+            CandidateProfile.user_id == user_id  # type: ignore[arg-type]
+        )
+    )
+    return result.scalar_one_or_none()

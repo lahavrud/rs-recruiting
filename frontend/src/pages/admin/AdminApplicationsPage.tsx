@@ -1,43 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDebounce } from "@/hooks/useDebounce";
+
 import { useTranslation } from "react-i18next";
-import { getActiveCompanies } from "@/services/adminCompanies";
-import { getJobs } from "@/services/adminJobs";
-import { deleteApplication, getApplications } from "@/services/adminApplications";
-import type { ApplicationListParams } from "@/services/adminApplications";
-import { ApplicationStatus } from "@/types/api";
-import type { ApplicationWithDetails } from "@/types/api";
-import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
-import PageHeader from "@/components/ui/PageHeader";
-import StatusBadge from "@/components/ui/StatusBadge";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import EmptyState from "@/components/ui/EmptyState";
-import ErrorState from "@/components/ui/ErrorState";
-import TableSkeleton from "@/components/ui/TableSkeleton";
-import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import SearchInput from "@/components/ui/SearchInput";
+import { useNavigate } from "react-router-dom";
+
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import MobileEntityCard from "@/components/admin/MobileEntityCard";
+import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import NoResults from "@/components/ui/NoResults";
-import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
-import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
+import PageHeader from "@/components/ui/PageHeader";
+import SearchInput from "@/components/ui/SearchInput";
+import StatusBadge from "@/components/ui/StatusBadge";
+import TableSkeleton from "@/components/ui/TableSkeleton";
+import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import { useAutoOpenFromRouteState } from "@/hooks/useAutoOpenFromRouteState";
+import { useDebounce } from "@/hooks/useDebounce";
+import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
-import Button from "@/components/ui/Button";
-import { useNavigate } from "react-router-dom";
-import { IconSparkle } from "./components/TriageIcons";
+import {
+  deleteApplication,
+  getApplications,
+  type ApplicationListParams,
+} from "@/services/adminApplications";
+import { getActiveCompanies } from "@/services/adminCompanies";
+import { getJobs } from "@/services/adminJobs";
+import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { formatDate } from "@/utils/formatDate";
+
 import ApplicationDetailDialog, { ApplicationDetailBody } from "./components/ApplicationDetailDialog";
-import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ApplicationNotesDialog from "./components/ApplicationNotesDialog";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
+import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
-import { formatDate } from "@/utils/formatDate";
+import { IconSparkle } from "./components/TriageIcons";
+
 
 const CLOSED_STATUSES = new Set<ApplicationStatus>([ApplicationStatus.JOB_CLOSED, ApplicationStatus.WITHDRAWN]);
 

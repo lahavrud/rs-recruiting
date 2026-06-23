@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Link } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 import { useImageLoaded } from "@/hooks/useImageLoaded";
 

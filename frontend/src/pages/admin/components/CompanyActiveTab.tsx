@@ -1,29 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
+import MobileEntityCard from "@/components/admin/MobileEntityCard";
+import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import DropdownMenu, {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/DropdownMenu";
+import EmptyState from "@/components/ui/EmptyState";
+import ErrorState from "@/components/ui/ErrorState";
+import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
+import KebabButton from "@/components/ui/KebabButton";
+import NoResults from "@/components/ui/NoResults";
+import TableSkeleton from "@/components/ui/TableSkeleton";
+import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
+import { useToast } from "@/hooks/useToast";
 import {
   deleteCompany,
   deleteOrphanCompany,
   getActiveCompanies,
 } from "@/services/adminCompanies";
 import type { ActiveCompanyRead, CompanyProfileRead } from "@/types/api";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import EmptyState from "@/components/ui/EmptyState";
-import ErrorState from "@/components/ui/ErrorState";
-import TableSkeleton from "@/components/ui/TableSkeleton";
-import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import MobileEntityCard from "@/components/admin/MobileEntityCard";
-import DropdownMenu, {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/DropdownMenu";
-import KebabButton from "@/components/ui/KebabButton";
-import NoResults from "@/components/ui/NoResults";
-import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
-import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
-import { useToast } from "@/hooks/useToast";
+import { formatDate } from "@/utils/formatDate";
+
 import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";
 import EditCompanyDialog from "./EditCompanyDialog";
-import { formatDate } from "@/utils/formatDate";
 
 interface ActiveTabProps {
   query: string;

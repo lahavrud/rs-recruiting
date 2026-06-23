@@ -68,7 +68,7 @@ class SESEmailProvider(EmailProvider):
                 recipients, sender, subject, body, html_body, attachments or []
             )
 
-        async with self.session.client(  # type: ignore[attr-defined]
+        async with self.session.client(  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             "ses",
             region_name=self.region,
             aws_access_key_id=self.access_key_id,
@@ -100,7 +100,7 @@ class SESEmailProvider(EmailProvider):
         msg = _build_mime_message(
             sender, recipients, subject, body, html_body, attachments
         )
-        async with self.session.client(  # type: ignore[attr-defined]
+        async with self.session.client(  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
             "ses",
             region_name=self.region,
             aws_access_key_id=self.access_key_id,

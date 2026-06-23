@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+
 import { useTranslation } from "react-i18next";
+
+import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
 import { updateApplicationStatus } from "@/services/adminApplications";
+import { selectCls, textareaCls } from "@/styles/forms";
 import { ApplicationStatus } from "@/types/api";
 import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
-import Button from "@/components/ui/Button";
-import { selectCls, textareaCls } from "@/styles/forms";
 
 const ALL_STATUSES = [
   ApplicationStatus.NEW,

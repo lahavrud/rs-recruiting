@@ -1,10 +1,12 @@
 import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
-import { updateApplicationNotes } from "@/services/adminApplications";
-import type { ApplicationWithDetails } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
+
 import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
+import { updateApplicationNotes } from "@/services/adminApplications";
 import { textareaCls } from "@/styles/forms";
+import type { ApplicationWithDetails } from "@/types/api";
 
 interface NotesDialogProps {
   app: ApplicationWithDetails | null;

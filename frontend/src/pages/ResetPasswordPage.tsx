@@ -1,13 +1,16 @@
-import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import axios from "axios";
-import { useAuth } from "@/hooks/useAuth";
-import { resetPassword, validateResetToken } from "@/services/auth";
-import Logo from "@/components/ui/Logo";
-import { inputCls } from "@/styles/forms";
+import { type ChangeEvent, type FormEvent, useState } from "react";
 
-type TokenState = "checking" | "valid" | "invalid";
+import axios from "axios";
+import { useTranslation } from "react-i18next";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
+
+import Logo from "@/components/ui/Logo";
+import { useAuth } from "@/hooks/useAuth";
+import { useFetch } from "@/hooks/useFetch";
+import { resetPassword, validateResetToken } from "@/services/auth";
+import { errorAlertCls, inputCls } from "@/styles/forms";
+
+import AuthShell from "./components/AuthShell";
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation('auth');
@@ -20,25 +23,16 @@ export default function ResetPasswordPage() {
   const [fieldErrors, setFieldErrors] = useState({ password: "", confirm: "" });
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [tokenState, setTokenState] = useState<TokenState>(() =>
-    token ? "checking" : "invalid",
-  );
+  const [tokenInvalidated, setTokenInvalidated] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    validateResetToken(token)
-      .then(() => {
-        if (!cancelled) setTokenState("valid");
-      })
-      .catch(() => {
-        if (!cancelled) setTokenState("invalid");
-      });
-    return () => {
-      cancelled = true;
-    };
+  const { loading: checking, error: tokenError } = useFetch(async () => {
+    if (!token) throw new Error("missing token");
+    await validateResetToken(token);
   }, [token]);
+
+  const tokenState: "checking" | "valid" | "invalid" =
+    tokenInvalidated || tokenError ? "invalid" : checking ? "checking" : "valid";
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -90,7 +84,7 @@ export default function ResetPasswordPage() {
         const status = err.response?.status;
         // 400 here means the token was valid at page-load but expired or got
         // used between then and submit — same UX as a stale link on arrival.
-        if (status === 400) setTokenState("invalid");
+        if (status === 400) setTokenInvalidated(true);
         else if (status === 429) setError(t("auth:resetPassword.errors.tooManyAttempts"));
         else if (status === 422) {
           const detail = err.response?.data?.detail;
@@ -115,15 +109,15 @@ export default function ResetPasswordPage() {
 
   if (tokenState === "checking") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void">
+      <AuthShell className="">
         <p className="text-sm text-white/30">{t("auth:resetPassword.checking")}</p>
-      </div>
+      </AuthShell>
     );
   }
 
   if (tokenState === "invalid") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-warning/30 bg-card p-10 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-warning/30 bg-warning/10 text-lg text-warning">
             ✕
@@ -141,13 +135,13 @@ export default function ResetPasswordPage() {
             {t("auth:resetPassword.invalidToken.requestNew")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
           <div className="flex justify-center">
             <Logo size={32} />
@@ -168,12 +162,12 @@ export default function ResetPasswordPage() {
             {t("auth:resetPassword.success.loginButton")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+    <AuthShell>
       <div className="w-full max-w-sm space-y-8 rounded-xl border border-white/10 border-t-copper/50 bg-card sm:max-w-md">
         <div className="px-6 pt-8 text-center sm:px-8">
           <div className="flex justify-center">
@@ -188,11 +182,7 @@ export default function ResetPasswordPage() {
         </div>
 
         <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit} noValidate>
-          {error && (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 p-3 text-sm text-danger">
-              {error}
-            </div>
-          )}
+          {error && <div className={errorAlertCls}>{error}</div>}
 
           <div>
             <label htmlFor="password" className="block text-sm text-white/50">
@@ -261,6 +251,6 @@ export default function ResetPasswordPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </AuthShell>
   );
 }

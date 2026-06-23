@@ -1,5 +1,7 @@
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+
+import { errorAlertClsLg } from "@/styles/forms";
 
 interface ApplicationStatusProps {
   loading: boolean;
@@ -30,7 +32,7 @@ export default function ApplicationStatus({ loading, error }: ApplicationStatusP
   if (error) {
     return (
       <div className="text-center">
-        <div className="rounded-lg border border-danger/20 bg-danger/10 p-6 text-sm text-danger">
+        <div className={errorAlertClsLg}>
           {error}
         </div>
         <Link

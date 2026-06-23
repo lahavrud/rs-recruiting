@@ -1,12 +1,14 @@
 import type { Dispatch, SetStateAction } from "react";
+
 import { useTranslation } from "react-i18next";
-import Eyebrow from "@/components/ui/Eyebrow";
-import FilterPill from "@/components/ui/FilterPill";
-import SearchInput from "@/components/ui/SearchInput";
-import RangeSlider from "@/components/ui/RangeSlider";
-import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
+
 import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
 import FunnelIcon from "@/components/admin/FunnelIcon";
+import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
+import Eyebrow from "@/components/ui/Eyebrow";
+import FilterPill from "@/components/ui/FilterPill";
+import RangeSlider from "@/components/ui/RangeSlider";
+import SearchInput from "@/components/ui/SearchInput";
 
 const ALL_FILTER = "ALL";
 

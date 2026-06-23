@@ -1,4 +1,5 @@
 import { jwtDecode } from "jwt-decode";
+
 import type { JwtPayload } from "@/types/api";
 
 const ACCESS_TOKEN_KEY = "access_token";

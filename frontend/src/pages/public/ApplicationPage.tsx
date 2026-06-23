@@ -5,36 +5,43 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { getPublicJob, submitApplication } from "@/services/jobs";
-import { trackEvent } from "@/utils/analytics";
-import { getMe as getCandidateMe } from "@/services/candidate";
+import { useNavigate, useParams } from "react-router-dom";
+
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import { useAuth } from "@/hooks/useAuth";
+import { useFetch } from "@/hooks/useFetch";
+import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
+import { getMe as getCandidateMe, type CandidateMeRead } from "@/services/candidate";
+import { getPublicJob, submitApplication } from "@/services/jobs";
+import { errorAlertBaseCls } from "@/styles/forms";
 import type { CandidateApplicationForm, JobPublicRead } from "@/types/api";
 import { UserRole } from "@/types/api";
-import { useAuth } from "@/hooks/useAuth";
-import axios from "axios";
-import Stepper from "./components/Stepper";
-import IdentityStep from "./components/IdentityStep";
-import ResumeStep from "./components/ResumeStep";
-import QuestionsStep from "./components/QuestionsStep";
-import ClaimAccountSection from "./components/ClaimAccountSection";
-import { PrivacyModal, TermsModal } from "./components/LegalModals";
-import StepNav from "./components/StepNav";
-import SuccessScreen from "./components/SuccessScreen";
-import ApplicationStatus from "./components/ApplicationStatus";
-import JobApplicationHeader from "./components/JobApplicationHeader";
-import {
-  validateField,
-  validateClaimPassword,
-  describeServerError,
-} from "./components/applicationUtils";
+import { trackEvent } from "@/utils/analytics";
 import {
   RESUME_ALLOWED_EXTENSIONS,
   RESUME_MAX_FILE_SIZE_BYTES,
   RESUME_MAX_FILE_SIZE_MB,
 } from "@/utils/resume";
+
+import ApplicationStatus from "./components/ApplicationStatus";
+import {
+  validateField,
+  validateClaimPassword,
+  describeServerError,
+} from "./components/applicationUtils";
+import ClaimAccountSection from "./components/ClaimAccountSection";
+import IdentityStep from "./components/IdentityStep";
+import JobApplicationHeader from "./components/JobApplicationHeader";
+import { PrivacyModal, TermsModal } from "./components/LegalModals";
+import QuestionsStep from "./components/QuestionsStep";
+import ResumeStep from "./components/ResumeStep";
+import StepNav from "./components/StepNav";
+import Stepper from "./components/Stepper";
+import SuccessScreen from "./components/SuccessScreen";
+
 
 const TOTAL_STEPS = 3;
 type Step = 1 | 2 | 3;
@@ -71,10 +78,6 @@ export default function ApplicationPage() {
   // backend ignores the form field, and we hide consent + the claim toggle
   // since consent was captured at activation (Sprint 11 / #605, #606).
   const isLoggedInCandidate = user?.role === UserRole.CANDIDATE;
-
-  const [job, setJob] = useState<JobPublicRead | null>(null);
-  const [jobLoading, setJobLoading] = useState(true);
-  const [jobError, setJobError] = useState<string | null>(null);
 
   const [form, setForm] = useState<Omit<CandidateApplicationForm, "job_id">>(() =>
     isLoggedInCandidate ? { ...EMPTY_FORM, email: user!.email } : EMPTY_FORM,
@@ -200,65 +203,51 @@ export default function ApplicationPage() {
   // ── Job fetch ───────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!Number.isFinite(jobId)) {
-      navigate("/jobs", { replace: true });
-      return;
-    }
-    let cancelled = false;
-    async function fetchJob() {
-      try {
-        const data = await getPublicJob(jobId);
-        if (!cancelled) setJob(data);
-      } catch (err) {
-        if (!cancelled) {
-          if (axios.isAxiosError(err) && err.response?.status === 404) {
-            setJobError(t("publicJobs:application.unavailable"));
-          } else {
-            setJobError(t("publicJobs:application.errorLoad"));
-          }
-        }
-      } finally {
-        if (!cancelled) setJobLoading(false);
-      }
-    }
-    fetchJob();
-    return () => {
-      cancelled = true;
-    };
-  }, [jobId, navigate, t]);
+    if (!Number.isFinite(jobId)) navigate("/jobs", { replace: true });
+  }, [jobId, navigate]);
+
+  const { data: job, loading: jobLoading, error: jobFetchError } = useFetch<
+    JobPublicRead | null
+  >(async () => {
+    if (!Number.isFinite(jobId)) return null;
+    return getPublicJob(jobId);
+  }, [jobId]);
+
+  const jobError = jobFetchError
+    ? axios.isAxiosError(jobFetchError) && jobFetchError.response?.status === 404
+      ? t("publicJobs:application.unavailable")
+      : t("publicJobs:application.errorLoad")
+    : null;
 
   // Logged-in candidate: prefill identity + autofill fields from
   // /api/candidate/me so they don't retype data they already gave us. If
   // the profile already has a resume_path, expose the "use saved resume"
   // affordance — submitting without a new file lets the backend reuse the
-  // existing snapshot (PR B / backend resume_required fallback).
-  useEffect(() => {
-    if (!isLoggedInCandidate) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const me = await getCandidateMe();
-        if (cancelled) return;
-        setForm((prev) => ({
-          ...prev,
-          full_name: me.full_name || prev.full_name,
-          email: me.email,
-          phone: me.phone ?? prev.phone,
-          linkedin_url: me.linkedin_url ?? prev.linkedin_url,
-        }));
-        if (me.resume_path) {
-          setSavedResumeFilename(me.resume_path.split("/").pop() ?? "resume");
-        }
-        setProfilePrefilled(true);
-      } catch {
-        // Non-fatal — the form still works without prefill. The candidate
-        // can type their data manually.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // existing snapshot (PR B / backend resume_required fallback). Failure is
+  // non-fatal — the form still works without prefill — so the fetch
+  // swallows its own error and resolves `null`.
+  const { data: candidateMe } = useFetch<CandidateMeRead | null>(async () => {
+    if (!isLoggedInCandidate) return null;
+    try {
+      return await getCandidateMe();
+    } catch {
+      return null;
+    }
   }, [isLoggedInCandidate]);
+
+  useResetOnTrigger(candidateMe, () => {
+    setForm((prev) => ({
+      ...prev,
+      full_name: candidateMe!.full_name || prev.full_name,
+      email: candidateMe!.email,
+      phone: candidateMe!.phone ?? prev.phone,
+      linkedin_url: candidateMe!.linkedin_url ?? prev.linkedin_url,
+    }));
+    if (candidateMe!.resume_path) {
+      setSavedResumeFilename(candidateMe!.resume_path.split("/").pop() ?? "resume");
+    }
+    setProfilePrefilled(true);
+  });
 
   useEffect(() => {
     if (!job) return;
@@ -474,7 +463,7 @@ export default function ApplicationPage() {
         )}
 
         {submitError && (
-          <div className="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
+          <div className={`${errorAlertBaseCls} p-4`}>
             {submitError}
           </div>
         )}

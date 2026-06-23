@@ -1,5 +1,6 @@
-import * as RadixDialog from "@radix-ui/react-dialog";
 import type { ReactNode } from "react";
+
+import * as RadixDialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 
 type Size = "sm" | "md" | "lg";

@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+
+import Button from "@/components/ui/Button";
+import Dialog from "@/components/ui/Dialog";
+import Eyebrow from "@/components/ui/Eyebrow";
 import { getJobs } from "@/services/adminJobs";
 import type { CompanyProfileRead, JobRead } from "@/types/api";
-import Dialog from "@/components/ui/Dialog";
-import Button from "@/components/ui/Button";
-import Eyebrow from "@/components/ui/Eyebrow";
 
 interface DetailProps {
   profile: CompanyProfileRead | null;

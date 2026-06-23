@@ -1,14 +1,16 @@
 import { useTranslation } from "react-i18next";
-import type { JobRead } from "@/types/api";
-import { JobStatus } from "@/types/api";
-import StatusBadge from "@/components/ui/StatusBadge";
+
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
-import { FeaturedDesktopSash } from "./JobViewBody";
+import StatusBadge from "@/components/ui/StatusBadge";
+import type { JobRead } from "@/types/api";
+import { JobStatus } from "@/types/api";
 import { formatDate } from "@/utils/formatDate";
+
+import { FeaturedDesktopSash } from "./JobViewBody";
 
 export interface JobsTableProps {
   jobs: JobRead[];

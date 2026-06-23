@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+
 import { useReducedMotion } from "motion/react";
+
 import { createSilkRenderer, readSilkPalette } from "./landingSilkUtils";
 
 /* Silk backdrop for the hero's start-side void: a WebGL canvas of molten

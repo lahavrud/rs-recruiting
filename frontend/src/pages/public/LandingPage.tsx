@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+
 import Lenis from "lenis";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+
 import "lenis/dist/lenis.css";
-import { useAuth } from "@/hooks/useAuth";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import { useAuth } from "@/hooks/useAuth";
+import { useFetch } from "@/hooks/useFetch";
 import { getPublicJobs } from "@/services/jobs";
-import type { JobPublicRead } from "@/types/api";
+
+import LandingClosingCta from "./components/LandingClosingCta";
+import LandingFeaturedJobs from "./components/LandingFeaturedJobs";
 import LandingHero from "./components/LandingHero";
 import LandingSectors from "./components/LandingSectors";
-import LandingFeaturedJobs from "./components/LandingFeaturedJobs";
-import LandingClosingCta from "./components/LandingClosingCta";
 
 // Combined Organization + WebSite schema via @graph. WebSite gives Google a
 // canonical brand entity for the domain (helps consolidate the homepage and
@@ -55,9 +58,6 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [jobs, setJobs] = useState<JobPublicRead[]>([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
-
   // Inertia scrolling, scoped to the landing route only — the rest of the
   // app keeps native scroll. Skipped entirely under prefers-reduced-motion.
   useEffect(() => {
@@ -68,20 +68,8 @@ export default function LandingPage() {
     return () => lenis.destroy();
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    getPublicJobs()
-      .then((page) => {
-        if (!cancelled) setJobs(page.items);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setJobsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data: jobsPage, loading: jobsLoading } = useFetch(getPublicJobs, []);
+  const jobs = jobsPage?.items ?? [];
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();

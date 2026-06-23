@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+
 import { useTranslation } from "react-i18next";
-import { activateAccount } from "@/services/auth";
+import { Link, useSearchParams } from "react-router-dom";
+
 import Logo from "@/components/ui/Logo";
+import { activateAccount } from "@/services/auth";
+
+import AuthShell from "./components/AuthShell";
 
 type State = "loading" | "success" | "error";
 
@@ -21,15 +25,15 @@ export default function ActivatePage() {
 
   if (state === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void">
+      <AuthShell className="">
         <p className="text-sm text-white/30">{t("auth:activate.loading")}</p>
-      </div>
+      </AuthShell>
     );
   }
 
   if (state === "success") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+      <AuthShell>
         <div className="w-full max-w-md rounded-xl border border-success/20 bg-success/8 p-10 text-center">
           <div className="flex justify-center">
             <Logo size={32} />
@@ -50,12 +54,12 @@ export default function ActivatePage() {
             {t("auth:activate.success.loginButton")}
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-void px-4 py-8">
+    <AuthShell>
       <div className="w-full max-w-md rounded-xl border border-danger/20 bg-danger/8 p-10 text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-danger/30 bg-danger/10 text-lg text-danger">
           ✕
@@ -73,6 +77,6 @@ export default function ActivatePage() {
           {t("auth:activate.error.backToLogin")}
         </Link>
       </div>
-    </div>
+    </AuthShell>
   );
 }

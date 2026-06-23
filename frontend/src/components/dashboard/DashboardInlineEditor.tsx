@@ -1,11 +1,13 @@
 import { useRef, useState, type ChangeEvent } from "react";
+
 import { useTranslation } from "react-i18next";
-import { inputCls } from "@/styles/forms";
+
 import {
   patchMe,
   uploadResume,
   type CandidateMeRead,
 } from "@/services/candidate";
+import { inputCls } from "@/styles/forms";
 
 export type MissingKey = "phone" | "linkedin" | "resume";
 

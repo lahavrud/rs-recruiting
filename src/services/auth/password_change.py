@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.infrastructure.security import (
     get_password_hash,
     hash_token,
-    verify_password,
+    is_password_valid,
 )
 from src.models import RefreshToken, User
 from src.services.exceptions import InvalidCredentialsError
@@ -57,7 +57,7 @@ async def change_user_password(
         )
     ).scalar_one()
 
-    if not verify_password(current_password, persisted.hashed_password):
+    if not is_password_valid(current_password, persisted.hashed_password):
         raise InvalidCredentialsError("current_password_incorrect")
 
     persisted.hashed_password = get_password_hash(new_password)

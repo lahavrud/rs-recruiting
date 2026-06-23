@@ -1,9 +1,12 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
+import { useTranslation } from "react-i18next";
+
 import Field from "@/components/ui/Field";
-import { inputCls } from "@/styles/forms";
 import { changePassword } from "@/services/candidate";
+import { inputCls } from "@/styles/forms";
+
 import SettingsCard from "./SettingsCard";
 
 export default function SecuritySection() {

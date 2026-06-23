@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+
 import { motion } from "motion/react";
+
 import { fadeRise } from "./landingMotionUtils";
 
 /* Shared "copper caps label" eyebrow for the landing redesign — distinct

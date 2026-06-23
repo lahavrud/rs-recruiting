@@ -1,5 +1,7 @@
 import { type FormEvent, type RefObject } from "react";
+
 import { useTranslation } from "react-i18next";
+
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import SignatureCanvas, { type SignatureCanvasRef } from "@/components/ui/SignatureCanvas";

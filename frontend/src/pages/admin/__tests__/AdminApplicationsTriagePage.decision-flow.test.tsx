@@ -10,11 +10,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import "@/i18n"; // initialize i18next so t() resolves to real Hebrew strings
-import { ToastProvider } from "@/contexts/ToastContext";
 import Toaster from "@/components/ui/Toaster";
-import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
+import { ToastProvider } from "@/contexts/ToastContext";
 import AdminApplicationsTriagePage from "@/pages/admin/AdminApplicationsTriagePage";
+import { ApplicationStatus, type ApplicationWithDetails } from "@/types/api";
 
 // ── Service mocks ─────────────────────────────────────────────────────────
 

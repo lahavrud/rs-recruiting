@@ -1,8 +1,10 @@
 import { type ChangeEvent, type FocusEvent } from "react";
+
 import { useTranslation } from "react-i18next";
-import type { CandidateApplicationForm } from "@/types/api";
-import { inputCls } from "@/styles/forms";
+
 import Field from "@/components/ui/Field";
+import { inputCls } from "@/styles/forms";
+import type { CandidateApplicationForm } from "@/types/api";
 
 export default function IdentityStep({
   form,
