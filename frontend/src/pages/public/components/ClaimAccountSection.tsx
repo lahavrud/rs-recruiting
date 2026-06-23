@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 import { checkPasswordComplexity } from "@/utils/passwordComplexity";
 
 export default function ClaimAccountSection({
@@ -80,7 +80,7 @@ export default function ClaimAccountSection({
                 setPasswordError(validatePassword(e.target.value));
               }}
               aria-invalid={!!passwordError}
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
             />
             {passwordError ? (
               <p className="mt-1 text-xs text-danger">{passwordError}</p>
@@ -109,7 +109,7 @@ export default function ClaimAccountSection({
               }}
               onBlur={(e) => setConfirmError(validateConfirm(e.target.value, password))}
               aria-invalid={!!confirmError}
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
             />
             {confirmError && (
               <p className="mt-1 text-xs text-danger">{confirmError}</p>

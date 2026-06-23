@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationStatus } from "@/services/adminApplications";
-import { selectCls, textareaCls } from "@/styles/forms";
+import { SELECT_CLS, TEXTAREA_CLS } from "@/styles/forms";
 import { ApplicationStatus } from "@/types/enums";
 import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
 const ALL_STATUSES = [
@@ -124,7 +124,7 @@ export default function ApplicationStatusDialog({
           <select
             value={newStatus}
             onChange={(e) => setNewStatus(e.target.value)}
-            className={`mt-1 ${selectCls}`}
+            className={`mt-1 ${SELECT_CLS}`}
           >
             {ALL_STATUSES.map((s) => (
               <option key={s} value={s} className="bg-well">
@@ -147,7 +147,7 @@ export default function ApplicationStatusDialog({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className={`mt-1 ${textareaCls}`}
+            className={`mt-1 ${TEXTAREA_CLS}`}
             placeholder={t("admin:applications.modal.notesPlaceholder")}
           />
         </div>

@@ -9,7 +9,7 @@ import Field from "@/components/ui/Field";
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { registerCandidate } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
 import { EMAIL_RE } from "@/utils/validators";
 
@@ -222,7 +222,7 @@ export default function RegisterCandidatePage() {
               value={form.fullName}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:registerCandidate.fullNamePlaceholder")}
             />
           </Field>
@@ -241,7 +241,7 @@ export default function RegisterCandidatePage() {
               onChange={handleChange}
               onBlur={handleBlur}
               dir="ltr"
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:registerCandidate.emailPlaceholder")}
             />
           </Field>
@@ -259,7 +259,7 @@ export default function RegisterCandidatePage() {
               value={form.password}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:register.passwordPlaceholder")}
             />
           </Field>
@@ -277,7 +277,7 @@ export default function RegisterCandidatePage() {
               value={form.passwordConfirm}
               onChange={handleChange}
               onBlur={handleBlur}
-              className={inputCls}
+              className={INPUT_CLS}
               placeholder={t("auth:register.confirmPlaceholder")}
             />
           </Field>

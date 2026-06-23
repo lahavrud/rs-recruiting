@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Field from "@/components/ui/Field";
 import { patchMe, type CandidateMeRead } from "@/services/candidate";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 import ResumeCard from "./ResumeCard";
 
@@ -82,7 +82,7 @@ export default function ApplyAutofillSection({
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setPhone(e.target.value)
               }
-              className={inputCls}
+              className={INPUT_CLS}
               dir="ltr"
               placeholder="050-000-0000"
               maxLength={30}
@@ -98,7 +98,7 @@ export default function ApplyAutofillSection({
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setLinkedin(e.target.value)
               }
-              className={inputCls}
+              className={INPUT_CLS}
               dir="ltr"
               placeholder="https://linkedin.com/in/your-handle"
               maxLength={500}

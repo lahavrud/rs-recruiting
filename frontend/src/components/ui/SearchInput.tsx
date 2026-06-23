@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useDebounce } from "@/hooks/useDebounce";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 interface SearchInputProps {
   /** Initial value, used only for uncontrolled internal state. */
@@ -104,7 +104,7 @@ export default function SearchInput({
       }}
       placeholder={placeholder ?? t("common:searchPlaceholder")}
       aria-label={ariaLabel ?? t("common:search")}
-      className={`${inputCls} ${noNativeClear} ${showClear ? "pe-9" : ""} ${className}`}
+      className={`${INPUT_CLS} ${noNativeClear} ${showClear ? "pe-9" : ""} ${className}`}
     />
   );
 

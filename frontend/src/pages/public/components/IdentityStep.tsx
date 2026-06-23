@@ -3,7 +3,7 @@ import { type ChangeEvent, type FocusEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import Field from "@/components/ui/Field";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 import type { CandidateApplicationForm } from "@/types/candidates";
 export default function IdentityStep({
   form,
@@ -35,7 +35,7 @@ export default function IdentityStep({
           value={form.full_name}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.fullName")}
           autoComplete="name"
           aria-invalid={!!fieldErrors.full_name}
@@ -56,7 +56,7 @@ export default function IdentityStep({
           value={form.email}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.email")}
           autoComplete="email"
           aria-invalid={!!fieldErrors.email}
@@ -83,7 +83,7 @@ export default function IdentityStep({
           value={form.phone}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.phone")}
           autoComplete="tel"
           aria-invalid={!!fieldErrors.phone}
@@ -104,7 +104,7 @@ export default function IdentityStep({
           value={form.linkedin_url}
           onChange={onChange}
           onBlur={onBlur}
-          className={inputCls}
+          className={INPUT_CLS}
           placeholder={t("publicJobs:application.placeholders.linkedin")}
           aria-invalid={!!fieldErrors.linkedin_url}
         />

@@ -8,7 +8,7 @@ import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
 import { createInvite } from "@/services/adminInvites";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 import type { InviteTokenCreate, InviteTokenRead } from "@/types/invites";
 interface InviteFormProps {
   open: boolean;
@@ -96,7 +96,7 @@ export default function InviteFormDialog({ open, onClose, onCreated }: InviteFor
           type="email"
           value={form.email}
           onChange={(e) => setForm({ email: e.target.value })}
-          className={`mt-1 ${inputCls}`}
+          className={`mt-1 ${INPUT_CLS}`}
           placeholder={t("admin:companies.inviteForm.emailPlaceholder")}
         />
       </label>

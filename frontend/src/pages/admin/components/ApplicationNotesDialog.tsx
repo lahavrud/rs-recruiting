@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { updateApplicationNotes } from "@/services/adminApplications";
-import { textareaCls } from "@/styles/forms";
+import { TEXTAREA_CLS } from "@/styles/forms";
 import type { ApplicationWithDetails } from "@/types/candidates";
 interface NotesDialogProps {
   app: ApplicationWithDetails | null;
@@ -73,7 +73,7 @@ export default function ApplicationNotesDialog({
         onChange={(e) => setNotes(e.target.value)}
         rows={5}
         maxLength={5000}
-        className={textareaCls}
+        className={TEXTAREA_CLS}
         placeholder={t("admin:applications.modal.notesPlaceholder")}
       />
       {notes.length > 4800 && (

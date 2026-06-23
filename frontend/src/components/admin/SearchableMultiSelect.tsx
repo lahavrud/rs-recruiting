@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { inputCls, selectCls } from "@/styles/forms";
+import { INPUT_CLS, SELECT_CLS } from "@/styles/forms";
 
 interface Option<T> {
   value: T;
@@ -113,7 +113,7 @@ export default function SearchableMultiSelect<T extends string | number>({
         onClick={() => (open ? close() : setOpen(true))}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className={`${selectCls} flex w-full items-center justify-between gap-2 text-start transition-colors duration-200 active:scale-[0.99] ${open ? "border-copper/40" : ""}`}
+        className={`${SELECT_CLS} flex w-full items-center justify-between gap-2 text-start transition-colors duration-200 active:scale-[0.99] ${open ? "border-copper/40" : ""}`}
       >
         <span
           className={values.length > 0 ? "truncate text-white/85" : "truncate text-white/40"}
@@ -161,7 +161,7 @@ export default function SearchableMultiSelect<T extends string | number>({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={searchPlaceholder ?? t("common:searchPlaceholder")}
-              className={inputCls}
+              className={INPUT_CLS}
             />
           </div>
           <div role="listbox" className="max-h-60 overflow-y-auto py-1">

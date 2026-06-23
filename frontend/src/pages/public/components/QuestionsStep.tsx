@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import Field from "@/components/ui/Field";
-import { textareaCls as textareaBase } from "@/styles/forms";
+import { TEXTAREA_CLS as textareaBase } from "@/styles/forms";
 import type { CandidateApplicationForm } from "@/types/candidates";
 const TEXT_FIELD_MAX = 2000;
-const textareaCls = textareaBase + " min-h-[96px]";
+const TEXTAREA_CLS = textareaBase + " min-h-[96px]";
 
 export default function QuestionsStep({
   form,
@@ -79,7 +79,7 @@ export default function QuestionsStep({
               value={value}
               onChange={onChange}
               onBlur={onBlur}
-              className={textareaCls}
+              className={TEXTAREA_CLS}
               placeholder={ph}
               maxLength={TEXT_FIELD_MAX}
               aria-invalid={!!fieldErrors[name]}

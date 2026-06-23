@@ -15,7 +15,7 @@ import {
   getCompanyJobs,
   updateJob,
 } from "@/services/companyJobs";
-import { errorAlertBaseCls, inputCls, textareaCls } from "@/styles/forms";
+import { errorAlertBaseCls, INPUT_CLS, TEXTAREA_CLS } from "@/styles/forms";
 import type { JobCreate, JobRead, JobRequirementItem, JobUpdate } from "@/types/jobs";
 import { JobStatus } from "@/types/enums";
 import { JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/jobs";
@@ -85,7 +85,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             maxLength={200}
             value={form.title}
             onChange={(e) => set("title", e.target.value)}
-            className={`mt-1 ${inputCls}`}
+            className={`mt-1 ${INPUT_CLS}`}
             placeholder={t("company:jobs.placeholders.jobTitle")}
           />
         </div>
@@ -99,7 +99,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             maxLength={100}
             value={form.location}
             onChange={(e) => set("location", e.target.value)}
-            className={`mt-1 ${inputCls}`}
+            className={`mt-1 ${INPUT_CLS}`}
             placeholder={t("company:jobs.placeholders.location")}
           />
         </div>
@@ -113,7 +113,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             min={0}
             value={form.salary_min || ""}
             onChange={(e) => set("salary_min", e.target.value ? Number(e.target.value) : 0)}
-            className={`mt-1 ${inputCls}`}
+            className={`mt-1 ${INPUT_CLS}`}
           />
         </div>
         <div>
@@ -126,7 +126,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             min={0}
             value={form.salary_max || ""}
             onChange={(e) => set("salary_max", e.target.value ? Number(e.target.value) : 0)}
-            className={`mt-1 ${inputCls}`}
+            className={`mt-1 ${INPUT_CLS}`}
           />
         </div>
         <div className="sm:col-span-2">
@@ -139,7 +139,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             maxLength={JOB_SHORT_DESC_MAX}
             value={form.short_description}
             onChange={(e) => set("short_description", e.target.value)}
-            className={`mt-1 ${inputCls}`}
+            className={`mt-1 ${INPUT_CLS}`}
             placeholder={t("company:jobs.placeholders.shortDescription")}
           />
           <p className="mt-1 text-[11px] text-white/35">
@@ -158,7 +158,7 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
             rows={4}
             value={form.description}
             onChange={(e) => set("description", e.target.value)}
-            className={`mt-1 ${textareaCls}`}
+            className={`mt-1 ${TEXTAREA_CLS}`}
             placeholder={t("company:jobs.placeholders.description")}
           />
         </div>

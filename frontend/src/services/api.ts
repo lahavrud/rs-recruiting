@@ -9,10 +9,10 @@ import { getToken, removeToken, setToken } from "@/utils/token";
  * so we use an empty baseURL (relative paths).
  * In production, set VITE_API_BASE_URL to the backend origin.
  */
-const baseURL = import.meta.env.DEV ? "" : import.meta.env.VITE_API_BASE_URL || "";
+const BASE_URL = import.meta.env.DEV ? "" : import.meta.env.VITE_API_BASE_URL || "";
 
 const api = axios.create({
-  baseURL,
+  baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -73,7 +73,7 @@ api.interceptors.response.use(
 
     try {
       // Refresh token is an HttpOnly cookie — browser sends it automatically.
-      const response = await axios.post(`${baseURL}/auth/refresh`, null, {
+      const response = await axios.post(`${BASE_URL}/auth/refresh`, null, {
         withCredentials: true,
       });
       const { access_token } = response.data;

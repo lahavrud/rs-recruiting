@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import AutoGrowTextarea from "@/components/ui/AutoGrowTextarea";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
-import { textareaCls } from "@/styles/forms";
+import { TEXTAREA_CLS } from "@/styles/forms";
 
 import { IconArrowRight, IconCheck, IconClose } from "./TriageIcons";
 import { DECISION_META, UNDECIDED_CHIP_BG, type Decision } from "./triageTypes";
@@ -269,7 +269,7 @@ export function NoteField({ initial }: { initial: string }) {
       onChange={setValue}
       minRows={2}
       placeholder={t("admin:applications.triage.notePlaceholder")}
-      className={textareaCls}
+      className={TEXTAREA_CLS}
     />
   );
 }

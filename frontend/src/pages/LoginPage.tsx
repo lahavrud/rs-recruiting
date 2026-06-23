@@ -7,7 +7,7 @@ import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { resendCandidateActivation } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { EMAIL_RE } from "@/utils/validators";
 import { apiErrorKey } from "@/utils/apiError";
 
@@ -174,7 +174,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={handleEmailChange}
                 onBlur={handleBlur}
-                className={`mt-1 ${inputCls}`}
+                className={`mt-1 ${INPUT_CLS}`}
                 placeholder={t("auth:login.emailPlaceholder")}
                 autoComplete="email"
               />
@@ -195,7 +195,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={handlePasswordChange}
                 onBlur={handleBlur}
-                className={`mt-1 ${inputCls}`}
+                className={`mt-1 ${INPUT_CLS}`}
                 placeholder={t("auth:login.passwordPlaceholder")}
                 autoComplete="current-password"
               />

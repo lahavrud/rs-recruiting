@@ -7,7 +7,7 @@ import {
   uploadResume,
   type CandidateMeRead,
 } from "@/services/candidate";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 export type MissingKey = "phone" | "linkedin" | "resume";
 
@@ -127,7 +127,7 @@ export function InlineEditor({
             ? "050-000-0000"
             : "https://linkedin.com/in/your-handle"
         }
-        className={`${inputCls} max-w-xs py-1.5 text-xs`}
+        className={`${INPUT_CLS} max-w-xs py-1.5 text-xs`}
         maxLength={field === "phone" ? 30 : 500}
       />
       <button

@@ -8,7 +8,7 @@ import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { resetPassword, validateResetToken } from "@/services/auth";
-import { errorAlertCls, inputCls } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
 
 import AuthShell from "./components/AuthShell";
@@ -203,7 +203,7 @@ export default function ResetPasswordPage() {
                   password: validatePassword(e.target.value),
                 }))
               }
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
               autoComplete="new-password"
             />
             {fieldErrors.password && (
@@ -228,7 +228,7 @@ export default function ResetPasswordPage() {
                   confirm: validateConfirm(e.target.value, password),
                 }))
               }
-              className={`mt-1 ${inputCls}`}
+              className={`mt-1 ${INPUT_CLS}`}
               autoComplete="new-password"
             />
             {fieldErrors.confirm && (

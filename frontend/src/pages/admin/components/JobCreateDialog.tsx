@@ -12,7 +12,7 @@ import JobTagsInput from "@/components/ui/JobTagsInput";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import { createJob } from "@/services/adminJobs";
-import { ghostInputCls, selectCls } from "@/styles/forms";
+import { ghostInputCls, SELECT_CLS } from "@/styles/forms";
 import type { ActiveCompanyRead } from "@/types/companies";
 import type { JobAdminCreate, JobRead, JobRequirementItem } from "@/types/jobs";
 import { JOB_REQ_MIN_COUNT, JOB_SHORT_DESC_MAX } from "@/types/jobs";
@@ -206,7 +206,7 @@ export default function JobCreateDialog({ open, onClose, onCreated, onError }: C
                   id="company_id"
                   value={form.company_id ?? ""}
                   onChange={(e) => set("company_id", Number(e.target.value))}
-                  className={selectCls}
+                  className={SELECT_CLS}
                 >
                   {companies.map((row) => (
                     <option

@@ -63,8 +63,8 @@ function loadAll(): Article[] {
   return out.sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
-export const articles: Article[] = loadAll();
+export const ARTICLES: Article[] = loadAll();
 
 export function getArticle(slug: string): Article | undefined {
-  return articles.find((a) => a.slug === slug);
+  return ARTICLES.find((a) => a.slug === slug);
 }

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import Field from "@/components/ui/Field";
 import { changePassword } from "@/services/candidate";
-import { inputCls } from "@/styles/forms";
+import { INPUT_CLS } from "@/styles/forms";
 
 import SettingsCard from "./SettingsCard";
 
@@ -78,7 +78,7 @@ export default function SecuritySection() {
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setCurrent(e.target.value)
             }
-            className={inputCls}
+            className={INPUT_CLS}
             autoComplete="current-password"
             required
           />
@@ -90,7 +90,7 @@ export default function SecuritySection() {
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setNext(e.target.value)
             }
-            className={inputCls}
+            className={INPUT_CLS}
             autoComplete="new-password"
             required
           />
@@ -102,7 +102,7 @@ export default function SecuritySection() {
             onChange={(e: ChangeEvent<HTMLInputElement>) =>
               setConfirmNext(e.target.value)
             }
-            className={inputCls}
+            className={INPUT_CLS}
             autoComplete="new-password"
             required
           />
