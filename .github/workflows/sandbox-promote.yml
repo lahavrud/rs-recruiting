@@ -1,0 +1,152 @@
+name: Sandbox Promote
+
+# Promotes a release to the sandbox-prod namespace on every non-RC v* tag
+# push — the sandbox equivalent of release.yml's promote-prod job, pointed
+# at the sandbox account's ECR repo and rs-recruiting-gitops instead of
+# prod's EC2/CloudFront. RC tags (vX.Y.Z-rc.N) are release.yml's territory
+# (ephemeral staging) and are explicit no-ops here.
+#
+# Mirrors release.yml's "promote existing image, or build fresh" logic: a
+# v* tag is normally cut from a commit already on main, which sandbox.yml
+# (#22) already built and pushed to the sandbox ECR repo when it merged —
+# so this just re-tags that image rather than rebuilding. Falls back to a
+# fresh build if no image exists for that SHA (e.g. the sandbox was down
+# when the commit merged).
+#
+# Skips cleanly, like sandbox.yml, when the sandbox cluster is down.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: sandbox-promote
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote to sandbox-prod
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 1
+
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ secrets.SANDBOX_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Check sandbox active flag
+        id: check
+        run: |
+          if aws ssm get-parameter --name /rs-recruiting/sandbox/active --region us-east-1 > /dev/null 2>&1; then
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Sandbox is not up (no /rs-recruiting/sandbox/active SSM parameter) — skipping promote."
+          fi
+
+      - uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+        id: ecr-login
+        if: steps.check.outputs.active == 'true'
+
+      - name: Promote existing image, or build fresh
+        id: promote
+        if: steps.check.outputs.active == 'true'
+        run: |
+          set -euo pipefail
+          SHA="${{ github.sha }}"
+          TAG="${{ github.ref_name }}"
+          if aws ecr describe-images \
+            --repository-name rs-recruiting/backend \
+            --image-ids imageTag="${SHA}" \
+            --region us-east-1 > /dev/null 2>&1; then
+            echo "==> Found image for ${SHA} — re-tagging ${TAG} (no rebuild)"
+            IMAGE_MANIFEST=$(aws ecr batch-get-image \
+              --repository-name rs-recruiting/backend \
+              --image-ids imageTag="${SHA}" \
+              --region us-east-1 \
+              --query 'images[0].imageManifest' --output text)
+            aws ecr put-image \
+              --repository-name rs-recruiting/backend \
+              --image-tag "${TAG}" \
+              --image-manifest "${IMAGE_MANIFEST}" \
+              --region us-east-1 > /dev/null
+            echo "rebuild=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "==> No image found for ${SHA} — building fresh (sandbox was likely down when this commit merged)"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        if: steps.check.outputs.active == 'true' && steps.promote.outputs.rebuild == 'true'
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        if: steps.check.outputs.active == 'true' && steps.promote.outputs.rebuild == 'true'
+        with:
+          context: .
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend:${{ github.ref_name }}
+            ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend:${{ github.sha }}
+          cache-from: type=gha,scope=sandbox-backend
+          cache-to: type=gha,mode=max,scope=sandbox-backend
+
+      - name: Mint GitHub App token (gitops repo)
+        id: app-token
+        # TODO: pin to a commit SHA to match the repo's action-pinning convention.
+        uses: actions/create-github-app-token@v3
+        if: steps.check.outputs.active == 'true'
+        with:
+          app-id: ${{ secrets.CI_APP_ID }}
+          private-key: ${{ secrets.CI_APP_PRIVATE_KEY }}
+          owner: lahavrud
+          repositories: rs-recruiting-gitops
+
+      - name: Checkout gitops repo
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: steps.check.outputs.active == 'true'
+        with:
+          repository: lahavrud/rs-recruiting-gitops
+          token: ${{ steps.app-token.outputs.token }}
+          path: gitops
+          fetch-depth: 1
+
+      - name: Bump image tag in sandbox-prod overlay
+        if: steps.check.outputs.active == 'true'
+        env:
+          IMAGE_REPO: ${{ steps.ecr-login.outputs.registry }}/rs-recruiting/backend
+          IMAGE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cd gitops
+          yq -i '.image.repository = strenv(IMAGE_REPO)' envs/sandbox-prod/backend-values.yaml
+          yq -i '.image.tag = strenv(IMAGE_TAG)' envs/sandbox-prod/backend-values.yaml
+
+      - name: Commit and push
+        if: steps.check.outputs.active == 'true'
+        run: |
+          set -euo pipefail
+          cd gitops
+          git config user.name "rs-recruiting-ci[bot]"
+          git config user.email "rs-recruiting-ci[bot]@users.noreply.github.com"
+          git add envs/sandbox-prod/backend-values.yaml
+          if git diff --cached --quiet; then
+            echo "No overlay changes to commit"
+            exit 0
+          fi
+          git commit -m "deploy(backend): sandbox-prod -> ${{ github.ref_name }}"
+          git push
