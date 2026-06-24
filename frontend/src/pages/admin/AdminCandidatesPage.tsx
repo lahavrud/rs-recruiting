@@ -119,7 +119,7 @@ export default function AdminCandidatesPage() {
             value={query}
             onChange={setQuery}
             placeholder={t("admin:candidates.searchPlaceholder")}
-            clearable
+            isClearable
           />
         </div>
 
@@ -193,7 +193,7 @@ export default function AdminCandidatesPage() {
             value={query}
             onChange={setQuery}
             placeholder={t("admin:candidates.searchPlaceholder")}
-            clearable
+            isClearable
           />
         </div>
 

@@ -11,7 +11,7 @@ import { getActiveCompanies } from "@/services/adminCompanies";
 import type { ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
-import { IconArrowRight } from "./triageIcons";
+import { IconArrowRight } from "./TriageIcons";
 
 const STATUS_COLORS: Record<string, string> = {
   NEW: "bg-copper/10 text-copper",
