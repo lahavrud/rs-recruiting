@@ -402,3 +402,60 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         assert await purge_expired_candidates(session) == 1
         await session.commit()
         assert await purge_expired_candidates(session) == 0
+
+
+# ---------------------------------------------------------------------------
+# get_candidate_job_matches
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_orders_by_score_desc(
+    session: AsyncSession,
+    company_profile,
+):
+    from src.models import JobMatch
+    from src.services.admin.candidates import get_candidate_job_matches
+
+    candidate = CandidateProfile(full_name="Match", email="match@example.com")
+    session.add(candidate)
+    await session.flush()
+
+    def _job(title: str) -> Job:
+        return Job(
+            company_id=company_profile.id,
+            title=title,
+            short_description="x",
+            description="y",
+            requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            tags=[],
+            location="Tel Aviv",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.PUBLISHED,
+        )
+
+    low, high = _job("Low"), _job("High")
+    session.add_all([low, high])
+    await session.flush()
+    session.add_all(
+        [
+            JobMatch(candidate_id=candidate.id, job_id=low.id, score=0.2),
+            JobMatch(candidate_id=candidate.id, job_id=high.id, score=0.8),
+        ]
+    )
+    await session.flush()
+
+    matches = await get_candidate_job_matches(candidate.id, session)
+    assert [m.job.title for m in matches] == ["High", "Low"]
+    assert matches[0].score == 0.8
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_unknown_candidate_raises(
+    session: AsyncSession,
+):
+    from src.services.admin.candidates import get_candidate_job_matches
+
+    with pytest.raises(CandidateNotFoundError):
+        await get_candidate_job_matches(999999, session)

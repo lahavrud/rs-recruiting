@@ -110,6 +110,79 @@ def mock_enqueue_email():
         p.stop()
 
 
+# Resume-matching enqueue bindings. Module-level imports must be patched at
+# their binding site; ``src.services.candidate.profile`` imports lazily inside
+# the function so patching the source in ``src.core.tasks`` covers it.
+_MATCH_EMBED_TASK_TARGETS = [
+    "src.core.tasks.enqueue_match_candidate_task",
+    "src.core.tasks.enqueue_embed_job_task",
+    "src.services.public.applications.enqueue_match_candidate_task",
+    "src.services.admin.jobs.enqueue_embed_job_task",
+    "src.services.admin.jobs_workflow.enqueue_embed_job_task",
+]
+
+
+@pytest.fixture(autouse=True)
+def mock_enqueue_matching():
+    """Neutralize embed/match enqueues so unrelated flows (apply, resume upload,
+    job approve/edit) don't kick off real background matching during tests.
+
+    Tests that exercise the matching tasks themselves call the task functions
+    directly and are unaffected by this.
+    """
+    patches = [
+        patch(target, new_callable=AsyncMock) for target in _MATCH_EMBED_TASK_TARGETS
+    ]
+    for p in patches:
+        p.start()
+    yield
+    for p in patches:
+        p.stop()
+
+
+class FakeEmbeddingProvider:
+    """Deterministic, network-free embedding provider for tests.
+
+    Hashes whitespace tokens into a fixed-width unit vector so that texts
+    sharing words land close in cosine space — enough to assert match ranking
+    without any real model. Mirrors how the email/storage fakes stand in for
+    their real providers.
+    """
+
+    def __init__(self, dim: int = 1024):
+        self.dim = dim
+
+    async def embed(
+        self, texts: list[str], *, input_type: str = "search_document"
+    ) -> list[list[float]]:
+        return [self._vec(t) for t in texts]
+
+    def _vec(self, text: str) -> list[float]:
+        import hashlib
+        import math
+
+        vec = [0.0] * self.dim
+        for token in text.lower().split():
+            idx = int(hashlib.md5(token.encode()).hexdigest(), 16) % self.dim
+            vec[idx] += 1.0
+        norm = math.sqrt(sum(x * x for x in vec)) or 1.0
+        return [x / norm for x in vec]
+
+
+@pytest.fixture
+def fake_embeddings():
+    """Patch ``get_embedding_provider`` at its source with a deterministic fake.
+
+    Opt-in (not autouse): only matching-task tests need it. Patching the source
+    module covers the tasks' lazy ``from ... import get_embedding_provider``.
+    """
+    provider = FakeEmbeddingProvider(dim=settings.embedding_dim)
+    with patch(
+        "src.core.services.embeddings.get_embedding_provider", return_value=provider
+    ):
+        yield provider
+
+
 @pytest.fixture(autouse=True)
 def _provide_post_commit_hooks_context():
     """Establish an empty post-commit hooks contextvar for every test.
@@ -257,7 +330,12 @@ TestSessionLocal = async_sessionmaker(
 
 async def _create_tables_once() -> None:
     """Create all tables on the per-worker DB. Called once per worker, not per test."""
+    from sqlalchemy import text
+
     async with test_engine.begin() as conn:
+        # Required before create_all can build the pgvector ``embedding`` columns
+        # (the schema is built from models here, not via the alembic migration).
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(SQLModel.metadata.create_all)
 
 

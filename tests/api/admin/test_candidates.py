@@ -210,3 +210,93 @@ async def test_candidate_endpoints_require_admin(
     )
     assert put_resp.status_code == 401
     assert delete_resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/candidates/{id}/job-matches
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_ranked(
+    admin_client: AsyncClient,
+    company_profile,
+    candidate_profile: CandidateProfile,
+):
+    """Returns persisted matches joined to the job, best score first."""
+    from src.enums import JobStatus
+    from src.models import Job, JobMatch
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as s:
+        low = Job(
+            company_id=company_profile.id,
+            title="Lower Match",
+            short_description="x",
+            description="y",
+            requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            tags=[],
+            location="Tel Aviv",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.PUBLISHED,
+        )
+        high = Job(
+            company_id=company_profile.id,
+            title="Higher Match",
+            short_description="x",
+            description="y",
+            requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            tags=[],
+            location="Haifa",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.PUBLISHED,
+        )
+        s.add_all([low, high])
+        await s.commit()
+        await s.refresh(low)
+        await s.refresh(high)
+        s.add_all(
+            [
+                JobMatch(candidate_id=candidate_profile.id, job_id=low.id, score=0.30),
+                JobMatch(candidate_id=candidate_profile.id, job_id=high.id, score=0.91),
+            ]
+        )
+        await s.commit()
+        high_id, low_id = high.id, low.id
+
+    resp = await admin_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/job-matches"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [m["job"]["id"] for m in data] == [high_id, low_id]
+    assert data[0]["score"] == 0.91
+    assert data[0]["job"]["title"] == "Higher Match"
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_empty_when_none(
+    admin_client: AsyncClient,
+    candidate_profile: CandidateProfile,
+):
+    resp = await admin_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/job-matches"
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_404_for_unknown_candidate(
+    admin_client: AsyncClient,
+):
+    resp = await admin_client.get("/api/admin/candidates/999999/job-matches")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_job_matches_requires_admin(public_client: AsyncClient):
+    resp = await public_client.get("/api/admin/candidates/1/job-matches")
+    assert resp.status_code in (401, 403)
