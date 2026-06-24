@@ -11,7 +11,6 @@ redelivery is safe.
 
 import logging
 
-from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import async_session
 from src.core.infrastructure.transactions import transactional
 
@@ -57,22 +56,22 @@ async def embed_job_task(job_id: int) -> None:
 
 
 async def match_candidate_task(candidate_id: int) -> None:
-    """Embed a candidate's CV and persist their top-N matching jobs.
+    """Extract and embed a candidate's CV so they can be matched against jobs.
 
     Steps: download resume → extract text → store ``parsed_text`` → embed →
-    cosine-search PUBLISHED, embedded jobs → replace this candidate's
-    ``JobMatch`` rows. Idempotent (delete-then-insert) so SQS redelivery is safe.
+    store ``embedding``. Idempotent — safe under SQS at-least-once redelivery
+    (recomputes the same text/vector). The actual job matching is a live
+    cosine-distance query at read time (see ``services.admin.candidates`` and
+    ``services.admin.jobs``), not persisted here.
 
-    Skips cleanly (leaving any prior matches untouched) when there is no resume
-    or the file yields no extractable text (e.g. legacy ``.doc``).
+    Skips cleanly (leaving prior ``parsed_text``/``embedding`` untouched) when
+    there is no resume or the file yields no extractable text (e.g. legacy
+    ``.doc``).
     """
-    from sqlalchemy import delete, select
-
     from src.core.services.cv_extraction import extract_text
     from src.core.services.embeddings import get_embedding_provider
     from src.core.services.storage import get_storage_provider
-    from src.enums import JobStatus
-    from src.models import CandidateProfile, Job, JobMatch
+    from src.models import CandidateProfile
 
     async with async_session() as session:
         async with transactional(session):
@@ -97,31 +96,4 @@ async def match_candidate_task(candidate_id: int) -> None:
                 [text], input_type="search_query"
             )
             profile.embedding = vector
-            await session.flush()
-
-            distance = Job.embedding.cosine_distance(vector)
-            rows = (
-                await session.execute(
-                    select(Job.id, distance.label("distance"))
-                    .where(
-                        Job.status == JobStatus.PUBLISHED,
-                        Job.embedding.is_not(None),
-                    )
-                    .order_by(distance)
-                    .limit(settings.embedding_top_matches)
-                )
-            ).all()
-
-            # Replace this candidate's matches wholesale (idempotent re-run).
-            await session.execute(
-                delete(JobMatch).where(JobMatch.candidate_id == candidate_id)
-            )
-            for job_id, dist in rows:
-                score = cosine_similarity_score(dist)
-                session.add(
-                    JobMatch(candidate_id=candidate_id, job_id=job_id, score=score)
-                )
-    logger.info(
-        "candidate_matched",
-        extra={"candidate_id": candidate_id, "match_count": len(rows)},
-    )
+    logger.info("candidate_embedded", extra={"candidate_id": candidate_id})

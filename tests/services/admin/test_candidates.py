@@ -409,19 +409,31 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
 # ---------------------------------------------------------------------------
 
 
+def _basis_vec(index: int) -> list[float]:
+    """A unit vector along one axis — orthogonal to a different index's vector,
+    identical to the same index's vector. Gives predictable cosine distances
+    (1.0 and 0.0) without needing a real embedding provider."""
+    from src.core.infrastructure.config import settings
+
+    vec = [0.0] * settings.embedding_dim
+    vec[index] = 1.0
+    return vec
+
+
 @pytest.mark.asyncio
 async def test_get_candidate_job_matches_orders_by_score_desc(
     session: AsyncSession,
     company_profile,
 ):
-    from src.models import JobMatch
     from src.services.admin.candidates import get_candidate_job_matches
 
-    candidate = CandidateProfile(full_name="Match", email="match@example.com")
+    candidate = CandidateProfile(
+        full_name="Match", email="match@example.com", embedding=_basis_vec(0)
+    )
     session.add(candidate)
     await session.flush()
 
-    def _job(title: str) -> Job:
+    def _job(title: str, embedding: list[float]) -> Job:
         return Job(
             company_id=company_profile.id,
             title=title,
@@ -433,22 +445,19 @@ async def test_get_candidate_job_matches_orders_by_score_desc(
             salary_min=1,
             salary_max=2,
             status=JobStatus.PUBLISHED,
+            embedding=embedding,
         )
 
-    low, high = _job("Low"), _job("High")
+    # "High" shares the candidate's exact embedding (distance 0 → score 1.0).
+    # "Low" is orthogonal to it (distance 1 → score 0.0).
+    low, high = _job("Low", _basis_vec(1)), _job("High", _basis_vec(0))
     session.add_all([low, high])
-    await session.flush()
-    session.add_all(
-        [
-            JobMatch(candidate_id=candidate.id, job_id=low.id, score=0.2),
-            JobMatch(candidate_id=candidate.id, job_id=high.id, score=0.8),
-        ]
-    )
     await session.flush()
 
     matches = await get_candidate_job_matches(candidate.id, session)
     assert [m.job.title for m in matches] == ["High", "Low"]
-    assert matches[0].score == 0.8
+    assert matches[0].score == 1.0
+    assert matches[1].score == 0.0
 
 
 @pytest.mark.asyncio

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
+from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
@@ -14,13 +14,15 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.matching import cosine_similarity_score
 from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, Job, JobMatch
+from src.models import Application, CandidateProfile, Job
 from src.schemas import (
     CandidateJobMatchRead,
     CandidateProfileRead,
     CandidateProfileUpdate,
+    JobRead,
 )
 from src.services.exceptions import CandidateNotFoundError
 from src.services.utils.audit import record_audit_event
@@ -68,39 +70,40 @@ async def get_candidate(
 async def get_candidate_job_matches(
     candidate_id: int, session: AsyncSession
 ) -> list[CandidateJobMatchRead]:
-    """Return the candidate's persisted job matches, best score first.
+    """Live-ranked jobs for a candidate, best score first.
 
-    Filtered to currently-PUBLISHED jobs — a job's matches were computed while
-    it was published but the row isn't pruned when the job later closes, so
-    without this filter a closed job could linger in a candidate's results
-    until their next resume re-match happens to push it out of the top-N.
+    Computed on demand (cosine distance) against every PUBLISHED, embedded
+    job — mirrors ``services.admin.jobs.get_job_candidate_matches``, the
+    reverse direction.
 
-    Raises ``CandidateNotFoundError`` if the candidate doesn't exist (an empty
-    list means the candidate exists but has no matches yet — e.g. no resume).
+    Raises ``CandidateNotFoundError`` if the candidate doesn't exist. Returns
+    an empty list if the candidate has no embedding yet (e.g. no resume).
     """
-    await get_by_id_or_raise(
+    candidate = await get_by_id_or_raise(
         session,
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
+    if candidate.embedding is None:
+        return []
+
+    distance = Job.embedding.cosine_distance(candidate.embedding)
     rows = (
-        (
-            await session.execute(
-                select(JobMatch)
-                .join(Job, JobMatch.job_id == Job.id)
-                .options(selectinload(JobMatch.job))
-                .where(
-                    JobMatch.candidate_id == candidate_id,
-                    Job.status == JobStatus.PUBLISHED,
-                )
-                .order_by(JobMatch.score.desc())
-            )
+        await session.execute(
+            select(Job, distance.label("distance"))
+            .where(Job.status == JobStatus.PUBLISHED, Job.embedding.is_not(None))
+            .order_by(distance)
+            .limit(settings.embedding_top_matches)
         )
-        .scalars()
-        .all()
-    )
-    return [CandidateJobMatchRead.model_validate(row) for row in rows]
+    ).all()
+    return [
+        CandidateJobMatchRead(
+            job=JobRead.model_validate(job),
+            score=cosine_similarity_score(dist),
+        )
+        for job, dist in rows
+    ]
 
 
 async def update_candidate(

@@ -222,12 +222,21 @@ async def test_get_candidate_job_matches_ranked(
     admin_client: AsyncClient,
     company_profile,
     candidate_profile: CandidateProfile,
+    fake_embeddings,
 ):
-    """Returns persisted matches joined to the job, best score first."""
+    """Ranks every PUBLISHED, embedded job against the candidate, best score first."""
     from src.enums import JobStatus
-    from src.models import Job, JobMatch
+    from src.models import Job
     from tests.conftest import TestSessionLocal
 
+    [cand_vec] = await fake_embeddings.embed(["python fastapi backend developer"])
+    async with TestSessionLocal() as s:
+        candidate = await s.get(CandidateProfile, candidate_profile.id)
+        candidate.embedding = cand_vec
+        await s.commit()
+
+    [close_vec] = await fake_embeddings.embed(["python fastapi backend"])
+    [far_vec] = await fake_embeddings.embed(["marketing brand social media"])
     async with TestSessionLocal() as s:
         low = Job(
             company_id=company_profile.id,
@@ -240,6 +249,7 @@ async def test_get_candidate_job_matches_ranked(
             salary_min=1,
             salary_max=2,
             status=JobStatus.PUBLISHED,
+            embedding=far_vec,
         )
         high = Job(
             company_id=company_profile.id,
@@ -252,18 +262,12 @@ async def test_get_candidate_job_matches_ranked(
             salary_min=1,
             salary_max=2,
             status=JobStatus.PUBLISHED,
+            embedding=close_vec,
         )
         s.add_all([low, high])
         await s.commit()
         await s.refresh(low)
         await s.refresh(high)
-        s.add_all(
-            [
-                JobMatch(candidate_id=candidate_profile.id, job_id=low.id, score=0.30),
-                JobMatch(candidate_id=candidate_profile.id, job_id=high.id, score=0.91),
-            ]
-        )
-        await s.commit()
         high_id, low_id = high.id, low.id
 
     resp = await admin_client.get(
@@ -272,8 +276,8 @@ async def test_get_candidate_job_matches_ranked(
     assert resp.status_code == 200
     data = resp.json()
     assert [m["job"]["id"] for m in data] == [high_id, low_id]
-    assert data[0]["score"] == 0.91
     assert data[0]["job"]["title"] == "Higher Match"
+    assert data[0]["score"] > data[1]["score"]
 
 
 @pytest.mark.asyncio
@@ -281,13 +285,19 @@ async def test_get_candidate_job_matches_excludes_closed_job(
     admin_client: AsyncClient,
     company_profile,
     candidate_profile: CandidateProfile,
+    fake_embeddings,
 ):
-    """A job closed after its match was computed must drop out of the list."""
+    """A closed job must drop out of the live ranking even if still embedded."""
     from src.enums import JobStatus
-    from src.models import Job, JobMatch
+    from src.models import Job
     from tests.conftest import TestSessionLocal
 
+    [vec] = await fake_embeddings.embed(["python fastapi backend"])
     async with TestSessionLocal() as s:
+        candidate = await s.get(CandidateProfile, candidate_profile.id)
+        candidate.embedding = vec
+        await s.commit()
+
         open_job = Job(
             company_id=company_profile.id,
             title="Still Open",
@@ -299,6 +309,7 @@ async def test_get_candidate_job_matches_excludes_closed_job(
             salary_min=1,
             salary_max=2,
             status=JobStatus.PUBLISHED,
+            embedding=vec,
         )
         closed_job = Job(
             company_id=company_profile.id,
@@ -311,22 +322,11 @@ async def test_get_candidate_job_matches_excludes_closed_job(
             salary_min=1,
             salary_max=2,
             status=JobStatus.CLOSED,
+            embedding=vec,
         )
         s.add_all([open_job, closed_job])
         await s.commit()
         await s.refresh(open_job)
-        await s.refresh(closed_job)
-        s.add_all(
-            [
-                JobMatch(
-                    candidate_id=candidate_profile.id, job_id=open_job.id, score=0.5
-                ),
-                JobMatch(
-                    candidate_id=candidate_profile.id, job_id=closed_job.id, score=0.95
-                ),
-            ]
-        )
-        await s.commit()
         open_id = open_job.id
 
     resp = await admin_client.get(

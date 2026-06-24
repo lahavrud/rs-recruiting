@@ -403,9 +403,11 @@ class CandidateApplicationMyAnswers(BaseModel):
 
 
 class CandidateJobMatchRead(BaseModel):
-    """One persisted resume-match result for the admin candidate view.
+    """One ranked job match for the admin candidate view.
 
-    ``score`` is cosine similarity in [0, 1] (higher = better match).
+    Computed live (cosine distance) against every PUBLISHED, embedded job —
+    see ``JobCandidateMatchRead`` for the reverse direction. ``score`` is
+    cosine similarity in [0, 1] (higher = better match).
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -415,12 +417,11 @@ class CandidateJobMatchRead(BaseModel):
 
 
 class JobCandidateMatchRead(BaseModel):
-    """One ranked candidate match — the reverse of ``CandidateJobMatchRead``.
+    """One ranked candidate match for the admin job view.
 
-    Computed live against every embedded candidate rather than reading off
-    persisted ``JobMatch`` rows — those only hold each candidate's personal
-    top-N jobs, which would miss strong candidates for whom this job didn't
-    make their individual cut. ``score`` is cosine similarity in [0, 1].
+    Computed live (cosine distance) against every embedded candidate — see
+    ``CandidateJobMatchRead`` for the reverse direction. ``score`` is cosine
+    similarity in [0, 1].
     """
 
     model_config = ConfigDict(from_attributes=True)
