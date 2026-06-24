@@ -14,7 +14,7 @@ interface RecordPaneProps<T> {
   fetcher: (id: number, signal: AbortSignal) => Promise<T>;
   listPath: string;
   listLabel: string;
-  crumbLabel: (entity: T) => string;
+  crumbLabel: (entity: T) => ReactNode;
   emptyHeadline: string;
   emptyDescription?: string;
   notFoundHeadline: string;

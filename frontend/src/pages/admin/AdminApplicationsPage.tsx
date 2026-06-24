@@ -581,7 +581,16 @@ export default function AdminApplicationsPage() {
         </>
       }
       record={
-        <ApplicationRecordPane applicationId={selectedId} application={selectedApplication} />
+        <ApplicationRecordPane
+          applicationId={selectedId}
+          application={selectedApplication}
+          onUpdated={(patch) =>
+            updateItem(
+              (a) => a.id === patch.id,
+              (prev) => ({ ...prev, ...patch }),
+            )
+          }
+        />
       }
     >
       {dialogs}
