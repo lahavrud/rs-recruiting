@@ -15,6 +15,7 @@ import type { CandidateProfileRead } from "@/types/candidates";
 import CandidateActivityPanel from "./CandidateActivityPanel";
 import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
 import CandidateContactInfo from "./CandidateContactInfo";
+import CandidateMatchesPanel from "./CandidateMatchesPanel";
 
 interface Props {
   candidateId: number | null;
@@ -153,6 +154,10 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
 
       <div className="mt-6 border-t border-white/8 pt-6">
         <CandidateApplicationsPanel candidateId={c.id} />
+      </div>
+
+      <div className="mt-6 border-t border-white/8 pt-6">
+        <CandidateMatchesPanel candidateId={c.id} />
       </div>
 
       <div className="mt-6 border-t border-white/8 pt-6">

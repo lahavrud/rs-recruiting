@@ -101,7 +101,7 @@ export function JobDetailBody({
       score: m.score,
       onClick: () => {
         onLeavePage?.();
-        navigate(`/admin/candidates?detail=${m.candidate.id}`);
+        navigate(`/admin/candidates/${m.candidate.id}`);
       },
     })) ?? null;
 
