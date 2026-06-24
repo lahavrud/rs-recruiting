@@ -9,10 +9,15 @@ from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import User
-from src.schemas import CandidateProfileRead, CandidateProfileUpdate
+from src.schemas import (
+    CandidateJobMatchRead,
+    CandidateProfileRead,
+    CandidateProfileUpdate,
+)
 from src.services.admin.candidates import (
     delete_candidate,
     get_candidate,
+    get_candidate_job_matches,
     list_candidates,
     update_candidate,
 )
@@ -44,6 +49,22 @@ async def get_candidate_endpoint(
     """Fetch a single candidate profile by id."""
     try:
         return await get_candidate(candidate_id, session)
+    except CandidateNotFoundError as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/candidates/{candidate_id}/job-matches",
+    response_model=list[CandidateJobMatchRead],
+)
+async def get_candidate_job_matches_endpoint(
+    candidate_id: int,
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+) -> list[CandidateJobMatchRead]:
+    """Ranked resume-match results for a candidate, best score first."""
+    try:
+        return await get_candidate_job_matches(candidate_id, session)
     except CandidateNotFoundError as e:
         raise service_exception_to_http(e) from e
 

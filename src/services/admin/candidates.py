@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
@@ -15,8 +16,12 @@ from src.core.infrastructure.pagination import (
 )
 from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, Job
-from src.schemas import CandidateProfileRead, CandidateProfileUpdate
+from src.models import Application, CandidateProfile, Job, JobMatch
+from src.schemas import (
+    CandidateJobMatchRead,
+    CandidateProfileRead,
+    CandidateProfileUpdate,
+)
 from src.services.exceptions import CandidateNotFoundError
 from src.services.utils.audit import record_audit_event
 
@@ -58,6 +63,35 @@ async def get_candidate(
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
     return CandidateProfileRead.model_validate(candidate)
+
+
+async def get_candidate_job_matches(
+    candidate_id: int, session: AsyncSession
+) -> list[CandidateJobMatchRead]:
+    """Return the candidate's persisted job matches, best score first.
+
+    Raises ``CandidateNotFoundError`` if the candidate doesn't exist (an empty
+    list means the candidate exists but has no matches yet — e.g. no resume).
+    """
+    await get_by_id_or_raise(
+        session,
+        CandidateProfile,
+        candidate_id,
+        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
+    )
+    rows = (
+        (
+            await session.execute(
+                select(JobMatch)
+                .options(selectinload(JobMatch.job))
+                .where(JobMatch.candidate_id == candidate_id)
+                .order_by(JobMatch.score.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [CandidateJobMatchRead.model_validate(row) for row in rows]
 
 
 async def update_candidate(

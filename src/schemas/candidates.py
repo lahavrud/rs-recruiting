@@ -402,6 +402,18 @@ class CandidateApplicationMyAnswers(BaseModel):
     growth_area: str | None
 
 
+class CandidateJobMatchRead(BaseModel):
+    """One persisted resume-match result for the admin candidate view.
+
+    ``score`` is cosine similarity in [0, 1] (higher = better match).
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    job: JobRead
+    score: float
+
+
 class CandidateApplicationResumeMeta(BaseModel):
     """Resume snapshot metadata — only filename + a present/absent flag."""
 
