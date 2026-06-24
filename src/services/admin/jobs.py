@@ -23,7 +23,7 @@ from src.core.infrastructure.transactions import defer_after_commit
 from src.core.matching import cosine_similarity_score
 from src.core.tasks import enqueue_email_task, enqueue_embed_job_task
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, CompanyProfile, Job
+from src.models import Application, CandidateProfile, CompanyProfile, Job, JobMatch
 from src.schemas import (
     CandidateProfileRead,
     JobAdminCreate,
@@ -85,12 +85,12 @@ async def get_job_candidate_matches(
     without making that candidate's individual cut.
 
     Raises ``JobNotFoundError`` if the job doesn't exist. Returns an empty
-    list if the job has no embedding yet (e.g. not yet published).
+    list if the job isn't PUBLISHED or has no embedding yet.
     """
     job = await get_by_id_or_raise(
         session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
     )
-    if job.embedding is None:
+    if job.status != JobStatus.PUBLISHED or job.embedding is None:
         return []
 
     distance = CandidateProfile.embedding.cosine_distance(job.embedding)
@@ -197,12 +197,15 @@ async def update_job(
         is_closing=is_closing,
     )
 
-    # When a published job is closed, notify all active applicants and
-    # transition their applications to JOB_CLOSED.
+    # When a published job is closed, notify all active applicants, transition
+    # their applications to JOB_CLOSED, and drop this job's persisted matches —
+    # they were computed while it was published and candidates shouldn't keep
+    # seeing a closed job in their match list until their next resume re-match.
     if is_closing:
         await _close_active_applications(
             job_id, job.title, session, actor_user_id=actor_user_id
         )
+        await session.execute(delete(JobMatch).where(JobMatch.job_id == job_id))
 
     # Re-embed when a published job's matchable text changed, so candidate
     # matches rank against the current content (after commit).

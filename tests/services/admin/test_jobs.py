@@ -388,6 +388,44 @@ async def test_close_published_job_records_audit_events(
 
 
 @pytest.mark.asyncio
+async def test_close_published_job_deletes_its_job_matches(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Closing a job drops its persisted JobMatch rows, not just its applications."""
+    from src.models import JobMatch
+
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+
+    candidate = CandidateProfile(
+        full_name="Match Owner", email="matchowner@test.com", phone="050-0000000"
+    )
+    session.add(candidate)
+    await session.flush()
+    session.add(JobMatch(candidate_id=candidate.id, job_id=job_id, score=0.8))
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(
+                job_id,
+                JobAdminUpdate(status=JobStatus.CLOSED),
+                session,
+            )
+            await session.commit()
+
+    remaining = (
+        (await session.execute(select(JobMatch).where(JobMatch.job_id == job_id)))
+        .scalars()
+        .all()
+    )
+    assert remaining == []
+
+
+@pytest.mark.asyncio
 async def test_non_published_to_closed_skips_cascade(
     session: AsyncSession, company_with_user: CompanyProfile
 ):

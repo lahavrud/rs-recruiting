@@ -277,6 +277,67 @@ async def test_get_candidate_job_matches_ranked(
 
 
 @pytest.mark.asyncio
+async def test_get_candidate_job_matches_excludes_closed_job(
+    admin_client: AsyncClient,
+    company_profile,
+    candidate_profile: CandidateProfile,
+):
+    """A job closed after its match was computed must drop out of the list."""
+    from src.enums import JobStatus
+    from src.models import Job, JobMatch
+    from tests.conftest import TestSessionLocal
+
+    async with TestSessionLocal() as s:
+        open_job = Job(
+            company_id=company_profile.id,
+            title="Still Open",
+            short_description="x",
+            description="y",
+            requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            tags=[],
+            location="Tel Aviv",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.PUBLISHED,
+        )
+        closed_job = Job(
+            company_id=company_profile.id,
+            title="Closed Role",
+            short_description="x",
+            description="y",
+            requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+            tags=[],
+            location="Haifa",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.CLOSED,
+        )
+        s.add_all([open_job, closed_job])
+        await s.commit()
+        await s.refresh(open_job)
+        await s.refresh(closed_job)
+        s.add_all(
+            [
+                JobMatch(
+                    candidate_id=candidate_profile.id, job_id=open_job.id, score=0.5
+                ),
+                JobMatch(
+                    candidate_id=candidate_profile.id, job_id=closed_job.id, score=0.95
+                ),
+            ]
+        )
+        await s.commit()
+        open_id = open_job.id
+
+    resp = await admin_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/job-matches"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [m["job"]["id"] for m in data] == [open_id]
+
+
+@pytest.mark.asyncio
 async def test_get_candidate_job_matches_empty_when_none(
     admin_client: AsyncClient,
     candidate_profile: CandidateProfile,

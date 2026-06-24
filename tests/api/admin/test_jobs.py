@@ -634,6 +634,29 @@ async def test_get_job_candidate_matches_empty_when_job_not_embedded(
 
 
 @pytest.mark.asyncio
+async def test_get_job_candidate_matches_empty_when_job_closed(
+    admin_client: AsyncClient,
+    published_job: Job,
+    fake_embeddings,
+):
+    """A closed job keeps a stale embedding but must stop returning matches."""
+    [job_vec] = await fake_embeddings.embed(["python fastapi backend"])
+    [cand_vec] = await fake_embeddings.embed(["python fastapi backend developer"])
+    async with TestSessionLocal() as s:
+        job = await s.get(Job, published_job.id)
+        job.embedding = job_vec
+        job.status = JobStatus.CLOSED
+        await s.commit()
+    await _make_candidate("Closed Job Match", "closedjob@test.com", cand_vec)
+
+    resp = await admin_client.get(
+        f"/api/admin/jobs/{published_job.id}/candidate-matches"
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
 async def test_get_job_candidate_matches_404_for_unknown_job(
     admin_client: AsyncClient,
 ):

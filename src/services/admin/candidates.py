@@ -70,6 +70,11 @@ async def get_candidate_job_matches(
 ) -> list[CandidateJobMatchRead]:
     """Return the candidate's persisted job matches, best score first.
 
+    Filtered to currently-PUBLISHED jobs — a job's matches were computed while
+    it was published but the row isn't pruned when the job later closes, so
+    without this filter a closed job could linger in a candidate's results
+    until their next resume re-match happens to push it out of the top-N.
+
     Raises ``CandidateNotFoundError`` if the candidate doesn't exist (an empty
     list means the candidate exists but has no matches yet — e.g. no resume).
     """
@@ -83,8 +88,12 @@ async def get_candidate_job_matches(
         (
             await session.execute(
                 select(JobMatch)
+                .join(Job, JobMatch.job_id == Job.id)
                 .options(selectinload(JobMatch.job))
-                .where(JobMatch.candidate_id == candidate_id)
+                .where(
+                    JobMatch.candidate_id == candidate_id,
+                    Job.status == JobStatus.PUBLISHED,
+                )
                 .order_by(JobMatch.score.desc())
             )
         )
