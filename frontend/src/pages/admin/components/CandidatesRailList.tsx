@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import DropdownMenu, {
@@ -28,6 +30,12 @@ export default function CandidatesRailList({
   isFetchingMore,
 }: CandidatesRailListProps) {
   const { t } = useTranslation('admin');
+  const rowRefs = useRef(new Map<number, HTMLDivElement>());
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
+  }, [selectedId, candidates]);
 
   return (
     <>
@@ -37,6 +45,10 @@ export default function CandidatesRailList({
           return (
             <div
               key={c.id}
+              ref={(node) => {
+                if (node) rowRefs.current.set(c.id, node);
+                else rowRefs.current.delete(c.id);
+              }}
               onClick={() => onView(c)}
               aria-selected={selected}
               className={`relative flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 pe-12 transition active:scale-[0.99] ${
