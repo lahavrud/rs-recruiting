@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
+from pgvector.sqlalchemy import Vector
 from pydantic import field_validator
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -16,7 +18,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Relationship, SQLModel
 
+from src.core.infrastructure.config import settings
 from src.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
+
+# Embedding vector width for the resume-matching engine. Fixed at the DB-column
+# level by the migration — keep in lockstep with ``settings.embedding_dim`` and
+# the embedding model's output dimension (see core/services/embeddings.py).
+_EMBEDDING_DIM = settings.embedding_dim
 
 
 class InviteToken(SQLModel, table=True):
@@ -368,6 +376,13 @@ class Job(SQLModel, table=True):
         default_factory=list,
         sa_column=Column(JSONB, nullable=False, server_default="[]"),
     )
+    # Multilingual embedding of the job's text (title + descriptions +
+    # requirements + tags + location), computed by ``embed_job_task`` on
+    # publish/edit. NULL until first embedded. See core/services/embeddings.py.
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(_EMBEDDING_DIM), nullable=True),
+    )
     is_featured: bool = Field(default=False, index=True)
     location: str
     salary_min: int
@@ -428,6 +443,14 @@ class CandidateProfile(SQLModel, table=True):
     # of the filename are tracked separately.
     resume_filename: str | None = Field(default=None, max_length=255)
     resume_hash: str | None = Field(default=None, max_length=64)
+    # Plain text extracted from the resume file (Hebrew/English/mixed) and the
+    # multilingual embedding of it, populated by ``match_candidate_task`` on CV
+    # upload/update. NULL until first matched; cleared on resume removal.
+    parsed_text: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    embedding: list[float] | None = Field(
+        default=None,
+        sa_column=Column(Vector(_EMBEDDING_DIM), nullable=True),
+    )
     linkedin_url: str | None = None
 
     # Privacy consent — captured at application time
@@ -593,3 +616,50 @@ class AuditLog(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
+
+
+class JobMatch(SQLModel, table=True):
+    """Persisted resume-matching result: one candidate ↔ one job, with a score.
+
+    Written by ``match_candidate_task`` (top-N jobs per candidate, recomputed
+    and replaced on each CV change) and read by the admin job-matches endpoint.
+    ``score`` is cosine similarity in [0, 1] (higher = better). Rows cascade-
+    delete with their candidate or job.
+    """
+
+    __tablename__ = "job_match"
+    __table_args__ = (
+        Index(
+            "uq_job_match_candidate_job",
+            "candidate_id",
+            "job_id",
+            unique=True,
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("candidateprofile.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    job_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    score: float = Field(sa_column=Column(Float, nullable=False))
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    # One-way relationships (SQLModel 0.0.22 limitation), mirroring Application.
+    job: Job = Relationship()
+    candidate: CandidateProfile = Relationship()
