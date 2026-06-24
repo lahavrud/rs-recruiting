@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models import CandidateProfile
+from src.models import AuditLog, CandidateProfile
 
 
 @pytest.mark.asyncio
@@ -40,6 +40,28 @@ async def test_list_candidates_requires_admin(public_client: AsyncClient):
     """Unauthenticated clients cannot access the candidates list."""
     response = await public_client.get("/api/admin/candidates")
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_filters_by_q(
+    admin_client: AsyncClient,
+    candidate_profile: CandidateProfile,
+):
+    """`q` filters by name/email/phone, case-insensitively."""
+    response = await admin_client.get(
+        "/api/admin/candidates",
+        params={"q": candidate_profile.full_name.upper()[:4]},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["id"] == candidate_profile.id
+
+    no_match = await admin_client.get(
+        "/api/admin/candidates", params={"q": "zzz-no-such-candidate"}
+    )
+    assert no_match.status_code == 200
+    assert no_match.json()["items"] == []
 
 
 @pytest.mark.asyncio
@@ -115,40 +137,71 @@ async def test_get_candidate_requires_admin(
     assert response.status_code == 401
 
 
-# ── PUT /api/admin/candidates/{id} ────────────────────────────────────────────
+# ── GET /api/admin/candidates/{id}/activity ───────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_update_candidate_partial(
+async def test_get_candidate_activity_empty(
     admin_client: AsyncClient, candidate_profile: CandidateProfile
 ):
-    response = await admin_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}",
-        json={"full_name": "Updated Name"},
+    response = await admin_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/activity"
     )
     assert response.status_code == 200
-    data = response.json()
-    assert data["full_name"] == "Updated Name"
-    assert data["email"] == candidate_profile.email  # untouched
+    assert response.json() == {"items": [], "next_cursor": None}
 
 
 @pytest.mark.asyncio
-async def test_update_candidate_validates_phone(
-    admin_client: AsyncClient, candidate_profile: CandidateProfile
+async def test_get_candidate_activity_merges_application_events(
+    admin_client: AsyncClient,
+    candidate_profile: CandidateProfile,
+    application,
+    session: AsyncSession,
 ):
-    response = await admin_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}",
-        json={"phone": "abc"},
+    session.add(
+        AuditLog(
+            action="candidate.consent",
+            target_type="CandidateProfile",
+            target_id=candidate_profile.id,
+        )
     )
-    assert response.status_code == 422
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=application.id,
+            detail="NEW->APPROVED_BY_ADMIN",
+        )
+    )
+    await session.commit()
+
+    response = await admin_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/activity"
+    )
+    assert response.status_code == 200
+    items = response.json()["items"]
+    actions = {item["action"] for item in items}
+    assert actions == {"candidate.consent", "application.status_change"}
+    status_change = next(i for i in items if i["action"] == "application.status_change")
+    assert status_change["job_title"] == "Senior Python Developer"
+    consent = next(i for i in items if i["action"] == "candidate.consent")
+    assert consent["job_title"] is None
 
 
 @pytest.mark.asyncio
-async def test_update_candidate_not_found(admin_client: AsyncClient):
-    response = await admin_client.put(
-        "/api/admin/candidates/99999", json={"full_name": "Anyone"}
-    )
+async def test_get_candidate_activity_not_found(admin_client: AsyncClient):
+    response = await admin_client.get("/api/admin/candidates/99999/activity")
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_candidate_activity_requires_admin(
+    public_client: AsyncClient, candidate_profile: CandidateProfile
+):
+    response = await public_client.get(
+        f"/api/admin/candidates/{candidate_profile.id}/activity"
+    )
+    assert response.status_code == 401
 
 
 # ── DELETE /api/admin/candidates/{id} ─────────────────────────────────────────
@@ -202,13 +255,9 @@ async def test_delete_candidate_not_found(admin_client: AsyncClient):
 async def test_candidate_endpoints_require_admin(
     public_client: AsyncClient, candidate_profile: CandidateProfile
 ):
-    put_resp = await public_client.put(
-        f"/api/admin/candidates/{candidate_profile.id}", json={"full_name": "New"}
-    )
     delete_resp = await public_client.delete(
         f"/api/admin/candidates/{candidate_profile.id}"
     )
-    assert put_resp.status_code == 401
     assert delete_resp.status_code == 401
 
 

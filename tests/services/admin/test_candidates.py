@@ -8,15 +8,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.enums import ApplicationStatus, JobStatus, UserRole
-from src.models import Application, CandidateProfile, CompanyProfile, Job, User
-from src.schemas import CandidateProfileUpdate
+from src.models import (
+    Application,
+    AuditLog,
+    CandidateProfile,
+    CompanyProfile,
+    Job,
+    User,
+)
 from src.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
     delete_candidate,
     get_candidate,
+    list_candidate_activity,
     list_candidates,
     purge_expired_candidates,
-    update_candidate,
 )
 from src.services.exceptions import CandidateNotFoundError
 
@@ -96,6 +102,58 @@ async def test_list_candidates_paginates_with_cursor(session: AsyncSession):
     assert seen[-1] == "user00@test.com"
 
 
+@pytest.mark.asyncio
+async def test_list_candidates_filters_by_q_case_insensitive(session: AsyncSession):
+    """`q` substring-matches name/email/phone, case-insensitively."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+            ),
+            CandidateProfile(
+                full_name="Yossi Levi", email="yossi@test.com", phone="0509998877"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="DANA")
+    assert [item.email for item in page.items] == ["dana@test.com"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_filters_by_q_matches_phone(session: AsyncSession):
+    """`q` also matches against the phone column."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+            ),
+            CandidateProfile(
+                full_name="Yossi Levi", email="yossi@test.com", phone="0509998877"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="9998877")
+    assert [item.email for item in page.items] == ["yossi@test.com"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_blank_q_returns_all(session: AsyncSession):
+    """A blank/whitespace `q` is treated as no filter."""
+    session.add(
+        CandidateProfile(
+            full_name="Dana Cohen", email="dana@test.com", phone="0501112233"
+        )
+    )
+    await session.commit()
+
+    page = await list_candidates(session, q="   ")
+    assert len(page.items) == 1
+
+
 # ── get_candidate ─────────────────────────────────────────────────────────────
 
 
@@ -114,30 +172,67 @@ async def test_get_candidate_not_found(session: AsyncSession):
         await get_candidate(99999, session)
 
 
-# ── update_candidate ──────────────────────────────────────────────────────────
+# ── list_candidate_activity ────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_update_candidate_partial_keeps_unset_fields(
-    session: AsyncSession, candidate_profile: CandidateProfile
+async def test_list_candidate_activity_not_found(session: AsyncSession):
+    with pytest.raises(CandidateNotFoundError):
+        await list_candidate_activity(99999, session)
+
+
+@pytest.mark.asyncio
+async def test_list_candidate_activity_merges_candidate_and_application_events(
+    session: AsyncSession,
+    candidate_profile: CandidateProfile,
+    application: Application,
 ):
-    updated = await update_candidate(
-        candidate_profile.id,
-        CandidateProfileUpdate(full_name="New Name"),
-        session,
+    """Audit rows for the candidate and their applications are merged, newest first."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    session.add(
+        AuditLog(
+            action="candidate.consent",
+            target_type="CandidateProfile",
+            target_id=candidate_profile.id,
+            created_at=base,
+        )
+    )
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=application.id,
+            detail="NEW->APPROVED_BY_ADMIN",
+            created_at=base + timedelta(minutes=1),
+        )
+    )
+    # Unrelated row — different candidate's audit row must not leak in.
+    session.add(
+        AuditLog(
+            action="candidate.delete",
+            target_type="CandidateProfile",
+            target_id=candidate_profile.id + 999,
+            created_at=base + timedelta(minutes=2),
+        )
     )
     await session.commit()
-    assert updated.full_name == "New Name"
-    assert updated.email == candidate_profile.email  # untouched
-    assert updated.phone == candidate_profile.phone  # untouched
+
+    page = await list_candidate_activity(candidate_profile.id, session)
+    assert [r.action for r in page.items] == [
+        "application.status_change",
+        "candidate.consent",
+    ]
+    assert page.items[0].job_title == "Senior Python Developer"
+    assert page.items[1].job_title is None
 
 
 @pytest.mark.asyncio
-async def test_update_candidate_not_found(session: AsyncSession):
-    with pytest.raises(CandidateNotFoundError):
-        await update_candidate(
-            99999, CandidateProfileUpdate(full_name="Anyone"), session
-        )
+async def test_list_candidate_activity_empty(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    page = await list_candidate_activity(candidate_profile.id, session)
+    assert page.items == []
+    assert page.next_cursor is None
 
 
 # ── delete_candidate ──────────────────────────────────────────────────────────

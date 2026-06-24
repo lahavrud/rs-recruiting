@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.config import settings
@@ -17,11 +17,11 @@ from src.core.infrastructure.pagination import (
 from src.core.matching import cosine_similarity_score
 from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, Job
+from src.models import Application, AuditLog, CandidateProfile, Job
 from src.schemas import (
+    CandidateActivityEvent,
     CandidateJobMatchRead,
     CandidateProfileRead,
-    CandidateProfileUpdate,
     JobRead,
 )
 from src.services.exceptions import CandidateNotFoundError
@@ -37,10 +37,25 @@ async def list_candidates(
     *,
     cursor: str | None = None,
     limit: int | None = None,
+    q: str | None = None,
 ) -> CursorPage[CandidateProfileRead]:
+    """Return one page of candidate profiles, newest first.
+
+    `q`, when given, case-insensitively substring-matches name/email/phone.
+    """
     page_size = clamp_limit(limit)
+    base = select(CandidateProfile)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        base = base.where(
+            or_(
+                CandidateProfile.full_name.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.email.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
+            )
+        )
     query = apply_cursor(
-        select(CandidateProfile),
+        base,
         sort_col=CandidateProfile.created_at,  # pyright: ignore[reportArgumentType]
         id_col=CandidateProfile.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
@@ -106,24 +121,80 @@ async def get_candidate_job_matches(
     ]
 
 
-async def update_candidate(
+async def list_candidate_activity(
     candidate_id: int,
-    data: CandidateProfileUpdate,
     session: AsyncSession,
-) -> CandidateProfileRead:
-    candidate = await get_by_id_or_raise(
+    *,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> CursorPage[CandidateActivityEvent]:
+    """Activity timeline for a candidate's record pane.
+
+    Aggregates audit rows for the candidate profile itself with rows for
+    all of their applications, newest first.
+
+    Raises:
+        CandidateNotFoundError: If no candidate with that id exists.
+    """
+    await get_by_id_or_raise(
         session,
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
     )
 
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(candidate, field, value)
+    page_size = clamp_limit(limit)
+    application_ids = select(Application.id).where(
+        Application.candidate_id == candidate_id  # pyright: ignore[reportArgumentType]
+    )
+    base = select(AuditLog).where(
+        or_(
+            and_(
+                AuditLog.target_type == "CandidateProfile",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_id == candidate_id,  # pyright: ignore[reportArgumentType]
+            ),
+            and_(
+                AuditLog.target_type == "Application",  # pyright: ignore[reportArgumentType]
+                AuditLog.target_id.in_(application_ids),  # pyright: ignore[reportArgumentType]
+            ),
+        )
+    )
+    query = apply_cursor(
+        base,
+        sort_col=AuditLog.created_at,  # pyright: ignore[reportArgumentType]
+        id_col=AuditLog.id,  # pyright: ignore[reportArgumentType]
+        cursor=cursor,
+        limit=page_size,
+    )
+    rows = list((await session.execute(query)).scalars().all())
 
-    await session.flush()
-    await session.refresh(candidate)
-    return CandidateProfileRead.model_validate(candidate)
+    application_target_ids = {
+        r.target_id for r in rows if r.target_type == "Application"
+    }
+    job_titles: dict[int, str] = {}
+    if application_target_ids:
+        job_titles = dict(
+            (
+                await session.execute(
+                    select(Application.id, Job.title)
+                    .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+                    .where(Application.id.in_(application_target_ids))  # pyright: ignore[reportArgumentType]
+                )
+            ).all()
+        )
+
+    def serialize(row: AuditLog) -> CandidateActivityEvent:
+        event = CandidateActivityEvent.model_validate(row)
+        if row.target_type == "Application":
+            event.job_title = job_titles.get(row.target_id)
+        return event
+
+    return build_cursor_page(
+        rows,
+        serializer=serialize,
+        cursor_key=lambda a: (a.created_at, a.id),
+        limit=page_size,
+    )
 
 
 async def delete_candidate(

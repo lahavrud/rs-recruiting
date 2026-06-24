@@ -225,6 +225,16 @@ export default function App() {
                     </AdminRoute>
                   }
                 />
+                <Route
+                  path="/admin/candidates/:id"
+                  element={
+                    <AdminRoute>
+                      <RouteErrorBoundary>
+                        <AdminCandidatesPage />
+                      </RouteErrorBoundary>
+                    </AdminRoute>
+                  }
+                />
 
                 {/* Company-only routes */}
                 <Route

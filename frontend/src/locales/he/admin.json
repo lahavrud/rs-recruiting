@@ -366,12 +366,6 @@
     "empty": "לא נמצאו מועמדים.",
     "loadError": "טעינת המועמדים נכשלה.",
     "searchPlaceholder": "חיפוש לפי שם או אימייל…",
-    "filters": "סינון",
-    "openFilters": "פתח סינון",
-    "filterByJob": "סינון לפי משרה",
-    "allJobs": "כל המשרות",
-    "filterByCompany": "סינון לפי חברה",
-    "allCompanies": "כל החברות",
     "emailAction": "שלח דוא״ל",
     "emailSubject": "RS Recruiting — בנוגע למועמדות שלך, {{name}}",
     "noFile": "לא הועלה",
@@ -382,37 +376,44 @@
       "linkedin": "LinkedIn",
       "date": "תאריך"
     },
-    "details": {
-      "serviceConcept": "תפיסת שירות",
-      "salaryExpectations": "ציפיות שכר",
-      "strength": "חוזקות",
-      "weakness": "נקודות לשיפור"
-    },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",
-    "editAction": "עריכת פרופיל",
     "deleteAction": "מחיקה",
     "applicationsSection": "מועמדויות של מועמד זה",
+    "applicationsCount_one": "מועמדות אחת",
+    "applicationsCount_two": "{{count}} מועמדויות",
+    "applicationsCount_other": "{{count}} מועמדויות",
     "noApplications": "המועמד לא הגיש מועמדויות עדיין.",
     "matchesSection": "משרות מתאימות",
     "noMatches": "אין משרות תואמות להצגה כרגע.",
     "matchesLoadError": "טעינת ההתאמות נכשלה.",
-    "editModalTitle": "עריכת פרופיל מועמד",
-    "fields": {
-      "fullName": "שם מלא",
-      "email": "כתובת אימייל",
-      "phone": "טלפון",
-      "linkedin": "LinkedIn"
-    },
     "deleteConfirmTitle": "מחיקת מועמד – {{name}}",
     "deleteConfirmMessage": "פעולה זו תמחק לצמיתות את המועמד, את כל המועמדויות שלו ואת קובץ קורות החיים שלו מהמאגר. לא ניתן לבטל פעולה זו.",
     "deleteConfirmYes": "כן, מחק",
-    "savedToast": "הפרופיל עודכן",
     "deletedToast": "המועמד נמחק",
     "errors": {
-      "saveFailed": "שמירת הפרופיל נכשלה. נסה שוב.",
       "deleteFailed": "מחיקת המועמד נכשלה. נסה שוב.",
-      "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה."
+      "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה.",
+      "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."
+    },
+    "activitySection": "פעילות אחרונה",
+    "activityEmpty": "לא נמצאה פעילות עבור מועמד זה.",
+    "activity": {
+      "actions": {
+        "consent": "אישר/ה את מדיניות הפרטיות",
+        "termsAccept": "אישר/ה את תנאי השימוש",
+        "registerViaApply": "פתח/ה חשבון משתמש בעת שליחת המועמדות",
+        "delete": "הפרופיל נמחק",
+        "purge": "הפרופיל נמחק במסגרת מחיקה תקופתית"
+      }
+    },
+    "record": {
+      "eyebrow": "פרופיל מועמד",
+      "showList": "הצג רשימה",
+      "hideList": "הסתר רשימה",
+      "emptyHeadline": "בחר מועמד להצגה",
+      "emptyDescription": "בחר מועמד מהרשימה כדי לצפות בפרטיו.",
+      "notFound": "המועמד לא נמצא."
     }
   }
 }

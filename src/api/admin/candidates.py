@@ -10,16 +10,16 @@ from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorP
 from src.core.infrastructure.transactions import transactional
 from src.models import User
 from src.schemas import (
+    CandidateActivityEvent,
     CandidateJobMatchRead,
     CandidateProfileRead,
-    CandidateProfileUpdate,
 )
 from src.services.admin.candidates import (
     delete_candidate,
     get_candidate,
     get_candidate_job_matches,
+    list_candidate_activity,
     list_candidates,
-    update_candidate,
 )
 from src.services.exceptions import CandidateNotFoundError, InvalidCursorError
 
@@ -30,12 +30,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 async def get_candidates(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    q: str | None = Query(default=None, max_length=255),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[CandidateProfileRead]:
-    """List candidate profiles, newest first, cursor-paginated."""
+    """List candidate profiles, newest first, cursor-paginated.
+
+    `q`, when given, filters by name/email/phone (case-insensitive substring).
+    """
     try:
-        return await list_candidates(session, cursor=cursor, limit=limit)
+        return await list_candidates(session, cursor=cursor, limit=limit, q=q)
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
 
@@ -69,19 +73,24 @@ async def get_candidate_job_matches_endpoint(
         raise service_exception_to_http(e) from e
 
 
-@router.put("/candidates/{candidate_id}", response_model=CandidateProfileRead)
-async def update_candidate_endpoint(
+@router.get(
+    "/candidates/{candidate_id}/activity",
+    response_model=CursorPage[CandidateActivityEvent],
+)
+async def get_candidate_activity(
     candidate_id: int,
-    data: CandidateProfileUpdate,
+    cursor: str | None = None,
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
-) -> CandidateProfileRead:
-    """Partially update a candidate profile."""
+) -> CursorPage[CandidateActivityEvent]:
+    """Activity timeline: audit rows for the candidate and their applications."""
     try:
-        async with transactional(session):
-            return await update_candidate(candidate_id, data, session)
-    except CandidateNotFoundError as e:
-        raise service_exception_to_http(e) from e
+        return await list_candidate_activity(
+            candidate_id, session, cursor=cursor, limit=limit
+        )
+    except (CandidateNotFoundError, InvalidCursorError) as exc:
+        raise service_exception_to_http(exc) from exc
 
 
 @router.delete("/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -77,7 +77,7 @@ export function ApplicationDetailBody({
           type="button"
           onClick={() => {
             onLeavePage?.();
-            navigate(`/admin/candidates?detail=${app.candidate_id}`);
+            navigate(`/admin/candidates/${app.candidate_id}`);
           }}
           className={linkBtnCls}
         >

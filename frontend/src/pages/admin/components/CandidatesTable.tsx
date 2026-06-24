@@ -14,7 +14,6 @@ import { sanitizeLinkedInUrl } from "@/utils/validators";
 interface CandidatesTableProps {
   candidates: CandidateProfileRead[];
   onView: (c: CandidateProfileRead) => void;
-  onEdit: (c: CandidateProfileRead) => void;
   onDelete: (c: CandidateProfileRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
   isFetchingMore: boolean;
@@ -23,7 +22,6 @@ interface CandidatesTableProps {
 export default function CandidatesTable({
   candidates,
   onView,
-  onEdit,
   onDelete,
   sentinelRef,
   isFetchingMore,
@@ -103,9 +101,6 @@ export default function CandidatesTable({
                   >
                     <DropdownMenuItem onSelect={() => onView(c)}>
                       {t("admin:candidates.viewAction")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onEdit(c)}>
-                      {t("admin:candidates.editAction")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>

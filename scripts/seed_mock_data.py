@@ -18,7 +18,7 @@
 import argparse
 import asyncio
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import delete, select
@@ -30,12 +30,14 @@ from src.core.services.storage_local import LocalStorageProvider
 from src.enums import ApplicationStatus, JobStatus, UserRole
 from src.models import (
     Application,
+    AuditLog,
     CandidateProfile,
     CompanyProfile,
     InviteToken,
     Job,
     User,
 )
+from src.services.utils.audit import record_audit_event
 from src.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
@@ -613,6 +615,77 @@ def _build_candidates() -> list[dict]:
 CANDIDATES = _build_candidates()
 
 
+NOW = datetime.now(timezone.utc)
+
+
+def _days_ago(days: float) -> datetime:
+    return NOW - timedelta(days=days)
+
+
+# Admin notes per application outcome
+ADMIN_NOTES_BY_OUTCOME = {
+    "approved": "מועמד מתאים, עם ניסיון רלוונטי. מאושר לראיון.",
+    "rejected_direct": "הניסיון אינו עומד בדרישות המינימום לתפקיד.",
+    "rejected_after_review": (
+        "המועמד עבר סינון ראשוני, אך לאחר שיחה עם הצוות לא נמצאה התאמה להמשך התהליך."
+    ),
+    "hired": "התאמה מעולה. המועמד קיבל את ההצעה ואישר תחילת עבודה.",
+}
+
+
+_StatusTransition = tuple[datetime, ApplicationStatus, ApplicationStatus]
+_StatusHistory = tuple[list[_StatusTransition], datetime, str | None]
+
+_NEW = ApplicationStatus.NEW
+_APPROVED = ApplicationStatus.APPROVED_BY_ADMIN
+_REJECTED = ApplicationStatus.REJECTED
+_HIRED = ApplicationStatus.HIRED
+
+
+def _status_history(
+    app_status: ApplicationStatus, applied_at: datetime, *, via_review: bool
+) -> _StatusHistory:
+    """Build a realistic status-transition history for an application.
+
+    Returns (transition events, last updated_at, admin note).
+    """
+    if app_status == _NEW:
+        return [], applied_at, None
+
+    if app_status == _APPROVED:
+        approved_at = applied_at + timedelta(days=2)
+        return (
+            [(approved_at, _NEW, _APPROVED)],
+            approved_at,
+            ADMIN_NOTES_BY_OUTCOME["approved"],
+        )
+
+    if app_status == _REJECTED:
+        if via_review:
+            approved_at = applied_at + timedelta(days=2)
+            rejected_at = applied_at + timedelta(days=6)
+            return (
+                [(approved_at, _NEW, _APPROVED), (rejected_at, _APPROVED, _REJECTED)],
+                rejected_at,
+                ADMIN_NOTES_BY_OUTCOME["rejected_after_review"],
+            )
+        rejected_at = applied_at + timedelta(days=1)
+        return (
+            [(rejected_at, _NEW, _REJECTED)],
+            rejected_at,
+            ADMIN_NOTES_BY_OUTCOME["rejected_direct"],
+        )
+
+    # HIRED — always passes through admin approval before being hired
+    approved_at = applied_at + timedelta(days=2)
+    hired_at = applied_at + timedelta(days=9)
+    return (
+        [(approved_at, _NEW, _APPROVED), (hired_at, _APPROVED, _HIRED)],
+        hired_at,
+        ADMIN_NOTES_BY_OUTCOME["hired"],
+    )
+
+
 def _print_result(entity: str, action: str, detail: str = "") -> None:
     icon = "✅" if action == "created" else "⏭️"
     print(f"  {icon} {entity}: {detail}")
@@ -625,7 +698,9 @@ async def reset(session_factory) -> None:
         # InviteToken.created_by_admin_id has no ON DELETE rule — clear it
         # first. Deleting User then cascades to its CompanyProfile -> Jobs ->
         # Applications. Deleting CandidateProfile cascades to any remaining
-        # Applications for that candidate.
+        # Applications for that candidate. AuditLog rows reference their
+        # target by id with no FK, so they're cleared explicitly.
+        await session.execute(delete(AuditLog))
         await session.execute(delete(InviteToken))
         await session.execute(delete(User))
         await session.execute(delete(CandidateProfile))
@@ -642,6 +717,7 @@ async def seed() -> None:
         result = await session.execute(select(User).where(User.email == ADMIN_EMAIL))
         admin = result.scalar_one_or_none()
         if admin:
+            admin_user = admin
             _print_result("מנהל", "skipped", ADMIN_EMAIL)
         else:
             admin_user = User(
@@ -756,6 +832,7 @@ async def seed() -> None:
             )
             resume_hash = hashlib.sha256(resume_content).hexdigest()
 
+            registered_at = _days_ago(70 - i * 6)
             user_id: int | None = None
             consent_kwargs: dict = {}
             if cand["registered"]:
@@ -795,6 +872,25 @@ async def seed() -> None:
             )
             session.add(profile)
             await session.flush()
+            if cand["registered"]:
+                await record_audit_event(
+                    session,
+                    actor_user_id=None,
+                    action="candidate.consent",
+                    target_type="CandidateProfile",
+                    target_id=profile.id,  # type: ignore[arg-type]
+                    detail=f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}",
+                    created_at=registered_at,
+                )
+                await record_audit_event(
+                    session,
+                    actor_user_id=None,
+                    action="candidate.terms_accept",
+                    target_type="CandidateProfile",
+                    target_id=profile.id,  # type: ignore[arg-type]
+                    detail=f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}",
+                    created_at=registered_at,
+                )
             _print_result("מועמד", "created", cand["full_name"])
             created_candidates.append(profile)
 
@@ -828,13 +924,16 @@ async def seed() -> None:
                     continue
 
                 app_status = statuses[(i + offset) % len(statuses)]
-                admin_notes = None
-                if app_status == ApplicationStatus.APPROVED_BY_ADMIN:
-                    admin_notes = "מועמד מתאים, עם ניסיון רלוונטי. מאושר לראיון."
-                elif app_status == ApplicationStatus.REJECTED:
-                    admin_notes = "הניסיון אינו עומד בדרישות המינימום לתפקיד."
-                elif app_status == ApplicationStatus.HIRED:
-                    admin_notes = "התאמה מעולה. המועמד קיבל את ההצעה ואישר תחילת עבודה."
+                registered_at = _days_ago(70 - i * 6)
+                applied_at = registered_at + timedelta(
+                    days=3 + offset * 10 + (i % 3) * 4
+                )
+                # REJECTED only occurs when (i + offset) is even, so vary on i
+                # alone to get both rejection paths represented.
+                via_review = i % 2 == 0
+                status_events, updated_at, admin_notes = _status_history(
+                    app_status, applied_at, via_review=via_review
+                )
 
                 app = Application(
                     job_id=job.id,
@@ -848,9 +947,21 @@ async def seed() -> None:
                     resume_path=candidate.resume_path,
                     resume_filename=candidate.resume_filename,
                     resume_hash=candidate.resume_hash,
+                    created_at=applied_at,
+                    updated_at=updated_at,
                 )
                 session.add(app)
                 await session.flush()
+                for event_at, status_from, status_to in status_events:
+                    await record_audit_event(
+                        session,
+                        actor_user_id=admin_user.id,
+                        action="application.status_change",
+                        target_type="Application",
+                        target_id=app.id,  # type: ignore[arg-type]
+                        detail=f"{status_from.value}->{status_to.value}",
+                        created_at=event_at,
+                    )
                 _print_result(
                     "מועמדות",
                     "created",

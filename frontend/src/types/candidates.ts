@@ -12,16 +12,6 @@ export interface CandidateProfileRead {
   created_at: string;
 }
 
-/** Mirrors backend CandidateProfileUpdate (partial — all fields optional). */
-export interface CandidateProfileUpdate {
-  full_name?: string;
-  email?: string;
-  /** NOT NULL in DB — backend rejects explicit null. Omit to leave unchanged. */
-  phone?: string;
-  resume_path?: string | null;
-  linkedin_url?: string | null;
-}
-
 /**
  * Form input shape for the application form.
  * Submitted as multipart/form-data to POST /api/candidates/apply.

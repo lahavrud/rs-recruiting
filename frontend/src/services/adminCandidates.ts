@@ -1,22 +1,25 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type {
-  CandidateJobMatchRead,
-  CandidateProfileRead,
-  CandidateProfileUpdate,
-} from "@/types/candidates";
+import type { CandidateActivityEvent } from "@/types/audit";
+import type { CandidateJobMatchRead, CandidateProfileRead } from "@/types/candidates";
+
 export interface CandidateListParams {
   cursor?: string | null;
   limit?: number;
 }
 
+export interface CandidateSearchParams extends CandidateListParams {
+  q?: string;
+}
+
 export async function getCandidates(
-  params?: CandidateListParams,
+  params?: CandidateSearchParams,
   signal?: AbortSignal,
 ): Promise<CursorPage<CandidateProfileRead>> {
   const query: Record<string, string | number> = {};
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
+  if (params?.q) query.q = params.q;
   const res = await api.get<CursorPage<CandidateProfileRead>>("/api/admin/candidates", {
     params: query,
     signal,
@@ -34,14 +37,6 @@ export async function getCandidate(
   return res.data;
 }
 
-export async function updateCandidate(
-  id: number,
-  body: CandidateProfileUpdate,
-): Promise<CandidateProfileRead> {
-  const res = await api.put<CandidateProfileRead>(`/api/admin/candidates/${id}`, body);
-  return res.data;
-}
-
 export async function deleteCandidate(id: number): Promise<void> {
   await api.delete(`/api/admin/candidates/${id}`);
 }
@@ -53,6 +48,21 @@ export async function getCandidateJobMatches(
   const res = await api.get<CandidateJobMatchRead[]>(
     `/api/admin/candidates/${candidateId}/job-matches`,
     { signal },
+  );
+  return res.data;
+}
+
+export async function getCandidateActivity(
+  id: number,
+  params?: CandidateListParams,
+  signal?: AbortSignal,
+): Promise<CursorPage<CandidateActivityEvent>> {
+  const query: Record<string, string | number> = {};
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit != null) query.limit = params.limit;
+  const res = await api.get<CursorPage<CandidateActivityEvent>>(
+    `/api/admin/candidates/${id}/activity`,
+    { params: query, signal },
   );
   return res.data;
 }
