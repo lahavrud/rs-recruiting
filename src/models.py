@@ -8,7 +8,6 @@ from pydantic import field_validator
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -616,50 +615,3 @@ class AuditLog(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),
     )
-
-
-class JobMatch(SQLModel, table=True):
-    """Persisted resume-matching result: one candidate ↔ one job, with a score.
-
-    Written by ``match_candidate_task`` (top-N jobs per candidate, recomputed
-    and replaced on each CV change) and read by the admin job-matches endpoint.
-    ``score`` is cosine similarity in [0, 1] (higher = better). Rows cascade-
-    delete with their candidate or job.
-    """
-
-    __tablename__ = "job_match"
-    __table_args__ = (
-        Index(
-            "uq_job_match_candidate_job",
-            "candidate_id",
-            "job_id",
-            unique=True,
-        ),
-    )
-
-    id: int | None = Field(default=None, primary_key=True)
-    candidate_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("candidateprofile.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
-    )
-    job_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("job.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        )
-    )
-    score: float = Field(sa_column=Column(Float, nullable=False))
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    # One-way relationships (SQLModel 0.0.22 limitation), mirroring Application.
-    job: Job = Relationship()
-    candidate: CandidateProfile = Relationship()
