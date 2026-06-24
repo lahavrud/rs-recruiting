@@ -1,13 +1,13 @@
-import { useEffect, useRef } from "react";
-
 import { useTranslation } from "react-i18next";
 
+import RailRow from "@/components/admin/RailRow";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
+import { useScrollSelectedIntoView } from "@/hooks/useScrollSelectedIntoView";
 import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
@@ -30,69 +30,53 @@ export default function CandidatesRailList({
   isFetchingMore,
 }: CandidatesRailListProps) {
   const { t } = useTranslation('admin');
-  const rowRefs = useRef(new Map<number, HTMLDivElement>());
-
-  useEffect(() => {
-    if (selectedId == null) return;
-    rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
-  }, [selectedId, candidates]);
+  const rowRef = useScrollSelectedIntoView(selectedId, candidates);
 
   return (
     <>
       <div className="space-y-2">
-        {candidates.map((c) => {
-          const selected = c.id === selectedId;
-          return (
-            <div
-              key={c.id}
-              ref={(node) => {
-                if (node) rowRefs.current.set(c.id, node);
-                else rowRefs.current.delete(c.id);
-              }}
-              onClick={() => onView(c)}
-              aria-selected={selected}
-              className={`relative flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 pe-12 transition active:scale-[0.99] ${
-                selected
-                  ? "border-copper/40 bg-card-raised"
-                  : "border-white/8 bg-card hover:border-white/15"
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-white/85">{c.full_name}</p>
-                <p className="truncate text-xs text-white/40">{c.email}</p>
-              </div>
-              <span className="shrink-0 text-[11px] text-white/40">
-                {formatDate(c.created_at)}
-              </span>
-              <div className="absolute end-1 top-2">
-                <DropdownMenu
-                  ariaLabel={t("admin:candidates.rowActionsLabel")}
-                  trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
+        {candidates.map((c) => (
+          <RailRow
+            key={c.id}
+            rowRef={rowRef(c.id)}
+            selected={c.id === selectedId}
+            onClick={() => onView(c)}
+            actions={
+              <DropdownMenu
+                ariaLabel={t("admin:candidates.rowActionsLabel")}
+                trigger={<KebabButton />}
+              >
+                <DropdownMenuItem onSelect={() => onView(c)}>
+                  {t("admin:candidates.viewAction")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    window.open(
+                      `mailto:${c.email}?subject=${encodeURIComponent(
+                        t("admin:candidates.emailSubject", { name: c.full_name }),
+                      )}`,
+                      "_self",
+                    )
+                  }
                 >
-                  <DropdownMenuItem onSelect={() => onView(c)}>
-                    {t("admin:candidates.viewAction")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() =>
-                      window.open(
-                        `mailto:${c.email}?subject=${encodeURIComponent(
-                          t("admin:candidates.emailSubject", { name: c.full_name }),
-                        )}`,
-                        "_self",
-                      )
-                    }
-                  >
-                    {t("admin:candidates.emailAction")}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
-                    {t("admin:candidates.deleteAction")}
-                  </DropdownMenuItem>
-                </DropdownMenu>
-              </div>
+                  {t("admin:candidates.emailAction")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
+                  {t("admin:candidates.deleteAction")}
+                </DropdownMenuItem>
+              </DropdownMenu>
+            }
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-white/85">{c.full_name}</p>
+              <p className="truncate text-xs text-white/40">{c.email}</p>
             </div>
-          );
-        })}
+            <span className="shrink-0 text-[11px] text-white/40">
+              {formatDate(c.created_at)}
+            </span>
+          </RailRow>
+        ))}
       </div>
 
       <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
