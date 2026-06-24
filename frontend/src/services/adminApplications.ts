@@ -27,6 +27,16 @@ export async function getApplications(
   return res.data;
 }
 
+export async function getApplication(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ApplicationWithDetails> {
+  const res = await api.get<ApplicationWithDetails>(`/api/admin/applications/${id}`, {
+    signal,
+  });
+  return res.data;
+}
+
 export async function updateApplicationNotes(
   appId: number,
   adminNotes: string | null,

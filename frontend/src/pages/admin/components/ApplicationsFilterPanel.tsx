@@ -25,8 +25,6 @@ export interface FilterState {
   setQuery: Dispatch<SetStateAction<string>>;
   jobFilter: number[];
   setJobFilter: Dispatch<SetStateAction<number[]>>;
-  filterCandidateId: number | undefined;
-  setFilterCandidateId: Dispatch<SetStateAction<number | undefined>>;
   companyFilter: number[];
   setCompanyFilter: Dispatch<SetStateAction<number[]>>;
 }
@@ -61,8 +59,6 @@ export default function ApplicationsFilterPanel({
     setQuery,
     jobFilter,
     setJobFilter,
-    filterCandidateId,
-    setFilterCandidateId,
     companyFilter,
     setCompanyFilter,
   } = filterState;
@@ -95,12 +91,6 @@ export default function ApplicationsFilterPanel({
               onRemove={() => setJobFilter((prev) => prev.filter((x) => x !== id))}
             />
           ))}
-          {filterCandidateId != null && (
-            <ActiveFilterChip
-              label={`${t("common:filteredByCandidate")} #${filterCandidateId}`}
-              onRemove={() => setFilterCandidateId(undefined)}
-            />
-          )}
           {companyFilter.map((id) => (
             <ActiveFilterChip
               key={`co-${id}`}
