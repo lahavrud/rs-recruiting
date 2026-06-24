@@ -21,6 +21,7 @@ from opentelemetry import metrics as otel_metrics
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import async_session
 from src.core.infrastructure.transactions import transactional
+from src.core.matching import embed_job_task, match_candidate_task
 from src.core.services.email import get_email_provider
 from src.core.services.email_quota import increment_and_alert
 from src.core.utils import mask_email
@@ -240,6 +241,39 @@ async def enqueue_data_export_task(user_id: int) -> str:
     return message_id
 
 
+async def enqueue_embed_job_task(job_id: int) -> str:
+    """Enqueue a job re-embed. Runs inline (background task) in local dev."""
+    if not settings.sqs_queue_url:
+        import asyncio
+
+        asyncio.create_task(embed_job_task(job_id))
+        return "inline"
+
+    message_id = await _sqs_send({"task": "embed_job", "job_id": job_id})
+    logger.info(
+        "embed_job_enqueued", extra={"message_id": message_id, "job_id": job_id}
+    )
+    return message_id
+
+
+async def enqueue_match_candidate_task(candidate_id: int) -> str:
+    """Enqueue a candidate re-match. Runs inline (background task) in local dev."""
+    if not settings.sqs_queue_url:
+        import asyncio
+
+        asyncio.create_task(match_candidate_task(candidate_id))
+        return "inline"
+
+    message_id = await _sqs_send(
+        {"task": "match_candidate", "candidate_id": candidate_id}
+    )
+    logger.info(
+        "match_candidate_enqueued",
+        extra={"message_id": message_id, "candidate_id": candidate_id},
+    )
+    return message_id
+
+
 # ---------------------------------------------------------------------------
 # Task registry — used by the worker to dispatch received SQS messages
 # ---------------------------------------------------------------------------
@@ -250,4 +284,6 @@ TASK_REGISTRY: dict = {
     "send_email": send_email_task,
     "build_data_export": build_data_export_task,
     "purge_expired_candidates": purge_expired_candidate_data_task,
+    "embed_job": embed_job_task,
+    "match_candidate": match_candidate_task,
 }
