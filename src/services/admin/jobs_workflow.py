@@ -13,7 +13,7 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.core.infrastructure.transactions import defer_after_commit
-from src.core.tasks import enqueue_email_task
+from src.core.tasks import enqueue_email_task, enqueue_embed_job_task
 from src.enums import JobStatus
 from src.models import CompanyProfile, Job
 from src.schemas import JobRead
@@ -93,6 +93,11 @@ async def approve_job(
     job.status = JobStatus.PUBLISHED
     job.updated_at = datetime.now(timezone.utc)
     await session.flush()
+
+    # Now that it's published it becomes matchable — embed it (after commit) so
+    # subsequent candidate matches can rank against it.
+    published_job_id = job.id
+    defer_after_commit(lambda: enqueue_embed_job_task(published_job_id))
 
     await record_audit_event(
         session,

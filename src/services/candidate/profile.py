@@ -13,9 +13,11 @@ import hashlib
 import logging
 import re
 
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.infrastructure.storage_helpers import delete_file_best_effort
+from src.core.infrastructure.transactions import defer_after_commit
 from src.core.services.storage import StorageProvider
 from src.models import CandidateProfile
 from src.schemas import CandidateMeUpdate
@@ -170,6 +172,14 @@ async def replace_resume(
 
     await session.flush()
     await session.refresh(profile)
+    # Re-score this candidate against all jobs off the new resume, but only
+    # after the row is committed (the worker reads it in a fresh session). The
+    # task re-extracts text, re-embeds, and replaces JobMatch rows.
+    from src.core.tasks import enqueue_match_candidate_task
+
+    candidate_id = profile.id
+    if candidate_id is not None:
+        defer_after_commit(lambda: enqueue_match_candidate_task(candidate_id))
     return new_key
 
 
@@ -181,10 +191,19 @@ async def remove_resume(
     No-op when there is no resume on file. Application snapshots are untouched.
     Also clears the display label so a fresh upload starts clean.
     """
+    from src.models import JobMatch
+
     old_key = profile.resume_path
     profile.resume_path = None
     profile.resume_filename = None
     profile.resume_hash = None
+    # No resume → no basis for matching. Clear the derived data and matches.
+    profile.parsed_text = None
+    profile.embedding = None
+    if profile.id is not None:
+        await session.execute(
+            delete(JobMatch).where(JobMatch.candidate_id == profile.id)
+        )
     if old_key:
         await delete_file_best_effort(storage, old_key, logger, context="remove_resume")
     await session.flush()

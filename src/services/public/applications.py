@@ -16,7 +16,10 @@ from src.core.services.storage import get_storage_provider
 # Re-export so existing tests that `@patch("src.services.public.applications.
 # enqueue_email_task")` continue to work even though the email enqueue happens
 # in `_application_helpers`. See `tests/conftest.py::_EMAIL_TASK_TARGETS`.
-from src.core.tasks import enqueue_email_task  # noqa: F401
+from src.core.tasks import (
+    enqueue_email_task,  # noqa: F401
+    enqueue_match_candidate_task,
+)
 from src.enums import JobStatus
 from src.models import CandidateProfile, Job, User
 from src.schemas import CandidateProfileCreate, CandidateProfileRead
@@ -294,6 +297,12 @@ async def create_candidate_profile(
             _candidate_snapshot, _job_snapshot, _company_name_snapshot, session
         )
     )
+    # Score this candidate against all jobs off the resume they applied with
+    # (only if one is on file; the task no-ops otherwise). After commit so the
+    # worker reads the persisted profile.
+    if candidate.resume_path and candidate.id is not None:
+        _match_candidate_id = candidate.id
+        defer_after_commit(lambda: enqueue_match_candidate_task(_match_candidate_id))
     return CandidateProfileRead.model_validate(candidate)
 
 

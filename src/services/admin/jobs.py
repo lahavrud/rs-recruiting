@@ -19,7 +19,7 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.core.infrastructure.transactions import defer_after_commit
-from src.core.tasks import enqueue_email_task
+from src.core.tasks import enqueue_email_task, enqueue_embed_job_task
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import JobAdminCreate, JobAdminUpdate, JobRead
@@ -27,6 +27,12 @@ from src.services.admin._job_emails import FIELD_LABELS, notify_company_of_updat
 from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
 from src.services.utils.audit import record_audit_event
 from src.templates.email import build_job_closed_candidate_html
+
+# Job fields that feed the matching embedding (see cv_extraction.job_embedding_text).
+# A change to any of these on a PUBLISHED job warrants a re-embed.
+_EMBEDDABLE_FIELDS = frozenset(
+    {"title", "short_description", "description", "requirements", "tags", "location"}
+)
 
 
 async def list_jobs(
@@ -152,6 +158,12 @@ async def update_job(
         await _close_active_applications(
             job_id, job.title, session, actor_user_id=actor_user_id
         )
+
+    # Re-embed when a published job's matchable text changed, so candidate
+    # matches rank against the current content (after commit).
+    if job.status == JobStatus.PUBLISHED and _EMBEDDABLE_FIELDS & payload.keys():
+        embed_job_id = job.id
+        defer_after_commit(lambda: enqueue_embed_job_task(embed_job_id))
 
     await session.refresh(job)
     return JobRead.model_validate(job)
