@@ -4,19 +4,18 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import FunnelIcon from "@/components/admin/FunnelIcon";
+import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
-import EmptyState from "@/components/ui/EmptyState";
-import ErrorState from "@/components/ui/ErrorState";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
-import NoResults from "@/components/ui/NoResults";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -44,7 +43,6 @@ import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
 import ApplicationsRailList from "./components/ApplicationsRailList";
 import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
-import RailToggleIcon from "./components/RailToggleIcon";
 import { IconSparkle } from "./components/TriageIcons";
 
 
@@ -358,25 +356,26 @@ export default function AdminApplicationsPage() {
 
         {searchAndFilters}
 
-        {isLoading ? (
-          <>
-            <div className="md:hidden">
-              <MobileListSkeleton rows={6} />
-            </div>
-            <div className="hidden md:block">
-              <TableSkeleton rows={6} columns={4} />
-            </div>
-          </>
-        ) : error ? (
-          <ErrorState message={t("admin:applications.loadError")} onRetry={reload} />
-        ) : applications.length === 0 ? (
-          <EmptyState
-            eyebrow={t("admin:applications.title")}
-            headline={t("admin:applications.empty")}
-          />
-        ) : filteredApplications.length === 0 ? (
-          <NoResults />
-        ) : (
+        <ListStateSwitch
+          isLoading={isLoading}
+          loading={
+            <>
+              <div className="md:hidden">
+                <MobileListSkeleton rows={6} />
+              </div>
+              <div className="hidden md:block">
+                <TableSkeleton rows={6} columns={4} />
+              </div>
+            </>
+          }
+          error={error}
+          onRetry={reload}
+          errorMessage={t("admin:applications.loadError")}
+          isEmpty={filteredApplications.length === 0}
+          hasQuery={applications.length > 0}
+          emptyEyebrow={t("admin:applications.title")}
+          emptyHeadline={t("admin:applications.empty")}
+        >
           <>
             {/* Mobile cards — tap to expand inline; 3-dot menu for actions */}
             <div className="space-y-2 md:hidden">
@@ -528,7 +527,7 @@ export default function AdminApplicationsPage() {
               onDelete={setDeleteCandidate}
             />
           </>
-        )}
+        </ListStateSwitch>
 
         {dialogs}
       </div>
@@ -536,81 +535,56 @@ export default function AdminApplicationsPage() {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col md:flex-row">
-      <div
-        className={`hidden min-h-0 flex-col overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out md:flex md:flex-none ${
-          railCollapsed
-            ? "md:me-0 md:w-0 md:opacity-0"
-            : "md:me-6 md:w-[360px] md:opacity-100"
-        }`}
-      >
-        <h1 data-page-heading className="sr-only">
-          {t("admin:applications.title")}
-        </h1>
-        <PageHeader
-          eyebrow={t("admin:applications.title")}
-          subtitle={t("admin:applications.subtitle")}
-        />
+    <SplitPaneLayout
+      collapsed={railCollapsed}
+      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      showListLabel={t("admin:applications.record.showList")}
+      hideListLabel={t("admin:applications.record.hideList")}
+      rail={
+        <>
+          <h1 data-page-heading className="sr-only">
+            {t("admin:applications.title")}
+          </h1>
+          <PageHeader
+            eyebrow={t("admin:applications.title")}
+            subtitle={t("admin:applications.subtitle")}
+          />
 
-        {searchAndFilters}
+          {searchAndFilters}
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading ? (
-            <MobileListSkeleton rows={6} />
-          ) : error ? (
-            <ErrorState message={t("admin:applications.loadError")} onRetry={reload} />
-          ) : applications.length === 0 ? (
-            <EmptyState
-              eyebrow={t("admin:applications.title")}
-              headline={t("admin:applications.empty")}
-            />
-          ) : filteredApplications.length === 0 ? (
-            <NoResults />
-          ) : (
-            <ApplicationsRailList
-              applications={filteredApplications}
-              selectedId={selectedId}
-              statusLabels={STATUS_LABELS}
-              statusColors={APPLICATION_STATUS_COLORS}
-              onView={(app) => navigate(`/admin/applications/${app.id}`)}
-              onUpdateStatus={setStatusModal}
-              onEditNotes={setNotesModal}
-              onDelete={setDeleteCandidate}
-              sentinelRef={sentinelRef}
-              isFetchingMore={isFetchingMore}
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto md:min-w-0">
-        <ApplicationRecordPane
-          applicationId={selectedId}
-          application={selectedApplication}
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setRailCollapsed((v) => !v)}
-        aria-label={t(
-          railCollapsed
-            ? "admin:applications.record.showList"
-            : "admin:applications.record.hideList",
-        )}
-        title={t(
-          railCollapsed
-            ? "admin:applications.record.showList"
-            : "admin:applications.record.hideList",
-        )}
-        className={`absolute top-1/2 z-20 hidden size-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-card-raised text-white/40 transition-all duration-300 ease-in-out hover:border-copper/30 hover:text-copper md:flex ${
-          railCollapsed ? "start-0" : "start-[384px]"
-        }`}
-      >
-        <RailToggleIcon className="size-4" flipped={railCollapsed} />
-      </button>
-
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ListStateSwitch
+              isLoading={isLoading}
+              loading={<MobileListSkeleton rows={6} />}
+              error={error}
+              onRetry={reload}
+              errorMessage={t("admin:applications.loadError")}
+              isEmpty={filteredApplications.length === 0}
+              hasQuery={applications.length > 0}
+              emptyEyebrow={t("admin:applications.title")}
+              emptyHeadline={t("admin:applications.empty")}
+            >
+              <ApplicationsRailList
+                applications={filteredApplications}
+                selectedId={selectedId}
+                statusLabels={STATUS_LABELS}
+                statusColors={APPLICATION_STATUS_COLORS}
+                onView={(app) => navigate(`/admin/applications/${app.id}`)}
+                onUpdateStatus={setStatusModal}
+                onEditNotes={setNotesModal}
+                onDelete={setDeleteCandidate}
+                sentinelRef={sentinelRef}
+                isFetchingMore={isFetchingMore}
+              />
+            </ListStateSwitch>
+          </div>
+        </>
+      }
+      record={
+        <ApplicationRecordPane applicationId={selectedId} application={selectedApplication} />
+      }
+    >
       {dialogs}
-    </div>
+    </SplitPaneLayout>
   );
 }
