@@ -414,6 +414,21 @@ class CandidateJobMatchRead(BaseModel):
     score: float
 
 
+class JobCandidateMatchRead(BaseModel):
+    """One ranked candidate match — the reverse of ``CandidateJobMatchRead``.
+
+    Computed live against every embedded candidate rather than reading off
+    persisted ``JobMatch`` rows — those only hold each candidate's personal
+    top-N jobs, which would miss strong candidates for whom this job didn't
+    make their individual cut. ``score`` is cosine similarity in [0, 1].
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    candidate: CandidateProfileRead
+    score: float
+
+
 class CandidateApplicationResumeMeta(BaseModel):
     """Resume snapshot metadata — only filename + a present/absent flag."""
 
