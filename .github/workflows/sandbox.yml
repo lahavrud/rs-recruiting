@@ -39,7 +39,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The sandbox account's OIDC provider is destroyed along with everything
+      # else when `tofu destroy` tears the cluster down (see tofu/sandbox) —
+      # so when the cluster is off, role assumption itself fails with "No
+      # OpenIDConnect provider found", not just the later SSM check.
+      # continue-on-error lets that failure mode reach the check below
+      # instead of hard-failing the job before it can decide to skip.
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        id: aws-creds
+        continue-on-error: true
         with:
           role-to-assume: ${{ secrets.SANDBOX_AWS_ROLE_ARN }}
           aws-region: us-east-1
@@ -47,6 +55,11 @@ jobs:
       - name: Check sandbox active flag
         id: check
         run: |
+          if [ "${{ steps.aws-creds.outcome }}" != "success" ]; then
+            echo "active=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Sandbox AWS account not reachable via OIDC (cluster is down) — skipping deploy."
+            exit 0
+          fi
           if aws ssm get-parameter --name /rs-recruiting/sandbox/active --region us-east-1 > /dev/null 2>&1; then
             echo "active=true" >> "$GITHUB_OUTPUT"
           else
