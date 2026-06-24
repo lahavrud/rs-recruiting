@@ -4,12 +4,18 @@ import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import { MatchList, type MatchEntry } from "@/components/admin/MatchList";
 import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import { getApplications } from "@/services/adminApplications";
-import type { ApplicationWithDetails, CandidateProfileRead } from "@/types/candidates";
+import { getCandidateJobMatches } from "@/services/adminCandidates";
+import type {
+  ApplicationWithDetails,
+  CandidateJobMatchRead,
+  CandidateProfileRead,
+} from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
@@ -127,6 +133,34 @@ export function CandidateDetailBody({
   const applications = useLocal ? localApps : appsProp;
   const hasAppsError = useLocal ? hasLocalAppsError : (hasAppsErrorProp ?? false);
 
+  const [matches, setMatches] = useState<CandidateJobMatchRead[] | null>(null);
+  const [hasMatchesError, setHasMatchesError] = useState(false);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setMatches(null);
+    setHasMatchesError(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    getCandidateJobMatches(candidate.id, ctrl.signal)
+      .then(setMatches)
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+        setHasMatchesError(true);
+      });
+    return () => ctrl.abort();
+  }, [candidate.id]);
+  const matchEntries: MatchEntry[] | null =
+    matches?.map((m) => ({
+      key: m.job.id,
+      name: m.job.title,
+      meta: m.job.location,
+      score: m.score,
+      onClick: () => {
+        onLeavePage?.();
+        navigate(`/admin/jobs?job=${m.job.id}`);
+      },
+    })) ?? null;
+
   return (
     <div className="space-y-5 text-sm">
       <div className="flex flex-wrap gap-x-6 gap-y-1">
@@ -240,6 +274,16 @@ export function CandidateDetailBody({
             })}
           </ul>
         )}
+      </div>
+
+      <div className="border-t border-white/8 pt-4">
+        <Eyebrow>{t("admin:candidates.matchesSection")}</Eyebrow>
+        <MatchList
+          entries={matchEntries}
+          hasError={hasMatchesError}
+          emptyMessage={t("admin:candidates.noMatches")}
+          errorMessage={t("admin:candidates.matchesLoadError")}
+        />
       </div>
     </div>
   );
