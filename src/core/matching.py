@@ -25,6 +25,11 @@ def _extension_of(name: str | None) -> str:
     return name.rsplit(".", 1)[-1].lower()
 
 
+def cosine_similarity_score(distance: float) -> float:
+    """Map a pgvector cosine distance (∈ [0, 2]) to a similarity in [0, 1]."""
+    return max(0.0, min(1.0, 1.0 - float(distance)))
+
+
 async def embed_job_task(job_id: int) -> None:
     """Compute and store a job's embedding. Triggered on publish/edit.
 
@@ -112,8 +117,7 @@ async def match_candidate_task(candidate_id: int) -> None:
                 delete(JobMatch).where(JobMatch.candidate_id == candidate_id)
             )
             for job_id, dist in rows:
-                # cosine_distance ∈ [0, 2]; similarity = 1 - distance, clamped.
-                score = max(0.0, min(1.0, 1.0 - float(dist)))
+                score = cosine_similarity_score(dist)
                 session.add(
                     JobMatch(candidate_id=candidate_id, job_id=job_id, score=score)
                 )
