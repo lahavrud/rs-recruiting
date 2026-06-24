@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { CollapsibleSection } from "@/components/admin/AnimatedAccordion";
+import { MatchList, type MatchEntry } from "@/components/admin/MatchList";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { getApplications } from "@/services/adminApplications";
+import { getJobCandidateMatches } from "@/services/adminJobs";
+import type { JobCandidateMatchRead } from "@/types/candidates";
 import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
@@ -72,6 +76,34 @@ export function JobDetailBody({
       .catch(() => {});
     return () => ctrl.abort();
   }, [job.id]);
+
+  const [matches, setMatches] = useState<JobCandidateMatchRead[] | null>(null);
+  const [hasMatchesError, setHasMatchesError] = useState(false);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setMatches(null);
+    setHasMatchesError(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    getJobCandidateMatches(job.id, ctrl.signal)
+      .then(setMatches)
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+        setHasMatchesError(true);
+      });
+    return () => ctrl.abort();
+  }, [job.id]);
+  const matchEntries: MatchEntry[] | null =
+    matches?.map((m) => ({
+      key: m.candidate.id,
+      name: m.candidate.full_name,
+      meta: m.candidate.email,
+      score: m.score,
+      onClick: () => {
+        onLeavePage?.();
+        navigate(`/admin/candidates?detail=${m.candidate.id}`);
+      },
+    })) ?? null;
 
   const salaryStr =
     job.salary_min != null && job.salary_max != null
@@ -187,6 +219,14 @@ export function JobDetailBody({
           </ul>
         </CollapsibleSection>
       )}
+      <CollapsibleSection title={t("admin:jobs.matchesSection")}>
+        <MatchList
+          entries={matchEntries}
+          hasError={hasMatchesError}
+          emptyMessage={t("admin:jobs.noMatches")}
+          errorMessage={t("admin:jobs.matchesLoadError")}
+        />
+      </CollapsibleSection>
     </div>
   );
 }
