@@ -1,4 +1,4 @@
-/** Sidebar-panel glyph for the candidates rail show/hide toggle. `flipped` mirrors it for the "show" state. */
+/** Sidebar-panel glyph for an admin record workspace's rail show/hide toggle. `flipped` mirrors it for the "show" state. */
 export default function RailToggleIcon({
   className,
   flipped,

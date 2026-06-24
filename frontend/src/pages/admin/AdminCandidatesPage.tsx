@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
+import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import EmptyState from "@/components/ui/EmptyState";
-import ErrorState from "@/components/ui/ErrorState";
-import NoResults from "@/components/ui/NoResults";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import TableSkeleton from "@/components/ui/TableSkeleton";
@@ -21,7 +21,6 @@ import type { CandidateProfileRead } from "@/types/candidates";
 import CandidateRecordPane from "./components/CandidateRecordPane";
 import CandidatesRailList from "./components/CandidatesRailList";
 import CandidatesTable from "./components/CandidatesTable";
-import RailToggleIcon from "./components/RailToggleIcon";
 
 export default function AdminCandidatesPage() {
   const { t } = useTranslation(['admin', 'common', 'md']);
@@ -86,44 +85,61 @@ export default function AdminCandidatesPage() {
     selectedId != null ? candidates.find((c) => c.id === selectedId) : undefined;
 
   const dialogs = (
+    <ConfirmDialog
+      open={deletePending != null}
+      onOpenChange={(o) => !o && setDeletePending(null)}
+      title={t("admin:candidates.deleteConfirmTitle", {
+        name: deletePending?.full_name ?? "",
+      })}
+      message={t("admin:candidates.deleteConfirmMessage")}
+      confirmLabel={t("admin:candidates.deleteConfirmYes")}
+      variant="danger"
+      isPending={pendingDelete}
+      onConfirm={handleDeleteConfirm}
+    />
+  );
+
+  const header = (
     <>
-      <ConfirmDialog
-        open={deletePending != null}
-        onOpenChange={(o) => !o && setDeletePending(null)}
-        title={t("admin:candidates.deleteConfirmTitle", {
-          name: deletePending?.full_name ?? "",
-        })}
-        message={t("admin:candidates.deleteConfirmMessage")}
-        confirmLabel={t("admin:candidates.deleteConfirmYes")}
-        variant="danger"
-        isPending={pendingDelete}
-        onConfirm={handleDeleteConfirm}
-      />
+      <h1 data-page-heading className="sr-only">
+        {t("admin:candidates.title")}
+      </h1>
+      <PageHeader eyebrow={t("admin:candidates.title")} subtitle={t("admin:candidates.subtitle")} />
+      <div className="mb-3">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder={t("admin:candidates.searchPlaceholder")}
+          isClearable
+        />
+      </div>
     </>
   );
+
+  const listStateProps = {
+    isLoading,
+    error,
+    onRetry: reload,
+    errorMessage: t("admin:candidates.loadError"),
+    isEmpty: candidates.length === 0,
+    hasQuery: Boolean(debouncedQuery.trim()),
+    emptyEyebrow: t("admin:candidates.title"),
+    emptyHeadline: t("admin:candidates.empty"),
+  };
+
+  function withListState(loading: ReactNode, children: ReactNode) {
+    return (
+      <ListStateSwitch {...listStateProps} loading={loading}>
+        {children}
+      </ListStateSwitch>
+    );
+  }
 
   if (selectedId == null) {
     return (
       <div>
-        <h1 data-page-heading className="sr-only">
-          {t("admin:candidates.title")}
-        </h1>
-        <PageHeader
-          eyebrow={t("admin:candidates.title")}
-          subtitle={t("admin:candidates.subtitle")}
-        />
-
-        {/* Search */}
-        <div className="mb-3">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={t("admin:candidates.searchPlaceholder")}
-            isClearable
-          />
-        </div>
-
-        {isLoading ? (
+        {header}
+        {withListState(
           <>
             <div className="md:hidden">
               <MobileListSkeleton rows={6} />
@@ -131,19 +147,7 @@ export default function AdminCandidatesPage() {
             <div className="hidden md:block">
               <TableSkeleton rows={6} columns={6} />
             </div>
-          </>
-        ) : error ? (
-          <ErrorState message={t("admin:candidates.loadError")} onRetry={reload} />
-        ) : candidates.length === 0 ? (
-          debouncedQuery.trim() ? (
-            <NoResults />
-          ) : (
-            <EmptyState
-              eyebrow={t("admin:candidates.title")}
-              headline={t("admin:candidates.empty")}
-            />
-          )
-        ) : (
+          </>,
           <>
             <div className="md:hidden">
               <CandidatesRailList
@@ -162,93 +166,46 @@ export default function AdminCandidatesPage() {
               sentinelRef={sentinelRef}
               isFetchingMore={isFetchingMore}
             />
-          </>
+          </>,
         )}
-
         {dialogs}
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col md:flex-row">
-      <div
-        className={`hidden min-h-0 flex-col overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out md:flex md:flex-none ${
-          railCollapsed
-            ? "md:me-0 md:w-0 md:opacity-0"
-            : "md:me-6 md:w-[360px] md:opacity-100"
-        }`}
-      >
-        <h1 data-page-heading className="sr-only">
-          {t("admin:candidates.title")}
-        </h1>
-        <PageHeader
-          eyebrow={t("admin:candidates.title")}
-          subtitle={t("admin:candidates.subtitle")}
-        />
-
-        {/* Search */}
-        <div className="mb-3">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder={t("admin:candidates.searchPlaceholder")}
-            isClearable
-          />
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading ? (
-            <MobileListSkeleton rows={6} />
-          ) : error ? (
-            <ErrorState message={t("admin:candidates.loadError")} onRetry={reload} />
-          ) : candidates.length === 0 ? (
-            debouncedQuery.trim() ? (
-              <NoResults />
-            ) : (
-              <EmptyState
-                eyebrow={t("admin:candidates.title")}
-                headline={t("admin:candidates.empty")}
-              />
-            )
-          ) : (
-            <CandidatesRailList
-              candidates={candidates}
-              selectedId={selectedId}
-              onView={(c) => navigate(`/admin/candidates/${c.id}`)}
-              onDelete={setDeletePending}
-              sentinelRef={sentinelRef}
-              isFetchingMore={isFetchingMore}
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto md:min-w-0">
+    <SplitPaneLayout
+      collapsed={railCollapsed}
+      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      showListLabel={t("admin:candidates.record.showList")}
+      hideListLabel={t("admin:candidates.record.hideList")}
+      rail={
+        <>
+          {header}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {withListState(
+              <MobileListSkeleton rows={6} />,
+              <CandidatesRailList
+                candidates={candidates}
+                selectedId={selectedId}
+                onView={(c) => navigate(`/admin/candidates/${c.id}`)}
+                onDelete={setDeletePending}
+                sentinelRef={sentinelRef}
+                isFetchingMore={isFetchingMore}
+              />,
+            )}
+          </div>
+        </>
+      }
+      record={
         <CandidateRecordPane
           candidateId={selectedId}
           candidate={selectedCandidate}
           onDeleted={(deletedId) => removeItem((c) => c.id === deletedId)}
         />
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setRailCollapsed((v) => !v)}
-        aria-label={t(
-          railCollapsed ? "admin:candidates.record.showList" : "admin:candidates.record.hideList",
-        )}
-        title={t(
-          railCollapsed ? "admin:candidates.record.showList" : "admin:candidates.record.hideList",
-        )}
-        className={`absolute top-1/2 z-20 hidden size-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-card-raised text-white/40 transition-all duration-300 ease-in-out hover:border-copper/30 hover:text-copper md:flex ${
-          railCollapsed ? "start-0" : "start-[384px]"
-        }`}
-      >
-        <RailToggleIcon className="size-4" flipped={railCollapsed} />
-      </button>
-
+      }
+    >
       {dialogs}
-    </div>
+    </SplitPaneLayout>
   );
 }
