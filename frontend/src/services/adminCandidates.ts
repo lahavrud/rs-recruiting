@@ -1,6 +1,10 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type { CandidateProfileRead, CandidateProfileUpdate } from "@/types/candidates";
+import type {
+  CandidateJobMatchRead,
+  CandidateProfileRead,
+  CandidateProfileUpdate,
+} from "@/types/candidates";
 export interface CandidateListParams {
   cursor?: string | null;
   limit?: number;
@@ -40,6 +44,17 @@ export async function updateCandidate(
 
 export async function deleteCandidate(id: number): Promise<void> {
   await api.delete(`/api/admin/candidates/${id}`);
+}
+
+export async function getCandidateJobMatches(
+  candidateId: number,
+  signal?: AbortSignal,
+): Promise<CandidateJobMatchRead[]> {
+  const res = await api.get<CandidateJobMatchRead[]>(
+    `/api/admin/candidates/${candidateId}/job-matches`,
+    { signal },
+  );
+  return res.data;
 }
 
 // fetchResumeBlob is in this file because it's exclusively used in the

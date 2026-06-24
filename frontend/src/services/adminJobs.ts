@@ -1,5 +1,6 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
+import type { JobCandidateMatchRead } from "@/types/candidates";
 import type { JobStatus } from "@/types/enums";
 import type { JobAdminCreate, JobAdminUpdate, JobRead } from "@/types/jobs";
 export interface JobListParams {
@@ -53,4 +54,15 @@ export async function updateJob(id: number, body: JobAdminUpdate): Promise<JobRe
 
 export async function deleteJob(id: number): Promise<void> {
   await api.delete(`/api/admin/jobs/${id}`);
+}
+
+export async function getJobCandidateMatches(
+  jobId: number,
+  signal?: AbortSignal,
+): Promise<JobCandidateMatchRead[]> {
+  const res = await api.get<JobCandidateMatchRead[]>(
+    `/api/admin/jobs/${jobId}/candidate-matches`,
+    { signal },
+  );
+  return res.data;
 }
