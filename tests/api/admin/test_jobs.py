@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from src.enums import JobStatus
-from src.models import CompanyProfile, Job
+from src.models import CandidateProfile, CompanyProfile, Job
 from tests.conftest import TestSessionLocal
 
 
@@ -549,3 +549,99 @@ async def test_list_jobs_paginates_through_all(
 async def test_list_jobs_requires_admin(public_client: AsyncClient):
     response = await public_client.get("/api/admin/jobs")
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /api/admin/jobs/{id}/candidate-matches
+# ---------------------------------------------------------------------------
+
+
+async def _make_candidate(full_name: str, email: str, embedding: list[float]) -> int:
+    async with TestSessionLocal() as s:
+        candidate = CandidateProfile(
+            full_name=full_name,
+            email=email,
+            phone="050-0000000",
+            embedding=embedding,
+        )
+        s.add(candidate)
+        await s.commit()
+        await s.refresh(candidate)
+        return candidate.id
+
+
+@pytest.mark.asyncio
+async def test_get_job_candidate_matches_ranked(
+    admin_client: AsyncClient,
+    published_job: Job,
+    fake_embeddings,
+):
+    """Ranks every embedded candidate against the job, best score first."""
+    [job_vec] = await fake_embeddings.embed(["python fastapi backend"])
+    async with TestSessionLocal() as s:
+        job = await s.get(Job, published_job.id)
+        job.embedding = job_vec
+        await s.commit()
+
+    [close_vec] = await fake_embeddings.embed(["python fastapi backend developer"])
+    [far_vec] = await fake_embeddings.embed(["marketing brand social media"])
+    close_id = await _make_candidate("Close Match", "close@test.com", close_vec)
+    far_id = await _make_candidate("Far Match", "far@test.com", far_vec)
+
+    resp = await admin_client.get(
+        f"/api/admin/jobs/{published_job.id}/candidate-matches"
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [m["candidate"]["id"] for m in data] == [close_id, far_id]
+    assert data[0]["score"] > data[1]["score"]
+
+
+@pytest.mark.asyncio
+async def test_get_job_candidate_matches_excludes_unembedded_candidates(
+    admin_client: AsyncClient,
+    published_job: Job,
+    fake_embeddings,
+):
+    """A candidate with no resume/embedding never shows up in the ranking."""
+    [job_vec] = await fake_embeddings.embed(["python fastapi backend"])
+    async with TestSessionLocal() as s:
+        job = await s.get(Job, published_job.id)
+        job.embedding = job_vec
+        await s.commit()
+        s.add(
+            CandidateProfile(
+                full_name="No Resume", email="noresume@test.com", phone="050-0000000"
+            )
+        )
+        await s.commit()
+
+    resp = await admin_client.get(
+        f"/api/admin/jobs/{published_job.id}/candidate-matches"
+    )
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_job_candidate_matches_empty_when_job_not_embedded(
+    admin_client: AsyncClient, pending_job: Job
+):
+    """A job with no embedding yet (e.g. not published) returns no matches."""
+    resp = await admin_client.get(f"/api/admin/jobs/{pending_job.id}/candidate-matches")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_get_job_candidate_matches_404_for_unknown_job(
+    admin_client: AsyncClient,
+):
+    resp = await admin_client.get("/api/admin/jobs/999999/candidate-matches")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_job_candidate_matches_requires_admin(public_client: AsyncClient):
+    resp = await public_client.get("/api/admin/jobs/1/candidate-matches")
+    assert resp.status_code in (401, 403)

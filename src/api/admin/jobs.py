@@ -11,10 +11,17 @@ from src.core.infrastructure.pagination import DEFAULT_LIMIT, MAX_LIMIT, CursorP
 from src.core.infrastructure.transactions import transactional
 from src.enums import JobStatus
 from src.models import User
-from src.schemas import JobAdminCreate, JobAdminUpdate, JobContactEmailRequest, JobRead
+from src.schemas import (
+    JobAdminCreate,
+    JobAdminUpdate,
+    JobCandidateMatchRead,
+    JobContactEmailRequest,
+    JobRead,
+)
 from src.services.admin.jobs import (
     admin_create_job,
     delete_job,
+    get_job_candidate_matches,
     list_jobs,
     update_job,
 )
@@ -88,6 +95,22 @@ async def get_job_endpoint(
     """Fetch a single job by id, regardless of status."""
     try:
         return await get_job(job_id, session)
+    except JobNotFoundError as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/jobs/{job_id}/candidate-matches",
+    response_model=list[JobCandidateMatchRead],
+)
+async def get_job_candidate_matches_endpoint(
+    job_id: int,
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+) -> list[JobCandidateMatchRead]:
+    """Ranked resume-match results for a job, best score first."""
+    try:
+        return await get_job_candidate_matches(job_id, session)
     except JobNotFoundError as e:
         raise service_exception_to_http(e) from e
 
