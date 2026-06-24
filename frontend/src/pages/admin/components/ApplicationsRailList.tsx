@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
-
 import { useTranslation } from "react-i18next";
 
+import RailRow from "@/components/admin/RailRow";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -9,6 +8,7 @@ import DropdownMenu, {
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useScrollSelectedIntoView } from "@/hooks/useScrollSelectedIntoView";
 import type { ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
@@ -40,73 +40,57 @@ export default function ApplicationsRailList({
   isFetchingMore,
 }: ApplicationsRailListProps) {
   const { t } = useTranslation("admin");
-  const rowRefs = useRef(new Map<number, HTMLDivElement>());
-
-  useEffect(() => {
-    if (selectedId == null) return;
-    rowRefs.current.get(selectedId)?.scrollIntoView({ block: "nearest" });
-  }, [selectedId, applications]);
+  const rowRef = useScrollSelectedIntoView(selectedId, applications);
 
   return (
     <>
       <div className="space-y-2">
-        {applications.map((app) => {
-          const selected = app.id === selectedId;
-          return (
-            <div
-              key={app.id}
-              ref={(node) => {
-                if (node) rowRefs.current.set(app.id, node);
-                else rowRefs.current.delete(app.id);
-              }}
-              onClick={() => onView(app)}
-              aria-selected={selected}
-              className={`relative flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 pe-12 transition active:scale-[0.99] ${
-                selected
-                  ? "border-copper/40 bg-card-raised"
-                  : "border-white/8 bg-card hover:border-white/15"
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-white/85">
-                  {app.candidate.full_name}
-                </p>
-                <p className="truncate text-xs text-white/40">{app.job.title}</p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <StatusBadge
-                  label={statusLabels[app.status]}
-                  colorCls={statusColors[app.status]}
-                />
-                <span className="text-[11px] text-white/40">
-                  {formatDate(app.created_at)}
-                </span>
-              </div>
-              <div className="absolute end-1 top-2">
-                <DropdownMenu
-                  ariaLabel={t("admin:applications.rowActionsLabel")}
-                  trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
-                >
-                  <DropdownMenuItem onSelect={() => onView(app)}>
-                    {t("admin:applications.viewAction")}
+        {applications.map((app) => (
+          <RailRow
+            key={app.id}
+            rowRef={rowRef(app.id)}
+            selected={app.id === selectedId}
+            onClick={() => onView(app)}
+            actions={
+              <DropdownMenu
+                ariaLabel={t("admin:applications.rowActionsLabel")}
+                trigger={<KebabButton />}
+              >
+                <DropdownMenuItem onSelect={() => onView(app)}>
+                  {t("admin:applications.viewAction")}
+                </DropdownMenuItem>
+                {app.status !== ApplicationStatus.WITHDRAWN && (
+                  <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
+                    {t("admin:applications.updateStatusAction")}
                   </DropdownMenuItem>
-                  {app.status !== ApplicationStatus.WITHDRAWN && (
-                    <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                      {t("admin:applications.updateStatusAction")}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onSelect={() => onEditNotes(app)}>
-                    {t("admin:applications.editNotesAction")}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="danger" onSelect={() => onDelete(app)}>
-                    {t("admin:applications.deleteAction")}
-                  </DropdownMenuItem>
-                </DropdownMenu>
-              </div>
+                )}
+                <DropdownMenuItem onSelect={() => onEditNotes(app)}>
+                  {t("admin:applications.editNotesAction")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem variant="danger" onSelect={() => onDelete(app)}>
+                  {t("admin:applications.deleteAction")}
+                </DropdownMenuItem>
+              </DropdownMenu>
+            }
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-white/85">
+                {app.candidate.full_name}
+              </p>
+              <p className="truncate text-xs text-white/40">{app.job.title}</p>
             </div>
-          );
-        })}
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <StatusBadge
+                label={statusLabels[app.status]}
+                colorCls={statusColors[app.status]}
+              />
+              <span className="text-[11px] text-white/40">
+                {formatDate(app.created_at)}
+              </span>
+            </div>
+          </RailRow>
+        ))}
       </div>
 
       <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
