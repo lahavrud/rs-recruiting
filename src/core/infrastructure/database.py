@@ -68,6 +68,8 @@ async_session = async_sessionmaker(
 async def init_db() -> None:
     """Initialize database tables and apply lightweight column migrations."""
     async with engine.begin() as conn:
+        # Required before create_all can build the pgvector `embedding` columns.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(SQLModel.metadata.create_all)
         for stmt in _MIGRATIONS:
             try:
