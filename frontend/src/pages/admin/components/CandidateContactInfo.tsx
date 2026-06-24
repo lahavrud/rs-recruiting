@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import type { CandidateProfileRead } from "@/types/candidates";
+
 import ResumeButton from "@/components/ui/ResumeViewer";
+import type { CandidateProfileRead } from "@/types/candidates";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 /** Contact/identity row: email, phone, LinkedIn, resume. */

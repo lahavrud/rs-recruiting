@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+
+import Eyebrow from "@/components/ui/Eyebrow";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { getApplications } from "@/services/adminApplications";
 import { getActiveCompanies } from "@/services/adminCompanies";
 import type { ApplicationWithDetails } from "@/types/candidates";
-import Eyebrow from "@/components/ui/Eyebrow";
-import StatusBadge from "@/components/ui/StatusBadge";
 import { formatDate } from "@/utils/formatDate";
+
 import { IconArrowRight } from "./triageIcons";
 
 const STATUS_COLORS: Record<string, string> = {

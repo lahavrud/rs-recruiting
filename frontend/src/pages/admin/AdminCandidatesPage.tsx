@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import { deleteCandidate, getCandidates } from "@/services/adminCandidates";
-import type { CandidateProfileRead } from "@/types/candidates";
-import PageHeader from "@/components/ui/PageHeader";
+
+import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
-import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import TableSkeleton from "@/components/ui/TableSkeleton";
-import SearchInput from "@/components/ui/SearchInput";
 import NoResults from "@/components/ui/NoResults";
+import PageHeader from "@/components/ui/PageHeader";
+import SearchInput from "@/components/ui/SearchInput";
+import TableSkeleton from "@/components/ui/TableSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
+import { deleteCandidate, getCandidates } from "@/services/adminCandidates";
+import type { CandidateProfileRead } from "@/types/candidates";
+
 import CandidateRecordPane from "./components/CandidateRecordPane";
 import CandidatesRailList from "./components/CandidatesRailList";
 import CandidatesTable from "./components/CandidatesTable";

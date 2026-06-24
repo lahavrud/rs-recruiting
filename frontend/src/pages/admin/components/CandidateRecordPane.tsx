@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
+
+import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import axios from "axios";
-import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
-import type { CandidateProfileRead } from "@/types/candidates";
+
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import Eyebrow from "@/components/ui/Eyebrow";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
-import CandidateContactInfo from "./CandidateContactInfo";
-import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
+import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
+import type { CandidateProfileRead } from "@/types/candidates";
+
 import CandidateActivityPanel from "./CandidateActivityPanel";
+import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
+import CandidateContactInfo from "./CandidateContactInfo";
 
 interface Props {
   candidateId: number | null;

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
+
 import axios from "axios";
-import { getCandidateActivity } from "@/services/adminCandidates";
-import type { CandidateActivityEvent } from "@/types/audit";
+import { useTranslation } from "react-i18next";
+
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { getCandidateActivity } from "@/services/adminCandidates";
+import type { CandidateActivityEvent } from "@/types/audit";
 import { formatDate } from "@/utils/formatDate";
 
 interface Props {

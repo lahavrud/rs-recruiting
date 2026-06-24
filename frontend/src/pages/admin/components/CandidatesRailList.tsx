@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
-import type { CandidateProfileRead } from "@/types/candidates";
+
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
-import KebabButton from "@/components/ui/KebabButton";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
+import KebabButton from "@/components/ui/KebabButton";
+import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 interface CandidatesRailListProps {
