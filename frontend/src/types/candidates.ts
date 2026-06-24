@@ -74,3 +74,15 @@ export interface ApplicationStatusUpdate {
   status: ApplicationStatus;
   admin_notes?: string | null;
 }
+
+/** One ranked candidate match for the admin job view. score is cosine similarity in [0, 1]. */
+export interface JobCandidateMatchRead {
+  candidate: CandidateProfileRead;
+  score: number;
+}
+
+/** One ranked job match for the admin candidate view. score is cosine similarity in [0, 1]. */
+export interface CandidateJobMatchRead {
+  job: JobRead;
+  score: number;
+}
