@@ -49,7 +49,7 @@ async def embed_job_task(job_id: int) -> None:
             if not text:
                 return
             [vector] = await get_embedding_provider().embed(
-                [text], input_type="search_document"
+                [text], input_type="search_query"
             )
             job.embedding = vector
     logger.info("job_embedded", extra={"job_id": job_id})
@@ -93,7 +93,7 @@ async def match_candidate_task(candidate_id: int) -> None:
 
             profile.parsed_text = text
             [vector] = await get_embedding_provider().embed(
-                [text], input_type="search_query"
+                [text], input_type="search_document"
             )
             profile.embedding = vector
     logger.info("candidate_embedded", extra={"candidate_id": candidate_id})
