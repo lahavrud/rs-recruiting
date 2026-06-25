@@ -134,9 +134,9 @@ class Settings(BaseSettings):
     # ``embedding_dim`` MUST match the model's output dimension and the Vector
     # column width set by the migration — changing it later needs a new migration.
     embedding_provider: Literal["cohere", "fake"] = "fake"
-    embedding_model: str = "embed-multilingual-v3.0"
+    embedding_model: str = "embed-v4.0"
     embedding_api_key: Optional[str] = None
-    embedding_dim: int = 1024
+    embedding_dim: int = 1536
     # How many top jobs to persist per candidate match run.
     embedding_top_matches: int = 20
 
