@@ -245,3 +245,10 @@ frontend/dist/
 # Claude Code — commit shared config; ignore personal/runtime state
 .claude/settings.local.json
 .claude/worktrees/
+
+# sigmap — local context-engine config/output
+gen-context.config.json
+.contextignore
+.context/
+.github/context-*.md
+.github/copilot-instructions.md
