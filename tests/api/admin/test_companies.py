@@ -97,6 +97,38 @@ async def test_active_companies_empty_envelope(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_active_companies_sort_by_name(admin_client: AsyncClient):
+    """`sort=name&order=asc` orders by company name."""
+    for name, company_id in [("Bravo Co", "111111111"), ("Alpha Co", "222222222")]:
+        response = await admin_client.post(
+            "/api/admin/companies",
+            json={
+                "name": name,
+                "company_id": company_id,
+                "address": "כתובת",
+                "contact_email": f"{name.lower().replace(' ', '')}@example.com",
+                "contact_first_name": "אורי",
+                "contact_last_name": "ישיר",
+                "contact_mobile_phone": "0501234567",
+            },
+        )
+        assert response.status_code == 201
+
+    response = await admin_client.get(
+        "/api/admin/companies", params={"sort": "name", "order": "asc"}
+    )
+    assert response.status_code == 200
+    names = [item["company_profile"]["name"] for item in response.json()["items"]]
+    assert names == ["Alpha Co", "Bravo Co"]
+
+
+@pytest.mark.asyncio
+async def test_active_companies_invalid_sort_returns_422(admin_client: AsyncClient):
+    response = await admin_client.get("/api/admin/companies", params={"sort": "email"})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 @patch("src.services.admin.company_approval.enqueue_email_task")
 async def test_approve_company_success(
     mock_enqueue_email, admin_client: AsyncClient, company_user

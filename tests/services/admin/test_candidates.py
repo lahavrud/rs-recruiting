@@ -24,7 +24,7 @@ from src.services.admin.candidates import (
     list_candidates,
     purge_expired_candidates,
 )
-from src.services.exceptions import CandidateNotFoundError
+from src.services.exceptions import CandidateNotFoundError, InvalidCursorError
 
 
 @pytest.mark.asyncio
@@ -100,6 +100,101 @@ async def test_list_candidates_paginates_with_cursor(session: AsyncSession):
     # Newest first across the entire traversal
     assert seen[0] == "user24@test.com"
     assert seen[-1] == "user00@test.com"
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_sort_by_name_orders_alphabetically(
+    session: AsyncSession,
+):
+    """`sort="name"` orders by full_name, default direction descending."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Alice", email="alice@test.com", phone="050-1111111"
+            ),
+            CandidateProfile(
+                full_name="Bob", email="bob@test.com", phone="050-2222222"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, sort="name")
+    assert [item.full_name for item in page.items] == ["Bob", "Alice"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_sort_by_name_order_asc(session: AsyncSession):
+    """`order="asc"` reverses the direction."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Alice", email="alice@test.com", phone="050-1111111"
+            ),
+            CandidateProfile(
+                full_name="Bob", email="bob@test.com", phone="050-2222222"
+            ),
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, sort="name", order="asc")
+    assert [item.full_name for item in page.items] == ["Alice", "Bob"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_paginates_with_cursor_sorted_by_name(
+    session: AsyncSession,
+):
+    """A multi-page traversal sorted by name returns each candidate once."""
+    names = [f"User{i:02d}" for i in range(25)]
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name=name, email=f"{name.lower()}@test.com", phone="050-0000000"
+            )
+            for name in names
+        ]
+    )
+    await session.commit()
+
+    seen: list[str] = []
+    cursor: str | None = None
+    pages = 0
+    while True:
+        pages += 1
+        assert pages <= 5
+        page = await list_candidates(
+            session, cursor=cursor, limit=10, sort="name", order="asc"
+        )
+        seen.extend(item.full_name for item in page.items)
+        if page.next_cursor is None:
+            break
+        cursor = page.next_cursor
+
+    assert seen == sorted(names)
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_cursor_rejects_sort_change(session: AsyncSession):
+    """A cursor minted under one sort can't be replayed against another."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name=f"User{i:02d}",
+                email=f"user{i:02d}@test.com",
+                phone="050-0000000",
+            )
+            for i in range(15)
+        ]
+    )
+    await session.commit()
+
+    page = await list_candidates(session, limit=10, sort="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_candidates(session, cursor=page.next_cursor, sort="name")
 
 
 @pytest.mark.asyncio

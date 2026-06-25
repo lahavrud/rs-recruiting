@@ -1,5 +1,7 @@
 """Admin endpoints for application (match) management."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,10 +44,19 @@ async def get_applications(
     candidate_id: int | None = None,
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    sort: Literal["name", "created_at", "status"] = Query(default="created_at"),
+    order: Literal["asc", "desc"] = Query(default="desc"),
+    sort2: Literal["name", "created_at", "status"] | None = Query(default=None),
+    order2: Literal["asc", "desc"] = Query(default="desc"),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[ApplicationWithDetails]:
-    """List applications with optional filters, newest first, cursor-paginated."""
+    """List applications with optional filters, sorted by `sort`/`order`.
+
+    `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
+    `sort=status&sort2=created_at` groups by status, then by date.
+    Cursor-paginated.
+    """
     try:
         return await list_applications(
             session,
@@ -54,6 +65,10 @@ async def get_applications(
             candidate_id=candidate_id,
             cursor=cursor,
             limit=limit,
+            sort=sort,
+            order=order,
+            sort2=sort2,
+            order2=order2,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc

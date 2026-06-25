@@ -16,7 +16,11 @@ from src.services.admin.jobs import (
     list_jobs,
     update_job,
 )
-from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
+from src.services.exceptions import (
+    CompanyNotFoundError,
+    InvalidCursorError,
+    JobNotFoundError,
+)
 
 
 def _payload(company_id: int, title: str = "Backend Engineer") -> JobAdminCreate:
@@ -490,3 +494,61 @@ async def test_list_jobs_paginates_through_all(
     # newest-first: last-created (Role 14) appears first
     assert seen[0] == "Role 14"
     assert seen[-1] == "Role 00"
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_sort_by_name(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`sort="name"` orders by title."""
+    for title in ["Charlie Role", "Alpha Role", "Bravo Role"]:
+        session.add(
+            Job(
+                company_id=company_with_user.id,
+                title=title,
+                short_description="Short blurb for testing.",
+                description="x",
+                requirements=[{"text": "x"}, {"text": "Req 2"}, {"text": "Req 3"}],
+                location="x",
+                status=JobStatus.PUBLISHED,
+                salary_min=15000,
+                salary_max=25000,
+            )
+        )
+    await session.commit()
+
+    page = await list_jobs(session, sort="name", order="asc")
+    assert [item.title for item in page.items] == [
+        "Alpha Role",
+        "Bravo Role",
+        "Charlie Role",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_cursor_rejects_sort_change(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for i in range(15):
+        session.add(
+            Job(
+                company_id=company_with_user.id,
+                title=f"Role {i:02d}",
+                short_description="Short blurb for testing.",
+                description="x",
+                requirements=[{"text": "x"}, {"text": "Req 2"}, {"text": "Req 3"}],
+                location="x",
+                status=JobStatus.PUBLISHED,
+                created_at=base + timedelta(minutes=i),
+                salary_min=15000,
+                salary_max=25000,
+            )
+        )
+    await session.commit()
+
+    page = await list_jobs(session, limit=10, sort="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_jobs(session, cursor=page.next_cursor, sort="name")

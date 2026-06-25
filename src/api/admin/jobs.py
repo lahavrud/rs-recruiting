@@ -1,5 +1,7 @@
 """Admin endpoints for job management — CRUD and approval workflow."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,12 +61,16 @@ async def get_jobs(
     status: JobStatus | None = None,
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    sort: Literal["name", "created_at"] = Query(default="created_at"),
+    order: Literal["asc", "desc"] = Query(default="desc"),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[JobRead]:
-    """List jobs across all statuses, newest first, cursor-paginated."""
+    """List jobs across all statuses, sorted by `sort`/`order`, cursor-paginated."""
     try:
-        return await list_jobs(session, status=status, cursor=cursor, limit=limit)
+        return await list_jobs(
+            session, status=status, cursor=cursor, limit=limit, sort=sort, order=order
+        )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
 

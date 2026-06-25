@@ -551,6 +551,30 @@ async def test_list_jobs_requires_admin(public_client: AsyncClient):
     assert response.status_code == 401
 
 
+@pytest.mark.asyncio
+async def test_list_jobs_sort_by_name(
+    admin_client: AsyncClient, company_profile: CompanyProfile
+):
+    for title in ["Charlie Role", "Alpha Role"]:
+        response = await admin_client.post(
+            "/api/admin/jobs", json=_payload(company_profile.id, title=title)
+        )
+        assert response.status_code == 201
+
+    response = await admin_client.get(
+        "/api/admin/jobs", params={"sort": "name", "order": "asc"}
+    )
+    assert response.status_code == 200
+    titles = [item["title"] for item in response.json()["items"]]
+    assert titles == ["Alpha Role", "Charlie Role"]
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_invalid_sort_returns_422(admin_client: AsyncClient):
+    response = await admin_client.get("/api/admin/jobs", params={"sort": "status"})
+    assert response.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # GET /api/admin/jobs/{id}/candidate-matches
 # ---------------------------------------------------------------------------

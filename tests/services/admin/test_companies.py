@@ -31,7 +31,11 @@ from src.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
-from src.services.exceptions import CompanyNotFoundError, CompanyNotPendingError
+from src.services.exceptions import (
+    CompanyNotFoundError,
+    CompanyNotPendingError,
+    InvalidCursorError,
+)
 from tests.conftest import FAKE_LOGO as _LOGO
 from tests.conftest import FAKE_SIG_B64 as _SIG
 
@@ -328,6 +332,45 @@ async def test_list_active_companies_includes_admin_created_profiles(
     assert item.user is None
     assert item.company_profile.name == "ללא חשבון"
     assert item.company_profile.user_id is None
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.registration.enqueue_email_task")
+async def test_list_active_companies_sort_by_name(mock_email, session: AsyncSession):
+    mock_email.return_value = "job-id"
+    for email, name in [("b@example.com", "Bravo Co"), ("a@example.com", "Alpha Co")]:
+        user = await _register(_company_create(email, name), session)
+        db_user = (
+            await session.execute(select(User).where(User.id == user.id))  # pyright: ignore[reportArgumentType]
+        ).scalar_one()
+        db_user.is_active = True
+    await session.commit()
+
+    page = await list_active_companies(session, sort="name", order="asc")
+    assert [c.company_profile.name for c in page.items] == ["Alpha Co", "Bravo Co"]
+
+
+@pytest.mark.asyncio
+@patch("src.services.auth.registration.enqueue_email_task")
+async def test_list_active_companies_cursor_rejects_sort_change(
+    mock_email, session: AsyncSession
+):
+    mock_email.return_value = "job-id"
+    for i in range(15):
+        user = await _register(
+            _company_create(f"act{i}@example.com", f"Active {i}"), session
+        )
+        db_user = (
+            await session.execute(select(User).where(User.id == user.id))  # pyright: ignore[reportArgumentType]
+        ).scalar_one()
+        db_user.is_active = True
+    await session.commit()
+
+    page = await list_active_companies(session, limit=10, sort="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_active_companies(session, cursor=page.next_cursor, sort="name")
 
 
 @pytest.mark.asyncio

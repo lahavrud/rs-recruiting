@@ -15,7 +15,7 @@ from src.services.admin.applications import (
     update_application_notes,
     update_application_status,
 )
-from src.services.exceptions import ApplicationNotFoundError
+from src.services.exceptions import ApplicationNotFoundError, InvalidCursorError
 
 # ==================== Helpers ====================
 
@@ -154,6 +154,259 @@ async def test_list_applications_filter_by_candidate_id(
 
     assert len(page.items) == 1
     assert page.items[0].candidate_id == app1.candidate_id
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_name(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`sort="name"` orders by the applying candidate's full name."""
+    bob = CandidateProfile(full_name="Bob", email="bob@test.com", phone="050-1111111")
+    alice = CandidateProfile(
+        full_name="Alice", email="alice@test.com", phone="050-2222222"
+    )
+    session.add_all([bob, alice])
+    await session.flush()
+    await _make_application(session, company_with_user, bob)
+    await _make_application(session, company_with_user, alice)
+
+    page = await list_applications(session, sort="name", order="asc")
+    assert [item.candidate.full_name for item in page.items] == ["Alice", "Bob"]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_cursor_rejects_sort_change(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    for i in range(15):
+        candidate = await _make_candidate(session, email=f"c{i:02d}@test.com")
+        await _make_application(session, company_with_user, candidate)
+
+    page = await list_applications(session, limit=10, sort="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_applications(session, cursor=page.next_cursor, sort="name")
+
+
+async def _make_application_at(
+    session: AsyncSession,
+    company: CompanyProfile,
+    candidate: CandidateProfile,
+    created_at: datetime,
+    status: ApplicationStatus = ApplicationStatus.NEW,
+) -> Application:
+    """Like `_make_application`, but pins `created_at` at insert time.
+
+    Setting it after the fact wouldn't reliably stick: the `session` fixture
+    uses `expire_on_commit=False`, so an already-loaded ORM object's
+    attributes aren't refreshed by a later raw `UPDATE` + commit.
+    """
+    job = Job(
+        company_id=company.id,
+        title="Test Job",
+        short_description="Short blurb for testing.",
+        description="Description",
+        requirements=[{"text": "Requirements"}, {"text": "Req 2"}, {"text": "Req 3"}],
+        location="Location",
+        status=JobStatus.PUBLISHED,
+        salary_min=15000,
+        salary_max=25000,
+    )
+    session.add(job)
+    await session.flush()
+
+    application = Application(
+        job_id=job.id,
+        candidate_id=candidate.id,
+        status=status,
+        created_at=created_at,
+    )
+    session.add(application)
+    await session.commit()
+    await session.refresh(application)
+    return application
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_status_asc_groups_new_first(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`sort="status", order="asc"` groups needs-attention statuses before
+    terminal ones, regardless of date — an older NEW application still
+    outranks a newer JOB_CLOSED one."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    old_new = await _make_candidate(session, email="old-new@test.com")
+    await _make_application_at(
+        session, company_with_user, old_new, base, status=ApplicationStatus.NEW
+    )
+    new_closed = await _make_candidate(session, email="new-closed@test.com")
+    await _make_application_at(
+        session,
+        company_with_user,
+        new_closed,
+        base + timedelta(days=30),
+        status=ApplicationStatus.JOB_CLOSED,
+    )
+
+    page = await list_applications(session, sort="status", order="asc")
+    assert [item.status for item in page.items] == [
+        ApplicationStatus.NEW,
+        ApplicationStatus.JOB_CLOSED,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_status_desc_reverses_grouping(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`order="desc"` reverses the whole status grouping (terminal statuses
+    first) when there's no secondary column — it does not introduce a date
+    tiebreak."""
+    new_candidate = await _make_candidate(session, email="new@test.com")
+    await _make_application(
+        session, company_with_user, new_candidate, status=ApplicationStatus.NEW
+    )
+    closed_candidate = await _make_candidate(session, email="closed@test.com")
+    await _make_application(
+        session,
+        company_with_user,
+        closed_candidate,
+        status=ApplicationStatus.JOB_CLOSED,
+    )
+
+    page = await list_applications(session, sort="status", order="desc")
+    assert [item.status for item in page.items] == [
+        ApplicationStatus.JOB_CLOSED,
+        ApplicationStatus.NEW,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_cross_sort_status_then_date(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`sort="status"` + `sort2="created_at"` groups by status (needs-
+    attention first), then orders by date within each group — the cross-sort
+    the standalone `sort="status"` deliberately doesn't provide."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    older_new = await _make_candidate(session, email="older-new@test.com")
+    await _make_application_at(session, company_with_user, older_new, base)
+    newer_new = await _make_candidate(session, email="newer-new@test.com")
+    await _make_application_at(
+        session, company_with_user, newer_new, base + timedelta(days=1)
+    )
+    closed = await _make_candidate(session, email="closed@test.com")
+    await _make_application_at(
+        session,
+        company_with_user,
+        closed,
+        base - timedelta(days=1),  # oldest overall, but a terminal status
+        status=ApplicationStatus.JOB_CLOSED,
+    )
+
+    page = await list_applications(
+        session, sort="status", order="asc", sort2="created_at", order2="desc"
+    )
+    assert [item.candidate.full_name for item in page.items] == [
+        newer_new.full_name,
+        older_new.full_name,
+        closed.full_name,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort2_equal_to_sort_is_ignored(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A column can't be paired with itself — `sort2` is silently dropped."""
+    candidate = await _make_candidate(session)
+    await _make_application(session, company_with_user, candidate)
+
+    page = await list_applications(
+        session, sort="status", order="asc", sort2="status", order2="desc"
+    )
+    assert len(page.items) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_status_paginates_across_groups(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A cursor walk over a status+date cross-sort visits every row exactly
+    once, even as it crosses from one status group into the next."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    total_new = 7
+    for i in range(total_new):
+        candidate = await _make_candidate(session, email=f"new{i:02d}@test.com")
+        await _make_application_at(
+            session, company_with_user, candidate, base + timedelta(minutes=i)
+        )
+    closed_candidate = await _make_candidate(session, email="closed@test.com")
+    await _make_application_at(
+        session,
+        company_with_user,
+        closed_candidate,
+        base + timedelta(days=30),
+        status=ApplicationStatus.JOB_CLOSED,
+    )
+
+    seen_ids: set[int] = set()
+    statuses_seen: list[str] = []
+    cursor: str | None = None
+    while True:
+        page = await list_applications(
+            session,
+            sort="status",
+            order="asc",
+            sort2="created_at",
+            order2="desc",
+            limit=3,
+            cursor=cursor,
+        )
+        seen_ids.update(item.id for item in page.items)
+        statuses_seen.extend(item.status for item in page.items)
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+
+    assert len(seen_ids) == total_new + 1
+    assert statuses_seen == (
+        [ApplicationStatus.NEW] * total_new + [ApplicationStatus.JOB_CLOSED]
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_applications_status_sort_cursor_rejects_sort_change(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    for i in range(15):
+        candidate = await _make_candidate(session, email=f"s{i:02d}@test.com")
+        await _make_application(session, company_with_user, candidate)
+
+    page = await list_applications(session, limit=10, sort="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_applications(session, cursor=page.next_cursor, sort="status")
+
+
+@pytest.mark.asyncio
+async def test_list_applications_cross_sort_cursor_rejects_single_sort_change(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A cursor minted for the `status`+`created_at` cross-sort must be
+    rejected if replayed against plain `status` (no `sort2`) — the cursor
+    shapes differ even though the primary `sort` value is identical."""
+    for i in range(15):
+        candidate = await _make_candidate(session, email=f"x{i:02d}@test.com")
+        await _make_application(session, company_with_user, candidate)
+
+    page = await list_applications(session, limit=10, sort="status", sort2="created_at")
+    assert page.next_cursor is not None
+
+    with pytest.raises(InvalidCursorError):
+        await list_applications(session, cursor=page.next_cursor, sort="status")
 
 
 # ==================== get_application ====================
