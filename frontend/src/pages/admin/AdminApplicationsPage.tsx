@@ -5,7 +5,6 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
-import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
@@ -36,7 +35,6 @@ import { type ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
-import { ApplicationDetailBody } from "./components/ApplicationDetailDialog";
 import ApplicationNotesDialog from "./components/ApplicationNotesDialog";
 import ApplicationRecordPane from "./components/ApplicationRecordPane";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
@@ -377,56 +375,20 @@ export default function AdminApplicationsPage() {
           emptyHeadline={t("admin:applications.empty")}
         >
           <>
-            {/* Mobile cards — tap to expand inline; 3-dot menu for actions */}
-            <div className="space-y-2 md:hidden">
-              {activeFiltered.map((app) => {
-                const actions = (
-                  <DropdownMenu
-                    ariaLabel={t("admin:applications.rowActionsLabel")}
-                    trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
-                  >
-                    {app.status !== ApplicationStatus.WITHDRAWN && (
-                      <DropdownMenuItem onSelect={() => setStatusModal(app)}>
-                        {t("admin:applications.updateStatusAction")}
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onSelect={() => setNotesModal(app)}>
-                      {t("admin:applications.editNotesAction")}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant="danger"
-                      onSelect={() => setDeleteCandidate(app)}
-                    >
-                      {t("admin:applications.deleteAction")}
-                    </DropdownMenuItem>
-                  </DropdownMenu>
-                );
-                return (
-                  <MobileEntityCard
-                    key={app.id}
-                    title={
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-white/85">
-                          {app.candidate.full_name}
-                        </p>
-                        <p className="truncate text-[11px] font-normal text-white/50">
-                          {app.job.title}
-                        </p>
-                      </div>
-                    }
-                    badge={
-                      <StatusBadge
-                        label={STATUS_LABELS[app.status]}
-                        colorCls={APPLICATION_STATUS_COLORS[app.status]}
-                      />
-                    }
-                    actions={actions}
-                  >
-                    <ApplicationDetailBody app={app} />
-                  </MobileEntityCard>
-                );
-              })}
+            {/* Mobile — same rail rows as the split-pane workspace; tap navigates straight to the record route, matching Candidates */}
+            <div className="md:hidden">
+              <ApplicationsRailList
+                applications={activeFiltered}
+                selectedId={null}
+                statusLabels={STATUS_LABELS}
+                statusColors={APPLICATION_STATUS_COLORS}
+                onView={(app) => navigate(`/admin/applications/${app.id}`)}
+                onUpdateStatus={setStatusModal}
+                onEditNotes={setNotesModal}
+                onDelete={setDeleteCandidate}
+                sentinelRef={sentinelRef}
+                isFetchingMore={isFetchingMore}
+              />
             </div>
 
             {/* Desktop */}
