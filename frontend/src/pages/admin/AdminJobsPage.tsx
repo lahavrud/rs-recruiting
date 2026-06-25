@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
+import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SortControl from "@/components/admin/SortControl";
+import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
@@ -24,18 +25,18 @@ import { getActiveCompanies } from "@/services/adminCompanies";
 import {
   approveJob,
   deleteJob,
-  getJob,
   getJobs,
   rejectJob,
 } from "@/services/adminJobs";
 import { JobStatus } from "@/types/enums";
 import type { JobRead } from "@/types/jobs";
-import { apiErrorKey } from "@/utils/apiError";
 
 import JobCreateDialog from "./components/JobCreateDialog";
 import JobDialog from "./components/JobDialog";
+import JobRecordPane from "./components/JobRecordPane";
 import JobsFilterPanel from "./components/JobsFilterPanel";
 import JobsList from "./components/JobsList";
+import JobsRailList from "./components/JobsRailList";
 import JobsTable from "./components/JobsTable";
 
 const ALL_STATUSES = [
@@ -95,13 +96,15 @@ export default function AdminJobsPage() {
   } = useInfiniteList<JobRead>(fetcher);
 
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const { id } = useParams<{ id: string }>();
+  const selectedId = id != null ? Number(id) : null;
 
   const [detail, setDetail] = useState<JobRead | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deletePending, setDeletePending] = useState<JobRead | null>(null);
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
   const [isPendingMutation, setIsPendingMutation] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Client-side filters (applied to the loaded set).
   // Status is the only filter that re-fetches server-side (see fetcher above);
@@ -249,41 +252,15 @@ export default function AdminJobsPage() {
     window.open(`mailto:${email}?subject=${subject}`, "_self");
   }
 
-  // Sync ?job=<id> URL param to detail state — enables direct links and back-button close.
-  // effectiveDetail is derived so the dialog closes instantly when the URL param disappears
-  // (back button), without a synchronous setState in the effect body.
-  const jobIdFromUrl = searchParams.get("job");
-  const effectiveDetail = jobIdFromUrl ? detail : null;
-  useEffect(() => {
-    if (!jobIdFromUrl) return;
-    const id = Number(jobIdFromUrl);
-    if (Number.isNaN(id)) return;
-    const ctrl = new AbortController();
-    getJob(id, ctrl.signal)
-      .then(setDetail)
-      .catch((e) => {
-        if (axios.isCancel(e)) return;
-        toast.error(t(apiErrorKey(e)));
-      });
-    return () => ctrl.abort();
-  }, [jobIdFromUrl, t, toast]);
+  const selectedJob = selectedId != null ? jobs.find((j) => j.id === selectedId) : undefined;
 
-  function openJob(job: JobRead) {
+  function openEdit(job: JobRead) {
     setDetail(job);
-    navigate(`/admin/jobs?job=${job.id}`);
   }
 
-  function closeJob() {
+  function closeEdit() {
     setDetail(null);
-    navigate("/admin/jobs", { replace: true });
   }
-
-  // Convert legacy ?detail=<id> param (used by other admin pages) to ?job=<id>
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("detail");
-    if (!id || Number.isNaN(Number(id))) return;
-    navigate(`/admin/jobs?job=${id}`, { replace: true });
-  }, [navigate]);
 
   const STATUS_LABELS: Record<string, string> = {
     PENDING_APPROVAL: t("admin:jobs.statusLabels.PENDING_APPROVAL"),
@@ -328,7 +305,9 @@ export default function AdminJobsPage() {
       removeItem((j) => j.id === deletePending.id);
       toast.success(t("admin:jobs.deletedToast"));
       setDeletePending(null);
-      closeJob();
+      if (selectedId === deletePending.id) {
+        navigate("/admin/jobs");
+      }
     } catch {
       toast.error(t("admin:jobs.errors.deleteFailed"));
     } finally {
@@ -338,8 +317,22 @@ export default function AdminJobsPage() {
 
   const filterTabs: FilterValue[] = [ALL_FILTER, ...ALL_STATUSES];
 
-  return (
-    <div>
+  const sortControl = (
+    <SortControl
+      ariaLabel={t("admin:jobs.sort.label")}
+      value={`${sort}:${order}`}
+      onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+      options={[
+        { value: "created_at:desc", label: t("admin:jobs.sort.dateDesc") },
+        { value: "created_at:asc", label: t("admin:jobs.sort.dateAsc") },
+        { value: "name:asc", label: t("admin:jobs.sort.nameAsc") },
+        { value: "name:desc", label: t("admin:jobs.sort.nameDesc") },
+      ]}
+    />
+  );
+
+  const header = (
+    <>
       <h1 data-page-heading className="sr-only">
         {t("admin:jobs.title")}
       </h1>
@@ -350,7 +343,6 @@ export default function AdminJobsPage() {
           <Button onClick={() => setIsCreating(true)}>{t("admin:jobs.newJob")}</Button>
         }
       />
-
       <JobsFilterPanel
         search={{ query, setQuery }}
         filters={{
@@ -383,86 +375,26 @@ export default function AdminJobsPage() {
           clearFilters,
         }}
       />
+    </>
+  );
 
-      {isLoading ? (
-        <>
-          <div className="md:hidden">
-            <MobileListSkeleton rows={6} />
-          </div>
-          <div className="hidden md:block">
-            <TableSkeleton rows={6} columns={4} />
-          </div>
-        </>
-      ) : error ? (
-        <ErrorState message={t("admin:jobs.loadError")} onRetry={reload} />
-      ) : jobs.length === 0 ? (
-        <EmptyState eyebrow={t("admin:jobs.title")} headline={t("admin:jobs.empty")} />
-      ) : filteredJobs.length === 0 ? (
-        <NoResults>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-3 text-xs text-copper/70 transition hover:text-copper"
-          >
-            {t("publicJobs:board.clearFilters")}
-          </button>
-        </NoResults>
-      ) : (
-        <>
-          <div className="mb-3 md:hidden">
-            <SortControl
-              ariaLabel={t("admin:jobs.sort.label")}
-              value={`${sort}:${order}`}
-              onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
-              options={[
-                { value: "created_at:desc", label: t("admin:jobs.sort.dateDesc") },
-                { value: "created_at:asc", label: t("admin:jobs.sort.dateAsc") },
-                { value: "name:asc", label: t("admin:jobs.sort.nameAsc") },
-                { value: "name:desc", label: t("admin:jobs.sort.nameDesc") },
-              ]}
-            />
-          </div>
+  const listStateProps = {
+    isLoading,
+    error,
+    onRetry: reload,
+    errorMessage: t("admin:jobs.loadError"),
+    isEmpty: filteredJobs.length === 0,
+    hasQuery: activeFilterCount > 0,
+    emptyEyebrow: t("admin:jobs.title"),
+    emptyHeadline: t("admin:jobs.empty"),
+  };
 
-          <JobsList
-            jobs={filteredJobs}
-            statusLabels={STATUS_LABELS}
-            statusColors={JOB_STATUS_COLORS}
-            companyNameById={companyNameById}
-            onEdit={openJob}
-            onApprove={handleApprove}
-            onReject={setRejectPending}
-            onDelete={setDeletePending}
-            onMailto={openMailToCompany}
-          />
-
-          <JobsTable
-            jobs={filteredJobs}
-            sort={sort}
-            order={order}
-            onSort={handleSort}
-            statusLabels={STATUS_LABELS}
-            statusColors={JOB_STATUS_COLORS}
-            onOpenDetail={openJob}
-            onEdit={openJob}
-            onApprove={handleApprove}
-            onReject={setRejectPending}
-            onDelete={setDeletePending}
-            onMailto={openMailToCompany}
-          />
-
-          <InfiniteScrollFooter
-            sentinelRef={sentinelRef}
-            isFetchingMore={isFetchingMore}
-          />
-        </>
-      )}
-
+  const dialogs = (
+    <>
       <JobDialog
-        job={effectiveDetail}
-        companyName={
-          effectiveDetail ? companyNameById.get(effectiveDetail.company_id) : undefined
-        }
-        onClose={closeJob}
+        job={detail}
+        companyName={detail ? companyNameById.get(detail.company_id) : undefined}
+        onClose={closeEdit}
         onSaved={(updated) => {
           updateItem((j) => j.id === updated.id, updated);
           setDetail(updated);
@@ -470,19 +402,18 @@ export default function AdminJobsPage() {
         }}
         onError={() => toast.error(t("admin:jobs.errors.saveFailed"))}
         onDelete={() => {
-          if (effectiveDetail) setDeletePending(effectiveDetail);
-          closeJob();
+          if (detail) setDeletePending(detail);
+          closeEdit();
         }}
         onApprove={() => {
-          if (effectiveDetail) handleApprove(effectiveDetail);
-          closeJob();
+          if (detail) handleApprove(detail);
+          closeEdit();
         }}
         onReject={() => {
-          if (effectiveDetail) setRejectPending(effectiveDetail);
-          closeJob();
+          if (detail) setRejectPending(detail);
+          closeEdit();
         }}
       />
-
       <JobCreateDialog
         open={isCreating}
         onClose={() => setIsCreating(false)}
@@ -493,7 +424,6 @@ export default function AdminJobsPage() {
         }}
         onError={() => toast.error(t("admin:jobs.errors.createFailed"))}
       />
-
       <ConfirmDialog
         open={rejectPending != null}
         onOpenChange={(o) => !o && setRejectPending(null)}
@@ -504,7 +434,6 @@ export default function AdminJobsPage() {
         isPending={isPendingMutation}
         onConfirm={handleRejectConfirm}
       />
-
       <ConfirmDialog
         open={deletePending != null}
         onOpenChange={(o) => !o && setDeletePending(null)}
@@ -515,6 +444,121 @@ export default function AdminJobsPage() {
         isPending={isPendingMutation}
         onConfirm={handleDeleteConfirm}
       />
-    </div>
+    </>
+  );
+
+  if (selectedId == null) {
+    return (
+      <div>
+        {header}
+        {isLoading ? (
+          <>
+            <div className="md:hidden">
+              <MobileListSkeleton rows={6} />
+            </div>
+            <div className="hidden md:block">
+              <TableSkeleton rows={6} columns={4} />
+            </div>
+          </>
+        ) : error ? (
+          <ErrorState message={t("admin:jobs.loadError")} onRetry={reload} />
+        ) : jobs.length === 0 ? (
+          <EmptyState eyebrow={t("admin:jobs.title")} headline={t("admin:jobs.empty")} />
+        ) : filteredJobs.length === 0 ? (
+          <NoResults>
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="mt-3 text-xs text-copper/70 transition hover:text-copper"
+            >
+              {t("publicJobs:board.clearFilters")}
+            </button>
+          </NoResults>
+        ) : (
+          <>
+            <div className="mb-3 md:hidden">
+              {sortControl}
+            </div>
+            <JobsList
+              jobs={filteredJobs}
+              statusLabels={STATUS_LABELS}
+              statusColors={JOB_STATUS_COLORS}
+              companyNameById={companyNameById}
+              onEdit={openEdit}
+              onApprove={handleApprove}
+              onReject={setRejectPending}
+              onDelete={setDeletePending}
+              onMailto={openMailToCompany}
+            />
+            <JobsTable
+              jobs={filteredJobs}
+              sort={sort}
+              order={order}
+              onSort={handleSort}
+              statusLabels={STATUS_LABELS}
+              statusColors={JOB_STATUS_COLORS}
+              onOpenDetail={(j) => navigate(`/admin/jobs/${j.id}`)}
+              onEdit={openEdit}
+              onApprove={handleApprove}
+              onReject={setRejectPending}
+              onDelete={setDeletePending}
+              onMailto={openMailToCompany}
+            />
+            <InfiniteScrollFooter
+              sentinelRef={sentinelRef}
+              isFetchingMore={isFetchingMore}
+            />
+          </>
+        )}
+        {dialogs}
+      </div>
+    );
+  }
+
+  return (
+    <SplitPaneLayout
+      collapsed={railCollapsed}
+      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      showListLabel={t("admin:jobs.record.showList")}
+      hideListLabel={t("admin:jobs.record.hideList")}
+      rail={
+        <>
+          {header}
+          <div className="mb-3">{sortControl}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ListStateSwitch
+              {...listStateProps}
+              loading={<MobileListSkeleton rows={6} />}
+            >
+              <JobsRailList
+                jobs={filteredJobs}
+                selectedId={selectedId}
+                statusLabels={STATUS_LABELS}
+                onView={(j) => navigate(`/admin/jobs/${j.id}`)}
+                onEdit={openEdit}
+                onApprove={handleApprove}
+                onReject={setRejectPending}
+                onDelete={setDeletePending}
+                sentinelRef={sentinelRef}
+                isFetchingMore={isFetchingMore}
+              />
+            </ListStateSwitch>
+          </div>
+        </>
+      }
+      record={
+        <JobRecordPane
+          jobId={selectedId}
+          job={selectedJob}
+          companyNameById={companyNameById}
+          onEdit={openEdit}
+          onApprove={handleApprove}
+          onReject={setRejectPending}
+          onDelete={setDeletePending}
+        />
+      }
+    >
+      {dialogs}
+    </SplitPaneLayout>
   );
 }

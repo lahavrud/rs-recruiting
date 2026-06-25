@@ -213,6 +213,14 @@
     "newJob": "משרה חדשה",
     "newJobModalTitle": "יצירת משרה חדשה",
     "editModalTitle": "עריכת משרה",
+    "record": {
+      "eyebrow": "משרה",
+      "showList": "הצג רשימת משרות",
+      "hideList": "הסתר רשימת משרות",
+      "emptyHeadline": "בחר משרה לצפייה",
+      "emptyDescription": "בחר משרה מהרשימה כדי לצפות בפרטיה.",
+      "notFound": "המשרה לא נמצאה."
+    },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",
     "editAction": "עריכת משרה",
