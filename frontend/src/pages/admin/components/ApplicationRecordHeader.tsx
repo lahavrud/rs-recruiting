@@ -237,7 +237,7 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
       <ApplicationAnswerFields app={app} />
 
       <p className="border-t border-white/8 pt-4 text-sm text-white/35">
-        {t("admin:applications.record.comingSoon")}
+        {t("admin:applications.record.relationsComingSoon")}
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import RecordPane from "@/components/admin/RecordPane";
 import { getApplication } from "@/services/adminApplications";
 import type { ApplicationWithDetails } from "@/types/candidates";
 
+import ApplicationActivityPanel from "./ApplicationActivityPanel";
 import ApplicationRecordHeader from "./ApplicationRecordHeader";
 
 type AppPatch = Pick<ApplicationWithDetails, "id"> &
@@ -15,7 +16,7 @@ interface Props {
   onUpdated: (patch: AppPatch) => void;
 }
 
-/** Right-hand record pane: breadcrumb + candidate/job context + inline status/notes. Composes the shared `RecordPane` shell — relations and timeline land in follow-up slices. */
+/** Right-hand record pane: breadcrumb + candidate/job context + inline status/notes + activity timeline. Composes the shared `RecordPane` shell — relations land in a follow-up slice. */
 export default function ApplicationRecordPane({ applicationId, application, onUpdated }: Props) {
   const { t } = useTranslation(["admin", "common"]);
 
@@ -40,7 +41,14 @@ export default function ApplicationRecordPane({ applicationId, application, onUp
       notFoundHeadline={t("admin:applications.record.notFound")}
       loadErrorMessage={t("admin:applications.loadError")}
     >
-      {(app) => <ApplicationRecordHeader application={app} onUpdated={onUpdated} />}
+      {(app) => (
+        <>
+          <ApplicationRecordHeader application={app} onUpdated={onUpdated} />
+          <div className="mt-6 border-t border-white/8 pt-6">
+            <ApplicationActivityPanel applicationId={app.id} />
+          </div>
+        </>
+      )}
     </RecordPane>
   );
 }
