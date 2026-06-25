@@ -352,7 +352,7 @@ async def test_embed_job_task_sets_embedding(company_profile, fake_embeddings):
     async with TestSessionLocal() as s:
         job = await s.get(Job, job_id)
         assert job.embedding is not None
-        assert len(job.embedding) == 1024
+        assert len(job.embedding) == 1536
 
 
 @pytest.mark.asyncio
@@ -384,7 +384,7 @@ async def test_match_candidate_task_embeds_resume_text(
         candidate = await s.get(CandidateProfile, candidate_id)
         assert candidate.parsed_text and "Python" in candidate.parsed_text
         assert candidate.embedding is not None
-        assert len(candidate.embedding) == 1024
+        assert len(candidate.embedding) == 1536
 
 
 @pytest.mark.asyncio

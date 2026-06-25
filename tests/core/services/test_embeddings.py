@@ -46,11 +46,11 @@ def test_factory_cohere_without_key_raises(monkeypatch):
 def test_factory_cohere_returns_provider(monkeypatch):
     monkeypatch.setattr(settings, "embedding_provider", "cohere")
     monkeypatch.setattr(settings, "embedding_api_key", "secret-key")
-    monkeypatch.setattr(settings, "embedding_model", "embed-multilingual-v3.0")
-    monkeypatch.setattr(settings, "embedding_dim", 1024)
+    monkeypatch.setattr(settings, "embedding_model", "embed-v4.0")
+    monkeypatch.setattr(settings, "embedding_dim", 1536)
     provider = get_embedding_provider()
     assert isinstance(provider, CohereEmbeddingProvider)
-    assert provider.dim == 1024
+    assert provider.dim == 1536
 
 
 # ---------------------------------------------------------------------------
