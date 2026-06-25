@@ -1,5 +1,6 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
+import type { AuditLogRead } from "@/types/audit";
 import type { ApplicationRead, ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
 import type { ApplicationStatus } from "@/types/enums";
 export interface ApplicationListParams {
@@ -22,6 +23,36 @@ export async function getApplications(
   if (params?.limit != null) query.limit = params.limit;
   const res = await api.get<CursorPage<ApplicationWithDetails>>(
     "/api/admin/applications",
+    { params: query, signal },
+  );
+  return res.data;
+}
+
+export async function getApplication(
+  id: number,
+  signal?: AbortSignal,
+): Promise<ApplicationWithDetails> {
+  const res = await api.get<ApplicationWithDetails>(`/api/admin/applications/${id}`, {
+    signal,
+  });
+  return res.data;
+}
+
+export interface ApplicationActivityParams {
+  cursor?: string | null;
+  limit?: number;
+}
+
+export async function getApplicationActivity(
+  id: number,
+  params?: ApplicationActivityParams,
+  signal?: AbortSignal,
+): Promise<CursorPage<AuditLogRead>> {
+  const query: Record<string, string | number> = {};
+  if (params?.cursor) query.cursor = params.cursor;
+  if (params?.limit != null) query.limit = params.limit;
+  const res = await api.get<CursorPage<AuditLogRead>>(
+    `/api/admin/applications/${id}/activity`,
     { params: query, signal },
   );
   return res.data;

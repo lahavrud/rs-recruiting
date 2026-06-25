@@ -2,6 +2,9 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 
 import { useTranslation } from "react-i18next";
 
+import StatusSegmentedControl, {
+  type StatusSegmentConfig,
+} from "@/components/admin/StatusSegmentedControl";
 import RangeSlider from "@/components/ui/RangeSlider";
 import { JobStatus } from "@/types/enums";
 const ALL_STATUSES = [
@@ -54,9 +57,7 @@ export function FeaturedStarButton({
   );
 }
 
-type SegmentConfig = { sliderCls: string; activeCls: string; dotCls: string };
-
-const STATUS_SEGMENT_CONFIG: Record<JobStatus, SegmentConfig> = {
+const STATUS_SEGMENT_CONFIG: Record<JobStatus, StatusSegmentConfig> = {
   [JobStatus.PENDING_APPROVAL]: {
     sliderCls: "bg-warning/10 border-warning/25",
     activeCls: "text-warning",
@@ -83,53 +84,16 @@ export function StatusPills({
   onChange: (s: JobStatus) => void;
 }) {
   const { t } = useTranslation(["admin", "common"]);
-  const activeIdx = ALL_STATUSES.indexOf(value);
-  const cfg = STATUS_SEGMENT_CONFIG[value];
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={t("admin:jobs.fields.status")}
-      className="relative mt-1 flex overflow-hidden rounded-lg border border-white/10 bg-well"
-    >
-      {/* Sliding highlight — tracks active segment with a smooth lateral animation */}
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute inset-y-[3px] rounded-md border ${cfg.sliderCls}`}
-        style={{
-          width: `calc(100% / ${ALL_STATUSES.length})`,
-          insetInlineStart: `calc(${activeIdx} * 100% / ${ALL_STATUSES.length})`,
-          transition:
-            "inset-inline-start 220ms cubic-bezier(0.4, 0, 0.2, 1), background-color 180ms ease, border-color 180ms ease",
-        }}
-      />
-
-      {ALL_STATUSES.map((s) => {
-        const isActive = value === s;
-        const c = STATUS_SEGMENT_CONFIG[s];
-        return (
-          <button
-            key={s}
-            type="button"
-            role="radio"
-            aria-checked={isActive}
-            onClick={() => onChange(s)}
-            className={`relative z-10 flex flex-1 items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors duration-200 ${
-              isActive ? c.activeCls : "text-white/38 hover:text-white/60"
-            }`}
-          >
-            {/* Status dot — scales in when segment activates */}
-            <span
-              aria-hidden="true"
-              className={`size-1.5 shrink-0 rounded-full transition-[opacity,transform] duration-200 ${c.dotCls} ${
-                isActive ? "scale-100 opacity-100" : "scale-0 opacity-0"
-              }`}
-            />
-            {t(`admin:jobs.statusLabels.${s}`)}
-          </button>
-        );
-      })}
-    </div>
+    <StatusSegmentedControl
+      statuses={ALL_STATUSES}
+      value={value}
+      onChange={onChange}
+      config={STATUS_SEGMENT_CONFIG}
+      labelFor={(s) => t(`admin:jobs.statusLabels.${s}`)}
+      ariaLabel={t("admin:jobs.fields.status")}
+    />
   );
 }
 

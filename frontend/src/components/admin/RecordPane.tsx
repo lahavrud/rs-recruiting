@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Link, useNavigate } from "react-router-dom";
 
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
@@ -14,7 +15,7 @@ interface RecordPaneProps<T> {
   fetcher: (id: number, signal: AbortSignal) => Promise<T>;
   listPath: string;
   listLabel: string;
-  crumbLabel: (entity: T) => string;
+  crumbLabel: (entity: T) => ReactNode;
   emptyHeadline: string;
   emptyDescription?: string;
   notFoundHeadline: string;
@@ -40,6 +41,8 @@ export default function RecordPane<T>({
   loadErrorMessage,
   children,
 }: RecordPaneProps<T>) {
+  const { t } = useTranslation("common");
+  const navigate = useNavigate();
   const [fetched, setFetched] = useState<T | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -89,15 +92,29 @@ export default function RecordPane<T>({
     );
   }
 
+  // Prefer real browser-back so we return to wherever the admin actually came
+  // from (e.g. a relation link from another record) instead of always the list.
+  // history.state.idx > 0 means the previous entry was created by this app's
+  // router, so going back stays in-app rather than leaving it.
+  function handleBack() {
+    const idx = (window.history.state as { idx?: number } | null)?.idx;
+    if (typeof idx === "number" && idx > 0) {
+      navigate(-1);
+    } else {
+      navigate(listPath);
+    }
+  }
+
   return (
     <div className="@container rounded-xl border border-white/8 bg-card p-4 sm:p-6">
-      <Link
-        to={listPath}
+      <button
+        type="button"
+        onClick={handleBack}
         className="mb-4 flex items-center gap-1.5 text-sm text-white/50 transition hover:text-copper md:hidden"
       >
         <BackChevron />
-        {listLabel}
-      </Link>
+        {t("common:back")}
+      </button>
 
       <nav className="mb-4 hidden items-center gap-2 text-sm text-white/50 md:flex">
         <Link to={listPath} className="transition hover:text-copper">

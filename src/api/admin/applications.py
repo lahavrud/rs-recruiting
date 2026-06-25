@@ -16,10 +16,12 @@ from src.schemas import (
     ApplicationRead,
     ApplicationStatusUpdate,
     ApplicationWithDetails,
+    AuditLogRead,
 )
 from src.services.admin.applications import (
     delete_application,
     get_application,
+    get_application_activity,
     list_applications,
     update_application_notes,
     update_application_status,
@@ -68,6 +70,26 @@ async def get_application_detail(
         return await get_application(application_id, session)
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/applications/{application_id}/activity",
+    response_model=CursorPage[AuditLogRead],
+)
+async def get_application_activity_endpoint(
+    application_id: int,
+    cursor: str | None = None,
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    current_admin: User = Depends(get_current_admin),
+    session: AsyncSession = Depends(get_session),
+) -> CursorPage[AuditLogRead]:
+    """Activity timeline: audit rows for this application (status changes)."""
+    try:
+        return await get_application_activity(
+            application_id, session, cursor=cursor, limit=limit
+        )
+    except (ApplicationNotFoundError, InvalidCursorError) as exc:
+        raise service_exception_to_http(exc) from exc
 
 
 @router.put(

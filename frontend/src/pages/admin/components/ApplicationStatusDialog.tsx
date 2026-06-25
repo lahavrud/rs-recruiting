@@ -8,17 +8,8 @@ import { updateApplicationStatus } from "@/services/adminApplications";
 import { SELECT_CLS, TEXTAREA_CLS } from "@/styles/forms";
 import type { ApplicationStatusUpdate, ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
-const ALL_STATUSES = [
-  ApplicationStatus.NEW,
-  ApplicationStatus.APPROVED_BY_ADMIN,
-  ApplicationStatus.REJECTED,
-  ApplicationStatus.HIRED,
-];
 
-const TERMINAL_STATUSES = new Set<string>([
-  ApplicationStatus.REJECTED,
-  ApplicationStatus.HIRED,
-]);
+import { ALL_STATUSES, TERMINAL_STATUSES } from "./applicationStatusOptions";
 
 interface StatusDialogProps {
   app: ApplicationWithDetails | null;

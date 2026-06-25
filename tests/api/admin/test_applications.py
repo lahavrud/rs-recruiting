@@ -187,6 +187,63 @@ async def test_get_application_requires_admin(
     assert response.status_code == 401
 
 
+# ==================== GET /api/admin/applications/{id}/activity ====================
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_returns_status_changes(
+    admin_client: AsyncClient,
+    application: Application,
+):
+    """Status updates show up newest-first on the application's activity timeline."""
+    await admin_client.put(
+        f"/api/admin/applications/{application.id}/status",
+        json={"status": "APPROVED_BY_ADMIN"},
+    )
+    await admin_client.put(
+        f"/api/admin/applications/{application.id}/status",
+        json={"status": "HIRED"},
+    )
+
+    response = await admin_client.get(
+        f"/api/admin/applications/{application.id}/activity"
+    )
+    assert response.status_code == 200
+
+    items = response.json()["items"]
+    assert [item["action"] for item in items] == [
+        "application.status_change",
+        "application.status_change",
+        "application.submitted",
+    ]
+    assert [item["detail"] for item in items] == [
+        "APPROVED_BY_ADMIN->HIRED",
+        "NEW->APPROVED_BY_ADMIN",
+        None,
+    ]
+    assert all(item["target_type"] == "Application" for item in items)
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_not_found(admin_client: AsyncClient):
+    """Returns 404 for a non-existent application."""
+    response = await admin_client.get("/api/admin/applications/99999/activity")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "application_not_found"
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_requires_admin(
+    public_client: AsyncClient,
+    application: Application,
+):
+    """Unauthenticated clients cannot access the activity timeline."""
+    response = await public_client.get(
+        f"/api/admin/applications/{application.id}/activity"
+    )
+    assert response.status_code == 401
+
+
 # ==================== PUT /api/admin/applications/{id}/status ====================
 
 

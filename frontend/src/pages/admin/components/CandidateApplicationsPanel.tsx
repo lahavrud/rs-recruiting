@@ -96,11 +96,7 @@ export default function CandidateApplicationsPanel({ candidateId }: Props) {
           {applications.map((a) => (
             <li
               key={a.id}
-              onClick={() =>
-                navigate(`/admin/applications?candidate=${a.candidate_id}`, {
-                  state: { autoOpen: a },
-                })
-              }
+              onClick={() => navigate(`/admin/applications/${a.id}`)}
               className="group relative cursor-pointer rounded-xl border border-white/8 bg-card-raised p-4 pe-10 transition hover:border-white/15 hover:bg-card active:scale-[0.99]"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">

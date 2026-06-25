@@ -305,10 +305,29 @@
     "notesSavedToast": "ההערות עודכנו",
     "deletedToast": "המועמדות נמחקה",
     "notesModalTitle": "הערות מנהל",
+    "activitySection": "היסטוריית סטטוס",
+    "activityEmpty": "לא נמצאה פעילות עבור מועמדות זו.",
+    "activity": {
+      "actions": {
+        "submitted": "הוגשה מועמדות"
+      }
+    },
     "errors": {
       "updateFailed": "עדכון הסטטוס נכשל. נסה שוב.",
       "deleteFailed": "מחיקת המועמדות נכשלה. נסה שוב.",
-      "notesFailed": "שמירת ההערות נכשלה. נסה שוב."
+      "notesFailed": "שמירת ההערות נכשלה. נסה שוב.",
+      "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."
+    },
+    "record": {
+      "eyebrow": "פרטי מועמדות",
+      "appliedAt": "הוגשה בתאריך",
+      "notifyRejectionHint": "מעבר לסטטוס \"נדחה\" ישלח אימייל עדכון למועמד",
+      "showList": "הצג רשימה",
+      "hideList": "הסתר רשימה",
+      "emptyHeadline": "בחר מועמדות להצגה",
+      "emptyDescription": "בחר מועמדות מהרשימה כדי לצפות בפרטיה.",
+      "notFound": "המועמדות לא נמצאה.",
+      "relationsComingSoon": "הקישורים לחברה ולמשרה יתווספו בקרוב."
     },
     "triage": {
       "entryButton": "סקירה מהירה",

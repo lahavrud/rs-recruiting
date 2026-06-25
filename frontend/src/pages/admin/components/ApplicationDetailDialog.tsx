@@ -10,6 +10,8 @@ import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
+import ApplicationAnswerFields from "./ApplicationAnswerFields";
+
 interface DetailProps {
   app: ApplicationWithDetails | null;
   onClose: () => void;
@@ -122,45 +124,7 @@ export function ApplicationDetailBody({
         )}
       </div>
 
-      {(app.service_concept ||
-        app.salary_expectations ||
-        app.strength ||
-        app.growth_area) && (
-        <dl className="grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-          {app.service_concept && (
-            <>
-              <dt className="text-white/35">
-                {t("admin:applications.details.serviceConcept")}
-              </dt>
-              <dd className="text-white/70">{app.service_concept}</dd>
-            </>
-          )}
-          {app.salary_expectations && (
-            <>
-              <dt className="text-white/35">
-                {t("admin:applications.details.salaryExpectations")}
-              </dt>
-              <dd className="text-white/70">{app.salary_expectations}</dd>
-            </>
-          )}
-          {app.strength && (
-            <>
-              <dt className="text-white/35">
-                {t("admin:applications.details.strength")}
-              </dt>
-              <dd className="text-white/70">{app.strength}</dd>
-            </>
-          )}
-          {app.growth_area && (
-            <>
-              <dt className="text-white/35">
-                {t("admin:applications.details.weakness")}
-              </dt>
-              <dd className="text-white/70">{app.growth_area}</dd>
-            </>
-          )}
-        </dl>
-      )}
+      <ApplicationAnswerFields app={app} />
 
       {app.admin_notes && (
         <div className="rounded-md border border-white/8 bg-card p-3 text-white/70">
