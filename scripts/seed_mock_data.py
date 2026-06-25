@@ -5,6 +5,14 @@
     PYTHONPATH=. uv run python scripts/seed_mock_data.py
     PYTHONPATH=. uv run python scripts/seed_mock_data.py --reset  # מאפס לפני ההזרעה
 
+    # סביבת staging — מוריד קו"ח אמיתיים מ-S3:
+    PYTHONPATH=. uv run python scripts/seed_mock_data.py --reset \\
+        --resumes-s3-prefix s3://bucket/seed-fixtures/resumes/
+
+    # פיתוח מקומי עם קו"ח מספריית פייל-סיסטם:
+    PYTHONPATH=. uv run python scripts/seed_mock_data.py --reset \\
+        --resumes-dir scripts/fixtures/resumes-real/
+
 הרץ לאחר הפעלת הבקאנד (docker compose up) והוספת משתמש מנהל.
 
 יוצר:
@@ -18,15 +26,15 @@
 import argparse
 import asyncio
 import hashlib
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from sqlalchemy import delete, select
 
-from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import async_session, init_db
 from src.core.infrastructure.security import get_password_hash
-from src.core.services.storage_local import LocalStorageProvider
+from src.core.services.storage import get_storage_provider
 from src.enums import ApplicationStatus, JobStatus, UserRole
 from src.models import (
     Application,
@@ -43,10 +51,55 @@ from src.services.utils.legal import (
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
 
-# Resume PDFs used as realistic placeholder uploads in seed data — cycled
-# round-robin across candidates.
+# Resume PDFs used as placeholder uploads in seed data — cycled round-robin
+# across candidates. Override at runtime with --resumes-dir or --resumes-s3-prefix
+# to use realistic synthetic resumes so the matching engine produces meaningful scores.
 _RESUME_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "resumes"
 _RESUME_FIXTURES = sorted(_RESUME_FIXTURES_DIR.glob("*.pdf"))
+
+
+def _resolve_resume_fixtures(
+    resumes_dir: str | None, resumes_s3_prefix: str | None
+) -> list[Path]:
+    """Return the list of PDF paths to cycle through for candidate resumes.
+
+    Priority: --resumes-dir > --resumes-s3-prefix > built-in fixtures.
+    S3 files are downloaded to a temp dir that persists for the process lifetime.
+    """
+    if resumes_dir:
+        paths = sorted(Path(resumes_dir).glob("*.pdf"))
+        if not paths:
+            raise SystemExit(f"--resumes-dir {resumes_dir!r} contains no .pdf files")
+        print(f'  📄 קו"ח מספריה: {resumes_dir} ({len(paths)} קבצים)\n')
+        return paths
+
+    if resumes_s3_prefix:
+        import boto3
+
+        prefix = resumes_s3_prefix.rstrip("/")
+        if not prefix.startswith("s3://"):
+            raise SystemExit(
+                f"--resumes-s3-prefix must start with s3://, got {prefix!r}"
+            )
+        bucket, key_prefix = prefix[5:].split("/", 1)
+        client = boto3.client("s3")
+        paginator = client.get_paginator("list_objects_v2")
+        tmp = Path(tempfile.mkdtemp())
+        paths: list[Path] = []
+        for page in paginator.paginate(Bucket=bucket, Prefix=key_prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                if key.lower().endswith(".pdf"):
+                    dest = tmp / Path(key).name
+                    client.download_file(bucket, key, str(dest))
+                    paths.append(dest)
+        if paths:
+            print(f'  📄 קו"ח מ-S3 ({prefix}): {len(paths)} קבצים\n')
+            return sorted(paths)
+        print('  ⚠️  לא נמצאו קו"ח ב-S3, משתמש בקבצי ברירת מחדל\n')
+
+    return _RESUME_FIXTURES
+
 
 # Reserved documentation IP (RFC 5737 TEST-NET-3) — never a real client address
 _MOCK_CONSENT_IP = "203.0.113.10"
@@ -708,8 +761,10 @@ async def reset(session_factory) -> None:
     print("  ✅ הנתונים הקיימים נמחקו\n")
 
 
-async def seed() -> None:
+async def seed(resume_fixtures: list[Path] | None = None) -> None:
     """פונקציית הזרעה הראשית."""
+    if resume_fixtures is None:
+        resume_fixtures = _RESUME_FIXTURES
     print("🌱 מזריע נתוני בדיקה עבור RS Recruiting\n")
 
     async with async_session() as session:
@@ -810,7 +865,7 @@ async def seed() -> None:
                 all_jobs.append(job)
 
         # ── מועמדים ──
-        storage = LocalStorageProvider(storage_path=settings.local_storage_path)
+        storage = get_storage_provider()
         now = datetime.now(timezone.utc)
         created_candidates: list[CandidateProfile] = []
         for i, cand in enumerate(CANDIDATES):
@@ -826,7 +881,7 @@ async def seed() -> None:
             resume_filename = (
                 cand["full_name"].replace(" ", "_").replace("'", "") + ".pdf"
             )
-            resume_content = _RESUME_FIXTURES[i % len(_RESUME_FIXTURES)].read_bytes()
+            resume_content = resume_fixtures[i % len(resume_fixtures)].read_bytes()
             resume_path = await storage.upload_file(
                 resume_content, f"resumes/{resume_filename}", "application/pdf"
             )
@@ -997,13 +1052,24 @@ def main() -> None:
         action="store_true",
         help="מחיקת כל נתוני הבדיקה הקיימים לפני ההזרעה",
     )
+    parser.add_argument(
+        "--resumes-dir",
+        metavar="PATH",
+        help='ספריית PDF מקומית לקו"ח — עוקפת את קבצי ברירת המחדל',
+    )
+    parser.add_argument(
+        "--resumes-s3-prefix",
+        metavar="S3_URI",
+        help='קידומת S3 לקו"ח (s3://bucket/prefix/) — מוריד לתיקייה זמנית',
+    )
     args = parser.parse_args()
+    resume_fixtures = _resolve_resume_fixtures(args.resumes_dir, args.resumes_s3_prefix)
 
     async def run() -> None:
         await init_db()
         if args.reset:
             await reset(async_session)
-        await seed()
+        await seed(resume_fixtures)
 
     asyncio.run(run())
 

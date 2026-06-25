@@ -107,8 +107,12 @@ docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T api alembic stamp head
 echo "==> Seeding mock data"
 # `python scripts/x.py` puts scripts/ (not /app) on sys.path[0], so `import src`
 # fails — set PYTHONPATH, as the script's own usage docstring documents.
+# Pass --resumes-s3-prefix so the seed uses realistic synthetic resumes (uploaded
+# once to the staging deploy bucket) instead of the blank color-placeholder PDFs.
+# If no PDFs exist at that prefix the seed falls back to built-in fixtures silently.
+RESUME_S3_PREFIX="s3://${S3_BUCKET}/seed-fixtures/resumes/"
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T -e PYTHONPATH=/app api \
-  python scripts/seed_mock_data.py --reset
+  python scripts/seed_mock_data.py --reset --resumes-s3-prefix "${RESUME_S3_PREFIX}"
 
 echo "==> Starting services"
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
