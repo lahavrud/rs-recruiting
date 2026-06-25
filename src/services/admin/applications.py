@@ -28,10 +28,6 @@ from src.templates.email import build_application_rejection_html
 
 ApplicationSortColumn = Literal["name", "created_at", "status"]
 
-# Needs-attention-first triage order — NEW/in-progress statuses sort before
-# terminal ones when `order="asc"`; `order="desc"` reverses it (terminal
-# statuses first). Used standalone, or as one side of a `sort`+`sort2`
-# cross-sort (e.g. "status, then date").
 _STATUS_PRIORITY: dict[ApplicationStatus, int] = {
     ApplicationStatus.NEW: 0,
     ApplicationStatus.APPROVED_BY_ADMIN: 1,
@@ -99,8 +95,6 @@ async def list_applications(
         base = base.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
 
     if sort == "name" or sort2 == "name":
-        # selectinload above still eager-loads `candidate` for serialization;
-        # this join is solely so ORDER BY full_name is valid SQL.
         base = base.join(
             CandidateProfile,
             Application.candidate_id == CandidateProfile.id,  # pyright: ignore[reportArgumentType]
@@ -334,9 +328,7 @@ async def delete_application(
     application_id: int,
     session: AsyncSession,
 ) -> None:
-    """Removes only the job <-> candidate link row; the candidate profile and
-    job are untouched, so the candidate remains eligible to be matched to
-    other jobs.
+    """Removes only the job <-> candidate link; candidate profile and job are untouched.
 
     Raises:
         ApplicationNotFoundError: If application not found

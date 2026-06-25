@@ -282,8 +282,6 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=CANDIDATE_RETENTION_DAYS)
 
-    # Subquery: candidate_ids with at least one application that does NOT
-    # meet the purge criteria. Those candidates must be preserved.
     preserved_ids_subq = (
         select(Application.candidate_id)
         .join(Job, Job.id == Application.job_id)  # pyright: ignore[reportArgumentType]
