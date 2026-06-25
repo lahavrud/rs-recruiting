@@ -76,12 +76,16 @@ export function useInfiniteList<T>(
   }, [state]);
 
   const fetchPage = useCallback(
-    async (nextCursor: string | null, replace: boolean): Promise<void> => {
+    async (
+      nextCursor: string | null,
+      replace: boolean,
+      showLoading = true,
+    ): Promise<void> => {
       if (inFlight.current) return;
       inFlight.current = true;
       setState((prev) =>
         replace
-          ? { ...prev, isLoading: true, error: null }
+          ? { ...prev, isLoading: showLoading, error: null }
           : { ...prev, isFetchingMore: true, error: null },
       );
       try {
@@ -110,13 +114,15 @@ export function useInfiniteList<T>(
     [],
   );
 
-  // Reset + load whenever the fetcher identity changes (filters/page mount).
-  // The single setState here is intentional — there's no external state to
-  // sync to, just a one-time reset before kicking off the fetch.
+  // Reset + load whenever the fetcher identity changes (filters/sort/page
+  // mount). Keep the previous items visible until the new page arrives —
+  // if we already have items (e.g. toggling sort), skip the loading state
+  // entirely so the list swaps in place instead of flashing to a skeleton.
   useEffect(() => {
+    const hadItems = stateRef.current.items.length > 0;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState(initialState<T>());
-    void fetchPage(null, true);
+    setState((prev) => ({ ...initialState<T>(), items: prev.items }));
+    void fetchPage(null, true, !hadItems);
   }, [fetcher, fetchPage]);
 
   // Observer for the bottom-of-list sentinel.
@@ -151,8 +157,9 @@ export function useInfiniteList<T>(
   );
 
   const reload = useCallback(() => {
-    setState(initialState<T>());
-    void fetchPage(null, true);
+    const hadItems = stateRef.current.items.length > 0;
+    setState((prev) => ({ ...initialState<T>(), items: prev.items }));
+    void fetchPage(null, true, !hadItems);
   }, [fetchPage]);
 
   const prependItem = useCallback((item: T) => {
