@@ -1,11 +1,13 @@
 import { useTranslation } from "react-i18next";
 
+import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/DropdownMenu";
 import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
+import type { SortOrder } from "@/hooks/useColumnSort";
 import { JobStatus } from "@/types/enums";
 import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
@@ -14,6 +16,9 @@ import { FeaturedDesktopSash } from "./JobViewBody";
 
 export interface JobsTableProps {
   jobs: JobRead[];
+  sort: "name" | "created_at";
+  order: SortOrder;
+  onSort: (column: "name" | "created_at") => void;
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
   onOpenDetail: (job: JobRead) => void;
@@ -26,6 +31,9 @@ export interface JobsTableProps {
 
 export default function JobsTable({
   jobs,
+  sort,
+  order,
+  onSort,
   statusLabels,
   statusColors,
   onOpenDetail,
@@ -42,11 +50,39 @@ export default function JobsTable({
       <table className="min-w-full divide-y divide-white/6 text-sm">
         <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
           <tr>
-            <th className="px-4 py-3 text-start">{t("admin:jobs.fields.title")}</th>
+            <th
+              className="px-4 py-3 text-start"
+              aria-sort={
+                sort === "name" ? (order === "asc" ? "ascending" : "descending") : undefined
+              }
+            >
+              <SortableColumnHeader
+                label={t("admin:jobs.fields.title")}
+                active={sort === "name"}
+                order={order}
+                onClick={() => onSort("name")}
+              />
+            </th>
             <th className="px-4 py-3 text-start">{t("admin:jobs.fields.location")}</th>
             <th className="px-4 py-3 text-start">{t("common:salary")}</th>
             <th className="px-4 py-3 text-start">{t("admin:jobs.fields.status")}</th>
-            <th className="px-4 py-3 text-start">{t("admin:jobs.submittedLabel")}</th>
+            <th
+              className="px-4 py-3 text-start"
+              aria-sort={
+                sort === "created_at"
+                  ? order === "asc"
+                    ? "ascending"
+                    : "descending"
+                  : undefined
+              }
+            >
+              <SortableColumnHeader
+                label={t("admin:jobs.submittedLabel")}
+                active={sort === "created_at"}
+                order={order}
+                onClick={() => onSort("created_at")}
+              />
+            </th>
             <th className="px-4 py-3 text-end" aria-hidden />
           </tr>
         </thead>
@@ -55,7 +91,7 @@ export default function JobsTable({
             <tr
               key={job.id}
               onClick={() => onOpenDetail(job)}
-              className="cursor-pointer transition hover:bg-white/3"
+              className="cursor-pointer transition-[background-color] hover:bg-white/3"
             >
               <td className="relative px-4 py-3 font-medium text-white/85">
                 {job.is_featured && <FeaturedDesktopSash />}

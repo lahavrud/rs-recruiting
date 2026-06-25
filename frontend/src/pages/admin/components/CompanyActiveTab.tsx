@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
+import SortControl from "@/components/admin/SortControl";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import DropdownMenu, {
   DropdownMenuItem,
@@ -15,6 +17,7 @@ import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import NoResults from "@/components/ui/NoResults";
 import TableSkeleton from "@/components/ui/TableSkeleton";
+import { useColumnSort } from "@/hooks/useColumnSort";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { useToast } from "@/hooks/useToast";
 import {
@@ -43,10 +46,17 @@ export default function CompanyActiveTab({
   const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
 
+  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
+    column: "created_at",
+    order: "desc",
+  });
+  const handleSort = (column: "name" | "created_at") =>
+    toggle(column, column === "name" ? "asc" : "desc");
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ActiveCompanyRead>> =>
-      getActiveCompanies({ cursor }),
-    [],
+      getActiveCompanies({ cursor, sort, order }),
+    [sort, order],
   );
 
   const {
@@ -131,6 +141,26 @@ export default function CompanyActiveTab({
         <NoResults />
       ) : (
         <>
+          <div className="mb-3 md:hidden">
+            <SortControl
+              ariaLabel={t("admin:companies.active.sort.label")}
+              value={`${sort}:${order}`}
+              onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+              options={[
+                {
+                  value: "created_at:desc",
+                  label: t("admin:companies.active.sort.dateDesc"),
+                },
+                {
+                  value: "created_at:asc",
+                  label: t("admin:companies.active.sort.dateAsc"),
+                },
+                { value: "name:asc", label: t("admin:companies.active.sort.nameAsc") },
+                { value: "name:desc", label: t("admin:companies.active.sort.nameDesc") },
+              ]}
+            />
+          </div>
+
           {/* Mobile cards — tap to expand inline; 3-dot menu for actions */}
           <div className="space-y-2 md:hidden">
             {filteredCompanies.map((row) => {
@@ -181,14 +211,42 @@ export default function CompanyActiveTab({
             <table className="min-w-full divide-y divide-white/6 text-sm">
               <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
                 <tr>
-                  <th className="px-4 py-3 text-start">
-                    {t("admin:companies.active.table.company")}
+                  <th
+                    className="px-4 py-3 text-start"
+                    aria-sort={
+                      sort === "name"
+                        ? order === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
+                  >
+                    <SortableColumnHeader
+                      label={t("admin:companies.active.table.company")}
+                      active={sort === "name"}
+                      order={order}
+                      onClick={() => handleSort("name")}
+                    />
                   </th>
                   <th className="px-4 py-3 text-start">
                     {t("admin:companies.active.table.contact")}
                   </th>
-                  <th className="px-4 py-3 text-start">
-                    {t("admin:companies.active.table.joined")}
+                  <th
+                    className="px-4 py-3 text-start"
+                    aria-sort={
+                      sort === "created_at"
+                        ? order === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
+                  >
+                    <SortableColumnHeader
+                      label={t("admin:companies.active.table.joined")}
+                      active={sort === "created_at"}
+                      order={order}
+                      onClick={() => handleSort("created_at")}
+                    />
                   </th>
                   <th className="px-4 py-3 text-end" aria-hidden />
                 </tr>
@@ -198,7 +256,7 @@ export default function CompanyActiveTab({
                   <tr
                     key={row.company_profile.id}
                     onClick={() => setDetail(row.company_profile)}
-                    className="cursor-pointer transition hover:bg-white/3"
+                    className="cursor-pointer transition-[background-color] hover:bg-white/3"
                   >
                     <td className="px-4 py-3">
                       <span className="font-medium text-white/90">

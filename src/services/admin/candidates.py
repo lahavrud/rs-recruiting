@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,8 +39,10 @@ async def list_candidates(
     cursor: str | None = None,
     limit: int | None = None,
     q: str | None = None,
+    sort: Literal["name", "created_at"] = "created_at",
+    order: Literal["asc", "desc"] = "desc",
 ) -> CursorPage[CandidateProfileRead]:
-    """Return one page of candidate profiles, newest first.
+    """Return one page of candidate profiles, sorted by `sort`/`order`.
 
     `q`, when given, case-insensitively substring-matches name/email/phone.
     """
@@ -54,19 +57,25 @@ async def list_candidates(
                 CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
             )
         )
+    sort_col = (
+        CandidateProfile.full_name if sort == "name" else CandidateProfile.created_at
+    )
     query = apply_cursor(
         base,
-        sort_col=CandidateProfile.created_at,  # pyright: ignore[reportArgumentType]
+        sort_col=sort_col,  # pyright: ignore[reportArgumentType]
         id_col=CandidateProfile.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
+        sort_key=sort,
+        direction=order,
     )
     rows = (await session.execute(query)).scalars().all()
     return build_cursor_page(
         list(rows),
         serializer=CandidateProfileRead.model_validate,
-        cursor_key=lambda c: (c.created_at, c.id),
+        cursor_key=lambda c: (c.full_name if sort == "name" else c.created_at, c.id),
         limit=page_size,
+        sort_key=sort,
     )
 
 
@@ -273,8 +282,6 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=CANDIDATE_RETENTION_DAYS)
 
-    # Subquery: candidate_ids with at least one application that does NOT
-    # meet the purge criteria. Those candidates must be preserved.
     preserved_ids_subq = (
         select(Application.candidate_id)
         .join(Job, Job.id == Application.job_id)  # pyright: ignore[reportArgumentType]

@@ -1,6 +1,7 @@
 """Admin service layer for company management."""
 
 import logging
+from typing import Literal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -160,13 +161,16 @@ async def list_active_companies(
     *,
     cursor: str | None = None,
     limit: int | None = None,
+    sort: Literal["name", "created_at"] = "created_at",
+    order: Literal["asc", "desc"] = "desc",
 ) -> CursorPage[ActiveCompanyRead]:
-    """One page of active companies, newest first.
+    """One page of active companies, sorted by `sort`/`order`.
 
     Includes both company users that have been approved (is_active=True) and
     admin-created profiles that have no user account yet (user_id=None).
     """
     page_size = clamp_limit(limit)
+    sort_col = CompanyProfile.name if sort == "name" else CompanyProfile.created_at
     query = apply_cursor(
         select(CompanyProfile, User)
         .outerjoin(User, CompanyProfile.user_id == User.id)  # pyright: ignore[reportArgumentType]
@@ -176,10 +180,12 @@ async def list_active_companies(
                 (User.role == UserRole.COMPANY) & (User.is_active == True)  # noqa: E712
             )
         ),
-        sort_col=CompanyProfile.created_at,  # pyright: ignore[reportArgumentType]
+        sort_col=sort_col,  # pyright: ignore[reportArgumentType]
         id_col=CompanyProfile.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
+        sort_key=sort,
+        direction=order,
     )
     rows = list((await session.execute(query)).all())
     return build_cursor_page(
@@ -188,8 +194,12 @@ async def list_active_companies(
             user=UserRead.model_validate(row[1]) if row[1] is not None else None,
             company_profile=CompanyProfileRead.model_validate(row[0]),
         ),
-        cursor_key=lambda row: (row[0].created_at, row[0].id),
+        cursor_key=lambda row: (
+            row[0].name if sort == "name" else row[0].created_at,
+            row[0].id,
+        ),
         limit=page_size,
+        sort_key=sort,
     )
 
 

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SortControl from "@/components/admin/SortControl";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import EmptyState from "@/components/ui/EmptyState";
@@ -14,6 +15,7 @@ import NoResults from "@/components/ui/NoResults";
 import PageHeader from "@/components/ui/PageHeader";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { JOB_STATUS_COLORS } from "@/constants/statusColors";
+import { useColumnSort } from "@/hooks/useColumnSort";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -64,13 +66,20 @@ export default function AdminJobsPage() {
     return ALL_FILTER;
   });
 
+  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
+    column: "created_at",
+    order: "desc",
+  });
+  const handleSort = (column: "name" | "created_at") =>
+    toggle(column, column === "name" ? "asc" : "desc");
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<JobRead>> => {
       const params: { status?: JobStatus; cursor: string | null } = { cursor };
       if (filter !== ALL_FILTER) params.status = filter as JobStatus;
-      return getJobs(params);
+      return getJobs({ ...params, sort, order });
     },
-    [filter],
+    [filter, sort, order],
   );
 
   const {
@@ -400,6 +409,20 @@ export default function AdminJobsPage() {
         </NoResults>
       ) : (
         <>
+          <div className="mb-3 md:hidden">
+            <SortControl
+              ariaLabel={t("admin:jobs.sort.label")}
+              value={`${sort}:${order}`}
+              onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+              options={[
+                { value: "created_at:desc", label: t("admin:jobs.sort.dateDesc") },
+                { value: "created_at:asc", label: t("admin:jobs.sort.dateAsc") },
+                { value: "name:asc", label: t("admin:jobs.sort.nameAsc") },
+                { value: "name:desc", label: t("admin:jobs.sort.nameDesc") },
+              ]}
+            />
+          </div>
+
           <JobsList
             jobs={filteredJobs}
             statusLabels={STATUS_LABELS}
@@ -414,6 +437,9 @@ export default function AdminJobsPage() {
 
           <JobsTable
             jobs={filteredJobs}
+            sort={sort}
+            order={order}
+            onSort={handleSort}
             statusLabels={STATUS_LABELS}
             statusColors={JOB_STATUS_COLORS}
             onOpenDetail={openJob}

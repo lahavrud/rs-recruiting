@@ -6,6 +6,7 @@ on behalf of a company that hasn't been onboarded yet.
 """
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,28 +50,35 @@ async def list_jobs(
     status: JobStatus | None = None,
     cursor: str | None = None,
     limit: int | None = None,
+    sort: Literal["name", "created_at"] = "created_at",
+    order: Literal["asc", "desc"] = "desc",
 ) -> CursorPage[JobRead]:
-    """One page of jobs across all statuses, newest first.
+    """One page of jobs across all statuses, sorted by `sort`/`order`.
 
     `status` filters to a single status when provided (None returns all).
+    `sort="name"` sorts by the job title.
     """
     page_size = clamp_limit(limit)
     base = select(Job)
     if status is not None:
         base = base.where(Job.status == status)  # pyright: ignore[reportArgumentType]
+    sort_col = Job.title if sort == "name" else Job.created_at
     query = apply_cursor(
         base,
-        sort_col=Job.created_at,  # pyright: ignore[reportArgumentType]
+        sort_col=sort_col,  # pyright: ignore[reportArgumentType]
         id_col=Job.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
+        sort_key=sort,
+        direction=order,
     )
     rows = list((await session.execute(query)).scalars().all())
     return build_cursor_page(
         rows,
         serializer=JobRead.model_validate,
-        cursor_key=lambda j: (j.created_at, j.id),
+        cursor_key=lambda j: (j.title if sort == "name" else j.created_at, j.id),
         limit=page_size,
+        sort_key=sort,
     )
 
 

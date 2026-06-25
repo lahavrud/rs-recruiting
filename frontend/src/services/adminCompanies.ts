@@ -19,6 +19,8 @@ export interface PendingCompaniesParams {
 export interface ActiveCompaniesParams {
   cursor?: string | null;
   limit?: number;
+  sort?: "name" | "created_at";
+  order?: "asc" | "desc";
 }
 
 export async function getPendingCompanies(
@@ -53,6 +55,8 @@ export async function getActiveCompanies(
   const query: Record<string, string | number> = {};
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
+  if (params?.sort) query.sort = params.sort;
+  if (params?.order) query.order = params.order;
   const res = await api.get<CursorPage<ActiveCompanyRead>>("/api/admin/companies", {
     params: query,
     signal,

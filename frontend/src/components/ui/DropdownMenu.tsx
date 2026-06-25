@@ -7,6 +7,8 @@ interface DropdownMenuProps {
   children: ReactNode;
   ariaLabel?: string;
   align?: "start" | "center" | "end";
+  /** Extra classes for the content panel — e.g. to match a full-width trigger. */
+  contentClassName?: string;
 }
 
 /**
@@ -19,6 +21,7 @@ export default function DropdownMenu({
   children,
   ariaLabel,
   align = "end",
+  contentClassName = "min-w-[12rem]",
 }: DropdownMenuProps) {
   return (
     <RadixDropdown.Root>
@@ -29,7 +32,7 @@ export default function DropdownMenu({
         <RadixDropdown.Content
           align={align}
           sideOffset={6}
-          className="z-50 min-w-[12rem] rounded-md border border-white/10 bg-card-raised p-1 text-sm text-white/85 shadow-xl shadow-black/50"
+          className={`z-50 rounded-md border border-white/10 bg-card-raised p-1 text-sm text-white/85 shadow-xl shadow-black/50 ${contentClassName}`}
         >
           {children}
         </RadixDropdown.Content>

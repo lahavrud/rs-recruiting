@@ -3,6 +3,7 @@
   "saving": "שומר…",
   "submitting": "שולח…",
   "cancel": "ביטול",
+  "back": "חזרה",
   "save": "שמירה",
   "close": "סגירה",
   "posted": "פורסם",
@@ -57,6 +58,5 @@
   "viewJob": "צפה במשרה",
   "viewCompany": "צפה בחברה",
   "viewApplication": "צפה במועמדות",
-  "filteredByJob": "מסונן לפי משרה",
-  "filteredByCandidate": "מסונן לפי מועמד"
+  "filteredByJob": "מסונן לפי משרה"
 }

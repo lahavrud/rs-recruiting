@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
-import MobileEntityCard from "@/components/admin/MobileEntityCard";
+import RailRow from "@/components/admin/RailRow";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -11,8 +11,6 @@ import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import type { ApplicationWithDetails } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
-
-import { ApplicationDetailBody } from "./ApplicationDetailDialog";
 
 interface Props {
   apps: ApplicationWithDetails[];
@@ -69,51 +67,50 @@ export default function ClosedApplicationsSection({
           <div
             className={`pt-2 transition-opacity duration-200 ${isOpen ? "opacity-100 delay-100" : "opacity-0"}`}
           >
-            {/* Mobile */}
+            {/* Mobile — tap navigates straight to the record route, matching the active list's rail rows */}
             <div className="space-y-2 md:hidden">
-              {apps.map((app) => {
-                const actions = (
-                  <DropdownMenu
-                    ariaLabel={t("admin:applications.rowActionsLabel")}
-                    trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
-                  >
-                    <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                      {t("admin:applications.updateStatusAction")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onEditNotes(app)}>
-                      {t("admin:applications.editNotesAction")}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="danger" onSelect={() => onDelete(app)}>
-                      {t("admin:applications.deleteAction")}
-                    </DropdownMenuItem>
-                  </DropdownMenu>
-                );
-                return (
-                  <MobileEntityCard
-                    key={app.id}
-                    title={
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-white/85">
-                          {app.candidate.full_name}
-                        </p>
-                        <p className="truncate text-[11px] font-normal text-white/50">
-                          {app.job.title}
-                        </p>
-                      </div>
-                    }
-                    badge={
-                      <StatusBadge
-                        label={statusLabels[app.status]}
-                        colorCls={statusColors[app.status]}
-                      />
-                    }
-                    actions={actions}
-                  >
-                    <ApplicationDetailBody app={app} />
-                  </MobileEntityCard>
-                );
-              })}
+              {apps.map((app) => (
+                <RailRow
+                  key={app.id}
+                  onClick={() => onView(app)}
+                  actions={
+                    <DropdownMenu
+                      ariaLabel={t("admin:applications.rowActionsLabel")}
+                      trigger={<KebabButton />}
+                    >
+                      <DropdownMenuItem onSelect={() => onView(app)}>
+                        {t("admin:applications.viewAction")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
+                        {t("admin:applications.updateStatusAction")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => onEditNotes(app)}>
+                        {t("admin:applications.editNotesAction")}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem variant="danger" onSelect={() => onDelete(app)}>
+                        {t("admin:applications.deleteAction")}
+                      </DropdownMenuItem>
+                    </DropdownMenu>
+                  }
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-white/85">
+                      {app.candidate.full_name}
+                    </p>
+                    <p className="truncate text-xs text-white/40">{app.job.title}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusBadge
+                      label={statusLabels[app.status]}
+                      colorCls={statusColors[app.status]}
+                    />
+                    <span className="text-[11px] text-white/40">
+                      {formatDate(app.created_at)}
+                    </span>
+                  </div>
+                </RailRow>
+              ))}
             </div>
 
             {/* Desktop */}

@@ -1,6 +1,7 @@
 """Admin endpoints for company approval and direct CRUD."""
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,12 +49,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 async def get_active_companies(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+    sort: Literal["name", "created_at"] = Query(default="created_at"),
+    order: Literal["asc", "desc"] = Query(default="desc"),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[ActiveCompanyRead]:
-    """List active companies, newest first, cursor-paginated."""
+    """List active companies, sorted by `sort`/`order`, cursor-paginated."""
     try:
-        return await list_active_companies(session, cursor=cursor, limit=limit)
+        return await list_active_companies(
+            session, cursor=cursor, limit=limit, sort=sort, order=order
+        )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
 

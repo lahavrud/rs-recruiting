@@ -206,6 +206,16 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/admin/applications/:id"
+                  element={
+                    <AdminRoute>
+                      <RouteErrorBoundary>
+                        <AdminApplicationsPage />
+                      </RouteErrorBoundary>
+                    </AdminRoute>
+                  }
+                />
+                <Route
                   path="/admin/applications/triage"
                   element={
                     <AdminRoute>

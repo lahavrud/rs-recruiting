@@ -149,6 +149,113 @@ async def test_list_applications_invalid_cursor_returns_400(
     assert response.status_code == 400
 
 
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_name(
+    admin_client: AsyncClient, published_job: Job
+):
+    """`sort=name&order=asc` orders by the applying candidate's full name."""
+    async with TestSessionLocal() as session:
+        for name in ["Bob", "Alice"]:
+            candidate = CandidateProfile(
+                full_name=name, email=f"{name.lower()}@test.com", phone="050-0000000"
+            )
+            session.add(candidate)
+            await session.flush()
+            session.add(
+                Application(
+                    job_id=published_job.id,
+                    candidate_id=candidate.id,
+                    status=ApplicationStatus.NEW,
+                )
+            )
+        await session.commit()
+
+    response = await admin_client.get(
+        "/api/admin/applications", params={"sort": "name", "order": "asc"}
+    )
+    assert response.status_code == 200
+    names = [item["candidate"]["full_name"] for item in response.json()["items"]]
+    assert names == ["Alice", "Bob"]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_invalid_sort_returns_422(admin_client: AsyncClient):
+    response = await admin_client.get(
+        "/api/admin/applications", params={"sort": "bogus"}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_applications_sort_by_status(
+    admin_client: AsyncClient, published_job: Job
+):
+    """`sort=status&order=asc` groups NEW applications before a terminal
+    status (needs-attention first)."""
+    async with TestSessionLocal() as session:
+        for name, status in [
+            ("Closed App", ApplicationStatus.JOB_CLOSED),
+            ("New App", ApplicationStatus.NEW),
+        ]:
+            candidate = CandidateProfile(
+                full_name=name, email=f"{name.lower()}@test.com", phone="050-0000000"
+            )
+            session.add(candidate)
+            await session.flush()
+            session.add(
+                Application(
+                    job_id=published_job.id, candidate_id=candidate.id, status=status
+                )
+            )
+        await session.commit()
+
+    response = await admin_client.get(
+        "/api/admin/applications", params={"sort": "status", "order": "asc"}
+    )
+    assert response.status_code == 200
+    statuses = [item["status"] for item in response.json()["items"]]
+    assert statuses == ["NEW", "JOB_CLOSED"]
+
+
+@pytest.mark.asyncio
+async def test_list_applications_cross_sort_status_then_date(
+    admin_client: AsyncClient, published_job: Job
+):
+    """`sort=status&sort2=created_at` groups by status, then orders by date
+    within each group."""
+    async with TestSessionLocal() as session:
+        for name, status in [
+            ("Older New", ApplicationStatus.NEW),
+            ("Newer New", ApplicationStatus.NEW),
+            ("Closed", ApplicationStatus.JOB_CLOSED),
+        ]:
+            slug = name.lower().replace(" ", "")
+            candidate = CandidateProfile(
+                full_name=name, email=f"{slug}@test.com", phone="050-0000000"
+            )
+            session.add(candidate)
+            await session.flush()
+            session.add(
+                Application(
+                    job_id=published_job.id, candidate_id=candidate.id, status=status
+                )
+            )
+        await session.commit()
+
+    response = await admin_client.get(
+        "/api/admin/applications",
+        params={
+            "sort": "status",
+            "order": "asc",
+            "sort2": "created_at",
+            "order2": "desc",
+        },
+    )
+    assert response.status_code == 200
+    names = [item["candidate"]["full_name"] for item in response.json()["items"]]
+    assert names == ["Newer New", "Older New", "Closed"]
+
+
 # ==================== GET /api/admin/applications/{id} ====================
 
 
@@ -184,6 +291,63 @@ async def test_get_application_requires_admin(
 ):
     """Unauthenticated clients cannot access application detail."""
     response = await public_client.get(f"/api/admin/applications/{application.id}")
+    assert response.status_code == 401
+
+
+# ==================== GET /api/admin/applications/{id}/activity ====================
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_returns_status_changes(
+    admin_client: AsyncClient,
+    application: Application,
+):
+    """Status updates show up newest-first on the application's activity timeline."""
+    await admin_client.put(
+        f"/api/admin/applications/{application.id}/status",
+        json={"status": "APPROVED_BY_ADMIN"},
+    )
+    await admin_client.put(
+        f"/api/admin/applications/{application.id}/status",
+        json={"status": "HIRED"},
+    )
+
+    response = await admin_client.get(
+        f"/api/admin/applications/{application.id}/activity"
+    )
+    assert response.status_code == 200
+
+    items = response.json()["items"]
+    assert [item["action"] for item in items] == [
+        "application.status_change",
+        "application.status_change",
+        "application.submitted",
+    ]
+    assert [item["detail"] for item in items] == [
+        "APPROVED_BY_ADMIN->HIRED",
+        "NEW->APPROVED_BY_ADMIN",
+        None,
+    ]
+    assert all(item["target_type"] == "Application" for item in items)
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_not_found(admin_client: AsyncClient):
+    """Returns 404 for a non-existent application."""
+    response = await admin_client.get("/api/admin/applications/99999/activity")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "application_not_found"
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_requires_admin(
+    public_client: AsyncClient,
+    application: Application,
+):
+    """Unauthenticated clients cannot access the activity timeline."""
+    response = await public_client.get(
+        f"/api/admin/applications/{application.id}/activity"
+    )
     assert response.status_code == 401
 
 

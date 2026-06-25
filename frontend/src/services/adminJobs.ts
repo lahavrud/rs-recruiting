@@ -7,6 +7,8 @@ export interface JobListParams {
   status?: JobStatus;
   cursor?: string | null;
   limit?: number;
+  sort?: "name" | "created_at";
+  order?: "asc" | "desc";
 }
 
 export async function approveJob(jobId: number): Promise<JobRead> {
@@ -30,6 +32,8 @@ export async function getJobs(
   if (params?.status) query.status = params.status;
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
+  if (params?.sort) query.sort = params.sort;
+  if (params?.order) query.order = params.order;
   const res = await api.get<CursorPage<JobRead>>("/api/admin/jobs", {
     params: query,
     signal,

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -7,12 +8,16 @@ import DropdownMenu, {
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import ResumeButton from "@/components/ui/ResumeViewer";
+import type { SortOrder } from "@/hooks/useColumnSort";
 import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 interface CandidatesTableProps {
   candidates: CandidateProfileRead[];
+  sort: "name" | "created_at";
+  order: SortOrder;
+  onSort: (column: "name" | "created_at") => void;
   onView: (c: CandidateProfileRead) => void;
   onDelete: (c: CandidateProfileRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
@@ -21,6 +26,9 @@ interface CandidatesTableProps {
 
 export default function CandidatesTable({
   candidates,
+  sort,
+  order,
+  onSort,
   onView,
   onDelete,
   sentinelRef,
@@ -34,8 +42,18 @@ export default function CandidatesTable({
         <table className="min-w-full divide-y divide-white/6 text-sm">
           <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
             <tr>
-              <th className="px-4 py-3 text-start">
-                {t("admin:candidates.table.name")}
+              <th
+                className="px-4 py-3 text-start"
+                aria-sort={
+                  sort === "name" ? (order === "asc" ? "ascending" : "descending") : undefined
+                }
+              >
+                <SortableColumnHeader
+                  label={t("admin:candidates.table.name")}
+                  active={sort === "name"}
+                  order={order}
+                  onClick={() => onSort("name")}
+                />
               </th>
               <th className="px-4 py-3 text-start">
                 {t("admin:candidates.table.phone")}
@@ -46,8 +64,22 @@ export default function CandidatesTable({
               <th className="px-4 py-3 text-start">
                 {t("admin:candidates.table.linkedin")}
               </th>
-              <th className="px-4 py-3 text-start">
-                {t("admin:candidates.table.date")}
+              <th
+                className="px-4 py-3 text-start"
+                aria-sort={
+                  sort === "created_at"
+                    ? order === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : undefined
+                }
+              >
+                <SortableColumnHeader
+                  label={t("admin:candidates.table.date")}
+                  active={sort === "created_at"}
+                  order={order}
+                  onClick={() => onSort("created_at")}
+                />
               </th>
               <th className="px-4 py-3 text-end" aria-hidden />
             </tr>
@@ -57,7 +89,7 @@ export default function CandidatesTable({
               <tr
                 key={c.id}
                 onClick={() => onView(c)}
-                className="cursor-pointer transition hover:bg-white/3"
+                className="cursor-pointer transition-[background-color] hover:bg-white/3"
               >
                 <td className="px-4 py-3">
                   <p className="font-medium text-white/85">{c.full_name}</p>

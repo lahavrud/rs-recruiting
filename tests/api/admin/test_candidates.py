@@ -74,6 +74,67 @@ async def test_list_candidates_invalid_cursor_returns_400(admin_client: AsyncCli
 
 
 @pytest.mark.asyncio
+async def test_list_candidates_sort_by_name(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """`sort=name&order=asc` orders the response alphabetically."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Bob", email="bob@test.com", phone="050-2222222"
+            ),
+            CandidateProfile(
+                full_name="Alice", email="alice@test.com", phone="050-1111111"
+            ),
+        ]
+    )
+    await session.commit()
+
+    response = await admin_client.get(
+        "/api/admin/candidates", params={"sort": "name", "order": "asc"}
+    )
+    assert response.status_code == 200
+    names = [item["full_name"] for item in response.json()["items"]]
+    assert names == ["Alice", "Bob"]
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_invalid_sort_returns_422(admin_client: AsyncClient):
+    response = await admin_client.get("/api/admin/candidates", params={"sort": "email"})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_cursor_rejects_sort_change_returns_400(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """Changing `sort` with a stale cursor is rejected, not silently misordered."""
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name=f"User{i:02d}",
+                email=f"user{i:02d}@test.com",
+                phone="050-0000000",
+            )
+            for i in range(15)
+        ]
+    )
+    await session.commit()
+
+    first = await admin_client.get(
+        "/api/admin/candidates", params={"limit": 10, "sort": "created_at"}
+    )
+    cursor = first.json()["next_cursor"]
+    assert cursor is not None
+
+    response = await admin_client.get(
+        "/api/admin/candidates",
+        params={"cursor": cursor, "sort": "name"},
+    )
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_list_candidates_paginates_through_all(
     admin_client: AsyncClient, session: AsyncSession
 ):

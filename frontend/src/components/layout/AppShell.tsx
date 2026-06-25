@@ -337,14 +337,14 @@ function isPublicShellPath(pathname: string): boolean {
   );
 }
 
-// The candidate record workspace (/admin/candidates/:id) is a split pane —
-// the rail and the record pane each scroll independently so a long
-// candidate list doesn't push the record content (or the rail itself) out
-// of view. `<main>` must give it a bounded height instead of being the
-// page's scroll container. The bare list view (/admin/candidates) is a
-// regular table page and scrolls with the page.
+// Record workspaces (/admin/candidates/:id, /admin/applications/:id) are
+// split panes — the rail and the record pane each scroll independently so a
+// long list doesn't push the record content (or the rail itself) out of
+// view. `<main>` must give them a bounded height instead of being the
+// page's scroll container. The bare list views (/admin/candidates,
+// /admin/applications) are regular table pages and scroll with the page.
 function isSplitPaneWorkspacePath(pathname: string): boolean {
-  return /^\/admin\/candidates\/\d+$/.test(pathname);
+  return /^\/admin\/(candidates|applications)\/\d+$/.test(pathname);
 }
 
 /* ── Shell ───────────────────────────────────────────────────────────────── */
@@ -377,7 +377,7 @@ function ShellContent({ children }: Props) {
     // Strip a trailing numeric :id segment so a record route (e.g.
     // /admin/candidates/123) shares its key with the list route
     // (/admin/candidates) — switching between them shouldn't remount the
-    // page and lose list state/scroll position.
+    // page and lose list state/scroll position. Same for /admin/applications.
     const pageKey = pathname.replace(/\/\d+$/, "");
     const splitPane = isSplitPaneWorkspacePath(pathname);
     return (
