@@ -6,20 +6,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
-import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import DropdownMenu, {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/DropdownMenu";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
-import KebabButton from "@/components/ui/KebabButton";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
-import StatusBadge from "@/components/ui/StatusBadge";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -36,12 +29,12 @@ import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
 import { type ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
-import { formatDate } from "@/utils/formatDate";
 
 import ApplicationNotesDialog from "./components/ApplicationNotesDialog";
 import ApplicationRecordPane from "./components/ApplicationRecordPane";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
 import ApplicationsRailList from "./components/ApplicationsRailList";
+import ApplicationsTable from "./components/ApplicationsTable";
 import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
 import { IconSparkle } from "./components/TriageIcons";
@@ -434,125 +427,15 @@ export default function AdminApplicationsPage() {
             </div>
 
             {/* Desktop */}
-            <div className="hidden overflow-x-auto rounded-xl border border-white/8 bg-card md:block">
-              <table className="min-w-full divide-y divide-white/6 text-sm">
-                <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
-                  <tr>
-                    <th
-                      className="px-4 py-3 text-start"
-                      aria-sort={
-                        columnState("name").active
-                          ? columnState("name").order === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      <SortableColumnHeader
-                        label={t("admin:applications.table.candidate")}
-                        {...columnState("name")}
-                        onClick={() => handleSort("name")}
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.job")}
-                    </th>
-                    <th
-                      className="px-4 py-3 text-start"
-                      aria-sort={
-                        columnState("status").active
-                          ? columnState("status").order === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      <SortableColumnHeader
-                        label={t("admin:applications.table.status")}
-                        {...columnState("status")}
-                        onClick={() => handleSort("status")}
-                      />
-                    </th>
-                    <th
-                      className="px-4 py-3 text-start"
-                      aria-sort={
-                        columnState("created_at").active
-                          ? columnState("created_at").order === "asc"
-                            ? "ascending"
-                            : "descending"
-                          : undefined
-                      }
-                    >
-                      <SortableColumnHeader
-                        label={t("admin:applications.table.date")}
-                        {...columnState("created_at")}
-                        onClick={() => handleSort("created_at")}
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-end" aria-hidden />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/6">
-                  {activeFiltered.map((app) => (
-                    <tr
-                      key={app.id}
-                      onClick={() => navigate(`/admin/applications/${app.id}`)}
-                      className="cursor-pointer transition hover:bg-white/3"
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-white/85">
-                          {app.candidate.full_name}
-                        </p>
-                        <p className="text-xs text-white/40">{app.candidate.email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-white/80">{app.job.title}</p>
-                        <p className="text-xs text-white/40">{app.job.location}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge
-                          label={STATUS_LABELS[app.status]}
-                          colorCls={APPLICATION_STATUS_COLORS[app.status]}
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-white/40">
-                        {formatDate(app.created_at)}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-end"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <DropdownMenu
-                          ariaLabel={t("admin:applications.rowActionsLabel")}
-                          trigger={<KebabButton size="sm" />}
-                        >
-                          <DropdownMenuItem
-                            onSelect={() => navigate(`/admin/applications/${app.id}`)}
-                          >
-                            {t("admin:applications.viewAction")}
-                          </DropdownMenuItem>
-                          {app.status !== ApplicationStatus.WITHDRAWN && (
-                            <DropdownMenuItem onSelect={() => setStatusModal(app)}>
-                              {t("admin:applications.updateStatusAction")}
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem onSelect={() => setNotesModal(app)}>
-                            {t("admin:applications.editNotesAction")}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            variant="danger"
-                            onSelect={() => setDeleteCandidate(app)}
-                          >
-                            {t("admin:applications.deleteAction")}
-                          </DropdownMenuItem>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ApplicationsTable
+              applications={activeFiltered}
+              statusLabels={STATUS_LABELS}
+              columnState={columnState}
+              onSort={handleSort}
+              onUpdateStatus={setStatusModal}
+              onEditNotes={setNotesModal}
+              onDelete={setDeleteCandidate}
+            />
 
             {/* Sentinel for IntersectionObserver */}
             <InfiniteScrollFooter
