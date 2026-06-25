@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     # A hosted multilingual model is required — CVs and jobs are Hebrew, English,
     # or mixed, and the model must align all of them in one cross-lingual vector
     # space (see src/core/services/embeddings.py). The API key is a third-party
-    # key stored in SSM (/rs-recruiting/embedding-api-key), never an AWS key.
+    # key stored in SSM (/rs-recruiting/prod/EMBEDDING_API_KEY), never an AWS key.
     # ``embedding_dim`` MUST match the model's output dimension and the Vector
     # column width set by the migration — changing it later needs a new migration.
     embedding_provider: Literal["cohere", "fake"] = "fake"
