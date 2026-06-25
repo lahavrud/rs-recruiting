@@ -16,12 +16,12 @@ from src.core.infrastructure.pagination import (
 )
 from src.enums import ApplicationStatus
 from src.models import Application
-from src.schemas import ApplicationRead, ApplicationWithDetails
+from src.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
 from src.services.exceptions import (
     ApplicationNotEditableError,
     ApplicationNotFoundError,
 )
-from src.services.utils.audit import record_audit_event
+from src.services.utils.audit import list_audit_events, record_audit_event
 from src.templates.email import build_application_rejection_html
 
 
@@ -76,6 +76,52 @@ async def get_application(
         ],
     )
     return ApplicationWithDetails.model_validate(application)
+
+
+async def get_application_activity(
+    application_id: int,
+    session: AsyncSession,
+    *,
+    cursor: str | None = None,
+    limit: int | None = None,
+) -> CursorPage[AuditLogRead]:
+    """Activity timeline for an application's record pane (status-change audit rows).
+
+    The application's own creation is never written to the audit log (it
+    isn't an admin action), so a synthetic "submitted" entry is appended on
+    the last page, dated to `Application.created_at`, to anchor the
+    timeline's oldest end.
+
+    Raises:
+        ApplicationNotFoundError: If no application with that id exists.
+    """
+    application = await get_by_id_or_raise(
+        session,
+        Application,
+        application_id,
+        lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
+    )
+    page = await list_audit_events(
+        session,
+        target_type="Application",
+        target_id=application_id,
+        cursor=cursor,
+        limit=limit,
+    )
+    if page.next_cursor is None:
+        page.items.append(
+            AuditLogRead(
+                id=-application_id,
+                actor_user_id=None,
+                action="application.submitted",
+                target_type="Application",
+                target_id=application_id,
+                detail=None,
+                ip_address=None,
+                created_at=application.created_at,
+            )
+        )
+    return page
 
 
 async def update_application_status(

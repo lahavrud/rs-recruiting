@@ -1,13 +1,16 @@
 """Unit tests for admin application management service functions."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, CompanyProfile, Job
+from src.models import Application, AuditLog, CandidateProfile, CompanyProfile, Job
 from src.schemas import ApplicationRead, ApplicationWithDetails
 from src.services.admin.applications import (
     get_application,
+    get_application_activity,
     list_applications,
     update_application_notes,
     update_application_status,
@@ -178,6 +181,88 @@ async def test_get_application_not_found(session: AsyncSession):
     """Raises ApplicationNotFoundError for a non-existent ID."""
     with pytest.raises(ApplicationNotFoundError, match="99999"):
         await get_application(99999, session)
+
+
+# ==================== get_application_activity ====================
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_not_found(session: AsyncSession):
+    """Raises ApplicationNotFoundError for a non-existent ID."""
+    with pytest.raises(ApplicationNotFoundError, match="99999"):
+        await get_application_activity(99999, session)
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_returns_own_status_changes(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Returns only this application's status-change rows, newest first."""
+    candidate = await _make_candidate(session)
+    app = await _make_application(session, company_with_user, candidate)
+    other_candidate = await _make_candidate(session, email="other@test.com")
+    other_app = await _make_application(session, company_with_user, other_candidate)
+
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=app.id,
+            detail="NEW->APPROVED_BY_ADMIN",
+            created_at=base,
+        )
+    )
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=app.id,
+            detail="APPROVED_BY_ADMIN->HIRED",
+            created_at=base + timedelta(minutes=1),
+        )
+    )
+    # Another application's status change must not leak into this timeline.
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=other_app.id,
+            detail="NEW->REJECTED",
+            created_at=base + timedelta(minutes=2),
+        )
+    )
+    await session.commit()
+
+    page = await get_application_activity(app.id, session)
+
+    assert [r.action for r in page.items] == [
+        "application.status_change",
+        "application.status_change",
+        "application.submitted",
+    ]
+    assert [r.detail for r in page.items] == [
+        "APPROVED_BY_ADMIN->HIRED",
+        "NEW->APPROVED_BY_ADMIN",
+        None,
+    ]
+    assert page.items[-1].created_at == app.created_at
+
+
+@pytest.mark.asyncio
+async def test_get_application_activity_no_status_changes_yet(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """With no status changes, the synthetic submitted entry anchors the timeline."""
+    candidate = await _make_candidate(session)
+    app = await _make_application(session, company_with_user, candidate)
+
+    page = await get_application_activity(app.id, session)
+
+    assert len(page.items) == 1
+    assert page.items[0].action == "application.submitted"
+    assert page.items[0].created_at == app.created_at
+    assert page.next_cursor is None
 
 
 # ==================== update_application_status ====================
