@@ -25,8 +25,19 @@ def _extension_of(name: str | None) -> str:
 
 
 def cosine_similarity_score(distance: float) -> float:
-    """Map a pgvector cosine distance (∈ [0, 2]) to a similarity in [0, 1]."""
-    return max(0.0, min(1.0, 1.0 - float(distance)))
+    """Map a pgvector cosine distance to a normalised match score in [0, 1].
+
+    Raw cosine similarity (1 − distance) for full-document job/resume pairs
+    peaks around 0.65–0.75 even for excellent matches, because the asymmetric
+    embed-v4.0 model compresses the practical range. We normalise against the
+    observed floor (~0.28, unrelated content) and ceiling (~0.75, near-perfect
+    match) so that the returned score maps intuitively: ~0 = no match,
+    ~1 = excellent match.
+    """
+    _FLOOR = 0.28
+    _CEILING = 0.75
+    raw = max(0.0, min(1.0, 1.0 - float(distance)))
+    return max(0.0, min(1.0, (raw - _FLOOR) / (_CEILING - _FLOOR)))
 
 
 async def embed_job_task(job_id: int) -> None:
