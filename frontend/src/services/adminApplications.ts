@@ -9,6 +9,10 @@ export interface ApplicationListParams {
   candidate_id?: number;
   cursor?: string | null;
   limit?: number;
+  sort?: "name" | "created_at" | "status";
+  order?: "asc" | "desc";
+  sort2?: "name" | "created_at" | "status";
+  order2?: "asc" | "desc";
 }
 
 export async function getApplications(
@@ -21,6 +25,10 @@ export async function getApplications(
   if (params?.candidate_id != null) query.candidate_id = params.candidate_id;
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
+  if (params?.sort) query.sort = params.sort;
+  if (params?.order) query.order = params.order;
+  if (params?.sort2) query.sort2 = params.sort2;
+  if (params?.order2) query.order2 = params.order2;
   const res = await api.get<CursorPage<ApplicationWithDetails>>(
     "/api/admin/applications",
     { params: query, signal },

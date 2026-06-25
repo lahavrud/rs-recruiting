@@ -6,11 +6,13 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import TableSkeleton from "@/components/ui/TableSkeleton";
+import { useColumnSort } from "@/hooks/useColumnSort";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -36,10 +38,17 @@ export default function AdminCandidatesPage() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
 
+  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
+    column: "created_at",
+    order: "desc",
+  });
+  const handleSort = (column: "name" | "created_at") =>
+    toggle(column, column === "name" ? "asc" : "desc");
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<CandidateProfileRead>> =>
-      getCandidates({ cursor, q: debouncedQuery.trim() || undefined }),
-    [debouncedQuery],
+      getCandidates({ cursor, q: debouncedQuery.trim() || undefined, sort, order }),
+    [debouncedQuery, sort, order],
   );
 
   const {
@@ -135,6 +144,20 @@ export default function AdminCandidatesPage() {
     );
   }
 
+  const sortControl = (
+    <SortControl
+      ariaLabel={t("admin:candidates.sort.label")}
+      value={`${sort}:${order}`}
+      onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+      options={[
+        { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
+        { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },
+        { value: "name:asc", label: t("admin:candidates.sort.nameAsc") },
+        { value: "name:desc", label: t("admin:candidates.sort.nameDesc") },
+      ]}
+    />
+  );
+
   if (selectedId == null) {
     return (
       <div>
@@ -150,6 +173,7 @@ export default function AdminCandidatesPage() {
           </>,
           <>
             <div className="md:hidden">
+              <div className="mb-3">{sortControl}</div>
               <CandidatesRailList
                 candidates={candidates}
                 onView={(c) => navigate(`/admin/candidates/${c.id}`)}
@@ -161,6 +185,9 @@ export default function AdminCandidatesPage() {
 
             <CandidatesTable
               candidates={candidates}
+              sort={sort}
+              order={order}
+              onSort={handleSort}
               onView={(c) => navigate(`/admin/candidates/${c.id}`)}
               onDelete={setDeletePending}
               sentinelRef={sentinelRef}
@@ -182,6 +209,7 @@ export default function AdminCandidatesPage() {
       rail={
         <>
           {header}
+          <div className="mb-3">{sortControl}</div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {withListState(
               <MobileListSkeleton rows={6} />,

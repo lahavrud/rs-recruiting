@@ -44,6 +44,13 @@
         "company": "חברה",
         "contact": "איש קשר",
         "joined": "תאריך הצטרפות"
+      },
+      "sort": {
+        "label": "מיון",
+        "nameAsc": "חברה (א-ת)",
+        "nameDesc": "חברה (ת-א)",
+        "dateDesc": "תאריך הצטרפות (החדש ביותר)",
+        "dateAsc": "תאריך הצטרפות (הישן ביותר)"
       }
     },
     "inviteForm": {
@@ -154,6 +161,13 @@
     "reject": "דחייה",
     "companyLabel": "חברה #{{id}}",
     "submittedLabel": "הוגש",
+    "sort": {
+      "label": "מיון",
+      "nameAsc": "כותרת (א-ת)",
+      "nameDesc": "כותרת (ת-א)",
+      "dateDesc": "תאריך הגשה (החדש ביותר)",
+      "dateAsc": "תאריך הגשה (הישן ביותר)"
+    },
     "approveError": "אישור המשרה נכשל.",
     "rejectError": "דחיית המשרה נכשלה.",
     "rejectConfirm": "לדחות פרסום משרה זה? הוא יסומן כסגור.",
@@ -253,6 +267,15 @@
     "empty": "לא נמצאו מועמדויות.",
     "loadError": "טעינת המועמדויות נכשלה.",
     "searchPlaceholder": "חיפוש לפי שם מועמד, אימייל, שם משרה…",
+    "sort": {
+      "label": "מיון",
+      "nameAsc": "מועמד (א-ת)",
+      "nameDesc": "מועמד (ת-א)",
+      "dateDesc": "תאריך (החדש ביותר)",
+      "dateAsc": "תאריך (הישן ביותר)",
+      "statusDesc": "סטטוס (דורש טיפול קודם, חדש→ישן)",
+      "statusAsc": "סטטוס (דורש טיפול קודם, ישן→חדש)"
+    },
     "filters": "סינון",
     "openFilters": "פתח סינון",
     "filterAll": "הכל",
@@ -394,6 +417,13 @@
       "resume": "קורות חיים",
       "linkedin": "LinkedIn",
       "date": "תאריך"
+    },
+    "sort": {
+      "label": "מיון",
+      "nameAsc": "שם (א-ת)",
+      "nameDesc": "שם (ת-א)",
+      "dateDesc": "תאריך (החדש ביותר)",
+      "dateAsc": "תאריך (הישן ביותר)"
     },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",

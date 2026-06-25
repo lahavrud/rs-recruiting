@@ -6,6 +6,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
+import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
+import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -23,6 +25,7 @@ import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
 import {
   deleteApplication,
@@ -51,6 +54,9 @@ const CLOSED_STATUSES = new Set<ApplicationStatus>([
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
+type AppSortColumn = "name" | "created_at" | "status";
+const naturalOrder = (column: AppSortColumn) =>
+  column === "created_at" ? "desc" : "asc";
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -97,13 +103,32 @@ export default function AdminApplicationsPage() {
     }
   }, [id, selectedId, navigate]);
 
+  const { chain, click, replace } = useSortChain<AppSortColumn>([
+    { column: "status", order: "asc" },
+    { column: "created_at", order: "desc" },
+  ]);
+  const handleSort = (column: AppSortColumn) => click(column, naturalOrder(column));
+  const [primary, secondary] = chain;
+  const { column: sort, order } = primary;
+  const sort2 = secondary?.column;
+  const order2 = secondary?.order;
+  const columnState = (column: AppSortColumn) => {
+    const idx = chain.findIndex((key) => key.column === column);
+    if (idx === -1) return { active: false, order: "desc" as const, rank: undefined };
+    return {
+      active: true,
+      order: chain[idx].order,
+      rank: chain.length > 1 ? ((idx + 1) as 1 | 2) : undefined,
+    };
+  };
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
-      const params: ApplicationListParams = { cursor };
+      const params: ApplicationListParams = { cursor, sort, order, sort2, order2 };
       if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
       return getApplications(params);
     },
-    [filter],
+    [filter, sort, order, sort2, order2],
   );
 
   const {
@@ -286,6 +311,22 @@ export default function AdminApplicationsPage() {
     </>
   );
 
+  const sortControl = (
+    <SortControl
+      ariaLabel={t("admin:applications.sort.label")}
+      value={`${sort}:${order}`}
+      onChange={(col, ord) => replace(col as AppSortColumn, ord)}
+      options={[
+        { value: "status:desc", label: t("admin:applications.sort.statusDesc") },
+        { value: "status:asc", label: t("admin:applications.sort.statusAsc") },
+        { value: "created_at:desc", label: t("admin:applications.sort.dateDesc") },
+        { value: "created_at:asc", label: t("admin:applications.sort.dateAsc") },
+        { value: "name:asc", label: t("admin:applications.sort.nameAsc") },
+        { value: "name:desc", label: t("admin:applications.sort.nameDesc") },
+      ]}
+    />
+  );
+
   const searchAndFilters = (
     <>
       <div className="mb-3 flex items-stretch gap-2">
@@ -375,8 +416,9 @@ export default function AdminApplicationsPage() {
           emptyHeadline={t("admin:applications.empty")}
         >
           <>
-            {/* Mobile — same rail rows as the split-pane workspace; tap navigates straight to the record route, matching Candidates */}
+            {/* Mobile */}
             <div className="md:hidden">
+              <div className="mb-3">{sortControl}</div>
               <ApplicationsRailList
                 applications={activeFiltered}
                 selectedId={null}
@@ -396,17 +438,56 @@ export default function AdminApplicationsPage() {
               <table className="min-w-full divide-y divide-white/6 text-sm">
                 <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
                   <tr>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.candidate")}
+                    <th
+                      className="px-4 py-3 text-start"
+                      aria-sort={
+                        columnState("name").active
+                          ? columnState("name").order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
+                      }
+                    >
+                      <SortableColumnHeader
+                        label={t("admin:applications.table.candidate")}
+                        {...columnState("name")}
+                        onClick={() => handleSort("name")}
+                      />
                     </th>
                     <th className="px-4 py-3 text-start">
                       {t("admin:applications.table.job")}
                     </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.status")}
+                    <th
+                      className="px-4 py-3 text-start"
+                      aria-sort={
+                        columnState("status").active
+                          ? columnState("status").order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
+                      }
+                    >
+                      <SortableColumnHeader
+                        label={t("admin:applications.table.status")}
+                        {...columnState("status")}
+                        onClick={() => handleSort("status")}
+                      />
                     </th>
-                    <th className="px-4 py-3 text-start">
-                      {t("admin:applications.table.date")}
+                    <th
+                      className="px-4 py-3 text-start"
+                      aria-sort={
+                        columnState("created_at").active
+                          ? columnState("created_at").order === "asc"
+                            ? "ascending"
+                            : "descending"
+                          : undefined
+                      }
+                    >
+                      <SortableColumnHeader
+                        label={t("admin:applications.table.date")}
+                        {...columnState("created_at")}
+                        onClick={() => handleSort("created_at")}
+                      />
                     </th>
                     <th className="px-4 py-3 text-end" aria-hidden />
                   </tr>
@@ -513,6 +594,8 @@ export default function AdminApplicationsPage() {
           />
 
           {searchAndFilters}
+
+          <div className="mb-3">{sortControl}</div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ListStateSwitch
