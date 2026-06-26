@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import RecordPane from "@/components/admin/RecordPane";
@@ -6,6 +8,9 @@ import { getCompanyProfile } from "@/services/adminCompanies";
 import type { CompanyProfileRead } from "@/types/auth";
 
 import { CompanyDetailBody } from "./CompanyDetailDialog";
+import CompanyJobsPanel from "./CompanyJobsPanel";
+
+type RecordTab = "profile" | "jobs";
 
 interface Props {
   companyId: number | null;
@@ -21,6 +26,7 @@ export default function CompanyRecordPane({
   onDelete,
 }: Props) {
   const { t } = useTranslation(["admin", "common"]);
+  const [tab, setTab] = useState<RecordTab>("profile");
 
   return (
     <RecordPane
@@ -37,6 +43,7 @@ export default function CompanyRecordPane({
     >
       {(profile) => (
         <>
+          {/* ── Header ───────────────────────────────────────── */}
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase tracking-widest text-copper">
@@ -70,9 +77,31 @@ export default function CompanyRecordPane({
               </button>
             </div>
           </div>
-          <div className="border-t border-white/8 pt-4">
-            <CompanyDetailBody profile={profile} />
+
+          {/* ── Tab bar ──────────────────────────────────────── */}
+          <div className="mb-4 flex border-b border-white/8">
+            {(["profile", "jobs"] as RecordTab[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={`px-4 pb-2 text-sm font-medium transition ${
+                  tab === key
+                    ? "border-b-2 border-copper text-copper"
+                    : "text-white/45 hover:text-white/75"
+                }`}
+              >
+                {t(`admin:companies.record.tabs.${key}`)}
+              </button>
+            ))}
           </div>
+
+          {/* ── Tab content ──────────────────────────────────── */}
+          {tab === "profile" ? (
+            <CompanyDetailBody profile={profile} />
+          ) : (
+            <CompanyJobsPanel companyId={profile.id} />
+          )}
         </>
       )}
     </RecordPane>

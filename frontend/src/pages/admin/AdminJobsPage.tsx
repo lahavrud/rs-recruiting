@@ -30,6 +30,7 @@ import {
 import { JobStatus } from "@/types/enums";
 import type { JobRead } from "@/types/jobs";
 
+import ContactJobDialog from "./components/ContactJobDialog";
 import JobCreateDialog from "./components/JobCreateDialog";
 import JobDialog from "./components/JobDialog";
 import JobRecordPane from "./components/JobRecordPane";
@@ -102,6 +103,7 @@ export default function AdminJobsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [deletePending, setDeletePending] = useState<JobRead | null>(null);
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
+  const [contactPending, setContactPending] = useState<JobRead | null>(null);
   const [isPendingMutation, setIsPendingMutation] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
 
@@ -217,9 +219,8 @@ export default function AdminJobsPage() {
     setSalaryRange(null);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  function openMailToCompany(_job: JobRead) {
-    toast.error(t("admin:jobs.emailNoAddress"));
+  function openContactJob(job: JobRead) {
+    setContactPending(job);
   }
 
   const selectedJob = selectedId != null ? jobs.find((j) => j.id === selectedId) : undefined;
@@ -361,6 +362,11 @@ export default function AdminJobsPage() {
 
   const dialogs = (
     <>
+      <ContactJobDialog
+        job={contactPending}
+        companyName={contactPending ? companyNameById.get(contactPending.company_id) : undefined}
+        onClose={() => setContactPending(null)}
+      />
       <JobDialog
         job={detail}
         companyName={detail ? companyNameById.get(detail.company_id) : undefined}
@@ -458,7 +464,7 @@ export default function AdminJobsPage() {
               onApprove={handleApprove}
               onReject={setRejectPending}
               onDelete={setDeletePending}
-              onMailto={openMailToCompany}
+              onMailto={openContactJob}
             />
             <JobsTable
               jobs={filteredJobs}
@@ -472,7 +478,7 @@ export default function AdminJobsPage() {
               onApprove={handleApprove}
               onReject={setRejectPending}
               onDelete={setDeletePending}
-              onMailto={openMailToCompany}
+              onMailto={openContactJob}
             />
             <InfiniteScrollFooter
               sentinelRef={sentinelRef}

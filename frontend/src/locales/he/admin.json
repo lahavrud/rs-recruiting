@@ -12,7 +12,15 @@
       "hideList": "הסתר רשימת חברות",
       "emptyHeadline": "בחר חברה לצפייה",
       "emptyDescription": "בחר חברה מהרשימה כדי לצפות בפרטיה.",
-      "notFound": "החברה לא נמצאה."
+      "notFound": "החברה לא נמצאה.",
+      "tabs": {
+        "profile": "פרופיל",
+        "jobs": "משרות"
+      },
+      "jobsTab": {
+        "empty": "לחברה זו אין משרות.",
+        "loadError": "טעינת המשרות נכשלה."
+      }
     },
     "empty": "אין חברות ממתינות לאישור.",
     "contactLabel": "איש קשר",
@@ -184,6 +192,15 @@
     "email": "שלח דוא״ל",
     "emailSubjectPrefix": "RS Recruiting — בנוגע למשרה: {{title}}",
     "emailNoAddress": "אין כתובת דוא״ל זמינה עבור החברה.",
+    "contactDialog": {
+      "title": "יצירת קשר עם החברה",
+      "noteLabel": "הערה לחברה (אופציונלי)",
+      "notePlaceholder": "הוסף הקשר או פרטים נוספים לחברה…",
+      "sendButton": "שלח",
+      "sendingButton": "שולח…",
+      "successToast": "ההודעה נשלחה בהצלחה.",
+      "errorToast": "שגיאה בשליחת ההודעה."
+    },
     "candidatesLabel": "מועמדים",
     "candidatesView": "צפה ברשימה",
     "matchesSection": "מועמדים מתאימים",
