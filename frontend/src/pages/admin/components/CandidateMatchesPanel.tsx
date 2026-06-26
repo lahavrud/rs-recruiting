@@ -41,7 +41,7 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
       name: m.job.title,
       meta: m.job.location,
       score: m.score,
-      onClick: () => navigate(`/admin/jobs?job=${m.job.id}`),
+      onClick: () => navigate(`/admin/jobs/${m.job.id}`),
     })) ?? null;
 
   return (
