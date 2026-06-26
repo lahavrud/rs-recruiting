@@ -499,5 +499,38 @@
       "emptyDescription": "בחר מועמד מהרשימה כדי לצפות בפרטיו.",
       "notFound": "המועמד לא נמצא."
     }
+  },
+  "reviewQueue": {
+    "title": "תור סקירה",
+    "subtitle": "פריטים הממתינים להחלטה",
+    "tabs": {
+      "applications": "מועמדויות",
+      "jobs": "משרות",
+      "companies": "חברות"
+    },
+    "empty": {
+      "applications": "אין מועמדויות חדשות הממתינות לסקירה",
+      "jobs": "אין משרות הממתינות לאישור",
+      "companies": "אין חברות הממתינות לאישור"
+    },
+    "keyboard": {
+      "hint": "A לאישור · R לדחייה"
+    },
+    "approved": "אושר",
+    "rejected": "נדחה",
+    "undo": "בטל",
+    "inviteSent": "הזמנה נשלחה",
+    "inviteNotSent": "הזמנה לא נשלחה",
+    "errors": {
+      "approveFailed": "האישור נכשל, נסה שוב",
+      "rejectFailed": "הדחייה נכשלה, נסה שוב",
+      "undoFailed": "הביטול נכשל"
+    },
+    "record": {
+      "showList": "הצג תור",
+      "hideList": "הסתר תור",
+      "emptyHeadline": "בחר פריט לסקירה",
+      "emptyDescription": "לחץ על פריט בתור כדי לצפות בפרטיו."
+    }
   }
 }

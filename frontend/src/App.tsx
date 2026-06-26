@@ -55,6 +55,9 @@ const AdminApplicationsPage = lazyWithRetry(
 const AdminApplicationsTriagePage = lazyWithRetry(
   () => import("@/pages/admin/AdminApplicationsTriagePage"),
 );
+const AdminReviewQueuePage = lazyWithRetry(
+  () => import("@/pages/admin/AdminReviewQueuePage"),
+);
 const AdminCandidatesPage = lazyWithRetry(
   () => import("@/pages/admin/AdminCandidatesPage"),
 );
@@ -231,6 +234,16 @@ export default function App() {
                     <AdminRoute>
                       <RouteErrorBoundary>
                         <AdminApplicationsPage />
+                      </RouteErrorBoundary>
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/review"
+                  element={
+                    <AdminRoute>
+                      <RouteErrorBoundary>
+                        <AdminReviewQueuePage />
                       </RouteErrorBoundary>
                     </AdminRoute>
                   }

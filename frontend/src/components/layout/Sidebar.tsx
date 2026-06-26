@@ -40,12 +40,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return () => ctrl.abort();
   }, [user?.role]);
 
+  const reviewQueueBadge =
+    pendingCompanies != null && pendingJobs != null && newApplications != null
+      ? pendingCompanies + pendingJobs + newApplications
+      : null;
+
   const adminNav: NavItem[] = [
     { labelKey: "nav:dashboard", to: "/dashboard" },
     { labelKey: "nav:companies", to: "/admin/companies", badge: pendingCompanies },
     { labelKey: "nav:jobs", to: "/admin/jobs", badge: pendingJobs },
     { labelKey: "nav:applications", to: "/admin/applications", badge: newApplications },
     { labelKey: "nav:candidates", to: "/admin/candidates" },
+    { labelKey: "nav:reviewQueue", to: "/admin/review", badge: reviewQueueBadge },
   ];
 
   const companyNav: NavItem[] = [

@@ -344,7 +344,10 @@ function isPublicShellPath(pathname: string): boolean {
 // page's scroll container. The bare list views (/admin/candidates,
 // /admin/applications) are regular table pages and scroll with the page.
 function isSplitPaneWorkspacePath(pathname: string): boolean {
-  return /^\/admin\/(candidates|applications|companies|jobs)\/\d+$/.test(pathname);
+  return (
+    /^\/admin\/(candidates|applications|companies|jobs)\/\d+$/.test(pathname) ||
+    pathname === "/admin/review"
+  );
 }
 
 /* ── Shell ───────────────────────────────────────────────────────────────── */

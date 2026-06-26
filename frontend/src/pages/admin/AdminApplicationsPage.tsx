@@ -8,7 +8,6 @@ import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
-import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import PageHeader from "@/components/ui/PageHeader";
@@ -36,7 +35,7 @@ import ApplicationsRailList from "./components/ApplicationsRailList";
 import ApplicationsTable from "./components/ApplicationsTable";
 import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
-import { IconSparkle } from "./components/TriageIcons";
+
 
 
 const CLOSED_STATUSES = new Set<ApplicationStatus>([
@@ -369,12 +368,6 @@ export default function AdminApplicationsPage() {
         <PageHeader
           eyebrow={t("admin:applications.title")}
           subtitle={t("admin:applications.subtitle")}
-          action={
-            <Button onClick={() => navigate("/admin/applications/triage")}>
-              <IconSparkle className="ms-0 me-1.5 size-3.5" />
-              {t("admin:applications.triage.entryButton")}
-            </Button>
-          }
         />
 
         {searchAndFilters}
