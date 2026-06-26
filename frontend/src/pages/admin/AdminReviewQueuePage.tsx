@@ -59,7 +59,7 @@ export default function AdminReviewQueuePage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <h1 data-page-heading className="sr-only">
         {t("admin:reviewQueue.title")}
       </h1>
@@ -95,10 +95,12 @@ export default function AdminReviewQueuePage() {
         })}
       </div>
 
-      {/* Queue content — fills remaining height via flex-1 in AppShell's main */}
-      {tab === "applications" && <ApplicationsQueue />}
-      {tab === "jobs" && <JobsQueue />}
-      {tab === "companies" && <CompaniesQueue />}
+      {/* Queue content — flex-1 min-h-0 so SplitPaneLayout inside can fill */}
+      <div className="flex min-h-0 flex-1">
+        {tab === "applications" && <ApplicationsQueue />}
+        {tab === "jobs" && <JobsQueue />}
+        {tab === "companies" && <CompaniesQueue />}
+      </div>
     </div>
   );
 }

@@ -393,7 +393,6 @@ export default function AdminApplicationsPage() {
               statusLabels={STATUS_LABELS}
               columnState={columnState}
               onSort={handleSort}
-              onUpdateStatus={setStatusModal}
               onEditNotes={setNotesModal}
               onDelete={setDeleteCandidate}
             />
@@ -409,7 +408,6 @@ export default function AdminApplicationsPage() {
               statusLabels={STATUS_LABELS}
               statusColors={APPLICATION_STATUS_COLORS}
               onView={(app) => navigate(`/admin/applications/${app.id}`)}
-              onUpdateStatus={setStatusModal}
               onEditNotes={setNotesModal}
               onDelete={setDeleteCandidate}
             />

@@ -134,54 +134,76 @@ export default function CompaniesQueue() {
     }
   }
 
-  const rail = (
-    <ListStateSwitch
-      isLoading={isLoading}
-      loading={<MobileListSkeleton rows={5} />}
-      error={error}
-      onRetry={reload}
-      errorMessage={t("admin:companies.active.loadError")}
-      isEmpty={items.length === 0}
-      hasQuery={false}
-      emptyEyebrow={t("admin:reviewQueue.tabs.companies")}
-      emptyHeadline={t("admin:reviewQueue.empty.companies")}
-    >
-      <div className="space-y-1.5">
-        {items.map((item) => (
-          <CompanyQueueItem
-            key={item.company_profile.id}
-            item={item}
-            isSelected={item.company_profile.id === selectedId}
-            onSelect={() => setSelectedId(item.company_profile.id)}
-            onApprove={() =>
-              void handleApprove(item.company_profile.id, item.user.id)
-            }
-            onReject={() =>
-              void handleReject(item.company_profile.id, item.user.id)
-            }
-            isActing={actingId === item.company_profile.id}
-          />
-        ))}
-        <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
-      </div>
-    </ListStateSwitch>
+  const queueList = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <ListStateSwitch
+        isLoading={isLoading}
+        loading={<MobileListSkeleton rows={5} />}
+        error={error}
+        onRetry={reload}
+        errorMessage={t("admin:companies.active.loadError")}
+        isEmpty={items.length === 0}
+        hasQuery={false}
+        emptyEyebrow={t("admin:reviewQueue.tabs.companies")}
+        emptyHeadline={t("admin:reviewQueue.empty.companies")}
+      >
+        <div className="space-y-1.5">
+          {items.map((item) => (
+            <CompanyQueueItem
+              key={item.company_profile.id}
+              item={item}
+              isSelected={item.company_profile.id === selectedId}
+              onSelect={() => setSelectedId(item.company_profile.id)}
+              onApprove={() =>
+                void handleApprove(item.company_profile.id, item.user.id)
+              }
+              onReject={() =>
+                void handleReject(item.company_profile.id, item.user.id)
+              }
+              isActing={actingId === item.company_profile.id}
+            />
+          ))}
+          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+        </div>
+      </ListStateSwitch>
+    </div>
+  );
+
+  const recordPane = (
+    <CompanyRecordPane
+      companyId={selectedId}
+      company={selectedItem?.company_profile}
+      onEdit={(profile) => navigate(`/admin/companies/${profile.id}`)}
+      onDelete={(profile) => navigate(`/admin/companies/${profile.id}`)}
+    />
   );
 
   return (
-    <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
-      showListLabel={t("admin:reviewQueue.record.showList")}
-      hideListLabel={t("admin:reviewQueue.record.hideList")}
-      rail={rail}
-      record={
-        <CompanyRecordPane
-          companyId={selectedId}
-          company={selectedItem?.company_profile}
-          onEdit={(profile) => navigate(`/admin/companies/${profile.id}`)}
-          onDelete={(profile) => navigate(`/admin/companies/${profile.id}`)}
+    <>
+      {selectedId == null ? (
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">{queueList}</div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">
+          <button
+            type="button"
+            onClick={() => setSelectedId(null)}
+            className="mb-3 text-start text-sm text-copper"
+          >
+            {t("admin:reviewQueue.record.showList")}
+          </button>
+          <div className="min-h-0 flex-1 overflow-y-auto">{recordPane}</div>
+        </div>
+      )}
+      <div className="hidden min-h-0 flex-1 md:flex">
+        <SplitPaneLayout
+          collapsed={railCollapsed}
+          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          showListLabel={t("admin:reviewQueue.record.showList")}
+          hideListLabel={t("admin:reviewQueue.record.hideList")}
+          rail={queueList}
+          record={recordPane}
         />
-      }
-    />
+      </div>
+    </>
   );
 }

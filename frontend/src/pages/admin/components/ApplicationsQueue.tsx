@@ -160,8 +160,8 @@ export default function ApplicationsQueue() {
     return () => document.removeEventListener("keydown", onKey);
   }, [decide]);
 
-  const rail = (
-    <>
+  const queueList = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {pendingUndo && (
         <div className="mb-2 flex items-center justify-between rounded-md border border-copper/20 bg-copper/10 px-3 py-2">
           <span className="text-sm text-white/70">{pendingUndo.label}</span>
@@ -198,33 +198,55 @@ export default function ApplicationsQueue() {
           <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
         </div>
       </ListStateSwitch>
-    </>
+    </div>
+  );
+
+  const recordPane = (
+    <ApplicationRecordPane
+      applicationId={selectedId}
+      application={selectedItem}
+      onUpdated={(patch) => {
+        if (patch.status != null && patch.status !== ApplicationStatus.NEW) {
+          const idx = items.findIndex((a) => a.id === patch.id);
+          const next = items[idx + 1] ?? items[idx - 1] ?? null;
+          removeItem((a) => a.id === patch.id);
+          setSelectedId(next?.id ?? null);
+        }
+      }}
+    />
   );
 
   return (
-    <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
-      showListLabel={t("admin:reviewQueue.record.showList")}
-      hideListLabel={t("admin:reviewQueue.record.hideList")}
-      rail={rail}
-      record={
-        <ApplicationRecordPane
-          applicationId={selectedId}
-          application={selectedItem}
-          onUpdated={(patch) => {
-            if (
-              patch.status != null &&
-              patch.status !== ApplicationStatus.NEW
-            ) {
-              const idx = items.findIndex((a) => a.id === patch.id);
-              const next = items[idx + 1] ?? items[idx - 1] ?? null;
-              removeItem((a) => a.id === patch.id);
-              setSelectedId(next?.id ?? null);
-            }
-          }}
+    <>
+      {/* Mobile: list when nothing selected, record pane when item selected */}
+      {selectedId == null ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:hidden">
+          {queueList}
+        </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">
+          <button
+            type="button"
+            onClick={() => setSelectedId(null)}
+            className="mb-3 flex items-center gap-1.5 text-sm text-copper"
+          >
+            <span aria-hidden="true">→</span>
+            {t("admin:reviewQueue.record.showList")}
+          </button>
+          <div className="min-h-0 flex-1 overflow-y-auto">{recordPane}</div>
+        </div>
+      )}
+
+      {/* Desktop: split-pane always */}
+      <div className="hidden min-h-0 flex-1 md:flex">
+        <SplitPaneLayout
+          collapsed={railCollapsed}
+          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          showListLabel={t("admin:reviewQueue.record.showList")}
+          hideListLabel={t("admin:reviewQueue.record.hideList")}
+          rail={queueList}
+          record={recordPane}
         />
-      }
-    />
+      </div>
   );
 }

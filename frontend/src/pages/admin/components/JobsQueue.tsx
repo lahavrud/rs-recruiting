@@ -92,50 +92,72 @@ export default function JobsQueue() {
     }
   }
 
-  const rail = (
-    <ListStateSwitch
-      isLoading={isLoading}
-      loading={<MobileListSkeleton rows={5} />}
-      error={error}
-      onRetry={reload}
-      errorMessage={t("admin:jobs.loadError")}
-      isEmpty={items.length === 0}
-      hasQuery={false}
-      emptyEyebrow={t("admin:reviewQueue.tabs.jobs")}
-      emptyHeadline={t("admin:reviewQueue.empty.jobs")}
-    >
-      <div className="space-y-1.5">
-        {items.map((job) => (
-          <JobQueueItem
-            key={job.id}
-            job={job}
-            isSelected={job.id === selectedId}
-            onSelect={() => setSelectedId(job.id)}
-          />
-        ))}
-        <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
-      </div>
-    </ListStateSwitch>
+  const queueList = (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <ListStateSwitch
+        isLoading={isLoading}
+        loading={<MobileListSkeleton rows={5} />}
+        error={error}
+        onRetry={reload}
+        errorMessage={t("admin:jobs.loadError")}
+        isEmpty={items.length === 0}
+        hasQuery={false}
+        emptyEyebrow={t("admin:reviewQueue.tabs.jobs")}
+        emptyHeadline={t("admin:reviewQueue.empty.jobs")}
+      >
+        <div className="space-y-1.5">
+          {items.map((job) => (
+            <JobQueueItem
+              key={job.id}
+              job={job}
+              isSelected={job.id === selectedId}
+              onSelect={() => setSelectedId(job.id)}
+            />
+          ))}
+          <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
+        </div>
+      </ListStateSwitch>
+    </div>
+  );
+
+  const recordPane = (
+    <JobRecordPane
+      jobId={selectedId}
+      job={selectedItem}
+      companyNameById={companyNameById}
+      onApprove={(job) => void handleApprove(job)}
+      onReject={(job) => void handleReject(job)}
+      onEdit={(job) => navigate(`/admin/jobs/${job.id}`)}
+      onDelete={(job) => navigate(`/admin/jobs/${job.id}`)}
+    />
   );
 
   return (
-    <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
-      showListLabel={t("admin:reviewQueue.record.showList")}
-      hideListLabel={t("admin:reviewQueue.record.hideList")}
-      rail={rail}
-      record={
-        <JobRecordPane
-          jobId={selectedId}
-          job={selectedItem}
-          companyNameById={companyNameById}
-          onApprove={(job) => void handleApprove(job)}
-          onReject={(job) => void handleReject(job)}
-          onEdit={(job) => navigate(`/admin/jobs/${job.id}`)}
-          onDelete={(job) => navigate(`/admin/jobs/${job.id}`)}
+    <>
+      {selectedId == null ? (
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">{queueList}</div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col md:hidden">
+          <button
+            type="button"
+            onClick={() => setSelectedId(null)}
+            className="mb-3 text-start text-sm text-copper"
+          >
+            {t("admin:reviewQueue.record.showList")}
+          </button>
+          <div className="min-h-0 flex-1 overflow-y-auto">{recordPane}</div>
+        </div>
+      )}
+      <div className="hidden min-h-0 flex-1 md:flex">
+        <SplitPaneLayout
+          collapsed={railCollapsed}
+          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          showListLabel={t("admin:reviewQueue.record.showList")}
+          hideListLabel={t("admin:reviewQueue.record.hideList")}
+          rail={queueList}
+          record={recordPane}
         />
-      }
-    />
+      </div>
+    </>
   );
 }
