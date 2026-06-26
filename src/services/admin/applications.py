@@ -17,7 +17,7 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.enums import ApplicationStatus
-from src.models import Application, CandidateProfile
+from src.models import Application, CandidateProfile, Job
 from src.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
 from src.services.exceptions import (
     ApplicationNotEditableError,
@@ -83,7 +83,7 @@ async def list_applications(
         sort2 = None
     page_size = clamp_limit(limit)
     base = select(Application).options(
-        selectinload(Application.job),  # pyright: ignore[reportArgumentType]
+        selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
         selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
     )
     if status is not None:
@@ -141,7 +141,7 @@ async def get_application(
         application_id,
         lambda pk: ApplicationNotFoundError(f"Application with ID {pk} not found"),
         options=[
-            selectinload(Application.job),  # pyright: ignore[reportArgumentType]
+            selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
             selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
         ],
     )
