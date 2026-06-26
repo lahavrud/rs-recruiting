@@ -42,7 +42,17 @@ function AppQueueItem({
       }`}
       aria-pressed={isSelected}
     >
-      <p className="truncate font-medium text-white/90">{app.candidate.full_name}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="truncate font-medium text-white/90">{app.candidate.full_name}</p>
+        {app.pushed_by_admin_id != null && (
+          <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
+            {t("admin:applications.pushedByAdmin")}
+          </span>
+        )}
+      </div>
+      {app.candidate.resume_summary && (
+        <p className="mt-0.5 truncate text-xs text-white/45">{app.candidate.resume_summary}</p>
+      )}
       <p className="mt-0.5 truncate text-xs text-white/50">
         {app.job.title} · {app.job.company_name}
       </p>
@@ -60,7 +70,6 @@ export default function ApplicationsQueue() {
   const { t } = useTranslation(["admin", "common"]);
   const toast = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
   const [pendingUndo, setPendingUndo] = useState<PendingUndo | null>(null);
 
   const fetcher = useCallback(
@@ -240,8 +249,7 @@ export default function ApplicationsQueue() {
       {/* Desktop: split-pane always */}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
         <SplitPaneLayout
-          collapsed={railCollapsed}
-          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          recordPresent={selectedId != null}
           showListLabel={t("admin:reviewQueue.record.showList")}
           hideListLabel={t("admin:reviewQueue.record.hideList")}
           rail={queueList}

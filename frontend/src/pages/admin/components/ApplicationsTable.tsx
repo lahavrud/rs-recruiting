@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import ScoreBadge from "@/components/admin/ScoreBadge";
 import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import DropdownMenu, {
   DropdownMenuItem,
@@ -24,6 +25,7 @@ interface ApplicationsTableProps {
   statusLabels: Record<string, string>;
   columnState: (column: "name" | "created_at" | "status") => ColumnState;
   onSort: (column: "name" | "created_at" | "status") => void;
+  showScore?: boolean;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
 }
@@ -33,6 +35,7 @@ export default function ApplicationsTable({
   statusLabels,
   columnState,
   onSort,
+  showScore = false,
   onEditNotes,
   onDelete,
 }: ApplicationsTableProps) {
@@ -83,7 +86,17 @@ export default function ApplicationsTable({
               className="cursor-pointer transition hover:bg-white/3"
             >
               <td className="px-4 py-3">
-                <p className="font-medium text-white/85">{app.candidate.full_name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-white/85">{app.candidate.full_name}</p>
+                  {showScore && app.ai_score != null && (
+                    <ScoreBadge score={app.ai_score} />
+                  )}
+                  {app.pushed_by_admin_id != null && (
+                    <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
+                      {t("applications.pushedByAdmin")}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-white/40">{app.candidate.email}</p>
               </td>
               <td className="px-4 py-3">

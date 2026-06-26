@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import RailRow from "@/components/admin/RailRow";
+import ScoreBadge from "@/components/admin/ScoreBadge";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -14,6 +15,7 @@ import { formatDate } from "@/utils/formatDate";
 interface CandidatesRailListProps {
   candidates: CandidateProfileRead[];
   selectedId?: number | null;
+  showScore?: boolean;
   onView: (c: CandidateProfileRead) => void;
   onDelete: (c: CandidateProfileRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
@@ -24,6 +26,7 @@ interface CandidatesRailListProps {
 export default function CandidatesRailList({
   candidates,
   selectedId,
+  showScore = false,
   onView,
   onDelete,
   sentinelRef,
@@ -69,8 +72,16 @@ export default function CandidatesRailList({
             }
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-white/85">{c.full_name}</p>
-              <p className="truncate text-xs text-white/40">{c.email}</p>
+              <div className="flex items-center gap-2">
+                <p className="truncate font-medium text-white/85">{c.full_name}</p>
+                {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
+              </div>
+              {c.resume_summary ? (
+                <p className="truncate text-xs text-white/45">{c.resume_summary}</p>
+              ) : (
+                <p className="truncate text-xs text-white/40">{c.email}</p>
+              )}
+
             </div>
             <span className="shrink-0 text-[11px] text-white/40">
               {formatDate(c.created_at)}

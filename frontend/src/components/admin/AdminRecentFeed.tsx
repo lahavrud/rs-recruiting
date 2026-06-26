@@ -6,10 +6,10 @@ import { Link } from "react-router-dom";
 import { getAdminOverview, type RecentItem } from "@/services/adminOverview";
 import { formatTimeAgo } from "@/utils/formatDate";
 
-const REVIEW_URL: Record<RecentItem["type"], string> = {
-  company: "/admin/review?tab=companies",
-  job: "/admin/review?tab=jobs",
-  application: "/admin/review",
+const RECENT_URL: Record<RecentItem["type"], string> = {
+  company: "/admin/companies?view=pending",
+  job: "/admin/jobs?status=PENDING_APPROVAL",
+  application: "/admin/applications?status=NEW",
 };
 
 export default function AdminRecentFeed() {
@@ -28,16 +28,10 @@ export default function AdminRecentFeed() {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
           {t("dashboard:recent.title")}
         </p>
-        <Link
-          to="/admin/review"
-          className="text-xs font-medium text-white/35 transition hover:text-white/60"
-        >
-          {t("dashboard:recent.reviewCta")}
-        </Link>
       </div>
 
       <div className="rounded-xl border border-white/8 bg-card">
@@ -63,7 +57,7 @@ export default function AdminRecentFeed() {
                 className={i < items.length - 1 ? "border-b border-white/6" : ""}
               >
                 <Link
-                  to={REVIEW_URL[item.type]}
+                  to={RECENT_URL[item.type]}
                   className="group flex items-center gap-3 px-4 py-3 transition hover:bg-card-raised"
                 >
                   <TypeIcon type={item.type} />

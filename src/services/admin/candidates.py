@@ -6,6 +6,7 @@ from typing import Literal
 
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
@@ -33,19 +34,28 @@ CANDIDATE_RETENTION_DAYS = 365  # 12 months per privacy policy
 _logger = logging.getLogger(__name__)
 
 
+_SCORE_SORT_LIMIT = 200
+
+
 async def list_candidates(
     session: AsyncSession,
     *,
     cursor: str | None = None,
     limit: int | None = None,
     q: str | None = None,
-    sort: Literal["name", "created_at"] = "created_at",
+    sort: Literal["name", "created_at", "score"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
+    job_id: int | None = None,
 ) -> CursorPage[CandidateProfileRead]:
     """Return one page of candidate profiles, sorted by `sort`/`order`.
 
     `q`, when given, case-insensitively substring-matches name/email/phone.
+    `sort="score"` requires `job_id` — ranks candidates by cosine similarity
+    to the specified job's embedding; returns a single non-paginated page.
     """
+    if sort == "score":
+        return await _list_candidates_by_score(session, q=q, job_id=job_id)
+
     page_size = clamp_limit(limit)
     base = select(CandidateProfile)
     if q and q.strip():
@@ -77,6 +87,48 @@ async def list_candidates(
         limit=page_size,
         sort_key=sort,
     )
+
+
+async def _list_candidates_by_score(
+    session: AsyncSession,
+    *,
+    q: str | None = None,
+    job_id: int | None = None,
+) -> CursorPage[CandidateProfileRead]:
+    """Return candidates ranked by cosine similarity to a job, best first.
+
+    Only includes candidates with embeddings. Falls back to recency sort when
+    no `job_id` is given or the job has no embedding.
+    Returns a single non-paginated page (next_cursor=None).
+    """
+    job = await session.get(Job, job_id) if job_id is not None else None
+    if job is None or job.embedding is None:
+        return await list_candidates(session, sort="created_at", order="desc", q=q)
+
+    distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
+    stmt = (
+        select(CandidateProfile, distance_expr.label("dist")).where(
+            CandidateProfile.embedding.is_not(None)
+        )  # pyright: ignore[reportArgumentType]
+    )
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                CandidateProfile.full_name.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.email.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
+            )
+        )
+    stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
+
+    rows = (await session.execute(stmt)).all()
+    items: list[CandidateProfileRead] = []
+    for candidate, dist in rows:
+        schema = CandidateProfileRead.model_validate(candidate)
+        schema.ai_score = cosine_similarity_score(dist)
+        items.append(schema)
+    return CursorPage(items=items, next_cursor=None)
 
 
 async def get_candidate(
@@ -116,6 +168,7 @@ async def get_candidate_job_matches(
     rows = (
         await session.execute(
             select(Job, distance.label("distance"))
+            .options(selectinload(Job.company))
             .where(Job.status == JobStatus.PUBLISHED, Job.embedding.is_not(None))
             .order_by(distance)
             .limit(settings.embedding_top_matches)

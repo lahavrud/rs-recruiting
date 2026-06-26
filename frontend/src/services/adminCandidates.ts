@@ -10,8 +10,9 @@ export interface CandidateListParams {
 
 export interface CandidateSearchParams extends CandidateListParams {
   q?: string;
-  sort?: "name" | "created_at";
+  sort?: "name" | "created_at" | "score";
   order?: "asc" | "desc";
+  job_id?: number | null;
 }
 
 export async function getCandidates(
@@ -24,6 +25,7 @@ export async function getCandidates(
   if (params?.q) query.q = params.q;
   if (params?.sort) query.sort = params.sort;
   if (params?.order) query.order = params.order;
+  if (params?.job_id != null) query.job_id = params.job_id;
   const res = await api.get<CursorPage<CandidateProfileRead>>("/api/admin/candidates", {
     params: query,
     signal,

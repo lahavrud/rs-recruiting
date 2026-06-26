@@ -580,6 +580,78 @@ html {
   }
 }
 
+/* ── AI sort button ─────────────────────────────────────────────────────────── */
+
+/* Breathing glow while AI sort mode is active */
+@keyframes ai-sort-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 0 0 1px color-mix(in srgb, var(--color-copper) 40%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 14px 0 color-mix(in srgb, var(--color-copper) 14%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-copper) 65%, transparent);
+  }
+}
+
+/* Diagonal shimmer that sweeps across on hover */
+.ai-sort-btn {
+  position: relative;
+  overflow: hidden;
+}
+.ai-sort-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    108deg,
+    transparent 28%,
+    color-mix(in srgb, var(--color-copper) 16%, transparent) 42%,
+    color-mix(in srgb, var(--color-gold) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-copper) 12%, transparent) 58%,
+    transparent 72%
+  );
+  transform: translateX(-140%);
+  transition: none;
+  pointer-events: none;
+  z-index: 1;
+}
+.ai-sort-btn:not(.ai-sort-btn--active):hover::before {
+  transform: translateX(200%);
+  transition: transform 0.65s ease;
+}
+.ai-sort-btn--active {
+  animation: ai-sort-glow 2.8s ease-in-out infinite;
+}
+
+/* Dropdown reveal when AI mode activates */
+@keyframes ai-dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Slow scan rotation on the sparkle icon when active */
+@keyframes ai-sparkle-scan {
+  0%   { transform: rotate(0deg);   opacity: 1; }
+  45%  { transform: rotate(160deg); opacity: 0.6; }
+  50%  { transform: rotate(180deg); opacity: 0.5; }
+  55%  { transform: rotate(200deg); opacity: 0.6; }
+  100% { transform: rotate(360deg); opacity: 1; }
+}
+
+.ai-sparkle-active {
+  animation: ai-sparkle-scan 3s linear infinite;
+  transform-origin: center;
+}
+
 /* Brass hairline — the 1px lit edge of a slab. */
 .brass-hairline {
   background: linear-gradient(

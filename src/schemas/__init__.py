@@ -42,7 +42,9 @@ from src.schemas.candidates import (
     CandidateMeUpdate,
     CandidateProfileCreate,
     CandidateProfileRead,
+    GlobalMatchRead,
     JobCandidateMatchRead,
+    MatchSuggestionActionRequest,
 )
 from src.schemas.companies import (
     ActiveCompanyRead,
@@ -132,6 +134,8 @@ __all__ = [
     "CandidateApplicationMyAnswers",
     "CandidateApplicationResumeMeta",
     "CandidateJobMatchRead",
+    "GlobalMatchRead",
+    "MatchSuggestionActionRequest",
     "CandidateMeRead",
     "CandidateMeUpdate",
     "CandidateProfileCreate",

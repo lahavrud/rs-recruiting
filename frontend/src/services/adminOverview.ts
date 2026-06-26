@@ -31,10 +31,16 @@ export interface RecentItem {
   created_at: string;
 }
 
+export interface TrendPoint {
+  date: string;
+  n: number;
+}
+
 export interface AdminPulse {
   new_candidates_7d: number;
   new_applications_7d: number;
   recent_items: RecentItem[];
+  trend_30d: TrendPoint[];
 }
 
 export interface AdminOverviewRead {

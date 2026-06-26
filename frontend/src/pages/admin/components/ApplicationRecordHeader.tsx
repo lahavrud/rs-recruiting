@@ -90,7 +90,14 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
 
   return (
     <div className="space-y-6">
-      <Eyebrow>{t("admin:applications.record.eyebrow")}</Eyebrow>
+      <div className="flex flex-wrap items-center gap-3">
+        <Eyebrow>{t("admin:applications.record.eyebrow")}</Eyebrow>
+        {app.pushed_by_admin_id != null && (
+          <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
+            {t("admin:applications.pushedByAdmin")}
+          </span>
+        )}
+      </div>
 
       <div className="relative grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-x-3">
         {/* Connector — a line threading the two cards together, broken by a centered badge. */}
@@ -200,7 +207,7 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
             <p className="font-medium text-warning/85">{t("admin:applications.revertConfirm")}</p>
           </div>
         )}
-        {isNewRejection && (
+        {isNewRejection && app.pushed_by_admin_id == null && (
           <p className="mt-3 rounded-sm bg-info/5 px-2 py-1 text-[11px] leading-relaxed text-info/55">
             {t("admin:applications.record.notifyRejectionHint")}
           </p>

@@ -309,7 +309,8 @@
       "dateDesc": "תאריך (החדש ביותר)",
       "dateAsc": "תאריך (הישן ביותר)",
       "statusDesc": "סטטוס (דורש טיפול קודם, חדש→ישן)",
-      "statusAsc": "סטטוס (דורש טיפול קודם, ישן→חדש)"
+      "statusAsc": "סטטוס (דורש טיפול קודם, ישן→חדש)",
+      "aiScore": "דירוג AI"
     },
     "filters": "סינון",
     "openFilters": "פתח סינון",
@@ -358,6 +359,7 @@
     "editNotesAction": "עריכת הערות",
     "deleteAction": "מחיקה",
     "rowActionsLabel": "פעולות נוספות",
+    "pushedByAdmin": "הוגש ע״י מנהל",
     "revertConfirm": "לשחזר מועמדות מסטטוס סופי?",
     "savedToast": "הסטטוס עודכן",
     "notesSavedToast": "ההערות עודכנו",
@@ -367,7 +369,8 @@
     "activityEmpty": "לא נמצאה פעילות עבור מועמדות זו.",
     "activity": {
       "actions": {
-        "submitted": "הוגשה מועמדות"
+        "submitted": "הוגשה מועמדות",
+        "pushedByAdmin": "הוגשה על ידי מנהל"
       }
     },
     "errors": {
@@ -458,7 +461,10 @@
       "nameAsc": "שם (א-ת)",
       "nameDesc": "שם (ת-א)",
       "dateDesc": "תאריך (החדש ביותר)",
-      "dateAsc": "תאריך (הישן ביותר)"
+      "dateAsc": "תאריך (הישן ביותר)",
+      "aiScore": "דירוג AI",
+      "selectJob": "בחר משרה לדירוג...",
+      "searchJob": "חפש משרה..."
     },
     "rowActionsLabel": "פעולות נוספות",
     "viewAction": "פרטים מלאים",

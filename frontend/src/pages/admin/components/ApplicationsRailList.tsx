@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import RailRow from "@/components/admin/RailRow";
+import ScoreBadge from "@/components/admin/ScoreBadge";
 import DropdownMenu, {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -17,6 +18,7 @@ interface ApplicationsRailListProps {
   selectedId?: number | null;
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
+  showScore?: boolean;
   onView: (app: ApplicationWithDetails) => void;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
@@ -30,6 +32,7 @@ export default function ApplicationsRailList({
   selectedId,
   statusLabels,
   statusColors,
+  showScore = false,
   onView,
   onEditNotes,
   onDelete,
@@ -67,9 +70,19 @@ export default function ApplicationsRailList({
             }
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate font-medium text-white/85">
-                {app.candidate.full_name}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-medium text-white/85">
+                  {app.candidate.full_name}
+                </p>
+                {showScore && app.ai_score != null && (
+                  <ScoreBadge score={app.ai_score} />
+                )}
+                {app.pushed_by_admin_id != null && (
+                  <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
+                    {t("admin:applications.pushedByAdmin")}
+                  </span>
+                )}
+              </div>
               <p className="truncate text-xs text-white/40">{app.job.title}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">

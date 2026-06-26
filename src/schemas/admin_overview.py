@@ -34,10 +34,16 @@ class AdminStatsCounts(BaseModel):
     top_jobs: list[TopJobEntry]
 
 
+class TrendPoint(BaseModel):
+    date: str  # ISO 8601 date (YYYY-MM-DD)
+    n: int
+
+
 class AdminPulse(BaseModel):
     new_candidates_7d: int
     new_applications_7d: int
     recent_items: list[RecentItem]
+    trend_30d: list[TrendPoint]
 
 
 class AdminOverviewRead(BaseModel):

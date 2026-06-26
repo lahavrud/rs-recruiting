@@ -16,8 +16,8 @@ import NoResults from "@/components/ui/NoResults";
 import PageHeader from "@/components/ui/PageHeader";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { JOB_STATUS_COLORS } from "@/constants/statusColors";
-import { useColumnSort } from "@/hooks/useColumnSort";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useSortChain } from "@/hooks/useSortChain";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
@@ -47,6 +47,8 @@ const ALL_STATUSES = [
 
 const ALL_FILTER = "ALL";
 type FilterValue = string;
+type JobSortColumn = "name" | "created_at" | "status";
+const naturalOrder = (column: JobSortColumn) => (column === "created_at" ? "desc" : "asc") as const;
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
@@ -67,22 +69,32 @@ export default function AdminJobsPage() {
     return ALL_FILTER;
   });
 
-  const { sort, order, toggle } = useColumnSort<"name" | "created_at" | "status">({
-    column: "status",
-    order: "asc",
-  });
-  const handleSort = (column: "name" | "created_at" | "status") =>
-    toggle(column, column === "name" ? "asc" : column === "status" ? "asc" : "desc");
+  const { chain, click, replace } = useSortChain<JobSortColumn>([
+    { column: "status", order: "asc" },
+    { column: "created_at", order: "desc" },
+  ]);
+  const handleSort = (column: JobSortColumn) => click(column, naturalOrder(column));
+  const [primary, secondary] = chain;
+  const { column: sort, order } = primary;
+  const sort2 = secondary?.column;
+  const order2 = secondary?.order;
+  const columnState = (column: JobSortColumn) => {
+    const idx = chain.findIndex((key) => key.column === column);
+    if (idx === -1) return { active: false, order: "desc" as const, rank: undefined };
+    return {
+      active: true,
+      order: chain[idx].order,
+      rank: chain.length > 1 ? ((idx + 1) as 1 | 2) : undefined,
+    };
+  };
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<JobRead>> => {
       const params: { status?: JobStatus; cursor: string | null } = { cursor };
       if (filter !== ALL_FILTER) params.status = filter as JobStatus;
-      const sort2 = sort === "status" ? "created_at" : undefined;
-      const order2 = sort === "status" ? "desc" : undefined;
       return getJobs({ ...params, sort, order, sort2, order2 });
     },
-    [filter, sort, order],
+    [filter, sort, order, sort2, order2],
   );
 
   const {
@@ -107,7 +119,6 @@ export default function AdminJobsPage() {
   const [rejectPending, setRejectPending] = useState<JobRead | null>(null);
   const [contactPending, setContactPending] = useState<JobRead | null>(null);
   const [isPendingMutation, setIsPendingMutation] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Client-side filters (applied to the loaded set).
   // Status is the only filter that re-fetches server-side (see fetcher above);
@@ -294,7 +305,7 @@ export default function AdminJobsPage() {
     <SortControl
       ariaLabel={t("admin:jobs.sort.label")}
       value={`${sort}:${order}`}
-      onChange={(col, ord) => toggle(col as "name" | "created_at" | "status", ord)}
+      onChange={(col, ord) => replace(col as JobSortColumn, ord)}
       options={[
         { value: "status:asc", label: t("admin:jobs.sort.statusAsc") },
         { value: "status:desc", label: t("admin:jobs.sort.statusDesc") },
@@ -472,8 +483,7 @@ export default function AdminJobsPage() {
             />
             <JobsTable
               jobs={filteredJobs}
-              sort={sort}
-              order={order}
+              columnState={columnState}
               onSort={handleSort}
               statusLabels={STATUS_LABELS}
               statusColors={JOB_STATUS_COLORS}
@@ -497,8 +507,7 @@ export default function AdminJobsPage() {
 
   return (
     <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      recordPresent={selectedId != null}
       showListLabel={t("admin:jobs.record.showList")}
       hideListLabel={t("admin:jobs.record.hideList")}
       rail={

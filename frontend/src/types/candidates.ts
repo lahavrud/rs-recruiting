@@ -8,8 +8,10 @@ export interface CandidateProfileRead {
   email: string;
   phone: string;
   resume_path: string | null;
+  resume_summary: string | null;
   linkedin_url: string | null;
   created_at: string;
+  ai_score: number | null;
 }
 
 /**
@@ -40,6 +42,7 @@ export interface ApplicationRead {
   salary_expectations: string | null;
   strength: string | null;
   growth_area: string | null;
+  pushed_by_admin_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -54,10 +57,12 @@ export interface ApplicationWithDetails {
   salary_expectations: string | null;
   strength: string | null;
   growth_area: string | null;
+  pushed_by_admin_id: number | null;
   created_at: string;
   updated_at: string;
   job: JobRead;
   candidate: CandidateProfileRead;
+  ai_score: number | null;
 }
 
 export interface ApplicationStatusUpdate {

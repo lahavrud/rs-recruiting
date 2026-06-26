@@ -252,3 +252,21 @@ gen-context.config.json
 .context/
 .github/context-*.md
 .github/copilot-instructions.md
+
+# Design sync — staged scripts, build output, machine state
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+frontend/src/design-sync-provider.tsx
+frontend/src/index.ts
+
+# sigmap cache
+.sigmap-cache.json
+
+# Mockup scratch files (not shipped)
+frontend/src/pages/admin/mockups/
+
+# Real resume fixtures (PII)
+scripts/fixtures/resumes-real/

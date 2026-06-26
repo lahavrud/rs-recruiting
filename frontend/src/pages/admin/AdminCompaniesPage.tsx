@@ -46,8 +46,6 @@ export default function AdminCompaniesPage() {
   const [isInviting, setIsInviting] = useState(() => {
     return new URLSearchParams(window.location.search).get("action") === "invite";
   });
-  const [railCollapsed, setRailCollapsed] = useState(false);
-
   // Record-pane–triggered edit/delete (list-row actions stay in CompanyActiveTab).
   const [editing, setEditing] = useState<CompanyProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<CompanyProfileRead | null>(null);
@@ -267,8 +265,7 @@ export default function AdminCompaniesPage() {
 
   return (
     <SplitPaneLayout
-      collapsed={railCollapsed}
-      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      recordPresent={selectedId != null}
       showListLabel={t("admin:companies.record.showList")}
       hideListLabel={t("admin:companies.record.hideList")}
       rail={

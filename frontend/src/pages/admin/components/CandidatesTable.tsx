@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import ScoreBadge from "@/components/admin/ScoreBadge";
 import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import DropdownMenu, {
   DropdownMenuItem,
@@ -17,6 +18,7 @@ interface CandidatesTableProps {
   candidates: CandidateProfileRead[];
   sort: "name" | "created_at";
   order: SortOrder;
+  showScore?: boolean;
   onSort: (column: "name" | "created_at") => void;
   onView: (c: CandidateProfileRead) => void;
   onDelete: (c: CandidateProfileRead) => void;
@@ -28,6 +30,7 @@ export default function CandidatesTable({
   candidates,
   sort,
   order,
+  showScore = false,
   onSort,
   onView,
   onDelete,
@@ -92,7 +95,10 @@ export default function CandidatesTable({
                 className="cursor-pointer transition-[background-color] hover:bg-white/3"
               >
                 <td className="px-4 py-3">
-                  <p className="font-medium text-white/85">{c.full_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-white/85">{c.full_name}</p>
+                    {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
+                  </div>
                   <p className="text-xs text-white/40">{c.email}</p>
                 </td>
                 <td className="px-4 py-3 text-white/60">

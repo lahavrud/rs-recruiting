@@ -37,3 +37,10 @@ export const InviteTokenStatus = {
 } as const;
 export type InviteTokenStatus =
   (typeof InviteTokenStatus)[keyof typeof InviteTokenStatus];
+
+export const MatchSuggestionStatus = {
+  DISMISSED: "DISMISSED",
+  PUSHED: "PUSHED",
+} as const;
+export type MatchSuggestionStatus =
+  (typeof MatchSuggestionStatus)[keyof typeof MatchSuggestionStatus];

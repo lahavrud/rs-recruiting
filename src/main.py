@@ -33,6 +33,9 @@ from src.api.admin import (
     jobs as admin_jobs,
 )
 from src.api.admin import (
+    matches as admin_matches,
+)
+from src.api.admin import (
     overview as admin_overview,
 )
 from src.api.auth import (
@@ -187,6 +190,7 @@ app.include_router(admin_companies.router)
 app.include_router(admin_invites.router)
 app.include_router(admin_jobs.router)
 app.include_router(admin_overview.router)
+app.include_router(admin_matches.router)
 app.include_router(admin_applications.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_candidates.router)

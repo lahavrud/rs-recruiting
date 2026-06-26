@@ -44,7 +44,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.companies.label"),
       hint: t("dashboard:inbox.companies.hint"),
       empty: t("dashboard:inbox.companies.empty"),
-      to: "/admin/review?tab=companies",
+      to: "/admin/companies?view=pending",
       icon: <UserCheckIcon />,
       n: counts?.pending_companies ?? null,
       ageDays: counts?.oldest_pending_company_days ?? null,
@@ -54,7 +54,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.jobs.label"),
       hint: t("dashboard:inbox.jobs.hint"),
       empty: t("dashboard:inbox.jobs.empty"),
-      to: "/admin/review?tab=jobs",
+      to: "/admin/jobs?status=PENDING_APPROVAL",
       icon: <BriefcaseIcon />,
       n: counts?.pending_jobs ?? null,
       ageDays: counts?.oldest_pending_job_days ?? null,
@@ -64,7 +64,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.applications.label"),
       hint: t("dashboard:inbox.applications.hint"),
       empty: t("dashboard:inbox.applications.empty"),
-      to: "/admin/review",
+      to: "/admin/applications?status=NEW",
       icon: <DocumentIcon />,
       n: counts?.new_applications ?? null,
       ageDays: counts?.oldest_new_application_days ?? null,
@@ -128,6 +128,7 @@ function InboxCard({ item }: { item: ItemConfig }) {
         <div className="absolute inset-x-0 top-0 h-0.5 bg-warning/60" />
       )}
 
+      {/* Top row: icon + chevron only — keeps the row from overflowing on narrow cards */}
       <div className="flex items-center justify-between">
         <span
           className={`inline-flex size-8 items-center justify-center rounded-full ${
@@ -140,43 +141,35 @@ function InboxCard({ item }: { item: ItemConfig }) {
         >
           {item.icon}
         </span>
-
-        <div className="flex items-center gap-2">
-          {!isEmpty && item.ageDays != null && (
-            <span
-              className={`text-[10px] font-medium ${
-                isUrgent ? "text-warning/80" : "text-white/35"
-              }`}
-            >
-              {urgencyLabel(t, item.ageDays)}
-            </span>
-          )}
-          <span
-            aria-hidden="true"
-            className={`size-4 transition group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 ${
-              isEmpty ? "text-white/20" : isUrgent ? "text-warning/50" : "text-copper/60"
-            }`}
-          >
-            <ChevronIcon />
-          </span>
-        </div>
+        <span
+          aria-hidden="true"
+          className={`size-4 transition group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 ${
+            isEmpty ? "text-white/20" : isUrgent ? "text-warning/50" : "text-copper/60"
+          }`}
+        >
+          <ChevronIcon />
+        </span>
       </div>
 
       <p
         className={`mt-3 text-3xl font-semibold leading-none ${
-          isLoading
-            ? "text-white/25"
-            : isEmpty
-              ? "text-white/45"
-              : isUrgent
-                ? "text-white/95"
-                : "text-white/95"
+          isLoading ? "text-white/25" : isEmpty ? "text-white/45" : "text-white/95"
         }`}
       >
         {display}
       </p>
       <p className="mt-2 text-sm font-medium text-white/80">{item.label}</p>
       <p className="mt-1 text-xs text-white/40">{isEmpty ? item.empty : item.hint}</p>
+      {/* Urgency age on its own line — avoids cramming into the header row */}
+      {!isEmpty && !isLoading && item.ageDays != null && (
+        <p
+          className={`mt-1.5 text-[10px] font-medium ${
+            isUrgent ? "text-warning/80" : "text-white/30"
+          }`}
+        >
+          {urgencyLabel(t, item.ageDays)}
+        </p>
+      )}
     </Link>
   );
 }

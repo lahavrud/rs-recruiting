@@ -81,6 +81,7 @@ async def match_candidate_task(candidate_id: int) -> None:
     """
     from src.core.services.cv_extraction import extract_text
     from src.core.services.embeddings import get_embedding_provider
+    from src.core.services.generation import get_generation_provider
     from src.core.services.storage import get_storage_provider
     from src.models import CandidateProfile
 
@@ -107,4 +108,7 @@ async def match_candidate_task(candidate_id: int) -> None:
                 [text], input_type="search_document"
             )
             profile.embedding = vector
+            profile.resume_summary = await get_generation_provider().summarize_resume(
+                text
+            )
     logger.info("candidate_embedded", extra={"candidate_id": candidate_id})

@@ -33,18 +33,26 @@ async def get_candidates(
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     q: str | None = Query(default=None, max_length=255),
-    sort: Literal["name", "created_at"] = Query(default="created_at"),
+    sort: Literal["name", "created_at", "score"] = Query(default="created_at"),
     order: Literal["asc", "desc"] = Query(default="desc"),
+    job_id: int | None = Query(default=None),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[CandidateProfileRead]:
     """List candidate profiles, sorted by `sort`/`order`, cursor-paginated.
 
     `q`, when given, filters by name/email/phone (case-insensitive substring).
+    `sort=score` ranks candidates by cosine similarity to `job_id`'s embedding.
     """
     try:
         return await list_candidates(
-            session, cursor=cursor, limit=limit, q=q, sort=sort, order=order
+            session,
+            cursor=cursor,
+            limit=limit,
+            q=q,
+            sort=sort,
+            order=order,
+            job_id=job_id,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc

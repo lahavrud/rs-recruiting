@@ -8,17 +8,25 @@ from pydantic import field_validator
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
     Text,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 from src.core.infrastructure.config import settings
-from src.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
+from src.enums import (
+    ApplicationStatus,
+    InviteTokenStatus,
+    JobStatus,
+    MatchSuggestionStatus,
+    UserRole,
+)
 
 # Embedding vector width for the resume-matching engine. Fixed at the DB-column
 # level by the migration — keep in lockstep with ``settings.embedding_dim`` and
@@ -446,6 +454,11 @@ class CandidateProfile(SQLModel, table=True):
     # multilingual embedding of it, populated by ``match_candidate_task`` on CV
     # upload/update. NULL until first matched; cleared on resume removal.
     parsed_text: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
+    # One-line Hebrew LLM summary of the resume, generated alongside the
+    # embedding by ``match_candidate_task``. NULL until first processed.
+    resume_summary: str | None = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     embedding: list[float] | None = Field(
         default=None,
         sa_column=Column(Vector(_EMBEDDING_DIM), nullable=True),
@@ -574,6 +587,12 @@ class Application(SQLModel, table=True):
     resume_path: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     resume_filename: str | None = Field(default=None, max_length=255)
     resume_hash: str | None = Field(default=None, max_length=64)
+    pushed_by_admin_id: int | None = Field(
+        default=None,
+        sa_column=Column(
+            Integer, ForeignKey("user.id", ondelete="SET NULL"), nullable=True
+        ),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -595,6 +614,43 @@ class Application(SQLModel, table=True):
     # session.exec(select(Application).where(Application.job_id == job.id))
     # Access candidate's applications via:
     # session.exec(select(Application).where(Application.candidate_id == candidate.id))
+
+
+class MatchSuggestion(SQLModel, table=True):
+    """Records admin decisions on AI-generated match suggestions.
+
+    Absence of a row means the suggestion is still active (implicitly PENDING).
+    Each (candidate, job) pair can only have one decision.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("candidate_id", "job_id", name="uq_match_suggestion"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    candidate_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("candidateprofile.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    job_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("job.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    score: float = Field(sa_column=Column(Float, nullable=False))
+    status: MatchSuggestionStatus
+    acted_by_admin_id: int | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
 
 
 class AuditLog(SQLModel, table=True):

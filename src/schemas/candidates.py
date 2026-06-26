@@ -126,12 +126,14 @@ class CandidateProfileRead(BaseModel):
     email: str
     phone: str | None
     resume_path: str | None
+    resume_summary: str | None = None
     linkedin_url: str | None
     consent_given_at: datetime | None
     consent_policy_version: str | None
     tos_accepted_at: datetime | None
     tos_version: str | None
     created_at: datetime
+    ai_score: float | None = None
 
 
 class CandidateMeRead(BaseModel):
@@ -235,6 +237,14 @@ class ApplicationCreate(BaseModel):
     candidate_id: int
 
 
+class MatchSuggestionActionRequest(BaseModel):
+    """Request body for push/dismiss actions on an AI match suggestion."""
+
+    candidate_id: int
+    job_id: int
+    score: float
+
+
 class ApplicationStatusUpdate(BaseModel):
     """Schema for admin status updates on an application.
 
@@ -273,6 +283,7 @@ class ApplicationRead(BaseModel):
     salary_expectations: str | None
     strength: str | None
     growth_area: str | None
+    pushed_by_admin_id: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -291,10 +302,12 @@ class ApplicationWithDetails(BaseModel):
     salary_expectations: str | None
     strength: str | None
     growth_area: str | None
+    pushed_by_admin_id: int | None
     created_at: datetime
     updated_at: datetime
     job: JobRead
     candidate: CandidateProfileRead
+    ai_score: float | None = None
 
 
 # --------------------------------------------------------------------------
@@ -374,6 +387,20 @@ class JobCandidateMatchRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     candidate: CandidateProfileRead
+    score: float
+
+
+class GlobalMatchRead(BaseModel):
+    """One entry in the admin global match feed — a (candidate, job) pair.
+
+    Ranked by cosine similarity; excludes pairs where an application already
+    exists. Used by the admin dashboard match feed.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    candidate: CandidateProfileRead
+    job: "JobRead"
     score: float
 
 

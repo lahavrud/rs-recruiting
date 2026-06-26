@@ -41,3 +41,10 @@ class InviteTokenStatus(str, Enum):
     USED = "USED"
     EXPIRED = "EXPIRED"
     REVOKED = "REVOKED"
+
+
+class MatchSuggestionStatus(str, Enum):
+    """Admin decision on an AI-generated match suggestion."""
+
+    DISMISSED = "DISMISSED"
+    PUSHED = "PUSHED"

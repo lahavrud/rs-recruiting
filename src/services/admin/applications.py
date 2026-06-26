@@ -16,6 +16,7 @@ from src.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
+from src.core.matching import cosine_similarity_score
 from src.enums import ApplicationStatus
 from src.models import Application, CandidateProfile, Job
 from src.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
@@ -26,7 +27,9 @@ from src.services.exceptions import (
 from src.services.utils.audit import list_audit_events, record_audit_event
 from src.templates.email import build_application_rejection_html
 
-ApplicationSortColumn = Literal["name", "created_at", "status"]
+ApplicationSortColumn = Literal["name", "created_at", "status", "score"]
+
+_SCORE_SORT_LIMIT = 200
 
 _STATUS_PRIORITY: dict[ApplicationStatus, int] = {
     ApplicationStatus.NEW: 0,
@@ -57,6 +60,49 @@ def _sort_value(application: Application, column: ApplicationSortColumn) -> Sort
     return application.created_at
 
 
+async def _list_applications_by_score(
+    session: AsyncSession,
+    *,
+    status: ApplicationStatus | None = None,
+    job_id: int | None = None,
+    candidate_id: int | None = None,
+) -> CursorPage[ApplicationWithDetails]:
+    """Return applications ranked by AI match score, best first.
+
+    Only includes rows where both the candidate and job have embeddings.
+    Returns a single non-paginated page (next_cursor=None).
+    """
+    distance_expr = CandidateProfile.embedding.cosine_distance(Job.embedding)
+    stmt = (
+        select(Application, distance_expr.label("dist"))
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
+        .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+        .options(
+            selectinload(Application.job).selectinload(Job.company),  # pyright: ignore[reportArgumentType]
+            selectinload(Application.candidate),  # pyright: ignore[reportArgumentType]
+        )
+        .where(
+            CandidateProfile.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
+            Job.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
+        )
+    )
+    if status is not None:
+        stmt = stmt.where(Application.status == status)  # pyright: ignore[reportArgumentType]
+    if job_id is not None:
+        stmt = stmt.where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
+    if candidate_id is not None:
+        stmt = stmt.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
+    stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
+
+    rows = (await session.execute(stmt)).all()
+    items: list[ApplicationWithDetails] = []
+    for app, dist in rows:
+        schema = ApplicationWithDetails.model_validate(app)
+        schema.ai_score = cosine_similarity_score(dist)
+        items.append(schema)
+    return CursorPage(items=items, next_cursor=None)
+
+
 async def list_applications(
     session: AsyncSession,
     *,
@@ -79,6 +125,10 @@ async def list_applications(
     `sort="status"` with `sort2="created_at"` groups by status, then orders
     by date within each group. A column can't be paired with itself.
     """
+    if sort == "score":
+        return await _list_applications_by_score(
+            session, status=status, job_id=job_id, candidate_id=candidate_id
+        )
     if sort2 == sort:
         sort2 = None
     page_size = clamp_limit(limit)
@@ -179,11 +229,16 @@ async def get_application_activity(
         limit=limit,
     )
     if page.next_cursor is None:
+        action = (
+            "application.pushed_by_admin"
+            if application.pushed_by_admin_id is not None
+            else "application.submitted"
+        )
         page.items.append(
             AuditLogRead(
                 id=-application_id,
-                actor_user_id=None,
-                action="application.submitted",
+                actor_user_id=application.pushed_by_admin_id,
+                action=action,
                 target_type="Application",
                 target_id=application_id,
                 detail=None,
@@ -263,7 +318,7 @@ async def update_application_status(
         new_status == ApplicationStatus.REJECTED
         and old_status != ApplicationStatus.REJECTED
     )
-    if newly_rejected:
+    if newly_rejected and application.pushed_by_admin_id is None:
         candidate = application.candidate
         job = application.job
         plain = (

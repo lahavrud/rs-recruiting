@@ -9,7 +9,7 @@ export interface ApplicationListParams {
   candidate_id?: number;
   cursor?: string | null;
   limit?: number;
-  sort?: "name" | "created_at" | "status";
+  sort?: "name" | "created_at" | "status" | "score";
   order?: "asc" | "desc";
   sort2?: "name" | "created_at" | "status";
   order2?: "asc" | "desc";

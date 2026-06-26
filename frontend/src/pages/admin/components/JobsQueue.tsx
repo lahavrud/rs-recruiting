@@ -47,7 +47,6 @@ export default function JobsQueue() {
   const navigate = useNavigate();
   const toast = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<JobRead>> =>
@@ -150,8 +149,7 @@ export default function JobsQueue() {
       )}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
         <SplitPaneLayout
-          collapsed={railCollapsed}
-          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          recordPresent={selectedId != null}
           showListLabel={t("admin:reviewQueue.record.showList")}
           hideListLabel={t("admin:reviewQueue.record.hideList")}
           rail={queueList}

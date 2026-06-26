@@ -1,51 +1,68 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import RailToggleIcon from "./RailToggleIcon";
 
 interface SplitPaneLayoutProps {
   rail: ReactNode;
   record: ReactNode;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  /** When this flips false→true the rail auto-collapses; true→false auto-expands. */
+  recordPresent?: boolean;
   showListLabel: string;
   hideListLabel: string;
   /** Dialogs/overlays owned by the page, rendered after the layout. */
   children?: ReactNode;
 }
 
-/** Master–detail shell shared by every admin record-as-page workspace: a collapsible 360px rail, the record pane, and the floating toggle between them. */
+/** Master–detail shell shared by every admin record workspace.
+ *  The rail auto-collapses when a record is selected so the detail view
+ *  gets full width, and reopens when the selection is cleared. The edge
+ *  handle is always reachable to override this manually. */
 export default function SplitPaneLayout({
   rail,
   record,
-  collapsed,
-  onToggleCollapsed,
+  recordPresent = false,
   showListLabel,
   hideListLabel,
   children,
 }: SplitPaneLayoutProps) {
+  const [collapsed, setCollapsed] = useState(true);
+  const [prevRecordPresent, setPrevRecordPresent] = useState(recordPresent);
+
+  if (prevRecordPresent !== recordPresent) {
+    setPrevRecordPresent(recordPresent);
+    if (recordPresent) setCollapsed(true);
+  }
+
   return (
     <div className="relative flex h-full min-h-0 flex-col md:flex-row">
+      {/* Rail — transitions width; inner div keeps content at full width so
+          items don't reflowing during the animation. */}
       <div
-        className={`hidden min-h-0 flex-col overflow-hidden transition-[width,opacity,margin] duration-300 ease-in-out md:flex md:flex-none ${
-          collapsed ? "md:me-0 md:w-0 md:opacity-0" : "md:me-6 md:w-[360px] md:opacity-100"
+        className={`hidden min-h-0 flex-none overflow-hidden transition-[width] duration-300 ease-in-out md:block ${
+          collapsed ? "w-0" : "w-72"
         }`}
       >
-        {rail}
+        <div className="h-full w-72 overflow-y-auto">{rail}</div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto md:min-w-0">{record}</div>
-
+      {/* Edge toggle strip — always 16px wide, nearly invisible until hovered */}
       <button
         type="button"
-        onClick={onToggleCollapsed}
+        onClick={() => setCollapsed((v) => !v)}
         aria-label={collapsed ? showListLabel : hideListLabel}
         title={collapsed ? showListLabel : hideListLabel}
-        className={`absolute top-1/2 z-20 hidden size-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-white/10 bg-card-raised text-white/40 transition-all duration-300 ease-in-out hover:border-copper/30 hover:text-copper md:flex ${
-          collapsed ? "start-0" : "start-[384px]"
-        }`}
+        className="group/toggle relative hidden w-4 shrink-0 cursor-pointer items-stretch md:flex"
       >
-        <RailToggleIcon className="size-4" flipped={collapsed} />
+        {/* Vertical separator line */}
+        <div className="absolute inset-y-0 start-1/2 w-px -translate-x-1/2 bg-white/8 transition-colors duration-200 group-hover/toggle:bg-copper/40" />
+        {/* Chevron pill — fades in on hover */}
+        <div className="absolute top-1/2 start-1/2 flex size-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-transparent bg-transparent text-transparent transition-all duration-200 group-hover/toggle:border-white/12 group-hover/toggle:bg-card-raised group-hover/toggle:text-white/45">
+          <RailToggleIcon className="size-3.5" flipped={collapsed} />
+        </div>
       </button>
+
+      {/* Record pane */}
+      <div className="min-h-0 flex-1 overflow-y-auto md:min-w-0">{record}</div>
 
       {children}
     </div>

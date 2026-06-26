@@ -41,6 +41,8 @@ export default function ApplicationActivityPanel({ applicationId }: Props) {
     switch (event.action) {
       case "application.submitted":
         return t("admin:applications.activity.actions.submitted");
+      case "application.pushed_by_admin":
+        return t("admin:applications.activity.actions.pushedByAdmin");
       default:
         return event.action;
     }

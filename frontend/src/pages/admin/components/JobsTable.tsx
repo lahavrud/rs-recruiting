@@ -14,11 +14,18 @@ import { formatDate } from "@/utils/formatDate";
 
 import { FeaturedDesktopSash } from "./JobViewBody";
 
+type JobSortColumn = "name" | "created_at" | "status";
+
+interface ColumnState {
+  active: boolean;
+  order: SortOrder;
+  rank: 1 | 2 | undefined;
+}
+
 export interface JobsTableProps {
   jobs: JobRead[];
-  sort: "name" | "created_at" | "status";
-  order: SortOrder;
-  onSort: (column: "name" | "created_at" | "status") => void;
+  columnState: (column: JobSortColumn) => ColumnState;
+  onSort: (column: JobSortColumn) => void;
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
   onOpenDetail: (job: JobRead) => void;
@@ -31,8 +38,7 @@ export interface JobsTableProps {
 
 export default function JobsTable({
   jobs,
-  sort,
-  order,
+  columnState,
   onSort,
   statusLabels,
   statusColors,
@@ -45,41 +51,37 @@ export default function JobsTable({
 }: JobsTableProps) {
   const { t } = useTranslation(["admin", "common"]);
 
+  const ariaSortAttr = (col: JobSortColumn) => {
+    const state = columnState(col);
+    if (!state.active) return undefined;
+    return state.order === "asc" ? ("ascending" as const) : ("descending" as const);
+  };
+
   return (
     <div className="hidden overflow-x-auto rounded-xl border border-white/8 bg-card md:block">
       <table className="min-w-full divide-y divide-white/6 text-sm">
         <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
           <tr>
-            <th
-              className="px-4 py-3 text-start"
-              aria-sort={
-                sort === "name" ? (order === "asc" ? "ascending" : "descending") : undefined
-              }
-            >
+            <th className="px-4 py-3 text-start" aria-sort={ariaSortAttr("name")}>
               <SortableColumnHeader
                 label={t("admin:jobs.fields.title")}
-                active={sort === "name"}
-                order={order}
+                {...columnState("name")}
                 onClick={() => onSort("name")}
               />
             </th>
             <th className="px-4 py-3 text-start">{t("admin:jobs.fields.location")}</th>
             <th className="px-4 py-3 text-start">{t("common:salary")}</th>
-            <th className="px-4 py-3 text-start">{t("admin:jobs.fields.status")}</th>
-            <th
-              className="px-4 py-3 text-start"
-              aria-sort={
-                sort === "created_at"
-                  ? order === "asc"
-                    ? "ascending"
-                    : "descending"
-                  : undefined
-              }
-            >
+            <th className="px-4 py-3 text-start" aria-sort={ariaSortAttr("status")}>
+              <SortableColumnHeader
+                label={t("admin:jobs.fields.status")}
+                {...columnState("status")}
+                onClick={() => onSort("status")}
+              />
+            </th>
+            <th className="px-4 py-3 text-start" aria-sort={ariaSortAttr("created_at")}>
               <SortableColumnHeader
                 label={t("admin:jobs.submittedLabel")}
-                active={sort === "created_at"}
-                order={order}
+                {...columnState("created_at")}
                 onClick={() => onSort("created_at")}
               />
             </th>

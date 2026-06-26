@@ -6,7 +6,6 @@ import { useNavigate } from "react-router-dom";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
-import Button from "@/components/ui/Button";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { useToast } from "@/hooks/useToast";
@@ -20,64 +19,32 @@ function CompanyQueueItem({
   item,
   isSelected,
   onSelect,
-  onApprove,
-  onReject,
-  isActing,
 }: {
   item: PendingCompanyRead;
   isSelected: boolean;
   onSelect: () => void;
-  onApprove: () => void;
-  onReject: () => void;
-  isActing: boolean;
 }) {
   const { t } = useTranslation("admin");
   return (
-    <div
-      className={`flex items-start gap-2 rounded-lg border p-3 transition ${
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-lg border p-3 text-start transition ${
         isSelected
           ? "border-copper/40 bg-copper/8"
           : "border-white/6 bg-card hover:border-white/12 hover:bg-card-raised"
       }`}
+      aria-pressed={isSelected}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        className="min-w-0 flex-1 text-start"
-        aria-pressed={isSelected}
-      >
-        <p className="truncate font-medium text-white/90">
-          {item.company_profile.name}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-white/50">{item.user.email}</p>
-        <p className="mt-0.5 text-xs text-white/30">
-          {formatDate(item.company_profile.created_at)}
-          {item.invitation_sent && (
-            <span className="ms-2 text-white/25">
-              · {t("admin:reviewQueue.inviteSent")}
-            </span>
-          )}
-        </p>
-      </button>
-      <div className="flex shrink-0 flex-col gap-1">
-        <Button
-          variant="success"
-          size="sm"
-          onClick={onApprove}
-          disabled={isActing}
-        >
-          {t("admin:reviewQueue.approved")}
-        </Button>
-        <Button
-          variant="danger"
-          size="sm"
-          onClick={onReject}
-          disabled={isActing}
-        >
-          {t("admin:reviewQueue.rejected")}
-        </Button>
-      </div>
-    </div>
+      <p className="truncate font-medium text-white/90">{item.company_profile.name}</p>
+      <p className="mt-0.5 truncate text-xs text-white/50">{item.user.email}</p>
+      <p className="mt-0.5 text-xs text-white/30">
+        {formatDate(item.company_profile.created_at)}
+        {item.invitation_sent && (
+          <span className="ms-2 text-white/25">· {t("admin:reviewQueue.inviteSent")}</span>
+        )}
+      </p>
+    </button>
   );
 }
 
@@ -86,7 +53,6 @@ export default function CompaniesQueue() {
   const navigate = useNavigate();
   const toast = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
   const [actingId, setActingId] = useState<number | null>(null);
 
   const fetcher = useCallback(
@@ -154,13 +120,6 @@ export default function CompaniesQueue() {
               item={item}
               isSelected={item.company_profile.id === selectedId}
               onSelect={() => setSelectedId(item.company_profile.id)}
-              onApprove={() =>
-                void handleApprove(item.company_profile.id, item.user.id)
-              }
-              onReject={() =>
-                void handleReject(item.company_profile.id, item.user.id)
-              }
-              isActing={actingId === item.company_profile.id}
             />
           ))}
           <InfiniteScrollFooter sentinelRef={sentinelRef} isFetchingMore={isFetchingMore} />
@@ -175,6 +134,17 @@ export default function CompaniesQueue() {
       company={selectedItem?.company_profile}
       onEdit={(profile) => navigate(`/admin/companies/${profile.id}`)}
       onDelete={(profile) => navigate(`/admin/companies/${profile.id}`)}
+      onApprove={
+        selectedItem != null
+          ? () => void handleApprove(selectedItem.company_profile.id, selectedItem.user.id)
+          : undefined
+      }
+      onReject={
+        selectedItem != null
+          ? () => void handleReject(selectedItem.company_profile.id, selectedItem.user.id)
+          : undefined
+      }
+      isActing={actingId === selectedId}
     />
   );
 
@@ -196,8 +166,7 @@ export default function CompaniesQueue() {
       )}
       <div className="hidden min-h-0 flex-1 flex-col md:flex">
         <SplitPaneLayout
-          collapsed={railCollapsed}
-          onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+          recordPresent={selectedId != null}
           showListLabel={t("admin:reviewQueue.record.showList")}
           hideListLabel={t("admin:reviewQueue.record.hideList")}
           rail={queueList}

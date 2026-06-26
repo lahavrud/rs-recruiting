@@ -1,7 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import AdminHotApplicationsFeed from "@/components/admin/AdminHotApplicationsFeed";
 import AdminInbox from "@/components/admin/AdminInbox";
+import AdminMatchFeed from "@/components/admin/AdminMatchFeed";
 import AdminRecentFeed from "@/components/admin/AdminRecentFeed";
 import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
@@ -68,15 +70,21 @@ export default function DashboardPage() {
       )}
 
       {isAdmin ? (
-        <div className="space-y-10">
+        <div className="space-y-8 sm:space-y-10">
           <section>
             <AdminInbox />
           </section>
           <section>
-            <AdminRecentFeed />
+            <AdminStats />
           </section>
           <section>
-            <AdminStats />
+            <AdminHotApplicationsFeed />
+          </section>
+          <section>
+            <AdminMatchFeed />
+          </section>
+          <section>
+            <AdminRecentFeed />
           </section>
         </div>
       ) : isCandidate ? (

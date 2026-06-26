@@ -44,7 +44,9 @@ async def get_applications(
     candidate_id: int | None = None,
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
-    sort: Literal["name", "created_at", "status"] = Query(default="created_at"),
+    sort: Literal["name", "created_at", "status", "score"] = Query(  # noqa: E501
+        default="created_at"
+    ),
     order: Literal["asc", "desc"] = Query(default="desc"),
     sort2: Literal["name", "created_at", "status"] | None = Query(default=None),
     order2: Literal["asc", "desc"] = Query(default="desc"),

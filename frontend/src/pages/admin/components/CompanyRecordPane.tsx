@@ -17,6 +17,9 @@ interface Props {
   company?: CompanyProfileRead;
   onEdit: (profile: CompanyProfileRead) => void;
   onDelete: (profile: CompanyProfileRead) => void;
+  onApprove?: () => void;
+  onReject?: () => void;
+  isActing?: boolean;
 }
 
 export default function CompanyRecordPane({
@@ -24,6 +27,9 @@ export default function CompanyRecordPane({
   company,
   onEdit,
   onDelete,
+  onApprove,
+  onReject,
+  isActing = false,
 }: Props) {
   const { t } = useTranslation(["admin", "common"]);
   const [tab, setTab] = useState<RecordTab>("profile");
@@ -54,6 +60,16 @@ export default function CompanyRecordPane({
               </h2>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
+              {onApprove && (
+                <Button variant="success" size="sm" onClick={onApprove} disabled={isActing}>
+                  {t("admin:reviewQueue.approved")}
+                </Button>
+              )}
+              {onReject && (
+                <Button variant="danger" size="sm" onClick={onReject} disabled={isActing}>
+                  {t("admin:reviewQueue.rejected")}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => onEdit(profile)}>
                 {t("admin:companies.editAction")}
               </Button>

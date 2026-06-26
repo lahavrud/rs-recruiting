@@ -1,9 +1,9 @@
 """Admin overview aggregation — real counts replacing capped page-length heuristics."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
@@ -40,6 +40,7 @@ async def get_overview(session: AsyncSession) -> dict:
         _recent_pending_companies(session),
         _recent_pending_jobs(session),
         _recent_new_applications(session),
+        _application_trend_30d(session),
     )
     (
         pending_invites,
@@ -59,6 +60,7 @@ async def get_overview(session: AsyncSession) -> dict:
         recent_companies,
         recent_jobs,
         recent_applications,
+        trend_30d,
     ) = results
 
     all_recent = recent_companies + recent_jobs + recent_applications
@@ -85,6 +87,7 @@ async def get_overview(session: AsyncSession) -> dict:
             "new_candidates_7d": new_candidates_7d,
             "new_applications_7d": new_applications_7d,
             "recent_items": all_recent[:6],
+            "trend_30d": trend_30d,
         },
     }
 
@@ -280,6 +283,32 @@ async def _recent_pending_jobs(session: AsyncSession) -> list[dict]:
         {"type": "job", "label": r[0], "sublabel": r[1], "created_at": r[2].isoformat()}
         for r in rows
     ]
+
+
+async def _application_trend_30d(session: AsyncSession) -> list[dict]:
+    """Daily application counts for the last 30 days, zero-filled for empty days."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=29)
+    _day = literal_column("'day'")
+    day_trunc = func.date_trunc(_day, Application.created_at)
+    rows = (
+        await session.execute(
+            select(day_trunc.label("day"), func.count().label("n"))
+            .where(Application.created_at >= cutoff)
+            .group_by(day_trunc)
+            .order_by(day_trunc)
+        )
+    ).all()
+    counts: dict[date, int] = {}
+    for row in rows:
+        day_val = row[0]
+        d = day_val.date() if hasattr(day_val, "date") else day_val
+        counts[d] = row[1]
+    today = datetime.now(timezone.utc).date()
+    out = []
+    for i in range(29, -1, -1):
+        d = today - timedelta(days=i)
+        out.append({"date": d.isoformat(), "n": counts.get(d, 0)})
+    return out
 
 
 async def _recent_new_applications(session: AsyncSession) -> list[dict]:

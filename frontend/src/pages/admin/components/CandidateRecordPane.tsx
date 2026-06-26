@@ -69,6 +69,11 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
                 <h2 className="mt-1 text-xl font-semibold text-white/95 @sm:text-2xl @lg:text-3xl">
                   {c.full_name}
                 </h2>
+                {c.resume_summary && (
+                  <p className="mt-1.5 text-sm leading-relaxed text-white/50">
+                    {c.resume_summary}
+                  </p>
+                )}
                 <div className="mt-3">
                   <CandidateContactInfo candidate={c} />
                 </div>
