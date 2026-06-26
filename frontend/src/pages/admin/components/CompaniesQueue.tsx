@@ -194,7 +194,7 @@ export default function CompaniesQueue() {
           <div className="min-h-0 flex-1 overflow-y-auto">{recordPane}</div>
         </div>
       )}
-      <div className="hidden min-h-0 flex-1 md:flex">
+      <div className="hidden min-h-0 flex-1 flex-col md:flex">
         <SplitPaneLayout
           collapsed={railCollapsed}
           onToggleCollapsed={() => setRailCollapsed((v) => !v)}
