@@ -39,6 +39,7 @@ from src.services.exceptions import (
     ApplicationNotFoundError,
 )
 from src.services.public._application_helpers import validate_and_upload_resume
+from src.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +273,8 @@ async def withdraw_my_application(
     *,
     candidate_id: int,
     application_id: int,
+    actor_user_id: int,
+    ip_address: str | None = None,
 ) -> None:
     """Set the application status to WITHDRAWN.
 
@@ -291,5 +294,18 @@ async def withdraw_my_application(
     if app.status != ApplicationStatus.NEW:
         raise ApplicationNotEditableError("Application is no longer editable")
 
+    old_status = app.status
     app.status = ApplicationStatus.WITHDRAWN
+    await session.flush()
+
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="application.status_change",
+        target_type="Application",
+        target_id=application_id,
+        detail=f"{old_status.value}->{ApplicationStatus.WITHDRAWN.value}",
+        ip_address=ip_address,
+    )
+
     await session.commit()

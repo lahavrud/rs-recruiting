@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     status,
 )
@@ -21,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api._resume_streaming import basename_from_storage_key, stream_resume
 from src.core.infrastructure.database import get_session
-from src.core.infrastructure.dependencies import get_current_candidate
+from src.core.infrastructure.dependencies import client_ip, get_current_candidate
 from src.core.infrastructure.error_handling import service_exception_to_http
 from src.core.infrastructure.pagination import (
     DEFAULT_LIMIT,
@@ -163,16 +164,19 @@ async def edit_application(
 @router.post("/{application_id}/withdraw", status_code=204)
 async def withdraw_application(
     application_id: int,
+    request: Request,
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     """Withdraw the application — only allowed when ``status == NEW``."""
-    _, profile = current
+    user, profile = current
     try:
         await withdraw_my_application(
             session,
             candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
             application_id=application_id,
+            actor_user_id=user.id,  # type: ignore[arg-type]
+            ip_address=client_ip(request),
         )
     except ApplicationNotFoundError as exc:
         raise service_exception_to_http(exc) from exc

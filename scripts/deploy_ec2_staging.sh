@@ -114,6 +114,16 @@ RESUME_S3_PREFIX="s3://${S3_BUCKET}/seed-fixtures/resumes/"
 docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T -e PYTHONPATH=/app api \
   python scripts/seed_mock_data.py --reset --resumes-s3-prefix "${RESUME_S3_PREFIX}"
 
+echo "==> Enqueuing embedding backfill (jobs + candidates)"
+# Enqueues embed_job / match_candidate tasks for every seeded record so the
+# matching engine has vectors from the first request. When SQS_QUEUE_URL is set
+# (normal staging), tasks land in the queue and the worker drains them after
+# `up -d` below. When SQS_QUEUE_URL is empty they run inline here instead.
+# Non-fatal: a misconfigured embedding key should not block staging from booting.
+docker compose -f "${COMPOSE_FILE}" run --rm --no-deps -T -e PYTHONPATH=/app api \
+  python scripts/backfill_embeddings.py \
+  || echo "==> WARNING: embedding backfill failed — match scores will be unavailable until a manual re-run"
+
 echo "==> Starting services"
 docker compose -f "${COMPOSE_FILE}" up -d --remove-orphans
 
