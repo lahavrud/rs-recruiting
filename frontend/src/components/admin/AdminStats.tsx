@@ -4,37 +4,44 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { APPLICATION_STATUS_META } from "@/constants/statusColors";
-import { getAdminOverview, type AdminStatsCounts } from "@/services/adminOverview";
+import { getAdminOverview, type AdminOverviewRead } from "@/services/adminOverview";
 import { ApplicationStatus } from "@/types/enums";
 
 export default function AdminStats() {
   const { t } = useTranslation(["common", "dashboard"]);
-  const [stats, setStats] = useState<AdminStatsCounts | null>(null);
+  const [overview, setOverview] = useState<AdminOverviewRead | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
     getAdminOverview(ctrl.signal)
-      .then((data) => setStats(data.stats))
+      .then((data) => setOverview(data))
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
+
+  const stats = overview?.stats ?? null;
+  const pulse = overview?.pulse ?? null;
 
   const kpis = [
     {
       label: t("dashboard:stats.activeCompanies"),
       n: stats?.active_companies ?? null,
+      weekDelta: null,
     },
     {
       label: t("dashboard:stats.publishedJobs"),
       n: stats?.published_jobs ?? null,
+      weekDelta: null,
     },
     {
       label: t("dashboard:stats.candidates"),
       n: stats?.total_candidates ?? null,
+      weekDelta: pulse?.new_candidates_7d ?? null,
     },
     {
       label: t("dashboard:stats.hired"),
       n: stats?.application_status_counts[ApplicationStatus.HIRED] ?? null,
+      weekDelta: null,
     },
   ];
 
@@ -48,7 +55,7 @@ export default function AdminStats() {
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {kpis.map((k) => (
-          <KpiCard key={k.label} label={k.label} n={k.n} />
+          <KpiCard key={k.label} label={k.label} n={k.n} weekDelta={k.weekDelta} />
         ))}
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
@@ -59,7 +66,16 @@ export default function AdminStats() {
   );
 }
 
-function KpiCard({ label, n }: { label: string; n: number | null }) {
+function KpiCard({
+  label,
+  n,
+  weekDelta,
+}: {
+  label: string;
+  n: number | null;
+  weekDelta: number | null;
+}) {
+  const { t } = useTranslation("dashboard");
   const isLoading = n == null;
   const isEmpty = !isLoading && n === 0;
   const display = isLoading ? "—" : n;
@@ -77,6 +93,11 @@ function KpiCard({ label, n }: { label: string; n: number | null }) {
         {display}
       </p>
       <p className="mt-2 text-xs font-medium text-white/55">{label}</p>
+      {weekDelta != null && weekDelta > 0 && (
+        <p className="mt-1.5 text-[10px] font-semibold text-success/80">
+          {t("dashboard:pulse.newThisWeek", { count: weekDelta })}
+        </p>
+      )}
     </div>
   );
 }

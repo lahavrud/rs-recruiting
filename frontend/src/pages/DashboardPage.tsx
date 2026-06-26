@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import AdminInbox from "@/components/admin/AdminInbox";
+import AdminRecentFeed from "@/components/admin/AdminRecentFeed";
 import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
 import Eyebrow from "@/components/ui/Eyebrow";
@@ -70,6 +71,9 @@ export default function DashboardPage() {
         <div className="space-y-10">
           <section>
             <AdminInbox />
+          </section>
+          <section>
+            <AdminRecentFeed />
           </section>
           <section>
             <AdminStats />

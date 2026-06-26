@@ -63,7 +63,25 @@
       "label": "מועמדויות חדשות",
       "hint": "הוגשו ועדיין לא נסקרו",
       "empty": "אין מועמדויות חדשות"
+    },
+    "urgency": {
+      "today": "הגיע היום",
+      "days_one": "ממתין יום",
+      "days_other": "ממתין {{count}} ימים"
     }
+  },
+  "recent": {
+    "title": "פניות אחרונות",
+    "empty": "אין פניות חדשות ממתינות לסקירה.",
+    "types": {
+      "company": "חברה",
+      "job": "משרה",
+      "application": "מועמדות"
+    },
+    "reviewCta": "לתור הסקירה"
+  },
+  "pulse": {
+    "newThisWeek": "+{{count}} השבוע"
   },
   "companyLinks": {
     "myJobs": "המשרות שלי",

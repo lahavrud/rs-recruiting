@@ -13,6 +13,7 @@ interface ItemConfig {
   to: string;
   icon: ReactNode;
   n: number | null;
+  ageDays: number | null;
 }
 
 export default function AdminInbox() {
@@ -36,6 +37,7 @@ export default function AdminInbox() {
       to: "/admin/companies?view=invites",
       icon: <EnvelopeIcon />,
       n: counts?.pending_invites ?? null,
+      ageDays: null,
     },
     {
       key: "companies",
@@ -45,6 +47,7 @@ export default function AdminInbox() {
       to: "/admin/review?tab=companies",
       icon: <UserCheckIcon />,
       n: counts?.pending_companies ?? null,
+      ageDays: counts?.oldest_pending_company_days ?? null,
     },
     {
       key: "jobs",
@@ -54,6 +57,7 @@ export default function AdminInbox() {
       to: "/admin/review?tab=jobs",
       icon: <BriefcaseIcon />,
       n: counts?.pending_jobs ?? null,
+      ageDays: counts?.oldest_pending_job_days ?? null,
     },
     {
       key: "applications",
@@ -63,6 +67,7 @@ export default function AdminInbox() {
       to: "/admin/review",
       icon: <DocumentIcon />,
       n: counts?.new_applications ?? null,
+      ageDays: counts?.oldest_new_application_days ?? null,
     },
   ];
 
@@ -95,39 +100,77 @@ export default function AdminInbox() {
   );
 }
 
+function urgencyLabel(t: ReturnType<typeof useTranslation<"dashboard">>["t"], days: number): string {
+  if (days === 0) return t("dashboard:inbox.urgency.today");
+  return t("dashboard:inbox.urgency.days", { count: days });
+}
+
 function InboxCard({ item }: { item: ItemConfig }) {
+  const { t } = useTranslation("dashboard");
   const isLoading = item.n == null;
   const isEmpty = !isLoading && item.n === 0;
+  const isUrgent = !isEmpty && item.ageDays != null && item.ageDays >= 3;
   const display = isLoading ? "—" : item.n;
+
   return (
     <Link
       to={item.to}
-      className={`group block rounded-xl border p-4 transition duration-200 ${
+      className={`group relative block overflow-hidden rounded-xl border p-4 transition duration-200 ${
         isEmpty
           ? "border-white/8 bg-card hover:border-white/15"
-          : "border-copper/25 bg-card hover:border-copper/45 hover:bg-card-raised"
+          : isUrgent
+            ? "border-warning/30 bg-card hover:border-warning/50 hover:bg-card-raised"
+            : "border-copper/25 bg-card hover:border-copper/45 hover:bg-card-raised"
       }`}
     >
+      {/* Urgency accent stripe */}
+      {isUrgent && (
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-warning/60" />
+      )}
+
       <div className="flex items-center justify-between">
         <span
           className={`inline-flex size-8 items-center justify-center rounded-full ${
-            isEmpty ? "bg-white/5 text-white/35" : "bg-copper/15 text-copper"
+            isEmpty
+              ? "bg-white/5 text-white/35"
+              : isUrgent
+                ? "bg-warning/15 text-warning"
+                : "bg-copper/15 text-copper"
           }`}
         >
           {item.icon}
         </span>
-        <span
-          aria-hidden="true"
-          className={`size-4 transition group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 ${
-            isEmpty ? "text-white/20" : "text-copper/60"
-          }`}
-        >
-          <ChevronIcon />
-        </span>
+
+        <div className="flex items-center gap-2">
+          {!isEmpty && item.ageDays != null && (
+            <span
+              className={`text-[10px] font-medium ${
+                isUrgent ? "text-warning/80" : "text-white/35"
+              }`}
+            >
+              {urgencyLabel(t, item.ageDays)}
+            </span>
+          )}
+          <span
+            aria-hidden="true"
+            className={`size-4 transition group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 ${
+              isEmpty ? "text-white/20" : isUrgent ? "text-warning/50" : "text-copper/60"
+            }`}
+          >
+            <ChevronIcon />
+          </span>
+        </div>
       </div>
+
       <p
         className={`mt-3 text-3xl font-semibold leading-none ${
-          isLoading ? "text-white/25" : isEmpty ? "text-white/45" : "text-white/95"
+          isLoading
+            ? "text-white/25"
+            : isEmpty
+              ? "text-white/45"
+              : isUrgent
+                ? "text-white/95"
+                : "text-white/95"
         }`}
       >
         {display}

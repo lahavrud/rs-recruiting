@@ -1,6 +1,7 @@
 """Admin overview aggregation — real counts replacing capped page-length heuristics."""
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from src.models import (
 )
 
 TOP_JOBS_LIMIT = 5
+RECENT_ITEMS_PER_TYPE = 2
 
 
 async def get_overview(session: AsyncSession) -> dict:
@@ -30,6 +32,14 @@ async def get_overview(session: AsyncSession) -> dict:
         _count_candidates(session),
         _count_application_statuses(session),
         _top_jobs_by_applications(session),
+        _oldest_pending_company_days(session),
+        _oldest_pending_job_days(session),
+        _oldest_new_application_days(session),
+        _new_candidates_7d(session),
+        _new_applications_7d(session),
+        _recent_pending_companies(session),
+        _recent_pending_jobs(session),
+        _recent_new_applications(session),
     )
     (
         pending_invites,
@@ -41,7 +51,18 @@ async def get_overview(session: AsyncSession) -> dict:
         total_candidates,
         status_counts,
         top_jobs,
+        oldest_company_days,
+        oldest_job_days,
+        oldest_application_days,
+        new_candidates_7d,
+        new_applications_7d,
+        recent_companies,
+        recent_jobs,
+        recent_applications,
     ) = results
+
+    all_recent = recent_companies + recent_jobs + recent_applications
+    all_recent.sort(key=lambda x: x["created_at"], reverse=True)
 
     return {
         "inbox": {
@@ -49,6 +70,9 @@ async def get_overview(session: AsyncSession) -> dict:
             "pending_companies": pending_companies,
             "pending_jobs": pending_jobs,
             "new_applications": new_applications,
+            "oldest_pending_company_days": oldest_company_days,
+            "oldest_pending_job_days": oldest_job_days,
+            "oldest_new_application_days": oldest_application_days,
         },
         "stats": {
             "active_companies": active_companies,
@@ -57,7 +81,20 @@ async def get_overview(session: AsyncSession) -> dict:
             "application_status_counts": status_counts,
             "top_jobs": top_jobs,
         },
+        "pulse": {
+            "new_candidates_7d": new_candidates_7d,
+            "new_applications_7d": new_applications_7d,
+            "recent_items": all_recent[:6],
+        },
     }
+
+
+def _age_days(ts: datetime | None) -> int | None:
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - ts).days
 
 
 async def _count_pending_invites(session: AsyncSession) -> int:
@@ -160,4 +197,108 @@ async def _top_jobs_by_applications(
     ).all()
     return [
         {"id": row[0], "title": row[1], "application_count": row[2]} for row in rows
+    ]
+
+
+async def _oldest_pending_company_days(session: AsyncSession) -> int | None:
+    result = await session.execute(
+        select(func.min(CompanyProfile.created_at))
+        .join(User, User.id == CompanyProfile.user_id)  # pyright: ignore[reportArgumentType]
+        .where(User.role == UserRole.COMPANY, User.is_active == False)  # noqa: E712
+    )
+    return _age_days(result.scalar_one_or_none())
+
+
+async def _oldest_pending_job_days(session: AsyncSession) -> int | None:
+    result = await session.execute(
+        select(func.min(Job.created_at)).where(Job.status == JobStatus.PENDING_APPROVAL)  # pyright: ignore[reportArgumentType]
+    )
+    return _age_days(result.scalar_one_or_none())
+
+
+async def _oldest_new_application_days(session: AsyncSession) -> int | None:
+    result = await session.execute(
+        select(func.min(Application.created_at)).where(
+            Application.status == ApplicationStatus.NEW
+        )  # pyright: ignore[reportArgumentType]
+    )
+    return _age_days(result.scalar_one_or_none())
+
+
+async def _new_candidates_7d(session: AsyncSession) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    result = await session.execute(
+        select(func.count())
+        .select_from(CandidateProfile)
+        .where(CandidateProfile.created_at >= cutoff)
+    )
+    return result.scalar_one()
+
+
+async def _new_applications_7d(session: AsyncSession) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    result = await session.execute(
+        select(func.count())
+        .select_from(Application)
+        .where(Application.created_at >= cutoff)
+    )
+    return result.scalar_one()
+
+
+async def _recent_pending_companies(session: AsyncSession) -> list[dict]:
+    rows = (
+        await session.execute(
+            select(CompanyProfile.name, CompanyProfile.created_at)
+            .join(User, User.id == CompanyProfile.user_id)  # pyright: ignore[reportArgumentType]
+            .where(User.role == UserRole.COMPANY, User.is_active == False)  # noqa: E712
+            .order_by(CompanyProfile.created_at.desc())
+            .limit(RECENT_ITEMS_PER_TYPE)
+        )
+    ).all()
+    return [
+        {
+            "type": "company",
+            "label": r[0],
+            "sublabel": None,
+            "created_at": r[1].isoformat(),
+        }  # noqa: E501
+        for r in rows
+    ]
+
+
+async def _recent_pending_jobs(session: AsyncSession) -> list[dict]:
+    rows = (
+        await session.execute(
+            select(Job.title, CompanyProfile.name, Job.created_at)
+            .join(CompanyProfile, Job.company_id == CompanyProfile.id)  # pyright: ignore[reportArgumentType]
+            .where(Job.status == JobStatus.PENDING_APPROVAL)  # pyright: ignore[reportArgumentType]
+            .order_by(Job.created_at.desc())
+            .limit(RECENT_ITEMS_PER_TYPE)
+        )
+    ).all()
+    return [
+        {"type": "job", "label": r[0], "sublabel": r[1], "created_at": r[2].isoformat()}
+        for r in rows
+    ]
+
+
+async def _recent_new_applications(session: AsyncSession) -> list[dict]:
+    rows = (
+        await session.execute(
+            select(CandidateProfile.full_name, Job.title, Application.created_at)
+            .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
+            .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+            .where(Application.status == ApplicationStatus.NEW)  # pyright: ignore[reportArgumentType]
+            .order_by(Application.created_at.desc())
+            .limit(RECENT_ITEMS_PER_TYPE)
+        )
+    ).all()
+    return [
+        {
+            "type": "application",
+            "label": r[0],
+            "sublabel": r[1],
+            "created_at": r[2].isoformat(),
+        }  # noqa: E501
+        for r in rows
     ]

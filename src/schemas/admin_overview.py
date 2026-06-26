@@ -9,11 +9,21 @@ class TopJobEntry(BaseModel):
     application_count: int
 
 
+class RecentItem(BaseModel):
+    type: str  # "company" | "job" | "application"
+    label: str
+    sublabel: str | None
+    created_at: str  # ISO 8601
+
+
 class AdminInboxCounts(BaseModel):
     pending_invites: int
     pending_companies: int
     pending_jobs: int
     new_applications: int
+    oldest_pending_company_days: int | None
+    oldest_pending_job_days: int | None
+    oldest_new_application_days: int | None
 
 
 class AdminStatsCounts(BaseModel):
@@ -24,6 +34,13 @@ class AdminStatsCounts(BaseModel):
     top_jobs: list[TopJobEntry]
 
 
+class AdminPulse(BaseModel):
+    new_candidates_7d: int
+    new_applications_7d: int
+    recent_items: list[RecentItem]
+
+
 class AdminOverviewRead(BaseModel):
     inbox: AdminInboxCounts
     stats: AdminStatsCounts
+    pulse: AdminPulse

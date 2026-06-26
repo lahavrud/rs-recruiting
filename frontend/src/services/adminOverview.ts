@@ -5,6 +5,9 @@ export interface AdminInboxCounts {
   pending_companies: number;
   pending_jobs: number;
   new_applications: number;
+  oldest_pending_company_days: number | null;
+  oldest_pending_job_days: number | null;
+  oldest_new_application_days: number | null;
 }
 
 export interface TopJobEntry {
@@ -21,9 +24,23 @@ export interface AdminStatsCounts {
   top_jobs: TopJobEntry[];
 }
 
+export interface RecentItem {
+  type: "company" | "job" | "application";
+  label: string;
+  sublabel: string | null;
+  created_at: string;
+}
+
+export interface AdminPulse {
+  new_candidates_7d: number;
+  new_applications_7d: number;
+  recent_items: RecentItem[];
+}
+
 export interface AdminOverviewRead {
   inbox: AdminInboxCounts;
   stats: AdminStatsCounts;
+  pulse: AdminPulse;
 }
 
 export async function getAdminOverview(signal?: AbortSignal): Promise<AdminOverviewRead> {
