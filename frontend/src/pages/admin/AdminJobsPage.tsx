@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -21,7 +21,6 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
-import { getActiveCompanies } from "@/services/adminCompanies";
 import {
   approveJob,
   deleteJob,
@@ -124,10 +123,15 @@ export default function AdminJobsPage() {
   }, [jobs]);
 
   const uniqueCompanies = useMemo(() => {
-    const seen = new Set<number>();
-    for (const j of jobs) seen.add(j.company_id);
-    return Array.from(seen);
+    const seen = new Map<number, string>();
+    for (const j of jobs) seen.set(j.company_id, j.company_name);
+    return Array.from(seen.keys());
   }, [jobs]);
+
+  const companyNameById = useMemo(
+    () => new Map(jobs.map((j) => [j.company_id, j.company_name])),
+    [jobs],
+  );
 
   const salaryBounds = useMemo(() => {
     let lo = Infinity,
@@ -213,43 +217,9 @@ export default function AdminJobsPage() {
     setSalaryRange(null);
   }
 
-  // Load company names + emails for the filter chip and the mailto action.
-  const [companyNameById, setCompanyNameById] = useState<Map<number, string>>(
-    new Map(),
-  );
-  const [companyEmailById, setCompanyEmailById] = useState<Map<number, string>>(
-    new Map(),
-  );
-  useEffect(() => {
-    if (uniqueCompanies.length === 0) return;
-    const ctrl = new AbortController();
-    getActiveCompanies({ limit: 100 }, ctrl.signal)
-      .then((page) => {
-        const names = new Map<number, string>();
-        const emails = new Map<number, string>();
-        for (const row of page.items) {
-          names.set(row.company_profile.id, row.company_profile.name);
-          if (row.user?.email) {
-            emails.set(row.company_profile.id, row.user.email);
-          }
-        }
-        setCompanyNameById(names);
-        setCompanyEmailById(emails);
-      })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, [uniqueCompanies.length]);
-
-  function openMailToCompany(job: JobRead) {
-    const email = companyEmailById.get(job.company_id);
-    if (!email) {
-      toast.error(t("admin:jobs.emailNoAddress"));
-      return;
-    }
-    const subject = encodeURIComponent(
-      t("admin:jobs.emailSubjectPrefix", { title: job.title }),
-    );
-    window.open(`mailto:${email}?subject=${subject}`, "_self");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  function openMailToCompany(_job: JobRead) {
+    toast.error(t("admin:jobs.emailNoAddress"));
   }
 
   const selectedJob = selectedId != null ? jobs.find((j) => j.id === selectedId) : undefined;

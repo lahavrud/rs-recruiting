@@ -5,6 +5,8 @@ import type { JobStatus } from "@/types/enums";
 import type { JobAdminCreate, JobAdminUpdate, JobRead } from "@/types/jobs";
 export interface JobListParams {
   status?: JobStatus;
+  company_id?: number;
+  q?: string;
   cursor?: string | null;
   limit?: number;
   sort?: "name" | "created_at";
@@ -30,6 +32,8 @@ export async function getJobs(
 ): Promise<CursorPage<JobRead>> {
   const query: Record<string, string | number> = {};
   if (params?.status) query.status = params.status;
+  if (params?.company_id != null) query.company_id = params.company_id;
+  if (params?.q) query.q = params.q;
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
   if (params?.sort) query.sort = params.sort;

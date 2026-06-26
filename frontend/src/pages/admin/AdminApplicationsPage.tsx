@@ -25,7 +25,6 @@ import {
   getApplications,
   type ApplicationListParams,
 } from "@/services/adminApplications";
-import { getActiveCompanies } from "@/services/adminCompanies";
 import { getJobs } from "@/services/adminJobs";
 import { type ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
@@ -159,11 +158,8 @@ export default function AdminApplicationsPage() {
   const [jobTitleById, setJobTitleById] = useState<Map<number, string>>(new Map());
   useEffect(() => {
     const ctrl = new AbortController();
-    Promise.all([
-      getJobs({ limit: 100 }, ctrl.signal),
-      getActiveCompanies({ limit: 100 }, ctrl.signal),
-    ])
-      .then(([jobsPage, companiesPage]) => {
+    getJobs({ limit: 100 }, ctrl.signal)
+      .then((jobsPage) => {
         setAllJobs(
           jobsPage.items.map((j) => ({
             id: j.id,
@@ -173,12 +169,7 @@ export default function AdminApplicationsPage() {
         );
         setJobTitleById(new Map(jobsPage.items.map((j) => [j.id, j.title])));
         setCompanyNameById(
-          new Map(
-            companiesPage.items.map((row) => [
-              row.company_profile.id,
-              row.company_profile.name,
-            ]),
-          ),
+          new Map(jobsPage.items.map((j) => [j.company_id, j.company_name])),
         );
       })
       .catch(() => {

@@ -1,90 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { APPLICATION_STATUS_META } from "@/constants/statusColors";
-import { getApplications } from "@/services/adminApplications";
-import { getCandidates } from "@/services/adminCandidates";
-import { getActiveCompanies } from "@/services/adminCompanies";
-import { getJobs } from "@/services/adminJobs";
-import { type ApplicationWithDetails } from "@/types/candidates";
-import { ApplicationStatus, JobStatus } from "@/types/enums";
-/**
- * Dashboard stats block. Three sub-sections, all fed by parallel first-page
- * fetches (capped at 100 items each — backend's MAX_LIMIT):
- *
- *   - 4 KPI cards (active companies, published jobs, candidates, hired)
- *   - Application status breakdown bar
- *   - Top 5 jobs by application count
- */
-
-const LIMIT = 100;
-type Stat = { n: number; isCapped: boolean } | null;
+import { getAdminOverview, type AdminStatsCounts } from "@/services/adminOverview";
+import { ApplicationStatus } from "@/types/enums";
 
 export default function AdminStats() {
   const { t } = useTranslation(["common", "dashboard"]);
-  const [activeCompanies, setActiveCompanies] = useState<Stat>(null);
-  const [publishedJobs, setPublishedJobs] = useState<Stat>(null);
-  const [candidates, setCandidates] = useState<Stat>(null);
-  const [hired, setHired] = useState<Stat>(null);
-  const [appCache, setAppCache] = useState<ApplicationWithDetails[]>([]);
+  const [stats, setStats] = useState<AdminStatsCounts | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    function toStat<T>(page: { items: T[]; next_cursor: string | null }): Stat {
-      return { n: page.items.length, isCapped: page.next_cursor != null };
-    }
-    getActiveCompanies({ limit: LIMIT }, ctrl.signal)
-      .then((p) => setActiveCompanies(toStat(p)))
-      .catch(() => {});
-    getJobs({ status: JobStatus.PUBLISHED, limit: LIMIT }, ctrl.signal)
-      .then((p) => setPublishedJobs(toStat(p)))
-      .catch(() => {});
-    getCandidates({ limit: LIMIT }, ctrl.signal)
-      .then((p) => setCandidates(toStat(p)))
-      .catch(() => {});
-    getApplications({ status: ApplicationStatus.HIRED, limit: LIMIT }, ctrl.signal)
-      .then((p) => setHired(toStat(p)))
-      .catch(() => {});
-    getApplications({ limit: LIMIT }, ctrl.signal)
-      .then((p) => setAppCache(p.items))
+    getAdminOverview(ctrl.signal)
+      .then((data) => setStats(data.stats))
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
 
-  const statusBreakdown = useMemo(() => {
-    const counts: { [k: string]: number } = {
-      [ApplicationStatus.NEW]: 0,
-      [ApplicationStatus.APPROVED_BY_ADMIN]: 0,
-      [ApplicationStatus.REJECTED]: 0,
-      [ApplicationStatus.HIRED]: 0,
-    };
-    for (const a of appCache) counts[a.status] = (counts[a.status] ?? 0) + 1;
-    return counts;
-  }, [appCache]);
-
-  const topJobs = useMemo(() => {
-    const grouped = new Map<number, { title: string; count: number }>();
-    for (const a of appCache) {
-      const cur = grouped.get(a.job_id);
-      grouped.set(a.job_id, {
-        title: cur?.title ?? a.job.title,
-        count: (cur?.count ?? 0) + 1,
-      });
-    }
-    return Array.from(grouped.entries())
-      .map(([id, v]) => ({ id, title: v.title, count: v.count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  }, [appCache]);
-
   const kpis = [
-    { label: t("dashboard:stats.activeCompanies"), stat: activeCompanies },
-    { label: t("dashboard:stats.publishedJobs"), stat: publishedJobs },
-    { label: t("dashboard:stats.candidates"), stat: candidates },
-    { label: t("dashboard:stats.hired"), stat: hired },
+    {
+      label: t("dashboard:stats.activeCompanies"),
+      n: stats?.active_companies ?? null,
+    },
+    {
+      label: t("dashboard:stats.publishedJobs"),
+      n: stats?.published_jobs ?? null,
+    },
+    {
+      label: t("dashboard:stats.candidates"),
+      n: stats?.total_candidates ?? null,
+    },
+    {
+      label: t("dashboard:stats.hired"),
+      n: stats?.application_status_counts[ApplicationStatus.HIRED] ?? null,
+    },
   ];
+
+  const statusCounts = stats?.application_status_counts ?? {};
+  const topJobs = stats?.top_jobs ?? [];
 
   return (
     <div className="space-y-5">
@@ -93,21 +48,21 @@ export default function AdminStats() {
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {kpis.map((k) => (
-          <KpiCard key={k.label} label={k.label} stat={k.stat} />
+          <KpiCard key={k.label} label={k.label} n={k.n} />
         ))}
       </div>
       <div className="grid gap-3 lg:grid-cols-[1fr_280px]">
-        <ApplicationStatusBar counts={statusBreakdown} />
-        <TopJobsList jobs={topJobs} isLoading={appCache.length === 0} />
+        <ApplicationStatusBar counts={statusCounts} />
+        <TopJobsList jobs={topJobs} isLoading={stats == null} />
       </div>
     </div>
   );
 }
 
-function KpiCard({ label, stat }: { label: string; stat: Stat }) {
-  const isLoading = stat == null;
-  const isEmpty = !isLoading && stat.n === 0;
-  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
+function KpiCard({ label, n }: { label: string; n: number | null }) {
+  const isLoading = n == null;
+  const isEmpty = !isLoading && n === 0;
+  const display = isLoading ? "—" : n;
   return (
     <div className="group rounded-xl border border-white/8 bg-card p-4 transition hover:border-copper/30 hover:bg-card-raised">
       <p
@@ -126,9 +81,8 @@ function KpiCard({ label, stat }: { label: string; stat: Stat }) {
   );
 }
 
-function ApplicationStatusBar({ counts }: { counts: { [k: string]: number } }) {
+function ApplicationStatusBar({ counts }: { counts: Record<string, number> }) {
   const { t } = useTranslation(["common", "dashboard"]);
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const segments = [
     { status: ApplicationStatus.NEW, n: counts[ApplicationStatus.NEW] ?? 0 },
     {
@@ -141,6 +95,7 @@ function ApplicationStatusBar({ counts }: { counts: { [k: string]: number } }) {
       n: counts[ApplicationStatus.REJECTED] ?? 0,
     },
   ];
+  const total = segments.reduce((a, s) => a + s.n, 0);
   return (
     <div className="rounded-xl border border-white/8 bg-card p-4">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
@@ -188,11 +143,11 @@ function TopJobsList({
   jobs,
   isLoading,
 }: {
-  jobs: { id: number; title: string; count: number }[];
+  jobs: { id: number; title: string; application_count: number }[];
   isLoading: boolean;
 }) {
   const { t } = useTranslation(["common", "dashboard"]);
-  const maxCount = jobs[0]?.count ?? 0;
+  const maxCount = jobs[0]?.application_count ?? 0;
   return (
     <div className="rounded-xl border border-white/8 bg-card p-4">
       <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
@@ -218,13 +173,16 @@ function TopJobsList({
                     <span
                       className="block h-1 rounded-full bg-copper/70"
                       style={{
-                        width: maxCount === 0 ? "0%" : `${(j.count / maxCount) * 100}%`,
+                        width:
+                          maxCount === 0
+                            ? "0%"
+                            : `${(j.application_count / maxCount) * 100}%`,
                       }}
                     />
                   </span>
                 </span>
                 <span className="font-mono text-xs font-medium text-white/70 tabular-nums">
-                  {j.count}
+                  {j.application_count}
                 </span>
               </Link>
             </li>

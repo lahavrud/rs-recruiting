@@ -59,6 +59,8 @@ async def get_pending_jobs(
 @router.get("/jobs", response_model=CursorPage[JobRead])
 async def get_jobs(
     status: JobStatus | None = None,
+    company_id: int | None = None,
+    q: str | None = Query(default=None, max_length=255),
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     sort: Literal["name", "created_at"] = Query(default="created_at"),
@@ -69,7 +71,14 @@ async def get_jobs(
     """List jobs across all statuses, sorted by `sort`/`order`, cursor-paginated."""
     try:
         return await list_jobs(
-            session, status=status, cursor=cursor, limit=limit, sort=sort, order=order
+            session,
+            status=status,
+            company_id=company_id,
+            q=q,
+            cursor=cursor,
+            limit=limit,
+            sort=sort,
+            order=order,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc

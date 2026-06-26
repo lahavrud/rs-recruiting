@@ -20,6 +20,7 @@ export interface JobRequirementItem {
 export interface JobRead {
   id: number;
   company_id: number;
+  company_name: string;
   title: string;
   short_description: string;
   description: string;

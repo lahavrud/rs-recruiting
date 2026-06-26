@@ -48,6 +48,8 @@ async def list_jobs(
     session: AsyncSession,
     *,
     status: JobStatus | None = None,
+    company_id: int | None = None,
+    q: str | None = None,
     cursor: str | None = None,
     limit: int | None = None,
     sort: Literal["name", "created_at"] = "created_at",
@@ -56,12 +58,18 @@ async def list_jobs(
     """One page of jobs across all statuses, sorted by `sort`/`order`.
 
     `status` filters to a single status when provided (None returns all).
+    `company_id` filters to jobs belonging to a specific company.
+    `q` searches job title (case-insensitive substring match).
     `sort="name"` sorts by the job title.
     """
     page_size = clamp_limit(limit)
-    base = select(Job)
+    base = select(Job).options(selectinload(Job.company))
     if status is not None:
         base = base.where(Job.status == status)  # pyright: ignore[reportArgumentType]
+    if company_id is not None:
+        base = base.where(Job.company_id == company_id)  # pyright: ignore[reportArgumentType]
+    if q:
+        base = base.where(Job.title.icontains(q))  # pyright: ignore[reportArgumentType]
     sort_col = Job.title if sort == "name" else Job.created_at
     query = apply_cursor(
         base,

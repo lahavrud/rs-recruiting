@@ -3,29 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { getApplications } from "@/services/adminApplications";
-import { getPendingCompanies } from "@/services/adminCompanies";
-import { getInvites } from "@/services/adminInvites";
-import { getJobs } from "@/services/adminJobs";
-import { ApplicationStatus, InviteTokenStatus, JobStatus } from "@/types/enums";
-/**
- * "What's waiting for me?" queue on the admin dashboard.
- *
- * Four buckets, each with a count + a deep link into the relevant list:
- *   - Open invites awaiting acceptance
- *   - Companies awaiting approval
- *   - Jobs pending admin review
- *   - New applications awaiting first admin look
- *
- * Counts are fetched lazily in parallel. We cap at LIMIT items per bucket;
- * when a bucket has more we display "N+" rather than counting full pages.
- * A backend aggregation endpoint would be cheaper, but this works while
- * the queue is in the low hundreds at most.
- */
-
-const LIMIT = 50;
-
-type Stat = { n: number; isCapped: boolean } | null;
+import { getAdminOverview, type AdminInboxCounts } from "@/services/adminOverview";
 
 interface ItemConfig {
   key: string;
@@ -34,32 +12,17 @@ interface ItemConfig {
   empty: string;
   to: string;
   icon: ReactNode;
-  stat: Stat;
+  n: number | null;
 }
 
 export default function AdminInbox() {
   const { t } = useTranslation("dashboard");
-  const [invites, setInvites] = useState<Stat>(null);
-  const [companies, setCompanies] = useState<Stat>(null);
-  const [jobs, setJobs] = useState<Stat>(null);
-  const [applications, setApplications] = useState<Stat>(null);
+  const [counts, setCounts] = useState<AdminInboxCounts | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
-    function toStat<T>(page: { items: T[]; next_cursor: string | null }): Stat {
-      return { n: page.items.length, isCapped: page.next_cursor != null };
-    }
-    getInvites({ status: InviteTokenStatus.PENDING, limit: LIMIT }, ctrl.signal)
-      .then((p) => setInvites(toStat(p)))
-      .catch(() => {});
-    getPendingCompanies({ limit: LIMIT }, ctrl.signal)
-      .then((p) => setCompanies(toStat(p)))
-      .catch(() => {});
-    getJobs({ status: JobStatus.PENDING_APPROVAL, limit: LIMIT }, ctrl.signal)
-      .then((p) => setJobs(toStat(p)))
-      .catch(() => {});
-    getApplications({ status: ApplicationStatus.NEW, limit: LIMIT }, ctrl.signal)
-      .then((p) => setApplications(toStat(p)))
+    getAdminOverview(ctrl.signal)
+      .then((data) => setCounts(data.inbox))
       .catch(() => {});
     return () => ctrl.abort();
   }, []);
@@ -72,7 +35,7 @@ export default function AdminInbox() {
       empty: t("dashboard:inbox.invites.empty"),
       to: "/admin/companies?view=invites",
       icon: <EnvelopeIcon />,
-      stat: invites,
+      n: counts?.pending_invites ?? null,
     },
     {
       key: "companies",
@@ -81,7 +44,7 @@ export default function AdminInbox() {
       empty: t("dashboard:inbox.companies.empty"),
       to: "/admin/companies?view=pending",
       icon: <UserCheckIcon />,
-      stat: companies,
+      n: counts?.pending_companies ?? null,
     },
     {
       key: "jobs",
@@ -90,7 +53,7 @@ export default function AdminInbox() {
       empty: t("dashboard:inbox.jobs.empty"),
       to: "/admin/jobs?status=PENDING_APPROVAL",
       icon: <BriefcaseIcon />,
-      stat: jobs,
+      n: counts?.pending_jobs ?? null,
     },
     {
       key: "applications",
@@ -99,11 +62,11 @@ export default function AdminInbox() {
       empty: t("dashboard:inbox.applications.empty"),
       to: "/admin/applications?status=NEW",
       icon: <DocumentIcon />,
-      stat: applications,
+      n: counts?.new_applications ?? null,
     },
   ];
 
-  const allClear = items.every((it) => it.stat != null && it.stat.n === 0);
+  const allClear = items.every((it) => it.n != null && it.n === 0);
 
   return (
     <div>
@@ -125,10 +88,9 @@ export default function AdminInbox() {
 }
 
 function InboxCard({ item }: { item: ItemConfig }) {
-  const stat = item.stat;
-  const isLoading = stat == null;
-  const isEmpty = !isLoading && stat.n === 0;
-  const display = isLoading ? "—" : stat.isCapped ? `${stat.n}+` : stat.n;
+  const isLoading = item.n == null;
+  const isEmpty = !isLoading && item.n === 0;
+  const display = isLoading ? "—" : item.n;
   return (
     <Link
       to={item.to}

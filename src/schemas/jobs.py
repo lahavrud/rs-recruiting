@@ -1,6 +1,7 @@
 """Job posting schemas."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -187,6 +188,7 @@ class JobRead(BaseModel):
 
     id: int
     company_id: int
+    company_name: str = ""
     title: str
     short_description: str
     description: str
@@ -199,6 +201,15 @@ class JobRead(BaseModel):
     status: JobStatus
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _populate_company_name(cls, value: Any, handler: Any) -> "JobRead":
+        obj = handler(value)
+        has_company = not isinstance(value, dict) and hasattr(value, "company")
+        if has_company and value.company is not None:
+            obj.company_name = value.company.name
+        return obj
 
 
 class MyApplicationInfo(BaseModel):
