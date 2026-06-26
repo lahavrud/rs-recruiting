@@ -21,6 +21,7 @@ from src.schemas import (
     JobRead,
 )
 from src.services.admin.jobs import (
+    JobSortColumn,
     admin_create_job,
     delete_job,
     get_job_candidate_matches,
@@ -63,12 +64,18 @@ async def get_jobs(
     q: str | None = Query(default=None, max_length=255),
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
-    sort: Literal["name", "created_at"] = Query(default="created_at"),
+    sort: JobSortColumn = Query(default="created_at"),
     order: Literal["asc", "desc"] = Query(default="desc"),
+    sort2: JobSortColumn | None = Query(default=None),
+    order2: Literal["asc", "desc"] = Query(default="desc"),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[JobRead]:
-    """List jobs across all statuses, sorted by `sort`/`order`, cursor-paginated."""
+    """List jobs across all statuses, sorted by `sort`/`order`, cursor-paginated.
+
+    `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
+    `sort=status&sort2=created_at` groups by status, then by date within each group.
+    """
     try:
         return await list_jobs(
             session,
@@ -79,6 +86,8 @@ async def get_jobs(
             limit=limit,
             sort=sort,
             order=order,
+            sort2=sort2,
+            order2=order2,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc

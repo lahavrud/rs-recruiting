@@ -6,9 +6,9 @@ on behalf of a company that hasn't been onboarded yet.
 """
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
-from sqlalchemy import delete, select
+from sqlalchemy import case, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from src.core.infrastructure.config import settings
 from src.core.infrastructure.database_helpers import get_by_id_or_raise
 from src.core.infrastructure.pagination import (
     CursorPage,
+    SortValue,
     apply_cursor,
     build_cursor_page,
     clamp_limit,
@@ -37,6 +38,34 @@ from src.services.exceptions import CompanyNotFoundError, JobNotFoundError
 from src.services.utils.audit import record_audit_event
 from src.templates.email import build_job_closed_candidate_html
 
+JobSortColumn = Literal["name", "created_at", "status"]
+
+_STATUS_PRIORITY: dict[JobStatus, int] = {
+    JobStatus.PENDING_APPROVAL: 0,
+    JobStatus.PUBLISHED: 1,
+    JobStatus.CLOSED: 2,
+}
+
+
+def _sort_column(column: JobSortColumn) -> Any:
+    if column == "name":
+        return Job.title
+    if column == "status":
+        return case(
+            *[(Job.status == k, v) for k, v in _STATUS_PRIORITY.items()],
+            else_=len(_STATUS_PRIORITY),
+        )
+    return Job.created_at
+
+
+def _sort_value(job: Job, column: JobSortColumn) -> SortValue:
+    if column == "name":
+        return job.title
+    if column == "status":
+        return _STATUS_PRIORITY.get(job.status, len(_STATUS_PRIORITY))
+    return job.created_at
+
+
 # Job fields that feed the matching embedding (see cv_extraction.job_embedding_text).
 # A change to any of these on a PUBLISHED job warrants a re-embed.
 _EMBEDDABLE_FIELDS = frozenset(
@@ -52,8 +81,10 @@ async def list_jobs(
     q: str | None = None,
     cursor: str | None = None,
     limit: int | None = None,
-    sort: Literal["name", "created_at"] = "created_at",
+    sort: JobSortColumn = "created_at",
     order: Literal["asc", "desc"] = "desc",
+    sort2: JobSortColumn | None = None,
+    order2: Literal["asc", "desc"] = "desc",
 ) -> CursorPage[JobRead]:
     """One page of jobs across all statuses, sorted by `sort`/`order`.
 
@@ -61,7 +92,13 @@ async def list_jobs(
     `company_id` filters to jobs belonging to a specific company.
     `q` searches job title (case-insensitive substring match).
     `sort="name"` sorts by the job title.
+    `sort="status"` groups by status priority — PENDING_APPROVAL first when
+    `order="asc"`, CLOSED first when `order="desc"`.
+    `sort2` adds a tiebreaker column within each primary group (e.g.
+    `sort="status"` with `sort2="created_at"` groups by status, then by date).
     """
+    if sort2 == sort:
+        sort2 = None
     page_size = clamp_limit(limit)
     base = select(Job).options(selectinload(Job.company))
     if status is not None:
@@ -70,23 +107,37 @@ async def list_jobs(
         base = base.where(Job.company_id == company_id)  # pyright: ignore[reportArgumentType]
     if q:
         base = base.where(Job.title.icontains(q))  # pyright: ignore[reportArgumentType]
-    sort_col = Job.title if sort == "name" else Job.created_at
+
+    sort_col = _sort_column(sort)
+    secondary_col = _sort_column(sort2) if sort2 is not None else None
+    sort_key = sort if sort2 is None else f"{sort},{sort2}"
+
     query = apply_cursor(
         base,
         sort_col=sort_col,  # pyright: ignore[reportArgumentType]
         id_col=Job.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,
         limit=page_size,
-        sort_key=sort,
+        sort_key=sort_key,
         direction=order,
+        secondary_col=secondary_col,  # pyright: ignore[reportArgumentType]
+        secondary_direction=order2,
     )
     rows = list((await session.execute(query)).scalars().all())
+
+    def _cursor_key(
+        j: Job,
+    ) -> tuple[SortValue, int] | tuple[SortValue, SortValue | None, int]:
+        if sort2 is not None:
+            return _sort_value(j, sort), _sort_value(j, sort2), j.id
+        return _sort_value(j, sort), j.id
+
     return build_cursor_page(
         rows,
         serializer=JobRead.model_validate,
-        cursor_key=lambda j: (j.title if sort == "name" else j.created_at, j.id),
+        cursor_key=_cursor_key,
         limit=page_size,
-        sort_key=sort,
+        sort_key=sort_key,
     )
 
 
