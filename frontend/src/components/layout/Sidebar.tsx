@@ -107,13 +107,19 @@ function NavGroup({
         </svg>
       </button>
 
-      {open && (
-        <div className="mt-0.5 space-y-0.5">
-          {group.items.map((item) => (
-            <NavRow key={item.to} item={item} onClose={onClose} indent />
-          ))}
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="mt-0.5 space-y-0.5">
+            {group.items.map((item) => (
+              <NavRow key={item.to} item={item} onClose={onClose} indent />
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

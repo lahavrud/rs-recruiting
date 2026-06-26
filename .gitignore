@@ -265,8 +265,5 @@ frontend/src/index.ts
 # sigmap cache
 .sigmap-cache.json
 
-# Mockup scratch files (not shipped)
-frontend/src/pages/admin/mockups/
-
 # Real resume fixtures (PII)
 scripts/fixtures/resumes-real/
