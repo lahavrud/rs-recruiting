@@ -43,8 +43,7 @@ def _sort_column(column: ApplicationSortColumn) -> Any:
         return CandidateProfile.full_name
     if column == "status":
         return case(
-            _STATUS_PRIORITY,  # pyright: ignore[reportArgumentType]
-            value=Application.status,
+            *[(Application.status == k, v) for k, v in _STATUS_PRIORITY.items()],
             else_=len(_STATUS_PRIORITY),
         )
     return Application.created_at

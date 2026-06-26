@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 import Dialog from "@/components/ui/Dialog";
 import { useToast } from "@/hooks/useToast";
 import { contactJob } from "@/services/adminJobs";
-import { textareaCls } from "@/styles/forms";
+import { TEXTAREA_CLS } from "@/styles/forms";
 import type { JobRead } from "@/types/jobs";
 
 interface Props {
@@ -64,7 +64,7 @@ export default function ContactJobDialog({ job, companyName, onClose }: Props) {
               onChange={(e) => setNote(e.target.value)}
               rows={4}
               placeholder={t("admin:jobs.contactDialog.notePlaceholder")}
-              className={textareaCls}
+              className={TEXTAREA_CLS}
             />
           </div>
           <div className="flex justify-end gap-2">
