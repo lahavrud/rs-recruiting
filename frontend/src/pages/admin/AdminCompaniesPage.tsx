@@ -1,27 +1,27 @@
 import { Fragment, useEffect, useState } from "react";
 
-import axios from "axios";
 import { useTranslation } from "react-i18next";
+import { useNavigate, useParams } from "react-router-dom";
 
 import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
+import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
+import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
-import {
-  getActiveCompanies,
-  getCompanyProfile,
-  getPendingCompanies,
-} from "@/services/adminCompanies";
-import { getInvites } from "@/services/adminInvites";
+import { deleteCompany, deleteOrphanCompany } from "@/services/adminCompanies";
+import { getAdminOverview } from "@/services/adminOverview";
 import type { CompanyProfileRead } from "@/types/auth";
-import { InviteTokenStatus } from "@/types/enums";
 
 import CompanyActiveTab from "./components/CompanyActiveTab";
 import CompanyInvitesTab from "./components/CompanyInvitesTab";
 import CompanyPendingTab from "./components/CompanyPendingTab";
+import CompanyRecordPane from "./components/CompanyRecordPane";
 import CreateCompanyDialog from "./components/CreateCompanyDialog";
+import EditCompanyDialog from "./components/EditCompanyDialog";
 
 type Tab = "active" | "pending" | "invites";
 
@@ -31,6 +31,10 @@ export default function AdminCompaniesPage() {
   const { t } = useTranslation(["admin", "common"]);
   usePageTitle(t("admin:companies.title"));
   const toast = useToast();
+  const navigate = useNavigate();
+  const { id: rawId } = useParams<{ id?: string }>();
+  const selectedId = rawId != null && !Number.isNaN(Number(rawId)) ? Number(rawId) : null;
+
   const [view, setView] = useState<Tab>(() => {
     const v = new URLSearchParams(window.location.search).get("view");
     if (v === "active" || v === "pending" || v === "invites") return v;
@@ -42,28 +46,16 @@ export default function AdminCompaniesPage() {
   const [isInviting, setIsInviting] = useState(() => {
     return new URLSearchParams(window.location.search).get("action") === "invite";
   });
-  const [externalDetail, setExternalDetail] = useState<CompanyProfileRead | null>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
-  // Auto-open company detail when navigated from another page via ?detail=<profile_id>
-  useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("detail");
-    if (!id || Number.isNaN(Number(id))) return;
-    const ctrl = new AbortController();
-    window.history.replaceState({}, "", window.location.pathname);
-    getCompanyProfile(Number(id), ctrl.signal)
-      .then((profile) => {
-        setView("active");
-        setExternalDetail(profile);
-      })
-      .catch((e) => {
-        if (axios.isCancel(e)) return;
-        toast.error(t("common:genericError"));
-      });
-    return () => ctrl.abort();
-  }, [t, toast]);
+  // Record-pane–triggered edit/delete (list-row actions stay in CompanyActiveTab).
+  const [editing, setEditing] = useState<CompanyProfileRead | null>(null);
+  const [deletePending, setDeletePending] = useState<CompanyProfileRead | null>(null);
+  const [isPendingMutation, setIsPendingMutation] = useState(false);
+  // Increment to force CompanyActiveTab to reload its list.
+  const [listReloadKey, setListReloadKey] = useState(0);
 
-  // Strip the bootstrap `?action=` and `?view=` params after they've been
-  // consumed so a hard refresh doesn't re-trigger them.
+  // Strip bootstrap query params after consumption.
   useEffect(() => {
     const url = new URL(window.location.href);
     if (url.searchParams.has("action") || url.searchParams.has("view")) {
@@ -73,154 +65,239 @@ export default function AdminCompaniesPage() {
     }
   }, []);
 
+  // Tab counts from the overview endpoint (exact counts, no capping).
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [invitesCount, setInvitesCount] = useState<number | null>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    getAdminOverview(ctrl.signal)
+      .then((data) => {
+        setPendingCount(data.inbox.pending_companies);
+        setActiveCount(data.stats.active_companies);
+        setInvitesCount(data.inbox.pending_invites);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
+
   function handleInvite() {
     setView("invites");
     setIsInviting(true);
   }
 
-  // View counts shown in the segmented pills. First-page fetches; capped
-  // counts surface as "N+".
-  type ViewCount = { n: number; isCapped: boolean } | null;
-  const [pendingCount, setPendingCount] = useState<ViewCount>(null);
-  const [activeCount, setActiveCount] = useState<ViewCount>(null);
-  const [invitesCount, setInvitesCount] = useState<ViewCount>(null);
-  useEffect(() => {
-    const ctrl = new AbortController();
-    function toCount<T>(p: { items: T[]; next_cursor: string | null }): ViewCount {
-      return { n: p.items.length, isCapped: p.next_cursor != null };
-    }
-    getPendingCompanies({ limit: 100 }, ctrl.signal)
-      .then((p) => setPendingCount(toCount(p)))
-      .catch(() => {});
-    getActiveCompanies({ limit: 100 }, ctrl.signal)
-      .then((p) => setActiveCount(toCount(p)))
-      .catch(() => {});
-    getInvites({ status: InviteTokenStatus.PENDING, limit: 100 }, ctrl.signal)
-      .then((p) => setInvitesCount(toCount(p)))
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
-
-  function formatCount(c: ViewCount): string {
-    if (c == null) return "—";
-    return c.isCapped ? `${c.n}+` : String(c.n);
+  function handleSelect(id: number) {
+    navigate(`/admin/companies/${id}`);
   }
 
-  const viewCounts: Record<Tab, ViewCount> = {
+  async function handleDeleteFromPane() {
+    if (!deletePending) return;
+    setIsPendingMutation(true);
+    try {
+      // deletePending is a CompanyProfileRead; check user_id to pick the right endpoint.
+      if (deletePending.user_id != null) {
+        await deleteCompany(deletePending.user_id);
+      } else {
+        await deleteOrphanCompany(deletePending.id);
+      }
+      toast.success(t("admin:companies.deletedToast"));
+      setDeletePending(null);
+      setListReloadKey((k) => k + 1);
+      navigate("/admin/companies");
+    } catch {
+      toast.error(t("admin:companies.active.deleteError"));
+    } finally {
+      setIsPendingMutation(false);
+    }
+  }
+
+  const viewCounts: Record<Tab, number | null> = {
     pending: pendingCount,
     active: activeCount,
     invites: invitesCount,
   };
 
-  return (
-    <div>
-      <h1 data-page-heading className="sr-only">
-        {t("admin:companies.title")}
-      </h1>
-      <PageHeader
-        eyebrow={t("admin:companies.title")}
-        subtitle={t("admin:companies.subtitle")}
-        action={
-          <div className="flex w-full gap-2 sm:w-auto sm:items-center">
-            <button
-              onClick={() => setIsCreating(true)}
-              className="flex-1 rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold sm:flex-initial"
-            >
-              {t("admin:companies.newCompany")}
-            </button>
-            <button
-              onClick={handleInvite}
-              className="flex-1 rounded-sm border border-copper/40 px-4 py-2 text-sm font-medium text-copper/80 transition hover:border-copper hover:text-copper sm:flex-initial"
-            >
-              {t("admin:companies.inviteForm.newInviteButton")}
-            </button>
-          </div>
-        }
-      />
+  const header = (
+    <PageHeader
+      eyebrow={t("admin:companies.title")}
+      subtitle={t("admin:companies.subtitle")}
+      action={
+        <div className="flex w-full gap-2 sm:w-auto sm:items-center">
+          <Button
+            size="sm"
+            onClick={() => setIsCreating(true)}
+          >
+            {t("admin:companies.newCompany")}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleInvite}
+          >
+            {t("admin:companies.inviteForm.newInviteButton")}
+          </Button>
+        </div>
+      }
+    />
+  );
 
-      {/* View pills — primary axis of the page, with live counts.
-          On mobile, the active-companies pill sits on its own row above
-          the other two; on `sm+` all three share a single centered row. */}
-      <div className="mb-4 flex flex-wrap justify-center gap-1.5">
-        {(["active", "pending", "invites"] as Tab[]).map((key, i) => {
-          const active = view === key;
-          const c = viewCounts[key];
-          return (
-            <Fragment key={key}>
-              <button
-                type="button"
-                onClick={() => setView(key)}
-                aria-pressed={active}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
-                  active
-                    ? "bg-copper text-white shadow-sm shadow-black/30"
-                    : "border border-white/12 text-white/60 hover:border-white/30 hover:text-white/85"
+  const tabPills = (
+    <div className="mb-4 flex flex-wrap justify-center gap-1.5">
+      {(["active", "pending", "invites"] as Tab[]).map((key, i) => {
+        const active = view === key;
+        const n = viewCounts[key];
+        return (
+          <Fragment key={key}>
+            <button
+              type="button"
+              onClick={() => setView(key)}
+              aria-pressed={active}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
+                active
+                  ? "bg-copper text-white shadow-sm shadow-black/30"
+                  : "border border-white/12 text-white/60 hover:border-white/30 hover:text-white/85"
+              }`}
+            >
+              <span>{t(`admin:companies.tabs.${key}`)}</span>
+              <span
+                className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${
+                  active ? "bg-white/20 text-white" : "bg-white/8 text-white/55"
                 }`}
               >
-                <span>{t(`admin:companies.tabs.${key}`)}</span>
-                <span
-                  className={`inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${
-                    active ? "bg-white/20 text-white" : "bg-white/8 text-white/55"
-                  }`}
-                >
-                  {formatCount(c)}
-                </span>
-              </button>
-              {/* Mobile-only flex-wrap break after the first pill. */}
-              {i === 0 && <div className="basis-full sm:hidden" aria-hidden="true" />}
-            </Fragment>
-          );
-        })}
-      </div>
+                {n == null ? "—" : String(n)}
+              </span>
+            </button>
+            {/* Mobile-only flex-wrap break after the first pill. */}
+            {i === 0 && <div className="basis-full sm:hidden" aria-hidden="true" />}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
 
-      {/* Search */}
-      <div className="mb-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder={
-            view === "invites"
-              ? t("admin:companies.inviteList.searchPlaceholder")
-              : t("admin:companies.searchPlaceholder")
-          }
-          isClearable
-        />
-      </div>
+  const searchBar = (
+    <div className="mb-3">
+      <SearchInput
+        value={query}
+        onChange={setQuery}
+        placeholder={
+          view === "invites"
+            ? t("admin:companies.inviteList.searchPlaceholder")
+            : t("admin:companies.searchPlaceholder")
+        }
+        isClearable
+      />
+    </div>
+  );
 
-      {query.trim() && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <ActiveFilterChip
-            label={`${t("common:search")}: "${query.trim()}"`}
-            onRemove={() => setQuery("")}
-          />
-        </div>
-      )}
+  const filterChips = query.trim() ? (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <ActiveFilterChip
+        label={`${t("common:search")}: "${query.trim()}"`}
+        onRemove={() => setQuery("")}
+      />
+    </div>
+  ) : null;
 
-      {view === "active" && (
-        <CompanyActiveTab
-          query={debouncedQuery}
-          externalDetail={externalDetail}
-          onExternalDetailClose={() => setExternalDetail(null)}
-        />
-      )}
-      {view === "pending" && <CompanyPendingTab query={debouncedQuery} />}
-      {view === "invites" && (
-        <CompanyInvitesTab
-          query={debouncedQuery}
-          isExternalOpen={isInviting}
-          onExternalClose={() => setIsInviting(false)}
-        />
-      )}
-
+  const dialogs = (
+    <>
       <CreateCompanyDialog
         open={isCreating}
         onClose={() => setIsCreating(false)}
         onCreated={(profile) => {
           setIsCreating(false);
-          setView("active");
-          setExternalDetail(profile);
+          navigate(`/admin/companies/${profile.id}`);
         }}
       />
-    </div>
+      <EditCompanyDialog
+        profile={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          toast.success(t("admin:companies.savedToast"));
+          setEditing(null);
+          setListReloadKey((k) => k + 1);
+        }}
+      />
+      <ConfirmDialog
+        open={deletePending != null}
+        onOpenChange={(o) => !o && setDeletePending(null)}
+        title={t("admin:companies.deleteConfirmTitle", {
+          name: deletePending?.name ?? "",
+        })}
+        message={t("admin:companies.active.deleteConfirm")}
+        confirmLabel={t("admin:companies.deleteAction")}
+        variant="danger"
+        isPending={isPendingMutation}
+        onConfirm={handleDeleteFromPane}
+      />
+    </>
+  );
+
+  if (selectedId == null) {
+    return (
+      <div>
+        <h1 data-page-heading className="sr-only">
+          {t("admin:companies.title")}
+        </h1>
+        {header}
+        {tabPills}
+        {searchBar}
+        {filterChips}
+
+        {view === "active" && (
+          <CompanyActiveTab
+            query={debouncedQuery}
+            selectedId={null}
+            onSelect={handleSelect}
+            reloadKey={listReloadKey}
+          />
+        )}
+        {view === "pending" && <CompanyPendingTab query={debouncedQuery} />}
+        {view === "invites" && (
+          <CompanyInvitesTab
+            query={debouncedQuery}
+            isExternalOpen={isInviting}
+            onExternalClose={() => setIsInviting(false)}
+          />
+        )}
+        {dialogs}
+      </div>
+    );
+  }
+
+  return (
+    <SplitPaneLayout
+      collapsed={railCollapsed}
+      onToggleCollapsed={() => setRailCollapsed((v) => !v)}
+      showListLabel={t("admin:companies.record.showList")}
+      hideListLabel={t("admin:companies.record.hideList")}
+      rail={
+        <>
+          <h1 data-page-heading className="sr-only">
+            {t("admin:companies.title")}
+          </h1>
+          {header}
+          <div className="mb-3">{searchBar}</div>
+          {filterChips}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <CompanyActiveTab
+              query={debouncedQuery}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+              reloadKey={listReloadKey}
+            />
+          </div>
+        </>
+      }
+      record={
+        <CompanyRecordPane
+          companyId={selectedId}
+          onEdit={setEditing}
+          onDelete={setDeletePending}
+        />
+      }
+    >
+      {dialogs}
+    </SplitPaneLayout>
   );
 }

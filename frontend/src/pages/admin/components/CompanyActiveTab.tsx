@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
-import MobileEntityCard from "@/components/admin/MobileEntityCard";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SortableColumnHeader from "@/components/admin/SortableColumnHeader";
 import SortControl from "@/components/admin/SortControl";
@@ -29,22 +29,25 @@ import type { CompanyProfileRead } from "@/types/auth";
 import type { ActiveCompanyRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
-import CompanyDetailDialog, { CompanyDetailBody } from "./CompanyDetailDialog";
 import EditCompanyDialog from "./EditCompanyDialog";
 
 interface ActiveTabProps {
   query: string;
-  externalDetail?: CompanyProfileRead | null;
-  onExternalDetailClose?: () => void;
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  /** Increment to force a full list reload (e.g. after record-pane edit/delete). */
+  reloadKey?: number;
 }
 
 export default function CompanyActiveTab({
   query,
-  externalDetail,
-  onExternalDetailClose,
+  selectedId,
+  onSelect,
+  reloadKey = 0,
 }: ActiveTabProps) {
   const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
+  const navigate = useNavigate();
 
   const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
     column: "created_at",
@@ -56,7 +59,8 @@ export default function CompanyActiveTab({
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ActiveCompanyRead>> =>
       getActiveCompanies({ cursor, sort, order }),
-    [sort, order],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort, order, reloadKey],
   );
 
   const {
@@ -87,18 +91,9 @@ export default function CompanyActiveTab({
     });
   }, [companies, query]);
 
-  const [detail, setDetail] = useState<CompanyProfileRead | null>(null);
   const [editing, setEditing] = useState<CompanyProfileRead | null>(null);
   const [deletePending, setDeletePending] = useState<ActiveCompanyRead | null>(null);
   const [isPendingMutation, setIsPendingMutation] = useState(false);
-
-  useEffect(() => {
-    if (externalDetail) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDetail(externalDetail);
-      onExternalDetailClose?.();
-    }
-  }, [externalDetail, onExternalDetailClose]);
 
   async function handleDelete() {
     if (!deletePending) return;
@@ -109,9 +104,13 @@ export default function CompanyActiveTab({
       } else {
         await deleteOrphanCompany(deletePending.company_profile.id);
       }
-      removeItem((c) => c.company_profile.id === deletePending.company_profile.id);
+      const deletedId = deletePending.company_profile.id;
+      removeItem((c) => c.company_profile.id === deletedId);
       toast.success(t("admin:companies.deletedToast"));
       setDeletePending(null);
+      if (selectedId === deletedId) {
+        navigate("/admin/companies");
+      }
     } catch {
       toast.error(t("admin:companies.active.deleteError"));
     } finally {
@@ -161,48 +160,61 @@ export default function CompanyActiveTab({
             />
           </div>
 
-          {/* Mobile cards — tap to expand inline; 3-dot menu for actions */}
+          {/* Mobile — tap row to navigate to record pane */}
           <div className="space-y-2 md:hidden">
             {filteredCompanies.map((row) => {
-              const actions = (
-                <DropdownMenu
-                  ariaLabel={t("admin:companies.rowActionsLabel")}
-                  trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
-                >
-                  <DropdownMenuItem onSelect={() => setEditing(row.company_profile)}>
-                    {t("admin:companies.editAction")}
-                  </DropdownMenuItem>
-                  {row.user?.email && (
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        const email = row.user?.email;
-                        if (email) window.open(`mailto:${email}`, "_self");
-                      }}
-                    >
-                      {t("admin:companies.emailAction")}
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    variant="danger"
-                    onSelect={() => setDeletePending(row)}
-                  >
-                    {t("admin:companies.deleteAction")}
-                  </DropdownMenuItem>
-                </DropdownMenu>
-              );
+              const isSelected = selectedId === row.company_profile.id;
               return (
-                <MobileEntityCard
+                <div
                   key={row.company_profile.id}
-                  title={
-                    <span className="block truncate font-medium text-white/90">
-                      {row.company_profile.name}
-                    </span>
-                  }
-                  actions={actions}
+                  className={`relative overflow-hidden rounded-xl border bg-card transition-colors duration-200 ${
+                    isSelected
+                      ? "border-copper/40 bg-card-raised"
+                      : "border-white/8 hover:border-white/15"
+                  }`}
                 >
-                  <CompanyDetailBody profile={row.company_profile} />
-                </MobileEntityCard>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(row.company_profile.id)}
+                    className="flex w-full items-center gap-3 px-3 py-3 pe-12 text-start"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-white/90">
+                        {row.company_profile.name}
+                      </p>
+                      <p className="text-xs text-white/40">
+                        {row.company_profile.contact_email}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="absolute end-1 top-2">
+                    <DropdownMenu
+                      ariaLabel={t("admin:companies.rowActionsLabel")}
+                      trigger={<KebabButton onClick={(e) => e.stopPropagation()} />}
+                    >
+                      <DropdownMenuItem onSelect={() => setEditing(row.company_profile)}>
+                        {t("admin:companies.editAction")}
+                      </DropdownMenuItem>
+                      {row.user?.email && (
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            const email = row.user?.email;
+                            if (email) window.open(`mailto:${email}`, "_self");
+                          }}
+                        >
+                          {t("admin:companies.emailAction")}
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        variant="danger"
+                        onSelect={() => setDeletePending(row)}
+                      >
+                        {t("admin:companies.deleteAction")}
+                      </DropdownMenuItem>
+                    </DropdownMenu>
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -255,8 +267,12 @@ export default function CompanyActiveTab({
                 {filteredCompanies.map((row) => (
                   <tr
                     key={row.company_profile.id}
-                    onClick={() => setDetail(row.company_profile)}
-                    className="cursor-pointer transition-[background-color] hover:bg-white/3"
+                    onClick={() => onSelect(row.company_profile.id)}
+                    className={`cursor-pointer transition-[background-color] ${
+                      selectedId === row.company_profile.id
+                        ? "bg-copper/8"
+                        : "hover:bg-white/3"
+                    }`}
                   >
                     <td className="px-4 py-3">
                       <span className="font-medium text-white/90">
@@ -284,7 +300,7 @@ export default function CompanyActiveTab({
                         trigger={<KebabButton size="sm" />}
                       >
                         <DropdownMenuItem
-                          onSelect={() => setDetail(row.company_profile)}
+                          onSelect={() => onSelect(row.company_profile.id)}
                         >
                           {t("admin:companies.viewAction")}
                         </DropdownMenuItem>
@@ -324,15 +340,6 @@ export default function CompanyActiveTab({
           />
         </>
       )}
-
-      <CompanyDetailDialog
-        profile={detail}
-        onClose={() => setDetail(null)}
-        onEdit={() => {
-          if (detail) setEditing(detail);
-          setDetail(null);
-        }}
-      />
 
       <EditCompanyDialog
         profile={editing}

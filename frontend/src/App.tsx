@@ -186,6 +186,16 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/admin/companies/:id"
+                  element={
+                    <AdminRoute>
+                      <RouteErrorBoundary>
+                        <AdminCompaniesPage />
+                      </RouteErrorBoundary>
+                    </AdminRoute>
+                  }
+                />
+                <Route
                   path="/admin/jobs"
                   element={
                     <AdminRoute>

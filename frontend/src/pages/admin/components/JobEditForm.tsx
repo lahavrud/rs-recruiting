@@ -63,7 +63,7 @@ export default function JobEditForm({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
             type="button"
-            onClick={() => navigate(`/admin/companies?detail=${job.company_id}`)}
+            onClick={() => navigate(`/admin/companies/${job.company_id}`)}
             className="rounded border border-copper/30 bg-copper/8 px-2.5 py-1 text-copper/85 transition hover:border-copper/55 hover:bg-copper/15 hover:text-copper active:scale-[0.97] sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:hover:bg-transparent sm:hover:underline"
           >
             {companyName ?? t("admin:jobs.companyLabel", { id: job.company_id })}

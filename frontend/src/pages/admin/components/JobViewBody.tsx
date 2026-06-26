@@ -141,7 +141,7 @@ export function JobDetailBody({
             type="button"
             onClick={() => {
               onLeavePage?.();
-              navigate(`/admin/companies?detail=${job.company_id}`);
+              navigate(`/admin/companies/${job.company_id}`);
             }}
             className="inline-flex items-center rounded-sm border border-white/10 bg-white/5 px-2 py-0.5 text-copper/90 transition hover:border-copper/30 hover:bg-copper/10 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:text-copper/85 sm:hover:bg-transparent sm:hover:text-copper sm:hover:underline"
           >

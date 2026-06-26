@@ -6,6 +6,14 @@
   "companies": {
     "title": "חברות",
     "subtitle": "ניהול רישומי חברות והזמנות.",
+    "record": {
+      "eyebrow": "פרופיל חברה",
+      "showList": "הצג רשימת חברות",
+      "hideList": "הסתר רשימת חברות",
+      "emptyHeadline": "בחר חברה לצפייה",
+      "emptyDescription": "בחר חברה מהרשימה כדי לצפות בפרטיה.",
+      "notFound": "החברה לא נמצאה."
+    },
     "empty": "אין חברות ממתינות לאישור.",
     "contactLabel": "איש קשר",
     "registeredLabel": "נרשם",
