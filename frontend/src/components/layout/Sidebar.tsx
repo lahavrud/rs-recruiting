@@ -1,14 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router-dom";
 
 import { useAuth } from "@/hooks/useAuth";
+import { getAdminOverview } from "@/services/adminOverview";
 import { UserRole } from "@/types/enums";
 
 interface NavItem {
   labelKey: string;
   to: string;
+  /** Pending-action count. Shown as a copper pill when > 0, hidden when 0 or null (loading). */
+  badge?: number | null;
 }
 
 interface SidebarProps {
@@ -20,11 +23,28 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation("nav");
   const { user } = useAuth();
 
+  const [pendingCompanies, setPendingCompanies] = useState<number | null>(null);
+  const [pendingJobs, setPendingJobs] = useState<number | null>(null);
+  const [newApplications, setNewApplications] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (user?.role !== UserRole.ADMIN) return;
+    const ctrl = new AbortController();
+    getAdminOverview(ctrl.signal)
+      .then((data) => {
+        setPendingCompanies(data.inbox.pending_companies);
+        setPendingJobs(data.inbox.pending_jobs);
+        setNewApplications(data.inbox.new_applications);
+      })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [user?.role]);
+
   const adminNav: NavItem[] = [
     { labelKey: "nav:dashboard", to: "/dashboard" },
-    { labelKey: "nav:companies", to: "/admin/companies" },
-    { labelKey: "nav:jobs", to: "/admin/jobs" },
-    { labelKey: "nav:applications", to: "/admin/applications" },
+    { labelKey: "nav:companies", to: "/admin/companies", badge: pendingCompanies },
+    { labelKey: "nav:jobs", to: "/admin/jobs", badge: pendingJobs },
+    { labelKey: "nav:applications", to: "/admin/applications", badge: newApplications },
     { labelKey: "nav:candidates", to: "/admin/candidates" },
   ];
 
@@ -64,14 +84,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           end={item.to === "/dashboard"}
           onClick={onClose}
           className={({ isActive }) =>
-            `block rounded-sm px-3 py-2 text-sm transition ${
+            `flex items-center justify-between rounded-sm px-3 py-2 text-sm transition ${
               isActive
                 ? "bg-copper/12 font-medium text-copper"
                 : "text-white/40 hover:bg-white/5 hover:text-white/70"
             }`
           }
         >
-          {t(item.labelKey)}
+          <span>{t(item.labelKey)}</span>
+          {item.badge != null && item.badge > 0 && (
+            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-copper px-1 py-px text-[10px] font-semibold text-white">
+              {item.badge}
+            </span>
+          )}
         </NavLink>
       ))}
     </nav>
