@@ -248,5 +248,6 @@ export default function ApplicationsQueue() {
           record={recordPane}
         />
       </div>
+    </>
   );
 }
