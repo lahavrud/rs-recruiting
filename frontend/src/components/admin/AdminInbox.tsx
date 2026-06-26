@@ -42,7 +42,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.companies.label"),
       hint: t("dashboard:inbox.companies.hint"),
       empty: t("dashboard:inbox.companies.empty"),
-      to: "/admin/companies?view=pending",
+      to: "/admin/review?tab=companies",
       icon: <UserCheckIcon />,
       n: counts?.pending_companies ?? null,
     },
@@ -51,7 +51,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.jobs.label"),
       hint: t("dashboard:inbox.jobs.hint"),
       empty: t("dashboard:inbox.jobs.empty"),
-      to: "/admin/jobs?status=PENDING_APPROVAL",
+      to: "/admin/review?tab=jobs",
       icon: <BriefcaseIcon />,
       n: counts?.pending_jobs ?? null,
     },
@@ -60,7 +60,7 @@ export default function AdminInbox() {
       label: t("dashboard:inbox.applications.label"),
       hint: t("dashboard:inbox.applications.hint"),
       empty: t("dashboard:inbox.applications.empty"),
-      to: "/admin/applications?status=NEW",
+      to: "/admin/review",
       icon: <DocumentIcon />,
       n: counts?.new_applications ?? null,
     },
@@ -74,9 +74,17 @@ export default function AdminInbox() {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
           {t("dashboard:inbox.title")}
         </p>
-        {allClear && (
-          <p className="text-xs text-white/40">{t("dashboard:inbox.allClear")}</p>
-        )}
+        <div className="flex items-center gap-4">
+          {allClear && (
+            <p className="text-xs text-white/40">{t("dashboard:inbox.allClear")}</p>
+          )}
+          <Link
+            to="/admin/companies?view=invites&action=invite"
+            className="text-xs font-medium text-copper/75 transition hover:text-copper"
+          >
+            {t("dashboard:inbox.newInvite")}
+          </Link>
+        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {items.map((item) => (

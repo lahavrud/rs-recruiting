@@ -45,13 +45,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       ? pendingCompanies + pendingJobs + newApplications
       : null;
 
-  const adminNav: NavItem[] = [
-    { labelKey: "nav:dashboard", to: "/dashboard" },
-    { labelKey: "nav:companies", to: "/admin/companies", badge: pendingCompanies },
-    { labelKey: "nav:jobs", to: "/admin/jobs", badge: pendingJobs },
-    { labelKey: "nav:applications", to: "/admin/applications", badge: newApplications },
-    { labelKey: "nav:candidates", to: "/admin/candidates" },
-    { labelKey: "nav:reviewQueue", to: "/admin/review", badge: reviewQueueBadge },
+  const adminSections: { label?: string; items: NavItem[] }[] = [
+    { items: [{ labelKey: "nav:dashboard", to: "/dashboard" }] },
+    {
+      label: t("nav:sectionDemand"),
+      items: [{ labelKey: "nav:companies", to: "/admin/companies", badge: pendingCompanies }],
+    },
+    {
+      label: t("nav:sectionSupply"),
+      items: [{ labelKey: "nav:candidates", to: "/admin/candidates" }],
+    },
+    {
+      label: t("nav:sectionWork"),
+      items: [{ labelKey: "nav:reviewQueue", to: "/admin/review", badge: reviewQueueBadge }],
+    },
   ];
 
   const companyNav: NavItem[] = [
@@ -66,12 +73,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { labelKey: "nav:myProfile", to: "/candidate/profile" },
   ];
 
-  const navItems =
-    user?.role === UserRole.ADMIN
-      ? adminNav
-      : user?.role === UserRole.CANDIDATE
-        ? candidateNav
-        : companyNav;
+  const flatNav =
+    user?.role === UserRole.CANDIDATE
+      ? candidateNav
+      : companyNav;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -81,30 +86,56 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  function NavItem({ item }: { item: NavItem }) {
+    return (
+      <NavLink
+        to={item.to}
+        end={item.to === "/dashboard"}
+        onClick={onClose}
+        className={({ isActive }) =>
+          `flex items-center justify-between rounded-sm px-3 py-2 text-sm transition ${
+            isActive
+              ? "bg-copper/12 font-medium text-copper"
+              : "text-white/40 hover:bg-white/5 hover:text-white/70"
+          }`
+        }
+      >
+        <span>{t(item.labelKey)}</span>
+        {item.badge != null && item.badge > 0 && (
+          <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-copper px-1 py-px text-[10px] font-semibold text-white">
+            {item.badge}
+          </span>
+        )}
+      </NavLink>
+    );
+  }
+
   const navContent = (
-    <nav className="flex-1 space-y-0.5 p-3">
-      {navItems.map((item) => (
-        <NavLink
-          key={item.to}
-          to={item.to}
-          end={item.to === "/dashboard"}
-          onClick={onClose}
-          className={({ isActive }) =>
-            `flex items-center justify-between rounded-sm px-3 py-2 text-sm transition ${
-              isActive
-                ? "bg-copper/12 font-medium text-copper"
-                : "text-white/40 hover:bg-white/5 hover:text-white/70"
-            }`
-          }
-        >
-          <span>{t(item.labelKey)}</span>
-          {item.badge != null && item.badge > 0 && (
-            <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-copper px-1 py-px text-[10px] font-semibold text-white">
-              {item.badge}
-            </span>
-          )}
-        </NavLink>
-      ))}
+    <nav className="flex-1 p-3">
+      {user?.role === UserRole.ADMIN ? (
+        <div className="space-y-3">
+          {adminSections.map((section) => (
+            <div key={section.label ?? "top"}>
+              {section.label && (
+                <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.15em] text-white/22">
+                  {section.label}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <NavItem key={item.to} item={item} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-0.5">
+          {flatNav.map((item) => (
+            <NavItem key={item.to} item={item} />
+          ))}
+        </div>
+      )}
     </nav>
   );
 

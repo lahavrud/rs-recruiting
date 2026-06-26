@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
+import { UserRole } from "@/types/enums";
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -11,6 +12,13 @@ interface HeaderProps {
 export default function Header({ onMenuToggle }: HeaderProps) {
   const { t } = useTranslation(['auth', 'nav', 'ui']);
   const { user, logout } = useAuth();
+
+  const roleLabel =
+    user?.role === UserRole.ADMIN
+      ? t("ui:header.roleLabel.ADMIN")
+      : user?.role === UserRole.COMPANY
+        ? t("ui:header.roleLabel.COMPANY")
+        : t("ui:header.roleLabel.CANDIDATE");
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-white/8 bg-void px-4 sm:px-6">
@@ -25,7 +33,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <Link to="/" className="flex items-center gap-2.5 transition hover:opacity-80">
+        <Link to="/dashboard" className="flex items-center gap-2.5 transition hover:opacity-80">
           <Logo size={26} />
           <span className="text-sm font-medium text-white/55">{t("auth:appName")}</span>
         </Link>
@@ -36,7 +44,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
           {user?.email}
         </span>
         <span className="hidden rounded-full border border-white/10 px-2.5 py-0.5 text-xs text-white/35 sm:inline-block">
-          {user?.role}
+          {roleLabel}
         </span>
         <button
           onClick={logout}

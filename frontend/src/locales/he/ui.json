@@ -1,6 +1,11 @@
 {
   "header": {
-    "logout": "התנתקות"
+    "logout": "התנתקות",
+    "roleLabel": {
+      "ADMIN": "מנהל מערכת",
+      "COMPANY": "חברה",
+      "CANDIDATE": "מועמד"
+    }
   },
   "notFound": {
     "title": "404",
