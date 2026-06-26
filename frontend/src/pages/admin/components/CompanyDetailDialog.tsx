@@ -187,7 +187,7 @@ export function CompanyDetailBody({
                   type="button"
                   onClick={() => {
                     onLeavePage?.();
-                    navigate(`/admin/jobs?detail=${j.id}`);
+                    navigate(`/admin/jobs/${j.id}`);
                   }}
                   className="flex w-full items-center justify-between rounded-sm border border-white/6 bg-card px-3 py-2 transition hover:border-copper/25 hover:bg-card-raised"
                 >
