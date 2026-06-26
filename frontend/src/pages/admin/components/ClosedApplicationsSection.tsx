@@ -17,7 +17,6 @@ interface Props {
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
   onView: (app: ApplicationWithDetails) => void;
-  onUpdateStatus: (app: ApplicationWithDetails) => void;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
 }
@@ -27,7 +26,6 @@ export default function ClosedApplicationsSection({
   statusLabels,
   statusColors,
   onView,
-  onUpdateStatus,
   onEditNotes,
   onDelete,
 }: Props) {
@@ -80,9 +78,6 @@ export default function ClosedApplicationsSection({
                     >
                       <DropdownMenuItem onSelect={() => onView(app)}>
                         {t("admin:applications.viewAction")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                        {t("admin:applications.updateStatusAction")}
                       </DropdownMenuItem>
                       <DropdownMenuItem onSelect={() => onEditNotes(app)}>
                         {t("admin:applications.editNotesAction")}

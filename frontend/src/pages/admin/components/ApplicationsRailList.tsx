@@ -10,7 +10,6 @@ import KebabButton from "@/components/ui/KebabButton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useScrollSelectedIntoView } from "@/hooks/useScrollSelectedIntoView";
 import type { ApplicationWithDetails } from "@/types/candidates";
-import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 interface ApplicationsRailListProps {
@@ -19,7 +18,6 @@ interface ApplicationsRailListProps {
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
   onView: (app: ApplicationWithDetails) => void;
-  onUpdateStatus: (app: ApplicationWithDetails) => void;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
   sentinelRef: (node: HTMLElement | null) => void;
@@ -33,7 +31,6 @@ export default function ApplicationsRailList({
   statusLabels,
   statusColors,
   onView,
-  onUpdateStatus,
   onEditNotes,
   onDelete,
   sentinelRef,
@@ -59,11 +56,6 @@ export default function ApplicationsRailList({
                 <DropdownMenuItem onSelect={() => onView(app)}>
                   {t("admin:applications.viewAction")}
                 </DropdownMenuItem>
-                {app.status !== ApplicationStatus.WITHDRAWN && (
-                  <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                    {t("admin:applications.updateStatusAction")}
-                  </DropdownMenuItem>
-                )}
                 <DropdownMenuItem onSelect={() => onEditNotes(app)}>
                   {t("admin:applications.editNotesAction")}
                 </DropdownMenuItem>

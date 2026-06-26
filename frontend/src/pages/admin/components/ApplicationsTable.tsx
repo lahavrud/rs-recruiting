@@ -11,7 +11,6 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import type { SortOrder } from "@/hooks/useColumnSort";
 import { type ApplicationWithDetails } from "@/types/candidates";
-import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
 interface ColumnState {
@@ -25,7 +24,6 @@ interface ApplicationsTableProps {
   statusLabels: Record<string, string>;
   columnState: (column: "name" | "created_at" | "status") => ColumnState;
   onSort: (column: "name" | "created_at" | "status") => void;
-  onUpdateStatus: (app: ApplicationWithDetails) => void;
   onEditNotes: (app: ApplicationWithDetails) => void;
   onDelete: (app: ApplicationWithDetails) => void;
 }
@@ -35,7 +33,6 @@ export default function ApplicationsTable({
   statusLabels,
   columnState,
   onSort,
-  onUpdateStatus,
   onEditNotes,
   onDelete,
 }: ApplicationsTableProps) {
@@ -113,11 +110,6 @@ export default function ApplicationsTable({
                   >
                     {t("applications.viewAction")}
                   </DropdownMenuItem>
-                  {app.status !== ApplicationStatus.WITHDRAWN && (
-                    <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                      {t("applications.updateStatusAction")}
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem onSelect={() => onEditNotes(app)}>
                     {t("applications.editNotesAction")}
                   </DropdownMenuItem>

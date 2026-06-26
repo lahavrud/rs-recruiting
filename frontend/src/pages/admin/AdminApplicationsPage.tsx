@@ -33,9 +33,7 @@ import ApplicationRecordPane from "./components/ApplicationRecordPane";
 import ApplicationsFilterPanel from "./components/ApplicationsFilterPanel";
 import ApplicationsRailList from "./components/ApplicationsRailList";
 import ApplicationsTable from "./components/ApplicationsTable";
-import ApplicationStatusDialog from "./components/ApplicationStatusDialog";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
-
 
 
 const CLOSED_STATUSES = new Set<ApplicationStatus>([
@@ -133,7 +131,6 @@ export default function AdminApplicationsPage() {
     removeItem,
   } = useInfiniteList<ApplicationWithDetails>(fetcher);
 
-  const [statusModal, setStatusModal] = useState<ApplicationWithDetails | null>(null);
   const [notesModal, setNotesModal] = useState<ApplicationWithDetails | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ApplicationWithDetails | null>(
     null,
@@ -244,25 +241,6 @@ export default function AdminApplicationsPage() {
 
   const dialogs = (
     <>
-      <ApplicationStatusDialog
-        app={statusModal}
-        onClose={() => setStatusModal(null)}
-        onSaved={(updated) => {
-          updateItem(
-            (a) => a.id === updated.id,
-            (prev) => ({
-              ...prev,
-              status: updated.status,
-              admin_notes: updated.admin_notes,
-              updated_at: updated.updated_at,
-            }),
-          );
-          toast.success(t("admin:applications.savedToast"));
-          setStatusModal(null);
-        }}
-        onError={() => toast.error(t("admin:applications.errors.updateFailed"))}
-      />
-
       <ApplicationNotesDialog
         app={notesModal}
         onClose={() => setNotesModal(null)}
@@ -402,7 +380,6 @@ export default function AdminApplicationsPage() {
                 statusLabels={STATUS_LABELS}
                 statusColors={APPLICATION_STATUS_COLORS}
                 onView={(app) => navigate(`/admin/applications/${app.id}`)}
-                onUpdateStatus={setStatusModal}
                 onEditNotes={setNotesModal}
                 onDelete={setDeleteCandidate}
                 sentinelRef={sentinelRef}
@@ -482,7 +459,6 @@ export default function AdminApplicationsPage() {
                 statusLabels={STATUS_LABELS}
                 statusColors={APPLICATION_STATUS_COLORS}
                 onView={(app) => navigate(`/admin/applications/${app.id}`)}
-                onUpdateStatus={setStatusModal}
                 onEditNotes={setNotesModal}
                 onDelete={setDeleteCandidate}
                 sentinelRef={sentinelRef}
