@@ -67,18 +67,20 @@ export default function AdminJobsPage() {
     return ALL_FILTER;
   });
 
-  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
-    column: "created_at",
-    order: "desc",
+  const { sort, order, toggle } = useColumnSort<"name" | "created_at" | "status">({
+    column: "status",
+    order: "asc",
   });
-  const handleSort = (column: "name" | "created_at") =>
-    toggle(column, column === "name" ? "asc" : "desc");
+  const handleSort = (column: "name" | "created_at" | "status") =>
+    toggle(column, column === "name" ? "asc" : column === "status" ? "asc" : "desc");
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<JobRead>> => {
       const params: { status?: JobStatus; cursor: string | null } = { cursor };
       if (filter !== ALL_FILTER) params.status = filter as JobStatus;
-      return getJobs({ ...params, sort, order });
+      const sort2 = sort === "status" ? "created_at" : undefined;
+      const order2 = sort === "status" ? "desc" : undefined;
+      return getJobs({ ...params, sort, order, sort2, order2 });
     },
     [filter, sort, order],
   );
@@ -292,8 +294,10 @@ export default function AdminJobsPage() {
     <SortControl
       ariaLabel={t("admin:jobs.sort.label")}
       value={`${sort}:${order}`}
-      onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+      onChange={(col, ord) => toggle(col as "name" | "created_at" | "status", ord)}
       options={[
+        { value: "status:asc", label: t("admin:jobs.sort.statusAsc") },
+        { value: "status:desc", label: t("admin:jobs.sort.statusDesc") },
         { value: "created_at:desc", label: t("admin:jobs.sort.dateDesc") },
         { value: "created_at:asc", label: t("admin:jobs.sort.dateAsc") },
         { value: "name:asc", label: t("admin:jobs.sort.nameAsc") },

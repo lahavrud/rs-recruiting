@@ -9,8 +9,10 @@ export interface JobListParams {
   q?: string;
   cursor?: string | null;
   limit?: number;
-  sort?: "name" | "created_at";
+  sort?: "name" | "created_at" | "status";
   order?: "asc" | "desc";
+  sort2?: "name" | "created_at" | "status";
+  order2?: "asc" | "desc";
 }
 
 export async function approveJob(jobId: number): Promise<JobRead> {
@@ -38,6 +40,8 @@ export async function getJobs(
   if (params?.limit != null) query.limit = params.limit;
   if (params?.sort) query.sort = params.sort;
   if (params?.order) query.order = params.order;
+  if (params?.sort2) query.sort2 = params.sort2;
+  if (params?.order2) query.order2 = params.order2;
   const res = await api.get<CursorPage<JobRead>>("/api/admin/jobs", {
     params: query,
     signal,

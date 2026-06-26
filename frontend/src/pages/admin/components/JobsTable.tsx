@@ -16,9 +16,9 @@ import { FeaturedDesktopSash } from "./JobViewBody";
 
 export interface JobsTableProps {
   jobs: JobRead[];
-  sort: "name" | "created_at";
+  sort: "name" | "created_at" | "status";
   order: SortOrder;
-  onSort: (column: "name" | "created_at") => void;
+  onSort: (column: "name" | "created_at" | "status") => void;
   statusLabels: Record<string, string>;
   statusColors: Record<string, string>;
   onOpenDetail: (job: JobRead) => void;
