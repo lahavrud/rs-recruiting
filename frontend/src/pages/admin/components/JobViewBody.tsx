@@ -10,7 +10,7 @@ import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { getApplications } from "@/services/adminApplications";
 import { getJobCandidateMatches } from "@/services/adminJobs";
-import type { JobCandidateMatchRead } from "@/types/candidates";
+import type { ApplicationWithDetails, JobCandidateMatchRead } from "@/types/candidates";
 import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
@@ -56,26 +56,49 @@ export function JobDetailBody({
   const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   const navigate = useNavigate();
 
-  // Lazy-fetch application count for this job. `null` = loading, number = total.
-  // We fetch a generous first page; if it's smaller than the limit it's exact.
+  // Lazy-fetch applications for this job. `null` = loading.
+  // We fetch a generous first page; if it's smaller than the limit the count is exact.
   // If we got exactly the limit, we report "N+" since there may be more.
   const APP_FETCH_LIMIT = 100;
-  const [applicationCount, setApplicationCount] = useState<{
-    n: number;
-    isCapped: boolean;
-  } | null>(null);
+  const [jobApplications, setJobApplications] = useState<ApplicationWithDetails[] | null>(
+    null,
+  );
+  const [hasApplicationsError, setHasApplicationsError] = useState(false);
   useEffect(() => {
     const ctrl = new AbortController();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setJobApplications(null);
+    setHasApplicationsError(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
     getApplications({ job_id: job.id, limit: APP_FETCH_LIMIT }, ctrl.signal)
-      .then((page) =>
-        setApplicationCount({
-          n: page.items.length,
-          isCapped: page.items.length === APP_FETCH_LIMIT,
-        }),
-      )
-      .catch(() => {});
+      .then((page) => setJobApplications(page.items))
+      .catch((e) => {
+        if (axios.isCancel(e)) return;
+        setHasApplicationsError(true);
+      });
     return () => ctrl.abort();
   }, [job.id]);
+
+  const applicationCount =
+    jobApplications == null
+      ? null
+      : { n: jobApplications.length, isCapped: jobApplications.length === APP_FETCH_LIMIT };
+
+  const applicationEntries: MatchEntry[] | null =
+    jobApplications == null
+      ? null
+      : [...jobApplications]
+          .sort((a, b) => (b.ai_score ?? 0) - (a.ai_score ?? 0))
+          .map((app) => ({
+            key: app.id,
+            name: app.candidate.full_name,
+            meta: app.candidate.email,
+            score: app.ai_score ?? 0,
+            onClick: () => {
+              onLeavePage?.();
+              navigate(`/admin/applications/${app.id}`);
+            },
+          }));
 
   const [matches, setMatches] = useState<JobCandidateMatchRead[] | null>(null);
   const [hasMatchesError, setHasMatchesError] = useState(false);
@@ -220,12 +243,26 @@ export function JobDetailBody({
         </CollapsibleSection>
       )}
       <CollapsibleSection title={t("admin:jobs.matchesSection")}>
-        <MatchList
-          entries={matchEntries}
-          hasError={hasMatchesError}
-          emptyMessage={t("admin:jobs.noMatches")}
-          errorMessage={t("admin:jobs.matchesLoadError")}
-        />
+        <div className="mt-1 grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div>
+            <Eyebrow>{t("admin:jobs.applicationsColumn")}</Eyebrow>
+            <MatchList
+              entries={applicationEntries}
+              hasError={hasApplicationsError}
+              emptyMessage={t("admin:jobs.noApplicationsForJob")}
+              errorMessage={t("admin:jobs.applicationsLoadError")}
+            />
+          </div>
+          <div>
+            <Eyebrow>{t("admin:jobs.aiRecommendationsColumn")}</Eyebrow>
+            <MatchList
+              entries={matchEntries}
+              hasError={hasMatchesError}
+              emptyMessage={t("admin:jobs.noMatches")}
+              errorMessage={t("admin:jobs.matchesLoadError")}
+            />
+          </div>
+        </div>
       </CollapsibleSection>
     </div>
   );
