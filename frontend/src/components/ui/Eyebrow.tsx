@@ -23,6 +23,7 @@ export default function Eyebrow({
   as: Tag = "p",
   htmlFor,
   className,
+  style,
 }: {
   children: ReactNode;
   size?: Size;
