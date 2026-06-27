@@ -157,6 +157,7 @@ function Card({ app, floating }: CardProps) {
 
 interface DragState {
   app: CompanyApplicationRead;
+  startStatus: string;
   x: number;
   y: number;
   offsetX: number;
@@ -217,16 +218,18 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
       const state = dragRef.current;
       dragRef.current = null;
       setDragRender(null);
-      if (!state || !state.overStatus || state.overStatus === state.app.status) return;
+      if (!state || !state.overStatus || state.overStatus === state.startStatus) return;
       const { app, overStatus } = state;
+      // Optimistic update — card moves immediately; rolls back on failure
+      const optimistic = { ...app, status: overStatus };
+      setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? optimistic : a)) : prev));
       updateApplicationStatus(jobId, app.id, overStatus)
         .then((updated) => {
-          setApplications((prev) =>
-            prev ? prev.map((a) => (a.id === app.id ? updated : a)) : prev,
-          );
-          setSelectedApp((prev) => (prev?.id === app.id ? updated : prev));
+          setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? updated : a)) : prev));
         })
-        .catch(() => {});
+        .catch(() => {
+          setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? app : a)) : prev));
+        });
     }
 
     window.addEventListener("pointermove", onMove, { passive: true });
@@ -243,6 +246,7 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const state: DragState = {
       app,
+      startStatus: app.status,
       x: e.clientX,
       y: e.clientY,
       offsetX: e.clientX - rect.left,
