@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import Eyebrow from "@/components/ui/Eyebrow";
 import { getAdminOverview, type RecentItem } from "@/services/adminOverview";
 import { formatTimeAgo } from "@/utils/formatDate";
 
@@ -29,9 +30,7 @@ export default function AdminRecentFeed() {
   return (
     <div>
       <div className="mb-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("dashboard:recent.title")}
-        </p>
+        <Eyebrow>{t("dashboard:recent.title")}</Eyebrow>
       </div>
 
       <div className="rounded-xl border border-white/8 bg-card">
