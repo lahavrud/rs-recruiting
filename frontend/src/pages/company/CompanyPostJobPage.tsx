@@ -9,6 +9,7 @@ import Field from "@/components/ui/Field";
 import JobRequirementsInput from "@/components/ui/JobRequirementsInput";
 import JobTagsInput from "@/components/ui/JobTagsInput";
 import PageHeader from "@/components/ui/PageHeader";
+import SalaryRangeField from "@/components/ui/SalaryRangeField";
 import { EMPTY_FORM } from "@/pages/company/components/JobFormUtils";
 import { createJob } from "@/services/companyJobs";
 import { INPUT_CLS, TEXTAREA_CLS, errorAlertCls } from "@/styles/forms";
@@ -169,44 +170,17 @@ export default function CompanyPostJobPage() {
         {/* Compensation & tags */}
         <section className="rounded-xl border border-white/8 bg-card p-6">
           <Eyebrow className="mb-5">{t("company:jobs.form.sections.compensation")}</Eyebrow>
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                id="pj-salary-min"
-                label={`${t("common:salaryMin")} (₪/חודש)`}
-                required
-              >
-                <input
-                  id="pj-salary-min"
-                  type="number"
-                  required
-                  min={0}
-                  value={form.salary_min || ""}
-                  onChange={(e) =>
-                    set("salary_min", e.target.value ? Number(e.target.value) : 0)
-                  }
-                  className={INPUT_CLS}
-                  dir="ltr"
-                />
-              </Field>
-              <Field
-                id="pj-salary-max"
-                label={`${t("common:salaryMax")} (₪/חודש)`}
-                required
-              >
-                <input
-                  id="pj-salary-max"
-                  type="number"
-                  required
-                  min={0}
-                  value={form.salary_max || ""}
-                  onChange={(e) =>
-                    set("salary_max", e.target.value ? Number(e.target.value) : 0)
-                  }
-                  className={INPUT_CLS}
-                  dir="ltr"
-                />
-              </Field>
+          <div className="space-y-6">
+            <div>
+              <p className="mb-1 text-xs text-white/55">{t("company:jobs.form.salaryRange")}</p>
+              <SalaryRangeField
+                min={form.salary_min}
+                max={form.salary_max}
+                onChange={(lo, hi) => {
+                  set("salary_min", lo);
+                  set("salary_max", hi);
+                }}
+              />
             </div>
 
             <div className="space-y-2">

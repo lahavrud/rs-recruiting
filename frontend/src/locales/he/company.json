@@ -78,6 +78,7 @@
       "description": "תיאור מלא",
       "requirements": "דרישות",
       "tags": "תגיות",
+      "salaryRange": "טווח שכר",
       "sections": {
         "basics": "מידע בסיסי",
         "description": "תיאור המשרה",
