@@ -7,6 +7,11 @@ import api from "@/services/api";
 import type { CompanyApplicationRead } from "@/types/companies";
 import type { JobCreate, JobRead, JobUpdate } from "@/types/jobs";
 
+export async function getCompanyJob(jobId: number): Promise<JobRead> {
+  const res = await api.get<JobRead>(`/api/jobs/${jobId}`);
+  return res.data;
+}
+
 export async function getCompanyJobs(cursor: string | null = null): Promise<CursorPage<JobRead>> {
   const params: Record<string, string> = {};
   if (cursor) params.cursor = cursor;

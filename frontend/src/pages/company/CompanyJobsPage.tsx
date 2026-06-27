@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
@@ -9,8 +10,6 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import JobForm from "@/pages/company/components/JobForm";
 import { EMPTY_FORM, emptyRequirements } from "@/pages/company/components/JobFormUtils";
-import JobKanban from "@/pages/company/components/JobKanban";
-import JobRecommendations from "@/pages/company/components/JobRecommendations";
 import { createJob, deleteJob, getCompanyJobs, updateJob } from "@/services/companyJobs";
 import { getMyCompanyStats } from "@/services/companyProfile";
 import { errorAlertCls } from "@/styles/forms";
@@ -60,114 +59,14 @@ function StatsRow({ stats }: { stats: CompanyStats | null }) {
   );
 }
 
-// ─── Job detail view ──────────────────────────────────────────────────────────
-
-type DetailTab = "kanban" | "ai";
-
-interface JobDetailViewProps {
-  job: JobRead;
-  onBack: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  isDeleting: boolean;
-  editingDisabled: boolean;
-}
-
-function JobDetailView({
-  job,
-  onBack,
-  onEdit,
-  onDelete,
-  isDeleting,
-  editingDisabled,
-}: JobDetailViewProps) {
-  const { t } = useTranslation("company");
-  const [tab, setTab] = useState<DetailTab>("kanban");
-
-  const canEdit = job.status === JobStatus.PENDING_APPROVAL || job.status === JobStatus.PUBLISHED;
-  const canDelete = job.status === JobStatus.PENDING_APPROVAL;
-
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-5 flex items-center gap-1.5 text-sm text-white/40 transition hover:text-white/70"
-      >
-        <span aria-hidden>→</span>
-        {t("company:jobs.backToList")}
-      </button>
-
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold text-white/90">{job.title}</h2>
-            <StatusBadge
-              label={t(STATUS_LABEL_KEYS[job.status] ?? "")}
-              colorCls={STATUS_COLOR[job.status] ?? ""}
-            />
-          </div>
-          <p className="text-sm text-white/45">{job.location}</p>
-          <p className="mt-0.5 text-xs text-white/25">
-            {t("company:jobs.postedLabel")} {formatDate(job.created_at)}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          {canEdit && (
-            <Button variant="ghost" size="sm" onClick={onEdit} disabled={editingDisabled}>
-              {t("company:jobs.edit")}
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={onDelete}
-              disabled={isDeleting || editingDisabled}
-            >
-              {isDeleting ? "…" : t("company:jobs.delete")}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-4 flex gap-1 border-b border-white/8">
-        {(["kanban", "ai"] as DetailTab[]).map((tab_) => (
-          <button
-            key={tab_}
-            type="button"
-            onClick={() => setTab(tab_)}
-            className={`px-3 py-2 text-sm transition ${
-              tab === tab_
-                ? "border-b-2 border-copper font-medium text-copper"
-                : "text-white/40 hover:text-white/70"
-            }`}
-          >
-            {tab_ === "kanban" ? t("company:jobs.kanban.title") : t("company:jobs.kanban.aiTitle")}
-          </button>
-        ))}
-      </div>
-
-      {tab === "kanban" ? (
-        <JobKanban key={job.id} jobId={job.id} />
-      ) : (
-        <div>
-          <p className="mb-3 text-xs text-white/35">{t("company:jobs.kanban.aiSubtitle")}</p>
-          <JobRecommendations key={job.id} jobId={job.id} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type Mode = "idle" | "create" | { type: "edit"; job: JobRead };
 
 export default function CompanyJobsPage() {
   const { t } = useTranslation(["common", "company"]);
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("idle");
-  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [stats, setStats] = useState<CompanyStats | null>(null);
@@ -194,14 +93,13 @@ export default function CompanyJobsPage() {
   }, []);
 
   const error = loadError ? t("company:jobs.errors.loadFailed") : mutationError;
-  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
   const isShowingForm = mode === "create" || (typeof mode === "object" && mode.type === "edit");
 
   async function handleCreate(data: JobCreate) {
     const job = await createJob(data);
     prependItem(job);
     setMode("idle");
-    setSelectedJobId(job.id);
+    navigate(`/company/jobs/${job.id}`);
   }
 
   async function handleEdit(jobId: number, data: JobCreate) {
@@ -218,7 +116,6 @@ export default function CompanyJobsPage() {
     try {
       await deleteJob(jobId);
       removeItem((j) => j.id === jobId);
-      if (selectedJobId === jobId) setSelectedJobId(null);
     } catch {
       setMutationError(t("company:jobs.errors.deleteFailed"));
     } finally {
@@ -232,7 +129,7 @@ export default function CompanyJobsPage() {
         eyebrow={t("company:jobs.title")}
         subtitle={t("company:jobs.subtitle")}
         action={
-          !isShowingForm && !selectedJobId ? (
+          !isShowingForm ? (
             <Button onClick={() => setMode("create")}>{t("company:jobs.postJob")}</Button>
           ) : undefined
         }
@@ -284,16 +181,6 @@ export default function CompanyJobsPage() {
         <div className="rounded-xl border border-dashed border-white/10 py-20 text-center text-sm text-white/25">
           {t("company:jobs.empty")}
         </div>
-      ) : selectedJob ? (
-        <JobDetailView
-          key={selectedJob.id}
-          job={selectedJob}
-          onBack={() => setSelectedJobId(null)}
-          onEdit={() => setMode({ type: "edit", job: selectedJob })}
-          onDelete={() => handleDelete(selectedJob.id)}
-          isDeleting={deleting === selectedJob.id}
-          editingDisabled={isShowingForm}
-        />
       ) : (
         <div className="overflow-hidden rounded-xl border border-white/8">
           <table className="min-w-full divide-y divide-white/6 text-sm">
@@ -315,7 +202,7 @@ export default function CompanyJobsPage() {
                 return (
                   <tr
                     key={job.id}
-                    onClick={() => setSelectedJobId(job.id)}
+                    onClick={() => navigate(`/company/jobs/${job.id}`)}
                     className="cursor-pointer transition hover:bg-white/3"
                   >
                     <td className="px-4 py-3 font-medium text-white/90">{job.title}</td>
