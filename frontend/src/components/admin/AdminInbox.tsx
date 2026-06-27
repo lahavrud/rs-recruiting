@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import Eyebrow from "@/components/ui/Eyebrow";
 import { getAdminOverview, type AdminInboxCounts } from "@/services/adminOverview";
 
 interface ItemConfig {
@@ -76,9 +77,7 @@ export default function AdminInbox() {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("dashboard:inbox.title")}
-        </p>
+        <Eyebrow>{t("dashboard:inbox.title")}</Eyebrow>
         <div className="flex items-center gap-4">
           {allClear && (
             <p className="text-xs text-white/40">{t("dashboard:inbox.allClear")}</p>
