@@ -5,6 +5,8 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
 import type { JobCreate, JobRead, JobUpdate } from "@/types/jobs";
+import type { CompanyApplicationRead } from "@/types/companies";
+
 export async function getCompanyJobs(cursor: string | null = null): Promise<CursorPage<JobRead>> {
   const params: Record<string, string> = {};
   if (cursor) params.cursor = cursor;
@@ -24,4 +26,9 @@ export async function updateJob(jobId: number, data: JobUpdate): Promise<JobRead
 
 export async function deleteJob(jobId: number): Promise<void> {
   await api.delete(`/api/jobs/${jobId}`);
+}
+
+export async function getJobApplications(jobId: number): Promise<CompanyApplicationRead[]> {
+  const res = await api.get<CompanyApplicationRead[]>(`/api/jobs/${jobId}/applications`);
+  return res.data;
 }
