@@ -114,7 +114,7 @@ export default function CompanyProfilePage() {
 
   if (loadError) {
     return (
-      <div>
+      <div className="mx-auto max-w-2xl">
         <PageHeader eyebrow={t("company:profile.title")} />
         <p className="mt-4 text-sm text-danger">{t("company:profile.errors.loadFailed")}</p>
       </div>
@@ -123,7 +123,7 @@ export default function CompanyProfilePage() {
 
   if (!profile) {
     return (
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl">
         <PageHeader eyebrow={t("company:profile.title")} />
         <div className="mt-6 space-y-4">
           {/* Identity header skeleton */}
@@ -143,13 +143,13 @@ export default function CompanyProfilePage() {
   }
 
   return (
-    <div>
+    <div className="mx-auto max-w-2xl">
       <PageHeader
         eyebrow={t("company:profile.title")}
         subtitle={t("company:profile.subtitle")}
       />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-2xl space-y-4">
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         {/* Identity header */}
         <div className="flex items-center gap-4 rounded-xl border border-white/8 bg-card p-5">
           <CompanyAvatar name={profile.name} />
