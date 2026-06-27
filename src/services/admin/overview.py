@@ -1,6 +1,5 @@
 """Admin overview aggregation — real counts replacing capped page-length heuristics."""
 
-import asyncio
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, literal_column, select
@@ -21,47 +20,30 @@ RECENT_ITEMS_PER_TYPE = 2
 
 
 async def get_overview(session: AsyncSession) -> dict:
-    """Compute all admin dashboard counts in parallel."""
-    results = await asyncio.gather(
-        _count_pending_invites(session),
-        _count_pending_companies(session),
-        _count_pending_jobs(session),
-        _count_new_applications(session),
-        _count_active_companies(session),
-        _count_published_jobs(session),
-        _count_candidates(session),
-        _count_application_statuses(session),
-        _top_jobs_by_applications(session),
-        _oldest_pending_company_days(session),
-        _oldest_pending_job_days(session),
-        _oldest_new_application_days(session),
-        _new_candidates_7d(session),
-        _new_applications_7d(session),
-        _recent_pending_companies(session),
-        _recent_pending_jobs(session),
-        _recent_new_applications(session),
-        _application_trend_30d(session),
-    )
-    (
-        pending_invites,
-        pending_companies,
-        pending_jobs,
-        new_applications,
-        active_companies,
-        published_jobs,
-        total_candidates,
-        status_counts,
-        top_jobs,
-        oldest_company_days,
-        oldest_job_days,
-        oldest_application_days,
-        new_candidates_7d,
-        new_applications_7d,
-        recent_companies,
-        recent_jobs,
-        recent_applications,
-        trend_30d,
-    ) = results
+    """Compute all admin dashboard counts sequentially on the shared session.
+
+    asyncio.gather() with a shared AsyncSession is not safe — SQLAlchemy's
+    session is not designed for concurrent coroutine access and deadlocks
+    against its own internal connection mutex.
+    """
+    pending_invites = await _count_pending_invites(session)
+    pending_companies = await _count_pending_companies(session)
+    pending_jobs = await _count_pending_jobs(session)
+    new_applications = await _count_new_applications(session)
+    active_companies = await _count_active_companies(session)
+    published_jobs = await _count_published_jobs(session)
+    total_candidates = await _count_candidates(session)
+    status_counts = await _count_application_statuses(session)
+    top_jobs = await _top_jobs_by_applications(session)
+    oldest_company_days = await _oldest_pending_company_days(session)
+    oldest_job_days = await _oldest_pending_job_days(session)
+    oldest_application_days = await _oldest_new_application_days(session)
+    new_candidates_7d = await _new_candidates_7d(session)
+    new_applications_7d = await _new_applications_7d(session)
+    recent_companies = await _recent_pending_companies(session)
+    recent_jobs = await _recent_pending_jobs(session)
+    recent_applications = await _recent_new_applications(session)
+    trend_30d = await _application_trend_30d(session)
 
     all_recent = recent_companies + recent_jobs + recent_applications
     all_recent.sort(key=lambda x: x["created_at"], reverse=True)
