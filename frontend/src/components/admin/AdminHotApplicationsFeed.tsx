@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { getHotApplications } from "@/services/adminMatches";
 import type { ApplicationWithDetails } from "@/types/candidates";
@@ -52,56 +51,48 @@ function ScoreRing({ score }: { score: number }) {
 // ── Single hot-application row ────────────────────────────────────────────────
 
 function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
-  const { t } = useTranslation("dashboard");
   const navigate = useNavigate();
   const score = app.ai_score ?? 0;
 
   return (
-    <li className="flex items-center gap-4 border-b border-white/6 px-4 py-3.5 last:border-0 transition-colors hover:bg-card-raised">
-      {/* Score */}
-      <ScoreRing score={score} />
+    <li>
+      <button
+        type="button"
+        onClick={() => navigate(`/admin/applications/${app.id}`)}
+        className="group flex w-full items-center gap-3.5 border-b border-white/6 px-4 py-4 text-start last:border-0 transition-colors active:bg-card-raised md:gap-4 md:py-3.5 md:hover:bg-card-raised"
+      >
+        {/* Score */}
+        <ScoreRing score={score} />
 
-      {/* Candidate */}
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-white/90">{app.candidate.full_name}</p>
-        {app.candidate.resume_summary ? (
-          <p className="mt-0.5 truncate text-xs text-white/45">
-            {app.candidate.resume_summary}
+        {/* Candidate info */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-white/90">{app.candidate.full_name}</p>
+          {/* Job shown inline on mobile; desktop has its own column */}
+          <p className="mt-0.5 truncate text-xs text-white/50 md:hidden">
+            {app.job.title}
+            <span className="text-white/25"> · </span>
+            {app.job.company_name}
           </p>
-        ) : (
-          <p className="mt-0.5 truncate text-xs text-white/30">{app.candidate.email}</p>
-        )}
-        {/* Job title on mobile */}
-        <p className="mt-0.5 truncate text-xs text-white/30 md:hidden">
-          {app.job.title} · {app.job.company_name}
-        </p>
-      </div>
+          {app.candidate.resume_summary ? (
+            <p className="mt-0.5 truncate text-xs text-white/35">
+              {app.candidate.resume_summary}
+            </p>
+          ) : (
+            <p className="mt-0.5 truncate text-xs text-white/25">{app.candidate.email}</p>
+          )}
+        </div>
 
-      {/* Arrow */}
-      <span className="hidden md:block" aria-hidden="true">
-        <ArrowIcon />
-      </span>
-
-      {/* Job */}
-      <div className="hidden min-w-0 w-52 shrink-0 md:block">
-        <p className="truncate text-sm font-medium text-white/80">{app.job.title}</p>
-        <p className="truncate text-xs text-white/40">{app.job.company_name}</p>
-      </div>
-
-      {/* Action */}
-      <div className="shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            navigate(`/admin/applications`, {
-              state: { candidate_id: app.candidate_id },
-            })
-          }
-        >
-          {t("dashboard:matches.viewApplication")}
-        </Button>
-      </div>
+        {/* Desktop: arrow + separate job column + CTA label */}
+        <span className="hidden md:block" aria-hidden="true">
+          <ArrowIcon />
+        </span>
+        <div className="hidden min-w-0 w-52 shrink-0 md:block">
+          <p className="truncate text-sm font-medium text-white/80">{app.job.title}</p>
+          <p className="truncate text-xs text-white/40">{app.job.company_name}</p>
+        </div>
+        {/* Mobile: forward chevron tap hint */}
+        <ChevronIcon />
+      </button>
     </li>
   );
 }
@@ -110,17 +101,18 @@ function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
 
 function SkeletonRow() {
   return (
-    <li className="flex items-center gap-4 border-b border-white/6 px-4 py-3.5 last:border-0">
+    <li className="flex items-center gap-3.5 border-b border-white/6 px-4 py-4 last:border-0 md:gap-4 md:py-3.5">
       <div className="size-9 shrink-0 animate-pulse rounded-full bg-white/8" />
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="h-3 w-32 animate-pulse rounded bg-white/8" />
+        <div className="h-2.5 w-44 animate-pulse rounded bg-white/6 md:hidden" />
         <div className="h-2.5 w-48 animate-pulse rounded bg-white/6" />
       </div>
-      <div className="hidden w-52 space-y-1.5 md:block">
+      <div className="hidden w-52 shrink-0 space-y-1.5 md:block">
         <div className="h-3 w-36 animate-pulse rounded bg-white/8" />
         <div className="h-2.5 w-24 animate-pulse rounded bg-white/6" />
       </div>
-      <div className="h-7 w-24 animate-pulse rounded-lg bg-white/6" />
+      <div className="size-4 shrink-0 animate-pulse rounded bg-white/6 md:hidden" />
     </li>
   );
 }
@@ -188,6 +180,23 @@ function ArrowIcon() {
       aria-hidden="true"
     >
       <path d="M3 8h10M9 4l4 4-4 4" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-4 shrink-0 text-white/20 rtl:rotate-180 md:hidden"
+      aria-hidden="true"
+    >
+      <path d="M6 3l5 5-5 5" />
     </svg>
   );
 }
