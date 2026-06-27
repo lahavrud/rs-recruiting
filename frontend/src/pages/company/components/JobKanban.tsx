@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import CandidateDetailDrawer from "@/pages/company/components/CandidateDetailDrawer";
+import { PCT_MULTIPLIER, scoreBarColor } from "@/pages/company/components/scoreUtils";
 import { getJobApplications, updateApplicationStatus } from "@/services/companyJobs";
 import type { CompanyApplicationRead } from "@/types/companies";
 import { ApplicationStatus } from "@/types/enums";
@@ -59,9 +60,6 @@ const DROPPABLE_STATUSES = new Set(COLUMNS.filter((c) => c.droppable).map((c) =>
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PCT = 100;
-const SCORE_HIGH = 80;
-const SCORE_MID = 65;
 const ORDER_KEY = (jobId: number) => `kanban_order_${jobId}`;
 const FLIP_DURATION = "280ms";
 const FLIP_EASE = "cubic-bezier(0.2,0,0,1)";
@@ -128,9 +126,8 @@ function avatarCls(id: number) {
 
 function Card({ app, floating }: { app: CompanyApplicationRead; floating?: boolean }) {
   const { t } = useTranslation("company");
-  const pct = app.match_score != null ? Math.round(app.match_score * PCT) : null;
-  const barColor =
-    pct == null ? "" : pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
+  const pct = app.match_score != null ? Math.round(app.match_score * PCT_MULTIPLIER) : null;
+  const barColor = pct == null ? "" : scoreBarColor(pct);
 
   return (
     <div
@@ -207,6 +204,8 @@ export default function JobKanban({ jobId }: { jobId: number }) {
   const scrollRafRef = useRef(0);
   const scrollDeltaRef = useRef(0);
   const pointerPosRef = useRef({ x: 0, y: 0 });
+  // Stores the active drag cleanup so unmount mid-drag doesn't leak listeners.
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   function applyOrder(fn: (prev: Record<string, number[]>) => Record<string, number[]>) {
     setOrder((prev) => {
@@ -224,7 +223,8 @@ export default function JobKanban({ jobId }: { jobId: number }) {
     }
   }
 
-  // FLIP: animate cards from old positions to new positions after state update
+  // FLIP: animate cards from old positions to new positions after a reorder.
+  // Scoped to [order] so it only fires when cards actually move, not on every drag-move render.
   useLayoutEffect(() => {
     const prev = prevRectsRef.current;
     if (prev.size === 0) return;
@@ -243,7 +243,12 @@ export default function JobKanban({ jobId }: { jobId: number }) {
         });
       });
     }
-  });
+  }, [order]);
+
+  // Remove window listeners if the component unmounts during an active drag.
+  useEffect(() => {
+    return () => { dragCleanupRef.current?.(); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -346,6 +351,7 @@ export default function JobKanban({ jobId }: { jobId: number }) {
     }
 
     function onUp(ev: PointerEvent) {
+      dragCleanupRef.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       cancelAnimationFrame(scrollRafRef.current);
@@ -396,6 +402,13 @@ export default function JobKanban({ jobId }: { jobId: number }) {
       }
     }
 
+    dragCleanupRef.current = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = 0;
+      scrollDeltaRef.current = 0;
+    };
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp);
   }
