@@ -1,19 +1,19 @@
+import { useEffect, useState } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import type { CompanyApplicationRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
-const SCORE_THRESHOLDS = { high: 0.8, mid: 0.65 };
+const SCORE_HIGH_PCT = 80;
+const SCORE_MID_PCT = 65;
 const PCT_MULTIPLIER = 100;
+const TRANSITION_MS = 300;
 
 function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(score * PCT_MULTIPLIER);
   const colorCls =
-    pct >= SCORE_THRESHOLDS.high * PCT_MULTIPLIER
-      ? "bg-success"
-      : pct >= SCORE_THRESHOLDS.mid * PCT_MULTIPLIER
-        ? "bg-copper"
-        : "bg-warning";
+    pct >= SCORE_HIGH_PCT ? "bg-success" : pct >= SCORE_MID_PCT ? "bg-copper" : "bg-warning";
   return (
     <div className="flex items-center gap-3">
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">
@@ -32,24 +32,61 @@ interface CandidateDetailDrawerProps {
 export default function CandidateDetailDrawer({ app, onClose }: CandidateDetailDrawerProps) {
   const { t } = useTranslation("company");
 
-  if (!app) return null;
+  // displayApp persists the data through the exit animation.
+  // isMounted gates DOM presence; isOpen drives the CSS transition.
+  // All three update asynchronously (inside rAF / setTimeout) so they
+  // never call setState synchronously inside the effect body.
+  const [displayApp, setDisplayApp] = useState<CompanyApplicationRead | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (app) {
+      let innerRaf = 0;
+      const outerRaf = requestAnimationFrame(() => {
+        setDisplayApp(app);
+        setIsMounted(true);
+        innerRaf = requestAnimationFrame(() => setIsOpen(true));
+      });
+      return () => {
+        cancelAnimationFrame(outerRaf);
+        cancelAnimationFrame(innerRaf);
+      };
+    }
+    const closingRaf = requestAnimationFrame(() => setIsOpen(false));
+    const timer = setTimeout(() => {
+      setIsMounted(false);
+      setDisplayApp(null);
+    }, TRANSITION_MS);
+    return () => {
+      cancelAnimationFrame(closingRaf);
+      clearTimeout(timer);
+    };
+  }, [app]);
+
+  if (!isMounted || !displayApp) return null;
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — dims screen and closes on any outside interaction */}
       <div
-        className="fixed inset-0 z-40 bg-black/50"
+        className={`fixed inset-0 z-40 bg-black/60 transition-opacity duration-300 ${
+          isOpen ? "opacity-100 ease-out" : "opacity-0 ease-in"
+        }`}
         onClick={onClose}
+        onWheel={onClose}
+        onTouchMove={onClose}
         aria-hidden="true"
       />
 
-      {/* Drawer panel */}
+      {/* Drawer — slides in from the right (start edge in RTL) */}
       <div
         role="dialog"
         aria-modal="true"
-        className="fixed inset-y-0 start-0 z-50 flex w-80 flex-col border-e border-white/8 bg-card shadow-2xl"
+        className={`fixed inset-y-0 start-0 z-50 flex w-80 flex-col border-e border-white/8 bg-card shadow-2xl transition-transform duration-300 ${
+          isOpen ? "translate-x-0 ease-out" : "translate-x-full ease-in"
+        }`}
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
           <h2 className="text-sm font-semibold text-white/85">
             {t("company:kanban.drawer.title")}
@@ -64,46 +101,41 @@ export default function CandidateDetailDrawer({ app, onClose }: CandidateDetailD
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {/* Name + contact */}
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
           <div className="space-y-1">
             <p className="text-base font-semibold text-white/90">
-              {app.candidate.full_name}
+              {displayApp.candidate.full_name}
             </p>
-            <p className="text-sm text-white/50">{app.candidate.email}</p>
-            {app.candidate.phone && (
+            <p className="text-sm text-white/50">{displayApp.candidate.email}</p>
+            {displayApp.candidate.phone && (
               <p className="text-sm text-white/40" dir="ltr">
-                {app.candidate.phone}
+                {displayApp.candidate.phone}
               </p>
             )}
           </div>
 
-          {/* Applied date */}
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-copper mb-1">
+            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-copper">
               {t("company:kanban.drawer.appliedOn")}
             </p>
-            <p className="text-sm text-white/55">{formatDate(app.created_at)}</p>
+            <p className="text-sm text-white/55">{formatDate(displayApp.created_at)}</p>
           </div>
 
-          {/* Match score */}
-          {app.match_score != null && (
+          {displayApp.match_score != null && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-copper mb-2">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-copper">
                 {t("company:kanban.drawer.matchScore")}
               </p>
-              <ScoreBar score={app.match_score} />
+              <ScoreBar score={displayApp.match_score} />
             </div>
           )}
 
-          {/* AI review */}
-          {app.ai_review && (
+          {displayApp.ai_review && (
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-copper mb-2">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-copper">
                 {t("company:kanban.drawer.aiReview")}
               </p>
-              <p className="text-sm leading-relaxed text-white/70">{app.ai_review}</p>
+              <p className="text-sm leading-relaxed text-white/70">{displayApp.ai_review}</p>
             </div>
           )}
         </div>
