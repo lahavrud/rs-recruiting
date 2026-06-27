@@ -4,16 +4,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
-import Eyebrow from "@/components/ui/Eyebrow";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
-import JobForm from "@/pages/company/components/JobForm";
-import { emptyRequirements } from "@/pages/company/components/JobFormUtils";
 import JobKanban from "@/pages/company/components/JobKanban";
 import JobRecommendations from "@/pages/company/components/JobRecommendations";
-import { deleteJob, getCompanyJob, updateJob } from "@/services/companyJobs";
+import { deleteJob, getCompanyJob } from "@/services/companyJobs";
 import { JobStatus } from "@/types/enums";
-import type { JobCreate, JobRead, JobUpdate } from "@/types/jobs";
+import type { JobRead } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
@@ -39,7 +36,6 @@ export default function CompanyJobKanbanPage() {
   const [job, setJob] = useState<JobRead | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [tab, setTab] = useState<DetailTab>("kanban");
-  const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -50,14 +46,6 @@ export default function CompanyJobKanbanPage() {
       .catch(() => { if (!cancelled) setLoadError(true); });
     return () => { cancelled = true; };
   }, [jobId]);
-
-  async function handleEdit(data: JobCreate) {
-    if (!job) return;
-    const update: JobUpdate = { ...data };
-    const updated = await updateJob(job.id, update);
-    setJob(updated);
-    setIsEditing(false);
-  }
 
   async function handleDelete() {
     if (!job || !confirm(t("company:jobs.deleteConfirm"))) return;
@@ -104,30 +92,6 @@ export default function CompanyJobKanbanPage() {
         </div>
       )}
 
-      {isEditing && job ? (
-        <div className="mb-6 rounded-xl border border-copper/20 bg-card p-6">
-          <Eyebrow className="mb-4">{t("company:jobs.editTitle")}</Eyebrow>
-          <JobForm
-            initial={{
-              title: job.title,
-              short_description: job.short_description,
-              description: job.description,
-              requirements:
-                job.requirements.length > 0
-                  ? job.requirements.map((r) => ({ text: r.text }))
-                  : emptyRequirements(),
-              tags: [...job.tags],
-              location: job.location,
-              salary_min: job.salary_min ?? 0,
-              salary_max: job.salary_max ?? 0,
-            }}
-            onSubmit={handleEdit}
-            onCancel={() => setIsEditing(false)}
-            submitLabel={t("company:jobs.saveChanges")}
-          />
-        </div>
-      ) : null}
-
       {job ? (
         <>
           <div className="mb-5 flex items-start justify-between gap-3">
@@ -149,8 +113,7 @@ export default function CompanyJobKanbanPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsEditing(true)}
-                  disabled={isEditing}
+                  onClick={() => navigate(`/company/jobs/${jobId}/edit`)}
                 >
                   {t("company:jobs.edit")}
                 </Button>

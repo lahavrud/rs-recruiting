@@ -63,6 +63,7 @@ const AdminCandidatesPage = lazyWithRetry(
 );
 const CompanyJobsPage = lazyWithRetry(() => import("@/pages/company/CompanyJobsPage"));
 const CompanyPostJobPage = lazyWithRetry(() => import("@/pages/company/CompanyPostJobPage"));
+const CompanyEditJobPage = lazyWithRetry(() => import("@/pages/company/CompanyEditJobPage"));
 const CompanyJobKanbanPage = lazyWithRetry(
   () => import("@/pages/company/CompanyJobKanbanPage"),
 );
@@ -303,6 +304,16 @@ export default function App() {
                     <CompanyRoute>
                       <RouteErrorBoundary>
                         <CompanyPostJobPage />
+                      </RouteErrorBoundary>
+                    </CompanyRoute>
+                  }
+                />
+                <Route
+                  path="/company/jobs/:jobId/edit"
+                  element={
+                    <CompanyRoute>
+                      <RouteErrorBoundary>
+                        <CompanyEditJobPage />
                       </RouteErrorBoundary>
                     </CompanyRoute>
                   }
