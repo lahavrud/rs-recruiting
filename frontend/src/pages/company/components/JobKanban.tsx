@@ -62,8 +62,8 @@ const DROPPABLE_STATUSES = new Set(
 const PCT = 100;
 const SCORE_HIGH = 80;
 const SCORE_MID = 65;
-const COL_W = 272;
 const FLOAT_ROTATE = "rotate(1.5deg)";
+const FLOAT_W = 272;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -266,12 +266,11 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
 
   if (applications === null) {
     return (
-      <div className="flex gap-3 overflow-x-auto pb-2" style={{ direction: "ltr" }}>
+      <div className="grid grid-cols-3 gap-4">
         {COLUMNS.map((col) => (
           <div
             key={col.status}
-            className="flex shrink-0 flex-col rounded-xl border border-white/6"
-            style={{ width: COL_W }}
+            className="flex flex-col rounded-xl border border-white/6"
           >
             <div className={`rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}>
               <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
@@ -305,11 +304,7 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
         {t("company:jobs.kanban.totalCandidates", { count: applications.length })}
       </p>
 
-      {/* Board — LTR so APPROVED stays on the left */}
-      <div
-        className={`flex gap-4 overflow-x-auto pb-3 ${isDragging ? "cursor-grabbing" : ""}`}
-        style={{ direction: "ltr" }}
-      >
+      <div className={`grid grid-cols-3 gap-4 ${isDragging ? "cursor-grabbing" : ""}`}>
         {COLUMNS.map((col) => {
           const cards = byStatus[col.status] ?? [];
           const isOver = dragRender?.overStatus === col.status;
@@ -318,10 +313,9 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
             <div
               key={col.status}
               ref={(el) => { colRefs.current[col.status] = el ?? undefined; }}
-              className={`flex shrink-0 flex-col rounded-xl border transition-all duration-150
+              className={`flex flex-col rounded-xl border transition-all duration-150
                 ${isOver ? `border-white/20 ring-1 ${col.dropRingCls} shadow-lg` : "border-white/6"}
               `}
-              style={{ width: COL_W }}
             >
               {/* Header */}
               <div
@@ -388,7 +382,7 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
               position: "fixed",
               left: dragRender.x - dragRender.offsetX,
               top: dragRender.y - dragRender.offsetY,
-              width: COL_W,
+              width: FLOAT_W,
               pointerEvents: "none",
               zIndex: 9999,
               transform: FLOAT_ROTATE,
