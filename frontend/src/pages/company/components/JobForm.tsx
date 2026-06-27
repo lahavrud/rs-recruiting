@@ -12,12 +12,11 @@ import { INPUT_CLS, TEXTAREA_CLS, errorAlertCls } from "@/styles/forms";
 import type { JobCreate } from "@/types/jobs";
 import {
   JOB_DESC_MAX,
+  JOB_LOCATION_MAX,
   JOB_REQ_MIN_COUNT,
   JOB_SHORT_DESC_MAX,
   JOB_TITLE_MAX,
 } from "@/types/jobs";
-
-const LOCATION_MAX = 100;
 const DESC_ROWS = 7;
 
 interface JobFormProps {
@@ -53,6 +52,7 @@ export default function JobForm({ initial, onSubmit, onCancel, submitLabel }: Jo
       });
     } catch {
       setErr(t("company:jobs.errors.saveFailed"));
+    } finally {
       setIsSaving(false);
     }
   }
@@ -80,7 +80,7 @@ export default function JobForm({ initial, onSubmit, onCancel, submitLabel }: Jo
               id="jf-location"
               type="text"
               required
-              maxLength={LOCATION_MAX}
+              maxLength={JOB_LOCATION_MAX}
               value={form.location}
               onChange={(e) => set("location", e.target.value)}
               className={INPUT_CLS}
