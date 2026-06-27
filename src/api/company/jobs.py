@@ -10,11 +10,13 @@ from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import CompanyProfile, User
 from src.schemas import JobCreate, JobRead, JobUpdate
+from src.schemas.companies import CompanyApplicationRead
 from src.services.company.jobs import (
     create_job,
     delete_job,
     get_job,
     list_company_jobs,
+    list_job_applications,
     update_job,
 )
 from src.services.exceptions import (
@@ -102,4 +104,18 @@ async def delete_job_posting(
         async with transactional(session):
             await delete_job(job_id, company_profile.id, session)
     except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeDeletedError) as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get("/{job_id}/applications", response_model=list[CompanyApplicationRead])
+async def get_job_applications(
+    job_id: int,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> list[CompanyApplicationRead]:
+    """List all applications for a job owned by the current company."""
+    _, company_profile = current_company
+    try:
+        return await list_job_applications(job_id, company_profile.id, session)
+    except (JobNotFoundError, JobNotOwnedByCompanyError) as e:
         raise service_exception_to_http(e) from e

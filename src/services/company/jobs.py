@@ -16,8 +16,12 @@ from src.core.infrastructure.pagination import (
 from src.core.infrastructure.transactions import defer_after_commit
 from src.core.tasks import enqueue_email_task
 from src.enums import JobStatus
-from src.models import CompanyProfile, Job
+from src.models import Application, CandidateProfile, CompanyProfile, Job
 from src.schemas import JobCreate, JobRead, JobUpdate
+from src.schemas.companies import (
+    CompanyApplicationCandidateRead,
+    CompanyApplicationRead,
+)
 from src.services.admin.companies import get_all_admin_emails
 from src.services.exceptions import (
     CompanyNotFoundError,
@@ -243,3 +247,48 @@ async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> Non
     # Delete the job
     await session.delete(job)
     await session.flush()
+
+
+async def list_job_applications(
+    job_id: int,
+    company_id: int,
+    session: AsyncSession,
+) -> list[CompanyApplicationRead]:
+    """Return all applications for a job owned by the given company.
+
+    Raises:
+        JobNotFoundError: If job not found
+        JobNotOwnedByCompanyError: If job is not owned by the company
+    """
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
+    )
+    if job.company_id != company_id:
+        raise JobNotOwnedByCompanyError(
+            f"Job {job_id} is not owned by company {company_id}"
+        )
+
+    result = await session.execute(
+        select(Application, CandidateProfile)
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
+        .where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
+        .order_by(Application.created_at.desc())  # pyright: ignore[reportArgumentType]
+    )
+    rows = result.all()
+    return [
+        CompanyApplicationRead(
+            id=app.id or 0,
+            job_id=app.job_id,
+            candidate_id=app.candidate_id,
+            status=str(app.status),
+            created_at=app.created_at,
+            updated_at=app.updated_at,
+            candidate=CompanyApplicationCandidateRead(
+                id=candidate.id or 0,
+                full_name=candidate.full_name,
+                email=candidate.email,
+                phone=candidate.phone,
+            ),
+        )
+        for app, candidate in rows
+    ]

@@ -155,6 +155,72 @@ class CompanyProfileAdminCreate(BaseModel):
         return v
 
 
+class CompanyProfileSelfUpdate(BaseModel):
+    """Partial-update schema for a company editing its own profile.
+
+    Excludes ``company_id`` (immutable ח.פ), ``contact_email`` (login identity),
+    and logo (requires a separate upload flow).
+    """
+
+    name: str | None = Field(None, max_length=100)
+    address: str | None = Field(None, max_length=200)
+    contact_first_name: str | None = Field(None, min_length=2, max_length=100)
+    contact_last_name: str | None = Field(None, min_length=2, max_length=100)
+    contact_mobile_phone: str | None = None
+    contact_landline_phone: str | None = Field(None, max_length=20)
+
+    @field_validator("name", "address", "contact_first_name", "contact_last_name")
+    @classmethod
+    def reject_explicit_null(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("Field cannot be set to null on update")
+        return v
+
+    @field_validator("contact_mobile_phone")
+    @classmethod
+    def validate_mobile_phone(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("contact_mobile_phone cannot be set to null on update")
+        if not re.fullmatch(r"05[0-9]\d{7}", v):
+            raise ValueError(
+                "Mobile phone must be a valid Israeli mobile number (05X-XXXXXXX)"
+            )
+        return v
+
+
+class CompanyStats(BaseModel):
+    """Aggregated stats for a company's own dashboard."""
+
+    active_jobs: int
+    pending_jobs: int
+    closed_jobs: int
+    total_applications: int
+    applications_by_status: dict[str, int]
+
+
+class CompanyApplicationCandidateRead(BaseModel):
+    """Minimal candidate snapshot embedded in company-facing application rows."""
+
+    id: int
+    full_name: str
+    email: str
+    phone: str | None
+
+
+class CompanyApplicationRead(BaseModel):
+    """Company-facing view of an application for a job they own."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    job_id: int
+    candidate_id: int
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    candidate: CompanyApplicationCandidateRead
+
+
 class CompanyProfileAdminUpdate(BaseModel):
     """Partial-update schema for an admin editing a company profile.
 
