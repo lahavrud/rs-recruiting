@@ -56,21 +56,22 @@ function ScoreRing({ score }: { score: number }) {
 // ── Score badge (color label) ─────────────────────────────────────────────────
 
 function ScoreLabel({ score }: { score: number }) {
+  const { t } = useTranslation("dashboard");
   if (score >= 0.75)
     return (
       <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-        מעולה
+        {t("dashboard:matches.scoreLabelExcellent")}
       </span>
     );
   if (score >= 0.55)
     return (
       <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
-        טובה
+        {t("dashboard:matches.scoreLabelGood")}
       </span>
     );
   return (
     <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10px] font-medium text-white/35">
-      בינונית
+      {t("dashboard:matches.scoreLabelAverage")}
     </span>
   );
 }
