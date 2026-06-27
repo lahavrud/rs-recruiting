@@ -703,6 +703,28 @@ async def test_update_status_rereject_no_email(
     assert email_payloads == []
 
 
+@pytest.mark.asyncio
+async def test_update_status_rejection_no_email_for_admin_pushed(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Rejecting an admin-pushed application does not send a rejection email.
+
+    Admin-pushed applications are created without the candidate's knowledge,
+    so sending a rejection email referencing their own submission would be
+    confusing. The suppression is intentional.
+    """
+    candidate = await _make_candidate(session, email="pushed@test.com")
+    app = await _make_application(session, company_with_user, candidate)
+    app.pushed_by_admin_id = 1
+    await session.flush()
+
+    _, email_payloads = await update_application_status(
+        app.id, ApplicationStatus.REJECTED, session
+    )
+
+    assert email_payloads == []
+
+
 # ==================== update_application_notes ====================
 
 
