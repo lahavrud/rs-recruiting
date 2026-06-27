@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import type { CompanyApplicationRead } from "@/types/companies";
@@ -66,7 +67,7 @@ export default function CandidateDetailDrawer({ app, onClose }: CandidateDetailD
 
   if (!isMounted || !displayApp) return null;
 
-  return (
+  return createPortal(
     <>
       {/* Backdrop — dims screen and closes on any outside interaction */}
       <div
@@ -140,6 +141,7 @@ export default function CandidateDetailDrawer({ app, onClose }: CandidateDetailD
           )}
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }

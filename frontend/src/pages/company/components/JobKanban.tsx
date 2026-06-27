@@ -274,71 +274,6 @@ export default function JobKanban({ jobId }: { jobId: number }) {
   }
 
   const isDragging = dragRender !== null;
-  useEffect(() => {
-    if (!isDragging) return;
-
-    function onMove(e: PointerEvent) {
-      const state = dragRef.current;
-      if (!state) return;
-      const { status, idx } = hitTest(e.clientX, e.clientY, state.app.id);
-      const next: DragState = { ...state, x: e.clientX, y: e.clientY, overStatus: status, dropIndex: idx };
-      dragRef.current = next;
-      setDragRender({ ...next });
-    }
-
-    function onUp(e: PointerEvent) {
-      const state = dragRef.current;
-      dragRef.current = null;
-      setDragRender(null);
-      if (!state) return;
-
-      const didMove = Math.hypot(e.clientX - state.startX, e.clientY - state.startY) > CLICK_THRESHOLD;
-      if (!didMove) { setSelectedApp(state.app); return; }
-      if (!state.overStatus) return;
-
-      const { app, startStatus, overStatus, dropIndex } = state;
-      const orderSnapshot = orderRef.current;
-
-      if (overStatus === startStatus) {
-        snapshot();
-        applyOrder((prev) => {
-          const col = (prev[startStatus] ?? []).filter((id) => id !== app.id);
-          col.splice(dropIndex, 0, app.id);
-          const next = { ...prev, [startStatus]: col };
-          persistOrder(jobId, next);
-          return next;
-        });
-      } else if (DROPPABLE_STATUSES.has(overStatus)) {
-        const optimistic: CompanyApplicationRead = { ...app, status: overStatus };
-        setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? optimistic : a)) : prev));
-        snapshot(app.id);
-        applyOrder((prev) => {
-          const src = (prev[startStatus] ?? []).filter((id) => id !== app.id);
-          const dst = [...(prev[overStatus] ?? [])];
-          dst.splice(dropIndex, 0, app.id);
-          const next = { ...prev, [startStatus]: src, [overStatus]: dst };
-          persistOrder(jobId, next);
-          return next;
-        });
-        updateApplicationStatus(jobId, app.id, overStatus)
-          .then((updated) => {
-            setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? updated : a)) : prev));
-          })
-          .catch(() => {
-            setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? app : a)) : prev));
-            snapshot(app.id);
-            applyOrder(() => { persistOrder(jobId, orderSnapshot); return orderSnapshot; });
-          });
-      }
-    }
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [isDragging, jobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>, app: CompanyApplicationRead) {
     if (e.button !== 0) return;
@@ -359,7 +294,68 @@ export default function JobKanban({ jobId }: { jobId: number }) {
       dropIndex: 0,
     };
     dragRef.current = state;
-    setDragRender({ ...state });
+
+    function onMove(ev: PointerEvent) {
+      const s = dragRef.current;
+      if (!s) return;
+      const { status, idx } = hitTest(ev.clientX, ev.clientY, s.app.id);
+      const next: DragState = { ...s, x: ev.clientX, y: ev.clientY, overStatus: status, dropIndex: idx };
+      dragRef.current = next;
+      if (Math.hypot(ev.clientX - s.startX, ev.clientY - s.startY) > CLICK_THRESHOLD) {
+        setDragRender({ ...next });
+      }
+    }
+
+    function onUp(ev: PointerEvent) {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      const s = dragRef.current;
+      dragRef.current = null;
+      setDragRender(null);
+      if (!s) return;
+
+      const didMove = Math.hypot(ev.clientX - s.startX, ev.clientY - s.startY) > CLICK_THRESHOLD;
+      if (!didMove) { setSelectedApp(s.app); return; }
+      if (!s.overStatus) return;
+
+      const { startStatus: ss, overStatus, dropIndex } = s;
+      const orderSnapshot = orderRef.current;
+
+      if (overStatus === ss) {
+        snapshot();
+        applyOrder((prev) => {
+          const col = (prev[ss] ?? []).filter((id) => id !== s.app.id);
+          col.splice(dropIndex, 0, s.app.id);
+          const next = { ...prev, [ss]: col };
+          persistOrder(jobId, next);
+          return next;
+        });
+      } else if (DROPPABLE_STATUSES.has(overStatus)) {
+        const optimistic: CompanyApplicationRead = { ...s.app, status: overStatus };
+        setApplications((prev) => (prev ? prev.map((a) => (a.id === s.app.id ? optimistic : a)) : prev));
+        snapshot(s.app.id);
+        applyOrder((prev) => {
+          const src = (prev[ss] ?? []).filter((id) => id !== s.app.id);
+          const dst = [...(prev[overStatus] ?? [])];
+          dst.splice(dropIndex, 0, s.app.id);
+          const next = { ...prev, [ss]: src, [overStatus]: dst };
+          persistOrder(jobId, next);
+          return next;
+        });
+        updateApplicationStatus(jobId, s.app.id, overStatus)
+          .then((updated) => {
+            setApplications((prev) => (prev ? prev.map((a) => (a.id === s.app.id ? updated : a)) : prev));
+          })
+          .catch(() => {
+            setApplications((prev) => (prev ? prev.map((a) => (a.id === s.app.id ? s.app : a)) : prev));
+            snapshot(s.app.id);
+            applyOrder(() => { persistOrder(jobId, orderSnapshot); return orderSnapshot; });
+          });
+      }
+    }
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerup", onUp);
   }
 
   if (error) {
