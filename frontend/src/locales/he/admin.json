@@ -538,5 +538,8 @@
       "emptyHeadline": "בחר פריט לסקירה",
       "emptyDescription": "לחץ על פריט בתור כדי לצפות בפרטיו."
     }
+  },
+  "matches": {
+    "scoreTitle": "ציון התאמה: {{pct}}%"
   }
 }
