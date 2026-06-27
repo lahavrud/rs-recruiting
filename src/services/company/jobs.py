@@ -307,7 +307,7 @@ async def list_job_applications(
             id=app.id or 0,
             job_id=app.job_id,
             candidate_id=app.candidate_id,
-            status=str(app.status),
+            status=app.status.value,
             created_at=app.created_at,
             updated_at=app.updated_at,
             match_score=scores.get(app.candidate_id),

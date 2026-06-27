@@ -8,32 +8,59 @@ import type { CompanyApplicationRead } from "@/types/companies";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
-const KANBAN_COLUMNS: { status: string; labelKey: string }[] = [
-  { status: ApplicationStatus.NEW, labelKey: "company:jobs.kanban.columns.NEW" },
+// ─── Column config ────────────────────────────────────────────────────────────
+
+interface ColumnDef {
+  status: string;
+  labelKey: string;
+  accent: string;       // border + text
+  headerBg: string;     // column header bg
+  columnBg: string;     // column body bg
+  dotCls: string;       // status dot
+}
+
+const COLUMNS: ColumnDef[] = [
+  {
+    status: ApplicationStatus.NEW,
+    labelKey: "company:jobs.kanban.columns.NEW",
+    accent: "text-info border-info/25",
+    headerBg: "bg-info/10",
+    columnBg: "bg-info/3",
+    dotCls: "bg-info",
+  },
   {
     status: ApplicationStatus.APPROVED_BY_ADMIN,
     labelKey: "company:jobs.kanban.columns.APPROVED_BY_ADMIN",
+    accent: "text-copper border-copper/25",
+    headerBg: "bg-copper/10",
+    columnBg: "bg-copper/3",
+    dotCls: "bg-copper",
   },
-  { status: ApplicationStatus.HIRED, labelKey: "company:jobs.kanban.columns.HIRED" },
-  { status: ApplicationStatus.REJECTED, labelKey: "company:jobs.kanban.columns.REJECTED" },
-  { status: ApplicationStatus.WITHDRAWN, labelKey: "company:jobs.kanban.columns.WITHDRAWN" },
+  {
+    status: ApplicationStatus.HIRED,
+    labelKey: "company:jobs.kanban.columns.HIRED",
+    accent: "text-hired border-hired/25",
+    headerBg: "bg-hired/10",
+    columnBg: "bg-hired/3",
+    dotCls: "bg-hired",
+  },
+  {
+    status: ApplicationStatus.REJECTED,
+    labelKey: "company:jobs.kanban.columns.REJECTED",
+    accent: "text-danger border-danger/25",
+    headerBg: "bg-danger/10",
+    columnBg: "bg-danger/3",
+    dotCls: "bg-danger",
+  },
+  {
+    status: ApplicationStatus.WITHDRAWN,
+    labelKey: "company:jobs.kanban.columns.WITHDRAWN",
+    accent: "text-white/35 border-white/10",
+    headerBg: "bg-white/5",
+    columnBg: "bg-white/2",
+    dotCls: "bg-white/30",
+  },
 ];
-
-const COLUMN_ACCENT: Record<string, string> = {
-  [ApplicationStatus.NEW]: "border-info/30 text-info",
-  [ApplicationStatus.APPROVED_BY_ADMIN]: "border-copper/30 text-copper",
-  [ApplicationStatus.HIRED]: "border-hired/30 text-hired",
-  [ApplicationStatus.REJECTED]: "border-danger/30 text-danger",
-  [ApplicationStatus.WITHDRAWN]: "border-white/12 text-white/35",
-};
-
-const COLUMN_HEADER_BG: Record<string, string> = {
-  [ApplicationStatus.NEW]: "bg-info/8",
-  [ApplicationStatus.APPROVED_BY_ADMIN]: "bg-copper/8",
-  [ApplicationStatus.HIRED]: "bg-hired/8",
-  [ApplicationStatus.REJECTED]: "bg-danger/8",
-  [ApplicationStatus.WITHDRAWN]: "bg-white/4",
-};
 
 const COMPANY_DROP_TARGETS = new Set<string>([
   ApplicationStatus.HIRED,
@@ -43,29 +70,64 @@ const COMPANY_DROP_TARGETS = new Set<string>([
 const PCT_MULTIPLIER = 100;
 const SCORE_HIGH = 80;
 const SCORE_MID = 65;
-const COLUMN_MIN_WIDTH_PX = 220;
+const COLUMN_WIDTH_PX = 240;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
+const AVATAR_COLORS = [
+  "bg-copper/20 text-copper",
+  "bg-info/20 text-info",
+  "bg-hired/20 text-hired",
+  "bg-warning/20 text-warning",
+  "bg-nickel/20 text-nickel",
+];
+
+function avatarColor(id: number): string {
+  return AVATAR_COLORS[id % AVATAR_COLORS.length];
+}
+
+// ─── ScoreBar ─────────────────────────────────────────────────────────────────
 
 function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(score * PCT_MULTIPLIER);
-  const colorCls = pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
+  const colorCls =
+    pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="h-1 w-12 overflow-hidden rounded-full bg-white/8">
-        <div className={`h-full rounded-full ${colorCls}`} style={{ width: `${pct}%` }} />
+    <div className="flex items-center gap-2 pt-0.5">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${colorCls}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
-      <span className="text-[10px] tabular-nums text-white/45">{pct}%</span>
+      <span className="shrink-0 text-[10px] tabular-nums text-white/40">{pct}%</span>
     </div>
   );
 }
+
+// ─── CandidateCard ────────────────────────────────────────────────────────────
 
 interface CandidateCardProps {
   app: CompanyApplicationRead;
   onClick: () => void;
   onDragStart: (e: DragEvent<HTMLDivElement>) => void;
+  isDragging: boolean;
 }
 
-function CandidateCard({ app, onClick, onDragStart }: CandidateCardProps) {
+function CandidateCard({ app, onClick, onDragStart, isDragging }: CandidateCardProps) {
   const { t } = useTranslation("company");
+  const initials = getInitials(app.candidate.full_name);
+  const avColor = avatarColor(app.candidate.id);
+
   return (
     <div
       role="button"
@@ -74,59 +136,149 @@ function CandidateCard({ app, onClick, onDragStart }: CandidateCardProps) {
       onClick={onClick}
       onKeyDown={(e) => e.key === "Enter" && onClick()}
       onDragStart={onDragStart}
-      className="cursor-pointer rounded-lg border border-white/8 bg-card-raised p-3 space-y-1.5 transition hover:border-copper/30 hover:bg-card-raised/80 active:scale-[0.98]"
+      className={`group cursor-pointer select-none rounded-xl border border-white/6 bg-card p-3.5 space-y-2.5 shadow-sm transition-all duration-150
+        hover:border-white/15 hover:bg-card-raised hover:shadow-md hover:-translate-y-px
+        active:scale-[0.98] active:shadow-none
+        ${isDragging ? "opacity-40 scale-[0.98]" : "opacity-100"}`}
     >
-      <p className="text-sm font-medium text-white/90">{app.candidate.full_name}</p>
+      {/* Avatar + name row */}
+      <div className="flex items-center gap-2.5">
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${avColor}`}
+        >
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-semibold leading-snug text-white/90">
+            {app.candidate.full_name}
+          </p>
+          <p className="truncate text-[11px] text-white/40">{app.candidate.email}</p>
+        </div>
+      </div>
 
+      {/* Match score */}
       {app.match_score != null && <ScoreBar score={app.match_score} />}
 
+      {/* AI review */}
       {app.ai_review ? (
-        <p className="line-clamp-2 text-[11px] leading-relaxed text-white/50">
+        <p className="line-clamp-2 text-[11px] leading-relaxed text-white/50 italic">
           {app.ai_review}
         </p>
       ) : null}
 
-      <p className="text-[10px] text-white/25">
-        {t("company:jobs.kanban.appliedOn")}
-        {formatDate(app.created_at)}
-      </p>
+      {/* Footer */}
+      <div className="flex items-center justify-between pt-0.5">
+        <p className="text-[10px] text-white/25">
+          {t("company:jobs.kanban.appliedOn")}
+          {formatDate(app.created_at)}
+        </p>
+        <span className="text-[10px] text-white/20 opacity-0 transition group-hover:opacity-100">
+          {t("company:jobs.kanban.clickToView")}
+        </span>
+      </div>
     </div>
   );
 }
 
-interface DropColumnProps {
-  status: string;
-  isDropTarget: boolean;
+// ─── KanbanColumn ─────────────────────────────────────────────────────────────
+
+interface KanbanColumnProps {
+  col: ColumnDef;
+  cards: CompanyApplicationRead[];
   isDragOver: boolean;
-  children: React.ReactNode;
+  isDraggingAny: boolean;
+  selectedId: number | null;
+  onCardClick: (app: CompanyApplicationRead) => void;
+  onCardDragStart: (e: DragEvent<HTMLDivElement>, id: number) => void;
   onDragOver: (e: DragEvent<HTMLDivElement>) => void;
   onDragLeave: () => void;
   onDrop: (e: DragEvent<HTMLDivElement>) => void;
+  draggingId: number | null;
 }
 
-function DropColumn({
-  status,
-  isDropTarget,
+function KanbanColumn({
+  col,
+  cards,
   isDragOver,
-  children,
+  isDraggingAny,
+  onCardClick,
+  onCardDragStart,
   onDragOver,
   onDragLeave,
   onDrop,
-}: DropColumnProps) {
+  draggingId,
+}: KanbanColumnProps) {
+  const { t } = useTranslation("company");
+  const isDropTarget = COMPANY_DROP_TARGETS.has(col.status);
+  const showDropZone = isDropTarget && isDraggingAny;
+
   return (
     <div
+      className={`flex shrink-0 flex-col gap-0 rounded-xl border transition-all duration-200
+        ${isDragOver ? "border-copper/40 shadow-lg shadow-copper/5" : "border-white/6"}
+      `}
+      style={{ width: `${COLUMN_WIDTH_PX}px` }}
       onDragOver={isDropTarget ? onDragOver : undefined}
       onDragLeave={isDropTarget ? onDragLeave : undefined}
       onDrop={isDropTarget ? onDrop : undefined}
-      className={`flex-1 rounded-lg transition ${
-        isDragOver ? "ring-1 ring-copper/40 bg-copper/5" : ""
-      }`}
-      data-status={status}
     >
-      {children}
+      {/* Column header */}
+      <div
+        className={`flex items-center justify-between rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}
+      >
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${col.dotCls}`} />
+          <span className={`text-[11px] font-semibold uppercase tracking-widest ${col.accent.split(" ")[0]}`}>
+            {t(col.labelKey)}
+          </span>
+        </div>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums
+            ${cards.length > 0 ? `${col.headerBg} ${col.accent.split(" ")[0]}` : "text-white/20"}`}
+        >
+          {cards.length}
+        </span>
+      </div>
+
+      {/* Column body */}
+      <div
+        className={`flex flex-1 flex-col gap-2 rounded-b-xl p-3 min-h-32
+          ${col.columnBg}
+          ${isDragOver ? "ring-1 ring-inset ring-copper/25" : ""}
+        `}
+      >
+        {cards.map((app) => (
+          <CandidateCard
+            key={app.id}
+            app={app}
+            onClick={() => onCardClick(app)}
+            onDragStart={(e) => onCardDragStart(e, app.id)}
+            isDragging={draggingId === app.id}
+          />
+        ))}
+
+        {/* Drop zone hint */}
+        {showDropZone && cards.length === 0 && (
+          <div
+            className={`flex flex-1 items-center justify-center rounded-lg border-2 border-dashed py-6 text-center text-[11px] transition-colors
+              ${isDragOver ? "border-copper/40 text-copper/60 bg-copper/5" : "border-white/8 text-white/20"}`}
+          >
+            {t("company:jobs.kanban.dropHere")}
+          </div>
+        )}
+
+        {/* Empty column (not drag target) */}
+        {!showDropZone && cards.length === 0 && (
+          <div className="flex flex-1 items-center justify-center py-6">
+            <span className="text-[11px] text-white/15">—</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+// ─── JobKanban ────────────────────────────────────────────────────────────────
 
 interface JobKanbanProps {
   jobId: number;
@@ -191,7 +343,7 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
 
   if (error) {
     return (
-      <p className="py-8 text-center text-sm text-danger">
+      <p className="py-10 text-center text-sm text-danger">
         {t("company:jobs.kanban.loadError")}
       </p>
     );
@@ -199,98 +351,70 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
 
   if (applications === null) {
     return (
-      <p className="py-8 text-center text-sm text-white/30">
-        {t("company:jobs.kanban.loading")}
-      </p>
-    );
-  }
-
-  if (applications.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-white/30">
-        {t("company:jobs.kanban.empty")}
-      </p>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {COLUMNS.map((col) => (
+          <div
+            key={col.status}
+            className="flex shrink-0 flex-col rounded-xl border border-white/6"
+            style={{ width: `${COLUMN_WIDTH_PX}px` }}
+          >
+            <div className={`rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}>
+              <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+            </div>
+            <div className={`space-y-2 rounded-b-xl p-3 min-h-32 ${col.columnBg}`}>
+              {[1, 2].map((i) => (
+                <div key={i} className="h-20 animate-pulse rounded-xl bg-white/4" />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     );
   }
 
   const byStatus = Object.fromEntries(
-    KANBAN_COLUMNS.map(({ status }) => [
-      status,
-      applications.filter((a) => a.status === status),
-    ]),
+    COLUMNS.map(({ status }) => [status, applications.filter((a) => a.status === status)]),
   );
 
-  const activeColumns = KANBAN_COLUMNS.filter(
-    ({ status }) => byStatus[status].length > 0 || COMPANY_DROP_TARGETS.has(status),
-  );
+  const totalCount = applications.length;
 
   return (
     <>
-      <div className="overflow-x-auto">
-        <div
-          className="flex gap-3 pb-2"
-          style={{ minWidth: `${activeColumns.length * COLUMN_MIN_WIDTH_PX}px` }}
-          onDragEnd={() => {
-            setDraggingId(null);
-            setDragOverStatus(null);
-          }}
-        >
-          {activeColumns.map(({ status, labelKey }) => {
-            const cards = byStatus[status];
-            const accentCls = COLUMN_ACCENT[status] ?? "border-white/12 text-white/35";
-            const headerBg = COLUMN_HEADER_BG[status] ?? "bg-white/4";
-            const isDropTarget = COMPANY_DROP_TARGETS.has(status);
-            const isDragOver = dragOverStatus === status && draggingId !== null;
-
-            return (
-              <DropColumn
-                key={status}
-                status={status}
-                isDropTarget={isDropTarget}
-                isDragOver={isDragOver}
-                onDragOver={(e) => handleDragOver(e, status)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, status)}
-              >
-                <div className="flex w-52 shrink-0 flex-col gap-2">
-                  <div
-                    className={`flex items-center justify-between rounded-lg border px-3 py-2 ${accentCls} ${headerBg}`}
-                  >
-                    <span className="text-[10px] font-semibold uppercase tracking-widest">
-                      {t(labelKey)}
-                    </span>
-                    <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">
-                      {cards.length}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 min-h-12">
-                    {cards.map((app) => (
-                      <CandidateCard
-                        key={app.id}
-                        app={app}
-                        onClick={() => setSelectedApp(app)}
-                        onDragStart={(e) => handleDragStart(e, app.id)}
-                      />
-                    ))}
-                    {isDropTarget && cards.length === 0 && (
-                      <div
-                        className={`rounded-lg border-2 border-dashed p-4 text-center text-[11px] transition ${
-                          isDragOver
-                            ? "border-copper/50 text-copper/60"
-                            : "border-white/8 text-white/20"
-                        }`}
-                      >
-                        {t("company:jobs.kanban.dropHere")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </DropColumn>
-            );
-          })}
+      {totalCount === 0 ? (
+        <div className="rounded-xl border border-dashed border-white/8 py-16 text-center text-sm text-white/25">
+          {t("company:jobs.kanban.empty")}
         </div>
-      </div>
+      ) : (
+        <div>
+          <p className="mb-3 text-xs text-white/30">
+            {t("company:jobs.kanban.totalCandidates", { count: totalCount })}
+          </p>
+          <div
+            className="flex gap-3 overflow-x-auto pb-3"
+            onDragEnd={() => {
+              setDraggingId(null);
+              setDragOverStatus(null);
+            }}
+          >
+            {COLUMNS.map((col) => (
+              <KanbanColumn
+                key={col.status}
+                col={col}
+                cards={byStatus[col.status]}
+                isDragOver={dragOverStatus === col.status}
+                isDraggingAny={draggingId !== null}
+                selectedId={selectedApp?.id ?? null}
+                onCardClick={setSelectedApp}
+                onCardDragStart={handleDragStart}
+                onDragOver={(e) => handleDragOver(e, col.status)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, col.status)}
+                draggingId={draggingId}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <CandidateDetailDrawer app={selectedApp} onClose={() => setSelectedApp(null)} />
     </>
