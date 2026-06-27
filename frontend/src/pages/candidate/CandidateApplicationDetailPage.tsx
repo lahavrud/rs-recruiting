@@ -7,6 +7,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import Button from "@/components/ui/Button";
 import CompanyName from "@/components/ui/CompanyName";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Eyebrow from "@/components/ui/Eyebrow";
 import PageHeader from "@/components/ui/PageHeader";
 import { useFetch } from "@/hooks/useFetch";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
@@ -212,9 +213,7 @@ export default function CandidateApplicationDetailPage() {
       </div>
 
       <section className="mt-6 rounded-xl border border-white/8 bg-card p-6">
-        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("candidate:applications.detail.jobSection")}
-        </h2>
+        <Eyebrow>{t("candidate:applications.detail.jobSection")}</Eyebrow>
         <div className="mt-3 flex flex-wrap items-baseline gap-3">
           <h3 className="text-xl text-white/90">{data.job.title}</h3>
           <CompanyName name={data.company.name} />
@@ -230,9 +229,7 @@ export default function CandidateApplicationDetailPage() {
       </section>
 
       <section className="mt-6 rounded-xl border border-white/8 bg-card p-6">
-        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("candidate:applications.detail.myAnswers")}
-        </h2>
+        <Eyebrow>{t("candidate:applications.detail.myAnswers")}</Eyebrow>
 
         {isEditing && editForm ? (
           <div className="mt-4 space-y-4">
@@ -286,9 +283,7 @@ export default function CandidateApplicationDetailPage() {
       </section>
 
       <section className="mt-6 rounded-xl border border-white/8 bg-card p-6">
-        <h2 className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("candidate:applications.detail.resume")}
-        </h2>
+        <Eyebrow>{t("candidate:applications.detail.resume")}</Eyebrow>
 
         {isEditing ? (
           <div className="mt-3 space-y-2">

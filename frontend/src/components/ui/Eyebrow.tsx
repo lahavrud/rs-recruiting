@@ -1,37 +1,44 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type Size = "sm" | "md";
+type Color = "copper" | "gold" | "nickel" | "danger";
 
 const sizeCls: Record<Size, string> = {
   sm: "text-[10px]",
   md: "text-[11px]",
 };
 
-/**
- * Small copper caps label. `sm` (10px) for page headers/eyebrows above a
- * gold rule; `md` (11px) for in-card filter and form section labels.
- * `isDim` reduces opacity to copper/60 for form section use.
- * `as="label"` + `htmlFor` renders a `<label>` element instead of `<p>`.
- */
+const colorMap: Record<Color, string> = {
+  copper: "text-copper",
+  gold: "text-gold",
+  nickel: "text-nickel",
+  danger: "text-danger",
+};
+
 export default function Eyebrow({
   children,
   size = "sm",
+  color = "copper",
   isDim,
   as: Tag = "p",
   htmlFor,
   className,
+  style,
 }: {
   children: ReactNode;
   size?: Size;
+  color?: Color;
   isDim?: boolean;
   as?: "p" | "label";
   htmlFor?: string;
   className?: string;
+  style?: CSSProperties;
 }) {
-  const colorCls = isDim ? "text-copper/60" : "text-copper";
+  const base = colorMap[color];
+  const colorCls = isDim ? `${base}/60` : base;
   const cls = `${sizeCls[size]} font-semibold uppercase tracking-widest ${colorCls}${className ? ` ${className}` : ""}`;
   if (Tag === "label") {
-    return <label htmlFor={htmlFor} className={cls}>{children}</label>;
+    return <label htmlFor={htmlFor} className={cls} style={style}>{children}</label>;
   }
-  return <p className={cls}>{children}</p>;
+  return <p className={cls} style={style}>{children}</p>;
 }

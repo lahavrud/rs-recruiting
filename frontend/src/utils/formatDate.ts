@@ -34,3 +34,19 @@ export function formatDateLong(iso: string): string {
     year: "numeric",
   });
 }
+
+/** Compact day/month label for chart X-axis ticks (e.g. "5/6"). */
+export function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/** Long Hebrew date for dashboard hero (e.g. "יום שני, 27 ביוני 2026"). */
+export function formatTodayHebrew(): string {
+  return new Date().toLocaleDateString("he-IL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}

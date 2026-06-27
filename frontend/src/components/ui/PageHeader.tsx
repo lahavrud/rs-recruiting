@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import Eyebrow from "@/components/ui/Eyebrow";
+
 interface PageHeaderProps {
   eyebrow: string;
   subtitle?: string;
@@ -13,9 +15,7 @@ export default function PageHeader({ eyebrow, subtitle, action, className = "" }
       className={`mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${className}`}
     >
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {eyebrow}
-        </p>
+        <Eyebrow>{eyebrow}</Eyebrow>
         <div className="mt-3 h-px w-8 bg-copper/40" />
         {subtitle && (
           <p className="mt-4 text-sm text-white/40">{subtitle}</p>

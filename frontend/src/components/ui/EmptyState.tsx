@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import Eyebrow from "@/components/ui/Eyebrow";
+
 interface EmptyStateProps {
   eyebrow: string;
   headline: string;
@@ -23,9 +25,7 @@ export default function EmptyState({
     <div
       className={`flex flex-col items-center justify-center rounded-xl border border-white/8 bg-card px-6 py-16 text-center ${className}`}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-        {eyebrow}
-      </p>
+      <Eyebrow>{eyebrow}</Eyebrow>
       <div className="mt-3 h-px w-8 bg-copper/40" />
       <h2 className="mt-5 text-xl font-semibold text-white/85">{headline}</h2>
       {description && (

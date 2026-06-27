@@ -1,9 +1,11 @@
 import { useTranslation } from "react-i18next";
 
+import Eyebrow from "@/components/ui/Eyebrow";
 import type {
   CandidateApplicationsPage,
   CandidateMeRead,
 } from "@/services/candidate";
+import { formatTodayHebrew } from "@/utils/formatDate";
 
 import { profileCompletionPercent } from "./dashboardUtils";
 
@@ -17,12 +19,7 @@ export function Hero({
   appsPage: CandidateApplicationsPage | null;
 }) {
   const { t } = useTranslation('dashboard');
-  const today = new Date().toLocaleDateString("he-IL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const today = formatTodayHebrew();
   const hour = new Date().getHours();
   const greetingKey =
     hour < 12
@@ -44,9 +41,7 @@ export function Hero({
 
   return (
     <header className="overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-card-raised via-card to-card p-6 sm:p-8">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-        {today}
-      </p>
+      <Eyebrow>{today}</Eyebrow>
       <h1 className="mt-3 text-2xl font-semibold text-white/90 sm:text-3xl">
         {t(greetingKey)}
         {firstName && <span className="text-copper/85">{`, ${firstName}`}</span>}

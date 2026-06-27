@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { requestPasswordReset } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
 
@@ -24,7 +25,7 @@ export default function ForgotPasswordPage() {
 
   function validate(value: string): string {
     if (!value.trim()) return t("auth:forgotPassword.validation.emailRequired");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    if (!EMAIL_RE.test(value))
       return t("auth:forgotPassword.validation.emailInvalid");
     return "";
   }

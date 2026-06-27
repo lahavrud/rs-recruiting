@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
-import { Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
+import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import { activateAccount } from "@/services/auth";
 
@@ -12,6 +13,7 @@ type State = "loading" | "success" | "error";
 
 export default function ActivatePage() {
   const { t } = useTranslation('auth');
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const [state, setState] = useState<State>(() => (token ? "loading" : "error"));
@@ -47,12 +49,14 @@ export default function ActivatePage() {
           <p className="mt-2 text-sm leading-relaxed text-white/50">
             {t("auth:activate.success.message")}
           </p>
-          <Link
-            to="/login"
-            className="mt-7 inline-block rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold"
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-7"
+            onClick={() => navigate("/login")}
           >
             {t("auth:activate.success.loginButton")}
-          </Link>
+          </Button>
         </div>
       </AuthShell>
     );
@@ -70,12 +74,14 @@ export default function ActivatePage() {
         <p className="mt-2 text-sm leading-relaxed text-white/50">
           {t("auth:activate.error.message")}
         </p>
-        <Link
-          to="/login"
-          className="mt-7 inline-block rounded-sm border border-white/20 px-6 py-2.5 text-sm text-white/60 transition hover:border-white/40 hover:text-white/90"
+        <Button
+          variant="ghost"
+          size="lg"
+          className="mt-7"
+          onClick={() => navigate("/login")}
         >
           {t("auth:activate.error.backToLogin")}
-        </Link>
+        </Button>
       </div>
     </AuthShell>
   );
