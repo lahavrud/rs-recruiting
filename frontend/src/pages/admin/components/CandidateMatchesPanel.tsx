@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 
 import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { MatchList, type MatchEntry } from "@/components/admin/MatchList";
 import Eyebrow from "@/components/ui/Eyebrow";
+import { useToast } from "@/hooks/useToast";
 import { getCandidateJobMatches } from "@/services/adminCandidates";
+import { pushMatch } from "@/services/adminMatches";
 import type { CandidateJobMatchRead } from "@/types/candidates";
 
 interface Props {
@@ -17,8 +19,13 @@ interface Props {
 export default function CandidateMatchesPanel({ candidateId }: Props) {
   const { t } = useTranslation("admin");
   const navigate = useNavigate();
+  const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [matches, setMatches] = useState<CandidateJobMatchRead[] | null>(null);
   const [hasError, setHasError] = useState(false);
+  const [pushing, setPushing] = useState(false);
+
+  const highlightedJobId = Number(searchParams.get("job")) || null;
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -35,6 +42,37 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
     return () => ctrl.abort();
   }, [candidateId]);
 
+  const highlighted =
+    highlightedJobId != null ? (matches?.find((m) => m.job.id === highlightedJobId) ?? null) : null;
+
+  function clearJobParam() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("job");
+      return next;
+    });
+  }
+
+  async function handlePush() {
+    if (!highlighted) return;
+    setPushing(true);
+    try {
+      await pushMatch(candidateId, highlighted.job.id, highlighted.score);
+      toast.success(t("admin:candidates.pushSuccess"));
+      clearJobParam();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 409) {
+        toast.info(t("admin:candidates.pushAlreadyApplied"));
+        clearJobParam();
+      } else {
+        toast.error(t("admin:candidates.pushError"));
+      }
+    } finally {
+      setPushing(false);
+    }
+  }
+
   const entries: MatchEntry[] | null =
     matches?.map((m) => ({
       key: m.job.id,
@@ -47,6 +85,35 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
   return (
     <div>
       <Eyebrow>{t("admin:candidates.matchesSection")}</Eyebrow>
+
+      {/* Push banner — shown when arriving from the AI match feed with ?job=N */}
+      {highlighted && (
+        <div className="mt-3 flex items-center gap-3 rounded-lg border border-copper/30 bg-copper/8 px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-copper/90">{highlighted.job.title}</p>
+            <p className="mt-0.5 truncate text-xs text-white/45">{highlighted.job.company_name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handlePush}
+            disabled={pushing}
+            className="shrink-0 inline-flex items-center rounded-md border border-copper/50 bg-copper/15 px-3 py-1.5 text-xs font-semibold text-copper transition hover:bg-copper/25 disabled:opacity-50"
+          >
+            {pushing ? "…" : t("admin:candidates.pushAction")}
+          </button>
+          <button
+            type="button"
+            onClick={clearJobParam}
+            aria-label={t("admin:candidates.pushDismiss")}
+            className="shrink-0 rounded p-0.5 text-white/25 transition hover:text-white/50"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="size-3.5" aria-hidden="true">
+              <path d="M3 3l10 10M13 3L3 13" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       <MatchList
         entries={entries}
         hasError={hasError}
