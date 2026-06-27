@@ -171,6 +171,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const companyNav: NavItemDef[] = [
     { labelKey: "nav:dashboard", to: "/dashboard" },
     { labelKey: "nav:myJobs", to: "/company/jobs" },
+    { labelKey: "nav:companyProfile", to: "/company/profile" },
   ];
 
   const candidateNav: NavItemDef[] = [
