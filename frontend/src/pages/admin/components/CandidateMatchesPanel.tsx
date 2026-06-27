@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { MatchList, type MatchEntry } from "@/components/admin/MatchList";
+import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
 import { getCandidateJobMatches } from "@/services/adminCandidates";
@@ -103,14 +104,9 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
             <p className="truncate text-xs font-semibold text-copper/90">{highlighted.job.title}</p>
             <p className="mt-0.5 truncate text-xs text-white/45">{highlighted.job.company_name}</p>
           </div>
-          <button
-            type="button"
-            onClick={handlePush}
-            disabled={pushing}
-            className="shrink-0 inline-flex items-center rounded-md border border-copper/50 bg-copper/15 px-3 py-1.5 text-xs font-semibold text-copper transition hover:bg-copper/25 disabled:opacity-50"
-          >
+          <Button size="sm" onClick={handlePush} disabled={pushing} className="shrink-0">
             {pushing ? "…" : t("admin:candidates.pushAction")}
-          </button>
+          </Button>
           <button
             type="button"
             onClick={handleDismiss}
