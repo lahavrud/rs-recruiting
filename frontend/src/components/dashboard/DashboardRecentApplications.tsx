@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import CompanyName from "@/components/ui/CompanyName";
+import Eyebrow from "@/components/ui/Eyebrow";
 import type { CandidateApplicationListItem } from "@/services/candidate";
 
 function formatRelative(
@@ -39,9 +40,9 @@ export function RecentApplications({
   if (items === null) {
     return (
       <section>
-        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-copper">
+        <Eyebrow className="mb-3">
           {t("dashboard:candidate.recentApplications.title")}
-        </p>
+        </Eyebrow>
         <ul className="space-y-2">
           {[0, 1, 2].map((i) => (
             <li
@@ -57,9 +58,7 @@ export function RecentApplications({
   return (
     <section>
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">
-          {t("dashboard:candidate.recentApplications.title")}
-        </p>
+        <Eyebrow>{t("dashboard:candidate.recentApplications.title")}</Eyebrow>
         {items.length > 0 && (
           <Link
             to="/candidate/applications"
