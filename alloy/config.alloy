@@ -166,6 +166,31 @@ prometheus.exporter.cloudwatch "aws" {
       statistics = ["Average"]
       period     = "5m"
     }
+    metric {
+      name       = "FreeableMemory"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "ReadLatency"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "WriteLatency"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "ReadIOPS"
+      statistics = ["Average"]
+      period     = "5m"
+    }
+    metric {
+      name       = "WriteIOPS"
+      statistics = ["Average"]
+      period     = "5m"
+    }
   }
 
   discovery {
