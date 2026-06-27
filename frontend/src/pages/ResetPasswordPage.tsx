@@ -2,8 +2,9 @@ import { type ChangeEvent, type FormEvent, useState } from "react";
 
 import axios from "axios";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
+import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
@@ -16,6 +17,7 @@ import AuthShell from "./components/AuthShell";
 export default function ResetPasswordPage() {
   const { t } = useTranslation('auth');
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
 
@@ -130,12 +132,14 @@ export default function ResetPasswordPage() {
           <p className="mt-2 text-sm leading-relaxed text-white/50">
             {t("auth:resetPassword.invalidToken.message")}
           </p>
-          <Link
-            to="/forgot-password"
-            className="mt-7 inline-block rounded-sm border border-white/20 px-6 py-2.5 text-sm text-white/60 transition hover:border-white/40 hover:text-white/90"
+          <Button
+            variant="ghost"
+            size="lg"
+            className="mt-7"
+            onClick={() => navigate("/forgot-password")}
           >
             {t("auth:resetPassword.invalidToken.requestNew")}
-          </Link>
+          </Button>
         </div>
       </AuthShell>
     );
@@ -157,12 +161,14 @@ export default function ResetPasswordPage() {
           <p className="mt-2 text-sm leading-relaxed text-white/50">
             {t("auth:resetPassword.success.message")}
           </p>
-          <Link
-            to="/login"
-            className="mt-7 inline-block rounded-sm bg-copper px-6 py-2.5 text-sm font-medium text-white transition hover:bg-gold"
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-7"
+            onClick={() => navigate("/login")}
           >
             {t("auth:resetPassword.success.loginButton")}
-          </Link>
+          </Button>
         </div>
       </AuthShell>
     );
@@ -236,15 +242,17 @@ export default function ResetPasswordPage() {
             )}
           </div>
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="lg"
             disabled={isSubmitting}
-            className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full"
           >
             {isSubmitting
               ? t("auth:resetPassword.submittingText")
               : t("auth:resetPassword.submitText")}
-          </button>
+          </Button>
         </form>
 
         <p className="px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
