@@ -415,6 +415,8 @@ export default function JobKanban({ jobId }: { jobId: number }) {
           const isOver = dragRender?.overStatus === col.status;
           const isDraggingFromHere = dragRender?.startStatus === col.status;
           const dropIdx = isOver ? (dragRender?.dropIndex ?? null) : null;
+          const canDrop = isDraggingFromHere || col.droppable;
+          const dropLineCls = canDrop ? "bg-success" : "bg-danger";
 
           return (
             <div
@@ -422,8 +424,10 @@ export default function JobKanban({ jobId }: { jobId: number }) {
               ref={(el) => { colRefs.current[col.status] = el ?? undefined; }}
               data-col={col.status}
               className={`flex flex-col rounded-xl border transition-all duration-150 ${
-                isOver && col.droppable
-                  ? `border-white/20 ring-1 ${col.dropRingCls} shadow-lg`
+                isOver
+                  ? canDrop
+                    ? `border-white/20 ring-1 ${col.dropRingCls} shadow-lg`
+                    : "border-danger/40 ring-1 ring-danger/30"
                   : "border-white/6"
               }`}
             >
@@ -451,7 +455,7 @@ export default function JobKanban({ jobId }: { jobId: number }) {
                   return (
                     <div key={app.id}>
                       {dropIdx === i && isOver && (
-                        <div className={`mb-2 h-1 rounded-full ${col.dotCls}`} />
+                        <div className={`mb-2 h-1 rounded-full ${dropLineCls}`} />
                       )}
                       <div
                         ref={(el) => {
@@ -472,7 +476,7 @@ export default function JobKanban({ jobId }: { jobId: number }) {
                 })}
 
                 {dropIdx === cards.filter((a) => a.id !== draggingId).length && isOver && (
-                  <div className={`h-1 rounded-full ${col.dotCls}`} />
+                  <div className={`h-1 rounded-full ${dropLineCls}`} />
                 )}
 
                 {cards.length === 0 && !isDragging && (
