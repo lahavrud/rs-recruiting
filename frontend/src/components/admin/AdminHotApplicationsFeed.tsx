@@ -94,9 +94,7 @@ function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
           variant="ghost"
           size="sm"
           onClick={() =>
-            navigate(`/admin/applications`, {
-              state: { candidate_id: app.candidate_id },
-            })
+            navigate(`/admin/applications/${app.id}`)
           }
         >
           {t("dashboard:matches.viewApplication")}
