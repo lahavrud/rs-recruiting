@@ -121,7 +121,61 @@ export default function CompanyJobsPage() {
           {t("company:jobs.empty")}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-white/8">
+        <>
+        {/* Mobile card list */}
+        <div className="sm:hidden divide-y divide-white/6 overflow-hidden rounded-xl border border-white/8">
+          {jobs.map((job) => {
+            const canEdit =
+              job.status === JobStatus.PENDING_APPROVAL ||
+              job.status === JobStatus.PUBLISHED;
+            const canDelete = job.status === JobStatus.PENDING_APPROVAL;
+            return (
+              <div
+                key={job.id}
+                onClick={() => navigate(`/company/jobs/${job.id}`)}
+                className="flex cursor-pointer flex-col gap-2.5 bg-card p-4 transition hover:bg-card-raised"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-medium leading-snug text-white/90">{job.title}</p>
+                  <StatusBadge
+                    label={t(STATUS_LABEL_KEYS[job.status] ?? "")}
+                    colorCls={STATUS_COLOR[job.status] ?? ""}
+                  />
+                </div>
+                <p className="text-sm text-white/45">{job.location}</p>
+                <div
+                  className="flex items-center justify-between pt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-xs text-white/30">{formatDate(job.created_at)}</p>
+                  <div className="flex gap-1">
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/company/jobs/${job.id}/edit`)}
+                      >
+                        {t("company:jobs.edit")}
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => handleDelete(job.id)}
+                      >
+                        {deleting === job.id ? "…" : t("company:jobs.delete")}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-hidden rounded-xl border border-white/8">
           <table className="min-w-full divide-y divide-white/6 text-sm">
             <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
               <tr>
@@ -189,6 +243,7 @@ export default function CompanyJobsPage() {
             </div>
           )}
         </div>
+        </>
       )}
     </div>
   );
