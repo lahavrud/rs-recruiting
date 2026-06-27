@@ -57,7 +57,9 @@ async def list_candidates(
     to the specified job's embedding; returns a single non-paginated page.
     """
     if sort == "score":
-        return await _list_candidates_by_score(session, q=q, job_id=job_id)
+        return await _list_candidates_by_score(
+            session, q=q, job_id=job_id, limit=limit, cursor=cursor
+        )
 
     page_size = clamp_limit(limit)
     base = select(CandidateProfile)
@@ -97,6 +99,8 @@ async def _list_candidates_by_score(
     *,
     q: str | None = None,
     job_id: int | None = None,
+    limit: int | None = None,
+    cursor: str | None = None,
 ) -> CursorPage[CandidateProfileRead]:
     """Return candidates ranked by cosine similarity to a job, best first.
 
@@ -106,7 +110,9 @@ async def _list_candidates_by_score(
     """
     job = await session.get(Job, job_id) if job_id is not None else None
     if job is None or job.embedding is None:
-        return await list_candidates(session, sort="created_at", order="desc", q=q)
+        return await list_candidates(
+            session, sort="created_at", order="desc", q=q, limit=limit, cursor=cursor
+        )
 
     distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
     stmt = (
