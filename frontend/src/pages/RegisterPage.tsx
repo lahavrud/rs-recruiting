@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getInviteMetadata, register } from "@/services/auth";
 import { errorAlertCls } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { COMPANY_ID_RE, EMAIL_RE, MOBILE_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
 import RegisterModals from "./components/RegisterModals";
@@ -21,7 +22,7 @@ function useValidation() {
   return {
     validateEmail(v: string): string {
       if (!v.trim()) return t("auth:register.validation.emailRequired");
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
+      if (!EMAIL_RE.test(v))
         return t("auth:register.validation.emailInvalid");
       return "";
     },
@@ -46,7 +47,7 @@ function useValidation() {
     },
     validateCompanyId(v: string): string {
       if (!v.trim()) return t("auth:register.validation.companyIdRequired");
-      if (!/^\d{9}$/.test(v)) return t("auth:register.validation.companyIdInvalid");
+      if (!COMPANY_ID_RE.test(v)) return t("auth:register.validation.companyIdInvalid");
       return "";
     },
     validateContactFirstName(v: string): string {
@@ -59,7 +60,7 @@ function useValidation() {
     },
     validateMobilePhone(v: string): string {
       if (!v.trim()) return t("auth:register.validation.mobilePhoneRequired");
-      if (!/^05[0-9]\d{7}$/.test(v.replace(/[-\s]/g, "")))
+      if (!MOBILE_RE.test(v.replace(/[-\s]/g, "")))
         return t("auth:register.validation.mobilePhoneInvalid");
       return "";
     },
