@@ -8,7 +8,7 @@ import { MatchList, type MatchEntry } from "@/components/admin/MatchList";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
 import { getCandidateJobMatches } from "@/services/adminCandidates";
-import { pushMatch } from "@/services/adminMatches";
+import { dismissMatch, pushMatch } from "@/services/adminMatches";
 import type { CandidateJobMatchRead } from "@/types/candidates";
 
 interface Props {
@@ -51,6 +51,16 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
       next.delete("job");
       return next;
     }, { replace: true });
+  }
+
+  async function handleDismiss() {
+    if (!highlighted) return;
+    try {
+      await dismissMatch(candidateId, highlighted.job.id, highlighted.score);
+    } catch {
+      // Non-blocking — banner closes regardless; backend persist failure is tolerable
+    }
+    clearJobParam();
   }
 
   async function handlePush() {
@@ -103,7 +113,7 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
           </button>
           <button
             type="button"
-            onClick={clearJobParam}
+            onClick={handleDismiss}
             aria-label={t("admin:candidates.pushDismiss")}
             className="shrink-0 rounded p-0.5 text-white/25 transition hover:text-white/50"
           >
