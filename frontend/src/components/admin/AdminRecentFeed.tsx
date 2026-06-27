@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { getAdminOverview, type RecentItem } from "@/services/adminOverview";
 import { formatTimeAgo } from "@/utils/formatDate";
 
@@ -72,7 +73,10 @@ export default function AdminRecentFeed() {
                     <span className="text-xs text-white/30">
                       {formatTimeAgo(item.created_at)}
                     </span>
-                    <TypePill type={item.type} />
+                    <StatusBadge
+                      variant={item.type === "company" ? "info" : item.type === "job" ? "copper" : "success"}
+                      label={t(`dashboard:recent.types.${item.type}`)}
+                    />
                   </div>
                 </Link>
               </li>
@@ -116,16 +120,3 @@ function TypeIcon({ type }: { type: RecentItem["type"] }) {
   );
 }
 
-function TypePill({ type }: { type: RecentItem["type"] }) {
-  const { t } = useTranslation("dashboard");
-  const label = t(`dashboard:recent.types.${type}`);
-  const cls =
-    type === "company"
-      ? "bg-info/10 text-info/60"
-      : type === "job"
-        ? "bg-copper/10 text-copper/60"
-        : "bg-success/10 text-success/60";
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>
-  );
-}

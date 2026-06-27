@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { useToast } from "@/hooks/useToast";
 import {
   dismissMatch,
@@ -54,29 +55,6 @@ function ScoreRing({ score }: { score: number }) {
   );
 }
 
-// ── Score badge (color label) ─────────────────────────────────────────────────
-
-function ScoreLabel({ score }: { score: number }) {
-  const { t } = useTranslation("dashboard");
-  if (score >= 0.75)
-    return (
-      <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
-        {t("dashboard:matches.scoreLabelExcellent")}
-      </span>
-    );
-  if (score >= 0.55)
-    return (
-      <span className="rounded-full bg-copper/10 px-2 py-0.5 text-[10px] font-semibold text-copper">
-        {t("dashboard:matches.scoreLabelGood")}
-      </span>
-    );
-  return (
-    <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10px] font-medium text-white/35">
-      {t("dashboard:matches.scoreLabelAverage")}
-    </span>
-  );
-}
-
 // ── Single match row ──────────────────────────────────────────────────────────
 
 interface MatchRowProps {
@@ -117,7 +95,16 @@ function MatchRow({ match, onPush, onDismiss }: MatchRowProps) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="truncate font-medium text-white/90">{match.candidate.full_name}</p>
-          <ScoreLabel score={match.score} />
+          <StatusBadge
+            variant={match.score >= 0.75 ? "success" : match.score >= 0.55 ? "copper" : "warning"}
+            label={
+              match.score >= 0.75
+                ? t("dashboard:matches.scoreLabelExcellent")
+                : match.score >= 0.55
+                  ? t("dashboard:matches.scoreLabelGood")
+                  : t("dashboard:matches.scoreLabelAverage")
+            }
+          />
         </div>
         {match.candidate.resume_summary ? (
           <p className="mt-0.5 truncate text-xs text-white/45">
