@@ -10,11 +10,12 @@ from src.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
 from src.core.infrastructure.transactions import transactional
 from src.models import CompanyProfile, User
 from src.schemas import JobCreate, JobRead, JobUpdate
-from src.schemas.companies import CompanyApplicationRead
+from src.schemas.companies import CompanyApplicationRead, CompanyJobRecommendationRead
 from src.services.company.jobs import (
     create_job,
     delete_job,
     get_job,
+    get_job_recommendations,
     list_company_jobs,
     list_job_applications,
     update_job,
@@ -117,5 +118,21 @@ async def get_job_applications(
     _, company_profile = current_company
     try:
         return await list_job_applications(job_id, company_profile.id, session)
+    except (JobNotFoundError, JobNotOwnedByCompanyError) as e:
+        raise service_exception_to_http(e) from e
+
+
+@router.get(
+    "/{job_id}/recommendations", response_model=list[CompanyJobRecommendationRead]
+)
+async def get_job_candidate_recommendations(
+    job_id: int,
+    current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
+    session: AsyncSession = Depends(get_session),
+) -> list[CompanyJobRecommendationRead]:
+    """AI-ranked candidate suggestions for a specific job owned by this company."""
+    _, company_profile = current_company
+    try:
+        return await get_job_recommendations(job_id, company_profile.id, session)
     except (JobNotFoundError, JobNotOwnedByCompanyError) as e:
         raise service_exception_to_http(e) from e

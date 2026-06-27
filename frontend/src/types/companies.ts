@@ -36,6 +36,14 @@ export interface CompanyApplicationRead {
   candidate: CompanyApplicationCandidateRead;
 }
 
+export interface CompanyJobRecommendationRead {
+  candidate_id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  score: number;
+}
+
 export interface PendingCompanyRead {
   user: UserRead;
   company_profile: CompanyProfileRead;

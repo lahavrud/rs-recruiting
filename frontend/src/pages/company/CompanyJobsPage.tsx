@@ -9,31 +9,38 @@ import JobTagsInput from "@/components/ui/JobTagsInput";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
+import JobKanban from "@/pages/company/components/JobKanban";
+import JobRecommendations from "@/pages/company/components/JobRecommendations";
 import {
   createJob,
   deleteJob,
   getCompanyJobs,
   updateJob,
 } from "@/services/companyJobs";
-import { errorAlertBaseCls, INPUT_CLS, TEXTAREA_CLS } from "@/styles/forms";
+import { INPUT_CLS, TEXTAREA_CLS, errorAlertBaseCls } from "@/styles/forms";
 import { JobStatus } from "@/types/enums";
 import type { JobCreate, JobRead, JobRequirementItem, JobUpdate } from "@/types/jobs";
-import { JOB_SHORT_DESC_MAX, JOB_REQ_MIN_COUNT } from "@/types/jobs";
+import { JOB_REQ_MIN_COUNT, JOB_SHORT_DESC_MAX } from "@/types/jobs";
 import { formatDate } from "@/utils/formatDate";
 
-const emptyRequirements = (): JobRequirementItem[] =>
-  Array.from({ length: JOB_REQ_MIN_COUNT }, () => ({ text: "" }));
+const MIN_REQUIREMENTS = JOB_REQ_MIN_COUNT;
 
 const EMPTY_FORM: JobCreate = {
   title: "",
   short_description: "",
   description: "",
-  requirements: emptyRequirements(),
+  requirements: Array.from({ length: MIN_REQUIREMENTS }, () => ({ text: "" })),
   tags: [],
   location: "",
   salary_min: 0,
   salary_max: 0,
 };
+
+function emptyRequirements(): JobRequirementItem[] {
+  return Array.from({ length: MIN_REQUIREMENTS }, () => ({ text: "" }));
+}
+
+// ─── Job form ─────────────────────────────────────────────────────────────────
 
 interface JobFormProps {
   initial: JobCreate;
@@ -43,7 +50,7 @@ interface JobFormProps {
 }
 
 function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
-  const { t } = useTranslation(["common", "company", "sm"]);
+  const { t } = useTranslation(["common", "company"]);
   const [form, setForm] = useState<JobCreate>(initial);
   const [isSaving, setIsSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -55,8 +62,8 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const filledReqs = form.requirements.filter((r) => r.text.trim().length > 0);
-    if (filledReqs.length < JOB_REQ_MIN_COUNT) {
-      setErr(t("common:validation.requirementsMin", { min: JOB_REQ_MIN_COUNT }));
+    if (filledReqs.length < MIN_REQUIREMENTS) {
+      setErr(t("common:validation.requirementsMin", { min: MIN_REQUIREMENTS }));
       return;
     }
     setIsSaving(true);
@@ -193,31 +200,187 @@ function JobForm({ initial, onSubmit, onCancel, submitLabel }: JobFormProps) {
       {err && <p className="text-sm text-danger">{err}</p>}
 
       <div className="flex justify-end gap-2 pt-1">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSaving}
-          className="rounded-sm px-4 py-2 text-sm text-white/40 transition hover:bg-white/5 hover:text-white/70 disabled:opacity-40"
-        >
+        <Button variant="ghost" type="button" onClick={onCancel} disabled={isSaving}>
           {t("company:jobs.cancel")}
-        </button>
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white transition hover:bg-gold disabled:opacity-40"
-        >
+        </Button>
+        <Button type="submit" disabled={isSaving}>
           {isSaving ? t("company:jobs.saving") : submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   );
 }
 
+// ─── Job detail tabs ──────────────────────────────────────────────────────────
+
+type DetailTab = "kanban" | "ai";
+
+interface JobDetailPanelProps {
+  job: JobRead;
+  onEdit: () => void;
+  onDelete: () => void;
+  isDeleting: boolean;
+  editingDisabled: boolean;
+}
+
+function JobDetailPanel({
+  job,
+  onEdit,
+  onDelete,
+  isDeleting,
+  editingDisabled,
+}: JobDetailPanelProps) {
+  const { t } = useTranslation("company");
+  const [tab, setTab] = useState<DetailTab>("kanban");
+
+  const canEdit =
+    job.status === JobStatus.PENDING_APPROVAL || job.status === JobStatus.PUBLISHED;
+  const canDelete = job.status === JobStatus.PENDING_APPROVAL;
+
+  const STATUS_LABEL: Record<string, string> = {
+    PENDING_APPROVAL: t("company:jobs.statusLabels.PENDING_APPROVAL"),
+    PUBLISHED: t("company:jobs.statusLabels.PUBLISHED"),
+    CLOSED: t("company:jobs.statusLabels.CLOSED"),
+  };
+  const STATUS_COLOR: Record<string, string> = {
+    PENDING_APPROVAL: "bg-warning/10 text-warning",
+    PUBLISHED: "bg-success/10 text-success",
+    CLOSED: "bg-white/8 text-white/40",
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-white/90">{job.title}</h2>
+            <StatusBadge
+              label={STATUS_LABEL[job.status]}
+              colorCls={STATUS_COLOR[job.status]}
+            />
+          </div>
+          <p className="mt-0.5 text-sm text-white/45">{job.location}</p>
+          <p className="mt-0.5 text-xs text-white/25">
+            {t("company:jobs.postedLabel")} {formatDate(job.created_at)}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEdit}
+              disabled={editingDisabled}
+            >
+              {t("company:jobs.edit")}
+            </Button>
+          )}
+          {canDelete && (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={onDelete}
+              disabled={isDeleting || editingDisabled}
+            >
+              {isDeleting ? "…" : t("company:jobs.delete")}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-white/8 pb-0">
+        {(["kanban", "ai"] as DetailTab[]).map((t_) => (
+          <button
+            key={t_}
+            type="button"
+            onClick={() => setTab(t_)}
+            className={`px-3 py-2 text-sm transition ${
+              tab === t_
+                ? "border-b-2 border-copper font-medium text-copper"
+                : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            {t_ === "kanban"
+              ? t("company:jobs.kanban.title")
+              : t("company:jobs.kanban.aiTitle")}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="pt-1">
+        {tab === "kanban" ? (
+          <JobKanban key={job.id} jobId={job.id} />
+        ) : (
+          <div>
+            <p className="mb-3 text-xs text-white/35">
+              {t("company:jobs.kanban.aiSubtitle")}
+            </p>
+            <JobRecommendations key={job.id} jobId={job.id} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Job list item ────────────────────────────────────────────────────────────
+
+interface JobListItemProps {
+  job: JobRead;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
+function JobListItem({ job, isSelected, onClick }: JobListItemProps) {
+  const { t } = useTranslation("company");
+
+  const STATUS_COLOR: Record<string, string> = {
+    PENDING_APPROVAL: "bg-warning/10 text-warning",
+    PUBLISHED: "bg-success/10 text-success",
+    CLOSED: "bg-white/8 text-white/40",
+  };
+  const STATUS_LABEL: Record<string, string> = {
+    PENDING_APPROVAL: t("company:jobs.statusLabels.PENDING_APPROVAL"),
+    PUBLISHED: t("company:jobs.statusLabels.PUBLISHED"),
+    CLOSED: t("company:jobs.statusLabels.CLOSED"),
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full rounded-xl border p-4 text-start transition ${
+        isSelected
+          ? "border-copper/40 bg-card-raised"
+          : "border-white/8 bg-card hover:border-white/15 hover:bg-card-raised"
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="truncate text-sm font-medium text-white/85">{job.title}</span>
+        <StatusBadge
+          label={STATUS_LABEL[job.status]}
+          colorCls={STATUS_COLOR[job.status]}
+        />
+      </div>
+      <p className="mt-0.5 text-xs text-white/40">{job.location}</p>
+      <p className="mt-1 text-xs text-white/25">
+        {t("company:jobs.postedLabel")} {formatDate(job.created_at)}
+      </p>
+    </button>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 type Mode = "idle" | "create" | { type: "edit"; job: JobRead };
 
 export default function CompanyJobsPage() {
-  const { t } = useTranslation(["common", "company", "sm"]);
+  const { t } = useTranslation(["common", "company"]);
   const [mode, setMode] = useState<Mode>("idle");
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -235,23 +398,15 @@ export default function CompanyJobsPage() {
   } = useInfiniteList<JobRead>(fetcher);
 
   const error = loadError ? t("company:jobs.errors.loadFailed") : mutationError;
-
-  const STATUS_LABEL: Record<string, string> = {
-    PENDING_APPROVAL: t("company:jobs.statusLabels.PENDING_APPROVAL"),
-    PUBLISHED: t("company:jobs.statusLabels.PUBLISHED"),
-    CLOSED: t("company:jobs.statusLabels.CLOSED"),
-  };
-
-  const STATUS_COLOR: Record<string, string> = {
-    PENDING_APPROVAL: "bg-warning/10 text-warning",
-    PUBLISHED: "bg-success/10 text-success",
-    CLOSED: "bg-white/8 text-white/40",
-  };
+  const selectedJob = jobs.find((j) => j.id === selectedJobId) ?? null;
+  const isShowingForm =
+    mode === "create" || (typeof mode === "object" && mode.type === "edit");
 
   async function handleCreate(data: JobCreate) {
     const job = await createJob(data);
     prependItem(job);
     setMode("idle");
+    setSelectedJobId(job.id);
   }
 
   async function handleEdit(jobId: number, data: JobCreate) {
@@ -264,18 +419,17 @@ export default function CompanyJobsPage() {
   async function handleDelete(jobId: number) {
     if (!confirm(t("company:jobs.deleteConfirm"))) return;
     setDeleting(jobId);
+    setMutationError(null);
     try {
       await deleteJob(jobId);
       removeItem((j) => j.id === jobId);
+      if (selectedJobId === jobId) setSelectedJobId(null);
     } catch {
       setMutationError(t("company:jobs.errors.deleteFailed"));
     } finally {
       setDeleting(null);
     }
   }
-
-  const isShowingForm =
-    mode === "create" || (typeof mode === "object" && mode.type === "edit");
 
   return (
     <div>
@@ -284,7 +438,7 @@ export default function CompanyJobsPage() {
         subtitle={t("company:jobs.subtitle")}
         action={
           !isShowingForm ? (
-            <Button onClick={() => setMode("create")}>
+            <Button onClick={() => { setMode("create"); setSelectedJobId(null); }}>
               {t("company:jobs.postJob")}
             </Button>
           ) : undefined
@@ -295,6 +449,7 @@ export default function CompanyJobsPage() {
         <div className={`mb-4 ${errorAlertBaseCls} p-4`}>{error}</div>
       )}
 
+      {/* Create / edit form */}
       {isShowingForm && (
         <div className="mb-6 rounded-xl border border-copper/20 bg-card p-6">
           <Eyebrow className="mb-4">
@@ -344,76 +499,47 @@ export default function CompanyJobsPage() {
           {t("company:jobs.empty")}
         </div>
       ) : (
-        <div className="space-y-3">
-          {jobs.map((job) => {
-            const canEdit =
-              job.status === JobStatus.PENDING_APPROVAL ||
-              job.status === JobStatus.PUBLISHED;
-            const canDelete = job.status === JobStatus.PENDING_APPROVAL;
-            const isDeletingThisJob = deleting === job.id;
-
-            return (
-              <div
+        /* Two-panel layout */
+        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+          {/* Left: job list */}
+          <div className="space-y-2">
+            {jobs.map((job) => (
+              <JobListItem
                 key={job.id}
-                className="flex flex-col gap-3 rounded-xl border border-white/8 bg-card p-5 sm:flex-row sm:items-start sm:justify-between"
+                job={job}
+                isSelected={selectedJobId === job.id}
+                onClick={() => {
+                  setSelectedJobId(job.id);
+                  setMode("idle");
+                }}
+              />
+            ))}
+            {(hasMore || isFetchingMore) && (
+              <div
+                ref={sentinelRef}
+                className="py-2 text-center text-xs text-white/25"
               >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-white/85">{job.title}</p>
-                    <StatusBadge
-                      label={STATUS_LABEL[job.status]}
-                      colorCls={STATUS_COLOR[job.status]}
-                    />
-                  </div>
-                  <p className="mt-0.5 text-sm text-white/45">{job.location}</p>
-                  <p className="mt-1 text-xs text-white/25">
-                    {t("company:jobs.postedLabel")} {formatDate(job.created_at)}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-sm text-white/50">
-                    {job.short_description || job.description}
-                  </p>
-                  {job.tags.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {job.tags.slice(0, 4).map((tag) => (
-                        <span
-                          key={tag}
-                          className="rounded-full border border-copper/25 bg-copper/10 px-2 py-0.5 text-[11px] font-medium text-copper/90"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex shrink-0 gap-2">
-                  {canEdit && (
-                    <button
-                      onClick={() => setMode({ type: "edit", job })}
-                      disabled={isShowingForm}
-                      className="rounded-sm border border-white/15 px-3 py-1.5 text-sm text-white/50 transition hover:border-white/30 hover:text-white/80 disabled:opacity-30"
-                    >
-                      {t("company:jobs.edit")}
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={() => handleDelete(job.id)}
-                      disabled={isDeletingThisJob || isShowingForm}
-                      className="rounded-sm border border-danger/20 px-3 py-1.5 text-sm text-danger transition hover:bg-danger/10 disabled:opacity-30"
-                    >
-                      {isDeletingThisJob ? "…" : t("company:jobs.delete")}
-                    </button>
-                  )}
-                </div>
+                {isFetchingMore ? t("common:loading") : ""}
               </div>
-            );
-          })}
-          {(hasMore || isFetchingMore) && (
-            <div ref={sentinelRef} className="py-4 text-center text-xs text-white/25">
-              {isFetchingMore ? t("common:loading") : ""}
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Right: detail + kanban */}
+          <div className="rounded-xl border border-white/8 bg-card p-5">
+            {selectedJob ? (
+              <JobDetailPanel
+                job={selectedJob}
+                onEdit={() => setMode({ type: "edit", job: selectedJob })}
+                onDelete={() => handleDelete(selectedJob.id)}
+                isDeleting={deleting === selectedJob.id}
+                editingDisabled={isShowingForm}
+              />
+            ) : (
+              <div className="flex h-48 items-center justify-center text-sm text-white/25">
+                {t("company:jobs.kanban.selectJob")}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

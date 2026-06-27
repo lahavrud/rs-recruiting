@@ -221,6 +221,16 @@ class CompanyApplicationRead(BaseModel):
     candidate: CompanyApplicationCandidateRead
 
 
+class CompanyJobRecommendationRead(BaseModel):
+    """AI-ranked candidate suggestion for a company's job."""
+
+    candidate_id: int
+    full_name: str
+    email: str
+    phone: str | None
+    score: float
+
+
 class CompanyProfileAdminUpdate(BaseModel):
     """Partial-update schema for an admin editing a company profile.
 
