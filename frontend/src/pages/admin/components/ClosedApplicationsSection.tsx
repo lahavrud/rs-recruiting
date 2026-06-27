@@ -148,9 +148,6 @@ export default function ClosedApplicationsSection({
                           <DropdownMenuItem onSelect={() => onView(app)}>
                             {t("admin:applications.viewAction")}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => onUpdateStatus(app)}>
-                            {t("admin:applications.updateStatusAction")}
-                          </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => onEditNotes(app)}>
                             {t("admin:applications.editNotesAction")}
                           </DropdownMenuItem>

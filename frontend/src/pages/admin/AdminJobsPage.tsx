@@ -17,9 +17,9 @@ import PageHeader from "@/components/ui/PageHeader";
 import TableSkeleton from "@/components/ui/TableSkeleton";
 import { JOB_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
-import { useSortChain } from "@/hooks/useSortChain";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
 import {
   approveJob,
@@ -48,7 +48,8 @@ const ALL_STATUSES = [
 const ALL_FILTER = "ALL";
 type FilterValue = string;
 type JobSortColumn = "name" | "created_at" | "status";
-const naturalOrder = (column: JobSortColumn) => (column === "created_at" ? "desc" : "asc") as const;
+const naturalOrder = (column: JobSortColumn): "asc" | "desc" =>
+  column === "created_at" ? "desc" : "asc";
 
 // ── Page ────────────────────────────────────────────────────────────────────
 

@@ -99,7 +99,7 @@ export default function ApplicationsQueue() {
   const decide = useCallback(
     async (
       appId: number,
-      status: ApplicationStatus.APPROVED_BY_ADMIN | ApplicationStatus.REJECTED,
+      status: typeof ApplicationStatus.APPROVED_BY_ADMIN | typeof ApplicationStatus.REJECTED,
     ) => {
       const current = itemsRef.current;
       const idx = current.findIndex((a) => a.id === appId);

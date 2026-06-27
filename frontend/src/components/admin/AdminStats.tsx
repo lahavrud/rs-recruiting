@@ -209,7 +209,7 @@ function TrendChart({ points }: { points: TrendPoint[] | null }) {
                   color: "rgba(255,255,255,0.8)",
                 }}
                 labelStyle={{ color: CHART_TICK, fontSize: "10px", marginBottom: "2px" }}
-                formatter={(value: number) => [value, t("dashboard:trend.tooltip")]}
+                formatter={(value) => [value, t("dashboard:trend.tooltip")]}
                 cursor={{ stroke: CHART_COPPER, strokeWidth: 1, strokeOpacity: 0.4 }}
               />
               <Area

@@ -47,6 +47,12 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     # (src/api/candidate/applications.py) resume endpoints. Exercised
     # end-to-end via the consumer endpoints' tests.
     "src/api/_resume_streaming.py",
+    # Helper modules split out of admin service files to satisfy the 300-line
+    # file cap. Exercised end-to-end via tests/services/admin/test_candidates.py,
+    # test_applications.py, and test_jobs.py respectively.
+    "src/services/admin/_candidates_purge.py",
+    "src/services/admin/_application_status.py",
+    "src/services/admin/_job_close.py",
     # OTel SDK initialisation — thin wrappers around TracerProvider,
     # MeterProvider, and LoggerProvider. No domain logic; exercised
     # end-to-end by every request/task that emits telemetry in prod.

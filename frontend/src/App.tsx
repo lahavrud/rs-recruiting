@@ -1,7 +1,7 @@
 import { Suspense, useEffect } from "react";
 
 import { HelmetProvider } from "react-helmet-async";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 
 import AdminRoute from "@/components/guards/AdminRoute";
 import CandidateRoute from "@/components/guards/CandidateRoute";
@@ -58,9 +58,6 @@ const AdminApplicationsTriagePage = lazyWithRetry(
 const AdminReviewQueuePage = lazyWithRetry(
   () => import("@/pages/admin/AdminReviewQueuePage"),
 );
-const MockupBoard = lazyWithRetry(() => import("@/pages/admin/mockups/MockupBoard"));
-const MockupDeck = lazyWithRetry(() => import("@/pages/admin/mockups/MockupDeck"));
-const MockupLedger = lazyWithRetry(() => import("@/pages/admin/mockups/MockupLedger"));
 const AdminCandidatesPage = lazyWithRetry(
   () => import("@/pages/admin/AdminCandidatesPage"),
 );
@@ -247,40 +244,6 @@ export default function App() {
                     <AdminRoute>
                       <RouteErrorBoundary>
                         <AdminReviewQueuePage />
-                      </RouteErrorBoundary>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/mockups"
-                  element={<Navigate to="/admin/mockups/board" replace />}
-                />
-                <Route
-                  path="/admin/mockups/board"
-                  element={
-                    <AdminRoute>
-                      <RouteErrorBoundary>
-                        <MockupBoard />
-                      </RouteErrorBoundary>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/mockups/deck"
-                  element={
-                    <AdminRoute>
-                      <RouteErrorBoundary>
-                        <MockupDeck />
-                      </RouteErrorBoundary>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/mockups/ledger"
-                  element={
-                    <AdminRoute>
-                      <RouteErrorBoundary>
-                        <MockupLedger />
                       </RouteErrorBoundary>
                     </AdminRoute>
                   }
