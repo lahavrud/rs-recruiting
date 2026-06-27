@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
+import { PCT_MULTIPLIER, scoreBarColor } from "@/pages/company/components/scoreUtils";
 import api from "@/services/api";
 import type { CompanyJobRecommendationRead } from "@/types/companies";
 
@@ -9,14 +10,9 @@ interface JobRecommendationsProps {
   jobId: number;
 }
 
-const PCT_MULTIPLIER = 100;
-const SCORE_HIGH = 80;
-const SCORE_MID = 65;
-
 function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(score * PCT_MULTIPLIER);
-  const colorCls =
-    pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
+  const colorCls = scoreBarColor(pct);
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/8">

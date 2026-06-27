@@ -3,18 +3,16 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import Eyebrow from "@/components/ui/Eyebrow";
+import { PCT_MULTIPLIER, scoreBarColor } from "@/pages/company/components/scoreUtils";
 import type { CompanyApplicationRead } from "@/types/companies";
 import { formatDate } from "@/utils/formatDate";
 
-const SCORE_HIGH_PCT = 80;
-const SCORE_MID_PCT = 65;
-const PCT_MULTIPLIER = 100;
 const TRANSITION_MS = 300;
 
 function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(score * PCT_MULTIPLIER);
-  const colorCls =
-    pct >= SCORE_HIGH_PCT ? "bg-success" : pct >= SCORE_MID_PCT ? "bg-copper" : "bg-warning";
+  const colorCls = scoreBarColor(pct);
   return (
     <div className="flex items-center gap-3">
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/8">
@@ -116,26 +114,20 @@ export default function CandidateDetailDrawer({ app, onClose }: CandidateDetailD
           </div>
 
           <div>
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-copper">
-              {t("company:kanban.drawer.appliedOn")}
-            </p>
+            <Eyebrow className="mb-1">{t("company:kanban.drawer.appliedOn")}</Eyebrow>
             <p className="text-sm text-white/55">{formatDate(displayApp.created_at)}</p>
           </div>
 
           {displayApp.match_score != null && (
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-copper">
-                {t("company:kanban.drawer.matchScore")}
-              </p>
+              <Eyebrow className="mb-2">{t("company:kanban.drawer.matchScore")}</Eyebrow>
               <ScoreBar score={displayApp.match_score} />
             </div>
           )}
 
           {displayApp.ai_review && (
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-copper">
-                {t("company:kanban.drawer.aiReview")}
-              </p>
+              <Eyebrow className="mb-2">{t("company:kanban.drawer.aiReview")}</Eyebrow>
               <p className="text-sm leading-relaxed text-white/70">{displayApp.ai_review}</p>
             </div>
           )}
