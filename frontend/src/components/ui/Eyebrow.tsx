@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 type Size = "sm" | "md";
 type Color = "copper" | "gold" | "nickel";
@@ -30,12 +30,13 @@ export default function Eyebrow({
   as?: "p" | "label";
   htmlFor?: string;
   className?: string;
+  style?: CSSProperties;
 }) {
   const base = colorMap[color];
   const colorCls = isDim ? `${base}/60` : base;
   const cls = `${sizeCls[size]} font-semibold uppercase tracking-widest ${colorCls}${className ? ` ${className}` : ""}`;
   if (Tag === "label") {
-    return <label htmlFor={htmlFor} className={cls}>{children}</label>;
+    return <label htmlFor={htmlFor} className={cls} style={style}>{children}</label>;
   }
-  return <p className={cls}>{children}</p>;
+  return <p className={cls} style={style}>{children}</p>;
 }

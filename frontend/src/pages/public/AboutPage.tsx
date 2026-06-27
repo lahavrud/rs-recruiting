@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import Eyebrow from "@/components/ui/Eyebrow";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 import { useImageLoaded } from "@/hooks/useImageLoaded";
 
@@ -215,9 +216,9 @@ export default function AboutPage() {
           <div className="flex flex-col items-center gap-2">
             <div className="h-px w-10 bg-copper/50" style={ruleDraw(true, "0.25s")} />
             <div className="overflow-hidden">
-              <p className="text-xs font-semibold uppercase tracking-widest text-copper/80" style={rise(true, "0.5s", "0.6s")}>
+              <Eyebrow isDim style={rise(true, "0.5s", "0.6s")}>
                 {t("about:hero.eyebrow")}
-              </p>
+              </Eyebrow>
             </div>
           </div>
 
@@ -279,10 +280,9 @@ export default function AboutPage() {
             <div>
               <div className="h-px w-8 bg-copper/40" style={ruleDraw(isStoryVisible)} />
               <div className="mt-3 overflow-hidden">
-                <p className="text-xs font-semibold uppercase tracking-widest text-copper"
-                  style={rise(isStoryVisible, "0.1s", "0.6s")}>
+                <Eyebrow style={rise(isStoryVisible, "0.1s", "0.6s")}>
                   {t("about:story.eyebrow")}
-                </p>
+                </Eyebrow>
               </div>
               <p className="mt-8 text-xl leading-relaxed text-white/80 sm:text-2xl"
                 style={revealUp(isStoryVisible, "0.25s")}>
@@ -326,12 +326,9 @@ export default function AboutPage() {
               ? { animation: "line-expand-h 1.6s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both", transformOrigin: "center" }
               : { transform: "scaleX(0)" }}
           />
-          <p
-            className="mt-5 text-[10px] font-semibold uppercase tracking-widest text-copper/40"
-            style={revealUp(isPhilosophyVisible, "1.1s", "0.6s")}
-          >
+          <Eyebrow isDim className="mt-5" style={revealUp(isPhilosophyVisible, "1.1s", "0.6s")}>
             {t("about:philosophy.attribution")}
-          </p>
+          </Eyebrow>
         </div>
       </div>
 
@@ -340,10 +337,9 @@ export default function AboutPage() {
         <div className="mx-auto max-w-4xl">
           <div className="h-px w-8 bg-copper/40" style={ruleDraw(isValuesVisible)} />
           <div className="mt-3 overflow-hidden">
-            <p className="text-xs font-semibold uppercase tracking-widest text-copper"
-              style={rise(isValuesVisible, "0.1s", "0.6s")}>
+            <Eyebrow style={rise(isValuesVisible, "0.1s", "0.6s")}>
               {t("about:values.eyebrow")}
-            </p>
+            </Eyebrow>
           </div>
 
           {(
@@ -418,10 +414,9 @@ export default function AboutPage() {
         <div className="relative mx-auto max-w-4xl px-6 py-20 sm:py-24">
           <div className="h-px w-8 bg-copper/40" style={ruleDraw(isProcessVisible)} />
           <div className="mt-3 overflow-hidden">
-            <p className="text-xs font-semibold uppercase tracking-widest text-copper"
-              style={rise(isProcessVisible, "0.1s", "0.6s")}>
+            <Eyebrow style={rise(isProcessVisible, "0.1s", "0.6s")}>
               {t("about:howItWorks.eyebrow")}
-            </p>
+            </Eyebrow>
           </div>
           <div className="mt-5 overflow-hidden">
             <p className="text-xl font-semibold text-white/90 sm:text-2xl"
@@ -461,10 +456,9 @@ export default function AboutPage() {
       <div ref={statsRef} className="bg-card-raised px-6 py-16 sm:py-20">
         <div className="mx-auto max-w-4xl">
           <div className="overflow-hidden text-center">
-            <p className="text-xs font-semibold uppercase tracking-widest text-copper"
-              style={rise(isStatsVisible, "0s", "0.6s")}>
+            <Eyebrow style={rise(isStatsVisible, "0s", "0.6s")}>
               {t("about:stats.eyebrow")}
-            </p>
+            </Eyebrow>
           </div>
           <div className="mt-10 grid grid-cols-3">
             {(
@@ -490,10 +484,9 @@ export default function AboutPage() {
         <div className="mx-auto max-w-3xl">
           <div className="h-px w-8 bg-copper/40" style={ruleDraw(isFaqVisible)} />
           <div className="mt-3 overflow-hidden">
-            <p className="text-xs font-semibold uppercase tracking-widest text-copper"
-              style={rise(isFaqVisible, "0.1s", "0.6s")}>
+            <Eyebrow style={rise(isFaqVisible, "0.1s", "0.6s")}>
               {t("about:faq.eyebrow")}
-            </p>
+            </Eyebrow>
           </div>
           <div className="mt-3 overflow-hidden">
             <p className="text-xl font-semibold text-white/85 sm:text-2xl"

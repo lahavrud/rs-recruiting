@@ -166,9 +166,9 @@ export default function ArticlePage() {
 
         <article>
           <header className="mb-8">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-copper/70">
+            <Eyebrow isDim>
               {formatDate(article.date)}
-            </p>
+            </Eyebrow>
             <h1 className="mt-3 text-2xl font-semibold text-white/95 sm:text-3xl">
               {article.title}
             </h1>
