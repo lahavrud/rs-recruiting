@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { getHotApplications } from "@/services/adminMatches";
 import type { ApplicationWithDetails } from "@/types/candidates";
@@ -89,17 +90,17 @@ function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
 
       {/* Action */}
       <div className="shrink-0">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() =>
             navigate(`/admin/applications`, {
               state: { candidate_id: app.candidate_id },
             })
           }
-          className="rounded-lg border border-copper/30 bg-copper/8 px-3 py-1.5 text-xs font-medium text-copper transition hover:border-copper/60 hover:bg-copper/14 hover:text-gold"
         >
           {t("dashboard:matches.viewApplication")}
-        </button>
+        </Button>
       </div>
     </li>
   );

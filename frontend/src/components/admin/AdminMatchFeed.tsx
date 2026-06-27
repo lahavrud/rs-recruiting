@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useToast } from "@/hooks/useToast";
 import {
@@ -145,34 +146,36 @@ function MatchRow({ match, onPush, onDismiss }: MatchRowProps) {
       {/* Actions */}
       <div className="flex shrink-0 items-center gap-2">
         {/* Push — creates an application */}
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={handlePush}
           disabled={busy !== null}
-          className="rounded-lg border border-copper/30 bg-copper/6 px-3 py-1.5 text-xs font-medium text-copper transition hover:border-copper/60 hover:bg-copper/12 hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy === "push" ? "…" : t("dashboard:matches.push")}
-        </button>
+        </Button>
 
         {/* Navigate to candidate */}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate(`/admin/candidates/${match.candidate.id}`)}
-          className="hidden rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-white/45 transition hover:border-white/20 hover:text-white/70 sm:block"
+          className="hidden sm:inline-flex"
         >
           {t("dashboard:matches.viewCandidate")}
-        </button>
+        </Button>
 
         {/* Dismiss — persisted to backend */}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleDismiss}
           disabled={busy !== null}
           aria-label={t("dashboard:matches.dismiss")}
-          className="rounded-lg p-1.5 text-white/20 transition hover:bg-white/6 hover:text-white/50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="px-1.5 py-1.5 text-white/20 hover:border-transparent hover:bg-white/6 hover:text-white/50"
         >
           {busy === "dismiss" ? "…" : <XIcon />}
-        </button>
+        </Button>
       </div>
     </li>
   );
