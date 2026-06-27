@@ -70,7 +70,7 @@ export function JobDetailBody({
     setJobApplications(null);
     setHasApplicationsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
-    getApplications({ job_id: job.id, limit: APP_FETCH_LIMIT }, ctrl.signal)
+    getApplications({ job_id: job.id, limit: APP_FETCH_LIMIT, sort: "score" }, ctrl.signal)
       .then((page) => setJobApplications(page.items))
       .catch((e) => {
         if (axios.isCancel(e)) return;
@@ -87,9 +87,7 @@ export function JobDetailBody({
   const applicationEntries: MatchEntry[] | null =
     jobApplications == null
       ? null
-      : [...jobApplications]
-          .sort((a, b) => (b.ai_score ?? 0) - (a.ai_score ?? 0))
-          .map((app) => ({
+      : jobApplications.map((app) => ({
             key: app.id,
             name: app.candidate.full_name,
             meta: app.candidate.email,
