@@ -67,8 +67,10 @@ export default function CompanyProfilePage() {
   const [mobileError, setMobileError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     getMyCompanyProfile()
       .then((p) => {
+        if (cancelled) return;
         setProfile(p);
         setName(p.name);
         setAddress(p.address);
@@ -77,7 +79,8 @@ export default function CompanyProfilePage() {
         setContactMobile(p.contact_mobile_phone);
         setContactLandline(p.contact_landline_phone ?? "");
       })
-      .catch(() => setLoadError(true));
+      .catch(() => { if (!cancelled) setLoadError(true); });
+    return () => { cancelled = true; };
   }, []);
 
   async function handleSubmit(e: FormEvent) {
@@ -104,6 +107,12 @@ export default function CompanyProfilePage() {
     try {
       const updated = await updateMyCompanyProfile(update);
       setProfile(updated);
+      setName(updated.name);
+      setAddress(updated.address);
+      setContactFirstName(updated.contact_first_name);
+      setContactLastName(updated.contact_last_name);
+      setContactMobile(updated.contact_mobile_phone);
+      setContactLandline(updated.contact_landline_phone ?? "");
       setSaveSuccess(true);
     } catch {
       setSaveError(t("company:profile.errors.saveFailed"));
