@@ -31,6 +31,7 @@ export default function SplitPaneLayout({
   if (prevRecordPresent !== recordPresent) {
     setPrevRecordPresent(recordPresent);
     if (recordPresent) setCollapsed(true);
+    else setCollapsed(false);
   }
 
   return (
