@@ -34,3 +34,9 @@ export function formatDateLong(iso: string): string {
     year: "numeric",
   });
 }
+
+/** Compact day/month label for chart X-axis ticks (e.g. "5/6"). */
+export function formatDateShort(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+}

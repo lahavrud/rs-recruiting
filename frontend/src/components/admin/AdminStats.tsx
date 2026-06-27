@@ -19,6 +19,7 @@ import Eyebrow from "@/components/ui/Eyebrow";
 import { APPLICATION_STATUS_META } from "@/constants/statusColors";
 import { getAdminOverview, type AdminOverviewRead, type TrendPoint } from "@/services/adminOverview";
 import { ApplicationStatus } from "@/types/enums";
+import { formatDateShort } from "@/utils/formatDate";
 
 function cssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -27,6 +28,7 @@ function cssVar(name: string) {
 const CHART_COPPER = cssVar("--color-copper");
 const CHART_GRID = "rgba(255,255,255,0.06)";
 const CHART_TICK = "rgba(255,255,255,0.28)";
+const CHART_TEXT = "rgba(255,255,255,0.8)";
 const CHART_BG = cssVar("--color-card-raised");
 const CHART_BORDER = "rgba(255,255,255,0.08)";
 const CHART_SUCCESS = cssVar("--color-success");
@@ -157,11 +159,7 @@ function KpiCard({
 function TrendChart({ points }: { points: TrendPoint[] | null }) {
   const { t } = useTranslation("dashboard");
 
-  const data =
-    points?.map((p) => {
-      const d = new Date(p.date);
-      return { label: `${d.getDate()}/${d.getMonth() + 1}`, n: p.n };
-    }) ?? [];
+  const data = points?.map((p) => ({ label: formatDateShort(p.date), n: p.n })) ?? [];
 
   const hasActivity = data.some((d) => d.n > 0);
 
@@ -209,7 +207,7 @@ function TrendChart({ points }: { points: TrendPoint[] | null }) {
                   border: `1px solid ${CHART_BORDER}`,
                   borderRadius: "8px",
                   fontSize: "11px",
-                  color: "rgba(255,255,255,0.8)",
+                  color: CHART_TEXT,
                 }}
                 labelStyle={{ color: CHART_TICK, fontSize: "10px", marginBottom: "2px" }}
                 formatter={(value) => [value, t("dashboard:trend.tooltip")]}
