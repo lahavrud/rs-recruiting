@@ -4,11 +4,51 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
+import Field from "@/components/ui/Field";
 import PageHeader from "@/components/ui/PageHeader";
 import { getMyCompanyProfile, updateMyCompanyProfile } from "@/services/companyProfile";
-import { INPUT_CLS } from "@/styles/forms";
+import { INPUT_CLS, errorAlertCls } from "@/styles/forms";
 import type { CompanyProfileRead, CompanyProfileSelfUpdate } from "@/types/companies";
 import { MOBILE_RE } from "@/utils/validators";
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function CompanyAvatar({ name }: { name: string }) {
+  const initial = name.trim()[0]?.toUpperCase() ?? "?";
+  return (
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-copper/15 text-xl font-bold text-copper">
+      {initial}
+    </div>
+  );
+}
+
+function ReadonlyValue({ value, ltr }: { value: string; ltr?: boolean }) {
+  return (
+    <div className="rounded-sm border border-white/6 bg-void px-3 py-2.5">
+      <span className="text-sm text-white/45 select-all" dir={ltr ? "ltr" : undefined}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function SkeletonCard({ rows }: { rows: number }) {
+  return (
+    <div className="rounded-xl border border-white/8 bg-card p-6">
+      <div className="mb-5 h-3 w-20 animate-pulse rounded bg-white/10" />
+      <div className="space-y-5">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="space-y-1.5">
+            <div className="h-3 w-24 animate-pulse rounded bg-white/8" />
+            <div className="h-10 animate-pulse rounded-sm bg-white/5" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CompanyProfilePage() {
   const { t } = useTranslation("company");
@@ -83,12 +123,20 @@ export default function CompanyProfilePage() {
 
   if (!profile) {
     return (
-      <div>
+      <div className="max-w-2xl">
         <PageHeader eyebrow={t("company:profile.title")} />
-        <div className="mt-8 space-y-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-10 animate-pulse rounded-lg bg-card" />
-          ))}
+        <div className="mt-6 space-y-4">
+          {/* Identity header skeleton */}
+          <div className="flex items-center gap-4 rounded-xl border border-white/8 bg-card p-6">
+            <div className="h-14 w-14 animate-pulse rounded-full bg-white/8" />
+            <div className="space-y-2">
+              <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+              <div className="h-5 w-40 animate-pulse rounded bg-white/8" />
+              <div className="h-3 w-24 animate-pulse rounded bg-white/5" />
+            </div>
+          </div>
+          <SkeletonCard rows={2} />
+          <SkeletonCard rows={4} />
         </div>
       </div>
     );
@@ -101,155 +149,160 @@ export default function CompanyProfilePage() {
         subtitle={t("company:profile.subtitle")}
       />
 
-      <form onSubmit={handleSubmit} className="mt-6 max-w-2xl space-y-8">
+      <form onSubmit={handleSubmit} className="mt-6 max-w-2xl space-y-4">
+        {/* Identity header */}
+        <div className="flex items-center gap-4 rounded-xl border border-white/8 bg-card p-5">
+          <CompanyAvatar name={profile.name} />
+          <div className="min-w-0">
+            <Eyebrow className="mb-1">{t("company:profile.section.company")}</Eyebrow>
+            <p className="truncate text-lg font-semibold text-white/90">{profile.name}</p>
+            <p className="mt-0.5 text-xs text-white/35" dir="ltr">{profile.company_id}</p>
+          </div>
+        </div>
+
         {/* Company details */}
-        <section className="rounded-xl border border-white/8 bg-card p-6 space-y-4">
-          <Eyebrow>{t("company:profile.section.company")}</Eyebrow>
-
-          <div>
-            <label htmlFor="cp-name" className="block text-sm text-white/50">
-              {t("company:profile.fields.name")} <span className="text-copper/80">*</span>
-            </label>
-            <input
+        <section className="rounded-xl border border-white/8 bg-card p-6">
+          <Eyebrow className="mb-5">{t("company:profile.section.editDetails")}</Eyebrow>
+          <div className="space-y-4">
+            <Field
               id="cp-name"
-              type="text"
+              label={t("company:profile.fields.name")}
               required
-              maxLength={100}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={`mt-1 ${INPUT_CLS}`}
-            />
-          </div>
+            >
+              <input
+                id="cp-name"
+                type="text"
+                required
+                maxLength={100}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={INPUT_CLS}
+              />
+            </Field>
 
-          <div>
-            <label className="block text-sm text-white/50">
-              {t("company:profile.fields.companyId")}
-            </label>
-            <input
-              type="text"
-              readOnly
-              value={profile.company_id}
-              className={`mt-1 ${INPUT_CLS} cursor-not-allowed opacity-50`}
-            />
-            <p className="mt-1 text-xs text-white/30">{t("company:profile.readonly.companyIdNote")}</p>
-          </div>
+            <Field
+              label={t("company:profile.fields.companyId")}
+              hint={t("company:profile.readonly.companyIdNote")}
+            >
+              <ReadonlyValue value={profile.company_id} ltr />
+            </Field>
 
-          <div>
-            <label htmlFor="cp-address" className="block text-sm text-white/50">
-              {t("company:profile.fields.address")} <span className="text-copper/80">*</span>
-            </label>
-            <input
+            <Field
               id="cp-address"
-              type="text"
+              label={t("company:profile.fields.address")}
               required
-              maxLength={200}
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className={`mt-1 ${INPUT_CLS}`}
-              placeholder={t("company:profile.placeholders.address")}
-            />
+            >
+              <input
+                id="cp-address"
+                type="text"
+                required
+                maxLength={200}
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className={INPUT_CLS}
+                placeholder={t("company:profile.placeholders.address")}
+              />
+            </Field>
           </div>
         </section>
 
         {/* Contact person */}
-        <section className="rounded-xl border border-white/8 bg-card p-6 space-y-4">
-          <Eyebrow>{t("company:profile.section.contact")}</Eyebrow>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="cp-first" className="block text-sm text-white/50">
-                {t("company:profile.fields.contactFirstName")} <span className="text-copper/80">*</span>
-              </label>
-              <input
+        <section className="rounded-xl border border-white/8 bg-card p-6">
+          <Eyebrow className="mb-5">{t("company:profile.section.contact")}</Eyebrow>
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
                 id="cp-first"
-                type="text"
+                label={t("company:profile.fields.contactFirstName")}
                 required
-                minLength={2}
-                maxLength={100}
-                value={contactFirstName}
-                onChange={(e) => setContactFirstName(e.target.value)}
-                className={`mt-1 ${INPUT_CLS}`}
-              />
-            </div>
+              >
+                <input
+                  id="cp-first"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={contactFirstName}
+                  onChange={(e) => setContactFirstName(e.target.value)}
+                  className={INPUT_CLS}
+                />
+              </Field>
 
-            <div>
-              <label htmlFor="cp-last" className="block text-sm text-white/50">
-                {t("company:profile.fields.contactLastName")} <span className="text-copper/80">*</span>
-              </label>
-              <input
+              <Field
                 id="cp-last"
-                type="text"
+                label={t("company:profile.fields.contactLastName")}
                 required
-                minLength={2}
-                maxLength={100}
-                value={contactLastName}
-                onChange={(e) => setContactLastName(e.target.value)}
-                className={`mt-1 ${INPUT_CLS}`}
-              />
+              >
+                <input
+                  id="cp-last"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={contactLastName}
+                  onChange={(e) => setContactLastName(e.target.value)}
+                  className={INPUT_CLS}
+                />
+              </Field>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-white/50">
-              {t("company:profile.fields.contactEmail")}
-            </label>
-            <input
-              type="email"
-              readOnly
-              value={profile.contact_email}
-              className={`mt-1 ${INPUT_CLS} cursor-not-allowed opacity-50`}
-            />
-            <p className="mt-1 text-xs text-white/30">{t("company:profile.readonly.emailNote")}</p>
-          </div>
+            <Field
+              label={t("company:profile.fields.contactEmail")}
+              hint={t("company:profile.readonly.emailNote")}
+            >
+              <ReadonlyValue value={profile.contact_email} ltr />
+            </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="cp-mobile" className="block text-sm text-white/50">
-                {t("company:profile.fields.contactMobile")} <span className="text-copper/80">*</span>
-              </label>
-              <input
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
                 id="cp-mobile"
-                type="tel"
+                label={t("company:profile.fields.contactMobile")}
                 required
-                value={contactMobile}
-                onChange={(e) => {
-                  setContactMobile(e.target.value);
-                  setMobileError(null);
-                }}
-                className={`mt-1 ${INPUT_CLS}${mobileError ? " border-danger/60" : ""}`}
-                dir="ltr"
-              />
-              {mobileError && (
-                <p className="mt-1 text-xs text-danger">{mobileError}</p>
-              )}
-            </div>
+                error={mobileError ?? undefined}
+              >
+                <input
+                  id="cp-mobile"
+                  type="tel"
+                  required
+                  value={contactMobile}
+                  onChange={(e) => {
+                    setContactMobile(e.target.value);
+                    setMobileError(null);
+                  }}
+                  className={`${INPUT_CLS}${mobileError ? " border-danger/60" : ""}`}
+                  dir="ltr"
+                />
+              </Field>
 
-            <div>
-              <label htmlFor="cp-landline" className="block text-sm text-white/50">
-                {t("company:profile.fields.contactLandline")}
-              </label>
-              <input
+              <Field
                 id="cp-landline"
-                type="tel"
-                maxLength={20}
-                value={contactLandline}
-                onChange={(e) => setContactLandline(e.target.value)}
-                className={`mt-1 ${INPUT_CLS}`}
-                placeholder={t("company:profile.placeholders.contactLandline")}
-                dir="ltr"
-              />
+                label={t("company:profile.fields.contactLandline")}
+                optional
+              >
+                <input
+                  id="cp-landline"
+                  type="tel"
+                  maxLength={20}
+                  value={contactLandline}
+                  onChange={(e) => setContactLandline(e.target.value)}
+                  className={INPUT_CLS}
+                  dir="ltr"
+                />
+              </Field>
             </div>
           </div>
         </section>
 
         {saveSuccess && (
-          <p className="text-sm text-success">{t("company:profile.saved")}</p>
+          <div className="rounded-lg border border-success/20 bg-success/10 px-4 py-3 text-sm text-success">
+            {t("company:profile.saved")}
+          </div>
         )}
         {saveError && (
-          <p className="text-sm text-danger">{saveError}</p>
+          <div className={errorAlertCls}>{saveError}</div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end pb-2">
           <Button type="submit" disabled={isSaving}>
             {isSaving ? t("company:profile.saving") : t("company:profile.save")}
           </Button>

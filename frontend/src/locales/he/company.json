@@ -20,6 +20,7 @@
     "subtitle": "עדכן את פרטי החברה ואיש הקשר.",
     "section": {
       "company": "פרטי החברה",
+      "editDetails": "עריכת פרטים",
       "contact": "איש קשר"
     },
     "fields": {
