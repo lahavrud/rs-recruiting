@@ -123,15 +123,28 @@ async def push_match(
     if existing is not None:
         raise ApplicationAlreadyExistsError(job_id=job_id, candidate_id=candidate_id)
 
-    session.add(
-        MatchSuggestion(
-            candidate_id=candidate_id,
-            job_id=job_id,
-            score=score,
-            status=MatchSuggestionStatus.PUSHED,
-            acted_by_admin_id=admin_id,
+    existing_suggestion = (
+        await session.execute(
+            select(MatchSuggestion).where(
+                MatchSuggestion.candidate_id == candidate_id,  # type: ignore[arg-type]
+                MatchSuggestion.job_id == job_id,  # type: ignore[arg-type]
+            )
         )
-    )
+    ).scalar_one_or_none()
+    if existing_suggestion is not None:
+        existing_suggestion.status = MatchSuggestionStatus.PUSHED
+        existing_suggestion.acted_by_admin_id = admin_id
+        existing_suggestion.score = score
+    else:
+        session.add(
+            MatchSuggestion(
+                candidate_id=candidate_id,
+                job_id=job_id,
+                score=score,
+                status=MatchSuggestionStatus.PUSHED,
+                acted_by_admin_id=admin_id,
+            )
+        )
     application = Application(
         job_id=job_id,
         candidate_id=candidate_id,
@@ -155,15 +168,27 @@ async def dismiss_match(
     Inserts a DISMISSED MatchSuggestion so the pair is permanently excluded
     from the feed on subsequent loads.
     """
-    session.add(
-        MatchSuggestion(
-            candidate_id=candidate_id,
-            job_id=job_id,
-            score=score,
-            status=MatchSuggestionStatus.DISMISSED,
-            acted_by_admin_id=admin_id,
+    existing_suggestion = (
+        await session.execute(
+            select(MatchSuggestion).where(
+                MatchSuggestion.candidate_id == candidate_id,  # type: ignore[arg-type]
+                MatchSuggestion.job_id == job_id,  # type: ignore[arg-type]
+            )
         )
-    )
+    ).scalar_one_or_none()
+    if existing_suggestion is None:
+        session.add(
+            MatchSuggestion(
+                candidate_id=candidate_id,
+                job_id=job_id,
+                score=score,
+                status=MatchSuggestionStatus.DISMISSED,
+                acted_by_admin_id=admin_id,
+            )
+        )
+    elif existing_suggestion.status != MatchSuggestionStatus.DISMISSED:
+        existing_suggestion.status = MatchSuggestionStatus.DISMISSED
+        existing_suggestion.acted_by_admin_id = admin_id
     await session.flush()
 
 
