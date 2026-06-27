@@ -33,6 +33,8 @@ export interface CompanyApplicationRead {
   status: string;
   created_at: string;
   updated_at: string;
+  match_score: number | null;
+  ai_review: string | null;
   candidate: CompanyApplicationCandidateRead;
 }
 

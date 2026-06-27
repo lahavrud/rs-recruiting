@@ -218,7 +218,15 @@ class CompanyApplicationRead(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    match_score: float | None = None
+    ai_review: str | None = None
     candidate: CompanyApplicationCandidateRead
+
+
+class CompanyApplicationStatusUpdate(BaseModel):
+    """Payload for a company updating an application's status."""
+
+    status: str
 
 
 class CompanyJobRecommendationRead(BaseModel):

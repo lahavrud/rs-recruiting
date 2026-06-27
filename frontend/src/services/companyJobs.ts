@@ -32,3 +32,15 @@ export async function getJobApplications(jobId: number): Promise<CompanyApplicat
   const res = await api.get<CompanyApplicationRead[]>(`/api/jobs/${jobId}/applications`);
   return res.data;
 }
+
+export async function updateApplicationStatus(
+  jobId: number,
+  appId: number,
+  status: string,
+): Promise<CompanyApplicationRead> {
+  const res = await api.patch<CompanyApplicationRead>(
+    `/api/jobs/${jobId}/applications/${appId}/status`,
+    { status },
+  );
+  return res.data;
+}

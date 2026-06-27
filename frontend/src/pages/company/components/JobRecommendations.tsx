@@ -9,10 +9,14 @@ interface JobRecommendationsProps {
   jobId: number;
 }
 
+const PCT_MULTIPLIER = 100;
+const SCORE_HIGH = 80;
+const SCORE_MID = 65;
+
 function ScoreBar({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
+  const pct = Math.round(score * PCT_MULTIPLIER);
   const colorCls =
-    pct >= 80 ? "bg-success" : pct >= 65 ? "bg-copper" : "bg-warning";
+    pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/8">
