@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models import Application
 from src.services.admin.overview import get_overview
 
 
@@ -36,3 +37,19 @@ async def test_get_overview_empty_db(session: AsyncSession):
     assert pulse["new_applications_7d"] == 0
     assert isinstance(pulse["recent_items"], list)
     assert isinstance(pulse["trend_30d"], list)
+
+
+@pytest.mark.asyncio
+async def test_get_overview_status_counts_keyed_by_enum_value(
+    session: AsyncSession, application: Application
+):
+    """Breakdown is keyed by the enum value ('NEW'), not str(member).
+
+    Regression: str(ApplicationStatus.NEW) is 'ApplicationStatus.NEW', which
+    the frontend's status-keyed lookups miss, leaving the breakdown at 0.
+    """
+    result = await get_overview(session)
+    counts = result["stats"]["application_status_counts"]
+
+    assert counts.get("NEW") == 1
+    assert "ApplicationStatus.NEW" not in counts
