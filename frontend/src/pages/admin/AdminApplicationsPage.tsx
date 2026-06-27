@@ -92,8 +92,6 @@ export default function AdminApplicationsPage() {
     }
   }, [id, selectedId, navigate]);
 
-  const [scoreSort, setScoreSort] = useState(false);
-
   const { chain, click, replace } = useSortChain<AppSortColumn>([
     { column: "status", order: "asc" },
     { column: "created_at", order: "desc" },
@@ -115,16 +113,11 @@ export default function AdminApplicationsPage() {
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
-      if (scoreSort) {
-        const params: ApplicationListParams = { sort: "score" };
-        if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
-        return getApplications(params);
-      }
       const params: ApplicationListParams = { cursor, sort, order, sort2, order2 };
       if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
       return getApplications(params);
     },
-    [filter, sort, order, sort2, order2, scoreSort],
+    [filter, sort, order, sort2, order2],
   );
 
   const {
@@ -278,40 +271,20 @@ export default function AdminApplicationsPage() {
     </>
   );
 
-  const scoreSortToggle = (
-    <button
-      type="button"
-      onClick={() => setScoreSort((s) => !s)}
-      className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-        scoreSort
-          ? "border-copper/50 bg-copper/10 text-copper"
-          : "border-white/12 bg-card-raised/40 text-white/50 hover:border-copper/30 hover:text-white/75"
-      }`}
-    >
-      <SparkleIcon />
-      {t("admin:applications.sort.aiScore")}
-    </button>
-  );
-
   const sortControl = (
-    <div className="flex items-center gap-2">
-      {scoreSortToggle}
-      {!scoreSort && (
-        <SortControl
-          ariaLabel={t("admin:applications.sort.label")}
-          value={`${sort}:${order}`}
-          onChange={(col, ord) => replace(col as AppSortColumn, ord)}
-          options={[
-            { value: "status:desc", label: t("admin:applications.sort.statusDesc") },
-            { value: "status:asc", label: t("admin:applications.sort.statusAsc") },
-            { value: "created_at:desc", label: t("admin:applications.sort.dateDesc") },
-            { value: "created_at:asc", label: t("admin:applications.sort.dateAsc") },
-            { value: "name:asc", label: t("admin:applications.sort.nameAsc") },
-            { value: "name:desc", label: t("admin:applications.sort.nameDesc") },
-          ]}
-        />
-      )}
-    </div>
+    <SortControl
+      ariaLabel={t("admin:applications.sort.label")}
+      value={`${sort}:${order}`}
+      onChange={(col, ord) => replace(col as AppSortColumn, ord)}
+      options={[
+        { value: "status:desc", label: t("admin:applications.sort.statusDesc") },
+        { value: "status:asc", label: t("admin:applications.sort.statusAsc") },
+        { value: "created_at:desc", label: t("admin:applications.sort.dateDesc") },
+        { value: "created_at:asc", label: t("admin:applications.sort.dateAsc") },
+        { value: "name:asc", label: t("admin:applications.sort.nameAsc") },
+        { value: "name:desc", label: t("admin:applications.sort.nameDesc") },
+      ]}
+    />
   );
 
   const searchAndFilters = (
@@ -405,7 +378,6 @@ export default function AdminApplicationsPage() {
                 selectedId={null}
                 statusLabels={STATUS_LABELS}
                 statusColors={APPLICATION_STATUS_COLORS}
-                showScore={scoreSort}
                 onView={(app) => navigate(`/admin/applications/${app.id}`)}
                 onEditNotes={setNotesModal}
                 onDelete={setDeleteCandidate}
@@ -420,7 +392,6 @@ export default function AdminApplicationsPage() {
               statusLabels={STATUS_LABELS}
               columnState={columnState}
               onSort={handleSort}
-              showScore={scoreSort}
               onEditNotes={setNotesModal}
               onDelete={setDeleteCandidate}
             />
@@ -508,22 +479,5 @@ export default function AdminApplicationsPage() {
     >
       {dialogs}
     </SplitPaneLayout>
-  );
-}
-
-function SparkleIcon() {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="size-3.5"
-      aria-hidden="true"
-    >
-      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.42 1.42M11.36 11.36l1.42 1.42M11.36 4.64l-1.42 1.42M4.64 11.36l-1.42 1.42" />
-    </svg>
   );
 }
