@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 
 import AdminHotApplicationsFeed from "@/components/admin/AdminHotApplicationsFeed";
 import AdminInbox from "@/components/admin/AdminInbox";
@@ -7,6 +6,7 @@ import AdminMatchFeed from "@/components/admin/AdminMatchFeed";
 import AdminRecentFeed from "@/components/admin/AdminRecentFeed";
 import AdminStats from "@/components/admin/AdminStats";
 import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
+import CompanyDashboard from "@/components/dashboard/CompanyDashboard";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useAuth } from "@/hooks/useAuth";
 import { UserRole } from "@/types/enums";
@@ -83,19 +83,7 @@ export default function DashboardPage() {
       ) : isCandidate ? (
         <CandidateDashboard />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Link
-            to="/company/jobs"
-            className="group rounded-xl border border-white/8 bg-card p-5 transition duration-200 hover:border-copper/30 hover:bg-card-raised"
-          >
-            <p className="font-medium text-white/85 transition group-hover:text-white/95">
-              {t("dashboard:companyLinks.myJobs")}
-            </p>
-            <p className="mt-1 text-sm text-white/45">
-              {t("dashboard:companyLinks.myJobsDesc")}
-            </p>
-          </Link>
-        </div>
+        <CompanyDashboard />
       )}
     </div>
   );

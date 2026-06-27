@@ -1,4 +1,53 @@
 {
+  "dashboard": {
+    "activeJobs": "משרות פעילות",
+    "activeJobsHint": "פורסמו ופתוחות להגשה",
+    "pendingJobs": "ממתינות לאישור",
+    "pendingJobsHint": "נשלחו ועדיין לא אושרו",
+    "closedJobs": "משרות סגורות",
+    "closedJobsHint": "משרות שנסגרו",
+    "totalApplications": "סך הגשות",
+    "totalApplicationsHint": "כלל ההגשות לכל המשרות",
+    "applicationsBreakdown": "התפלגות הגשות",
+    "quickActions": "קישורים מהירים",
+    "manageJobs": "ניהול משרות",
+    "manageJobsDesc": "פרסם משרות חדשות, ערוך קיימות, צפה במועמדים.",
+    "companyProfile": "פרופיל החברה",
+    "companyProfileDesc": "עדכן פרטי קשר, כתובת ומידע על החברה."
+  },
+  "profile": {
+    "title": "פרופיל החברה",
+    "subtitle": "עדכן את פרטי החברה ואיש הקשר.",
+    "section": {
+      "company": "פרטי החברה",
+      "contact": "איש קשר"
+    },
+    "fields": {
+      "name": "שם החברה",
+      "companyId": "מספר ח.פ",
+      "address": "כתובת",
+      "contactFirstName": "שם פרטי",
+      "contactLastName": "שם משפחה",
+      "contactEmail": "אימייל",
+      "contactMobile": "טלפון נייד",
+      "contactLandline": "טלפון קווי"
+    },
+    "placeholders": {
+      "address": "למשל: רחוב הרצל 1, תל אביב",
+      "contactLandline": "אופציונלי"
+    },
+    "save": "שמור שינויים",
+    "saving": "שומר…",
+    "saved": "הפרטים עודכנו בהצלחה.",
+    "errors": {
+      "loadFailed": "טעינת פרטי החברה נכשלה.",
+      "saveFailed": "שמירת הפרטים נכשלה. נסו שוב."
+    },
+    "readonly": {
+      "companyIdNote": "מספר ח.פ אינו ניתן לשינוי.",
+      "emailNote": "כתובת האימייל לא ניתנת לשינוי בממשק זה."
+    }
+  },
   "jobs": {
     "title": "המשרות שלי",
     "subtitle": "נהל את פרסומי המשרות שלך. משרות חדשות דורשות אישור מנהל לפני פרסום.",
@@ -38,6 +87,25 @@
       "loadFailed": "טעינת המשרות נכשלה.",
       "saveFailed": "השמירה נכשלה. נסה שוב.",
       "deleteFailed": "מחיקת המשרה נכשלה. רק משרות ממתינות ניתנות למחיקה."
+    },
+    "kanban": {
+      "title": "מועמדים",
+      "loading": "טוען מועמדים…",
+      "empty": "אין הגשות למשרה זו.",
+      "loadError": "טעינת המועמדים נכשלה.",
+      "columns": {
+        "NEW": "חדש",
+        "APPROVED_BY_ADMIN": "מאושר",
+        "HIRED": "גויס",
+        "REJECTED": "נדחה",
+        "WITHDRAWN": "נסוג",
+        "JOB_CLOSED": "משרה סגורה"
+      },
+      "appliedOn": "הגיש ב־",
+      "noPhone": "אין טלפון",
+      "aiTitle": "המלצות AI",
+      "aiSubtitle": "מועמדים מומלצים על בסיס התאמה למשרה",
+      "aiEmpty": "אין המלצות זמינות למשרה זו."
     }
   }
 }
