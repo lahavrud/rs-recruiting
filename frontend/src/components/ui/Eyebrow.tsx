@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 type Size = "sm" | "md";
-type Color = "copper" | "gold" | "nickel";
+type Color = "copper" | "gold" | "nickel" | "danger";
 
 const sizeCls: Record<Size, string> = {
   sm: "text-[10px]",
@@ -12,6 +12,7 @@ const colorMap: Record<Color, string> = {
   copper: "text-copper",
   gold: "text-gold",
   nickel: "text-nickel",
+  danger: "text-danger",
 };
 
 export default function Eyebrow({
