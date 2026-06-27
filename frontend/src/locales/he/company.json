@@ -70,13 +70,20 @@
     "edit": "עריכה",
     "delete": "מחיקה",
     "deleteConfirm": "למחוק פרסום משרה זה?",
+    "postJobBanner": "המשרה תשלח לבדיקת מנהל לפני שתפורסם.",
     "form": {
       "jobTitle": "כותרת המשרה",
       "location": "מיקום",
       "shortDescription": "תיאור קצר",
       "description": "תיאור מלא",
       "requirements": "דרישות",
-      "tags": "תגיות"
+      "tags": "תגיות",
+      "sections": {
+        "basics": "מידע בסיסי",
+        "description": "תיאור המשרה",
+        "requirements": "דרישות המשרה",
+        "compensation": "שכר ותגיות"
+      }
     },
     "placeholders": {
       "jobTitle": "למשל: מנהל חשבונות ראשי",

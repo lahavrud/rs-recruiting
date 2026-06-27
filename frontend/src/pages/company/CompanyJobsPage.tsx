@@ -9,8 +9,8 @@ import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import JobForm from "@/pages/company/components/JobForm";
-import { EMPTY_FORM, emptyRequirements } from "@/pages/company/components/JobFormUtils";
-import { createJob, deleteJob, getCompanyJobs, updateJob } from "@/services/companyJobs";
+import { emptyRequirements } from "@/pages/company/components/JobFormUtils";
+import { deleteJob, getCompanyJobs, updateJob } from "@/services/companyJobs";
 import { getMyCompanyStats } from "@/services/companyProfile";
 import { errorAlertCls } from "@/styles/forms";
 import type { CompanyStats } from "@/types/companies";
@@ -61,7 +61,7 @@ function StatsRow({ stats }: { stats: CompanyStats | null }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Mode = "idle" | "create" | { type: "edit"; job: JobRead };
+type Mode = "idle" | { type: "edit"; job: JobRead };
 
 export default function CompanyJobsPage() {
   const { t } = useTranslation(["common", "company"]);
@@ -79,7 +79,6 @@ export default function CompanyJobsPage() {
     hasMore,
     error: loadError,
     sentinelRef,
-    prependItem,
     updateItem,
     removeItem,
   } = useInfiniteList<JobRead>(fetcher);
@@ -93,14 +92,7 @@ export default function CompanyJobsPage() {
   }, []);
 
   const error = loadError ? t("company:jobs.errors.loadFailed") : mutationError;
-  const isShowingForm = mode === "create" || (typeof mode === "object" && mode.type === "edit");
-
-  async function handleCreate(data: JobCreate) {
-    const job = await createJob(data);
-    prependItem(job);
-    setMode("idle");
-    navigate(`/company/jobs/${job.id}`);
-  }
+  const isEditingInline = typeof mode === "object" && mode.type === "edit";
 
   async function handleEdit(jobId: number, data: JobCreate) {
     const update: JobUpdate = { ...data };
@@ -129,8 +121,8 @@ export default function CompanyJobsPage() {
         eyebrow={t("company:jobs.title")}
         subtitle={t("company:jobs.subtitle")}
         action={
-          !isShowingForm ? (
-            <Button onClick={() => setMode("create")}>{t("company:jobs.postJob")}</Button>
+          !isEditingInline ? (
+            <Button onClick={() => navigate("/company/jobs/new")}>{t("company:jobs.postJob")}</Button>
           ) : undefined
         }
       />
@@ -139,38 +131,26 @@ export default function CompanyJobsPage() {
 
       {error && <div className={`mb-4 ${errorAlertCls}`}>{error}</div>}
 
-      {isShowingForm && (
+      {isEditingInline && typeof mode === "object" && (
         <div className="mb-6 rounded-xl border border-copper/20 bg-card p-6">
-          <Eyebrow className="mb-4">
-            {mode === "create" ? t("company:jobs.createTitle") : t("company:jobs.editTitle")}
-          </Eyebrow>
+          <Eyebrow className="mb-4">{t("company:jobs.editTitle")}</Eyebrow>
           <JobForm
-            initial={
-              typeof mode === "object" && mode.type === "edit"
-                ? {
-                    title: mode.job.title,
-                    short_description: mode.job.short_description,
-                    description: mode.job.description,
-                    requirements:
-                      mode.job.requirements.length > 0
-                        ? mode.job.requirements.map((r) => ({ text: r.text }))
-                        : emptyRequirements(),
-                    tags: [...mode.job.tags],
-                    location: mode.job.location,
-                    salary_min: mode.job.salary_min ?? 0,
-                    salary_max: mode.job.salary_max ?? 0,
-                  }
-                : EMPTY_FORM
-            }
-            onSubmit={
-              typeof mode === "object" && mode.type === "edit"
-                ? (data) => handleEdit(mode.job.id, data)
-                : handleCreate
-            }
+            initial={{
+              title: mode.job.title,
+              short_description: mode.job.short_description,
+              description: mode.job.description,
+              requirements:
+                mode.job.requirements.length > 0
+                  ? mode.job.requirements.map((r) => ({ text: r.text }))
+                  : emptyRequirements(),
+              tags: [...mode.job.tags],
+              location: mode.job.location,
+              salary_min: mode.job.salary_min ?? 0,
+              salary_max: mode.job.salary_max ?? 0,
+            }}
+            onSubmit={(data) => handleEdit(mode.job.id, data)}
             onCancel={() => setMode("idle")}
-            submitLabel={
-              mode === "create" ? t("company:jobs.submitForReview") : t("company:jobs.saveChanges")
-            }
+            submitLabel={t("company:jobs.saveChanges")}
           />
         </div>
       )}
