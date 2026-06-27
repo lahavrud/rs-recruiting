@@ -67,6 +67,8 @@ const FLIP_DURATION = "280ms";
 const FLIP_EASE = "cubic-bezier(0.2,0,0,1)";
 const FLIP_THRESHOLD = 2;
 const CLICK_THRESHOLD = 5;
+const SCROLL_ZONE = 80;
+const SCROLL_SPEED_MAX = 15;
 
 // ─── Order helpers ────────────────────────────────────────────────────────────
 
@@ -201,6 +203,10 @@ export default function JobKanban({ jobId }: { jobId: number }) {
   const colRefs = useRef<Partial<Record<string, HTMLDivElement>>>({});
   const cardElsRef = useRef(new Map<number, HTMLElement>());
   const prevRectsRef = useRef(new Map<number, DOMRect>());
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRafRef = useRef(0);
+  const scrollDeltaRef = useRef(0);
+  const pointerPosRef = useRef({ x: 0, y: 0 });
 
   function applyOrder(fn: (prev: Record<string, number[]>) => Record<string, number[]>) {
     setOrder((prev) => {
@@ -295,20 +301,56 @@ export default function JobKanban({ jobId }: { jobId: number }) {
     };
     dragRef.current = state;
 
+    function tick() {
+      const delta = scrollDeltaRef.current;
+      const scroller = scrollerRef.current;
+      if (delta === 0 || !scroller) { scrollRafRef.current = 0; return; }
+      scroller.scrollLeft += delta;
+      const s = dragRef.current;
+      if (s) {
+        const { x, y } = pointerPosRef.current;
+        const { status, idx } = hitTest(x, y, s.app.id);
+        const next: DragState = { ...s, overStatus: status, dropIndex: idx };
+        dragRef.current = next;
+        setDragRender({ ...next });
+      }
+      scrollRafRef.current = requestAnimationFrame(tick);
+    }
+
     function onMove(ev: PointerEvent) {
       const s = dragRef.current;
       if (!s) return;
+      pointerPosRef.current = { x: ev.clientX, y: ev.clientY };
       const { status, idx } = hitTest(ev.clientX, ev.clientY, s.app.id);
       const next: DragState = { ...s, x: ev.clientX, y: ev.clientY, overStatus: status, dropIndex: idx };
       dragRef.current = next;
       if (Math.hypot(ev.clientX - s.startX, ev.clientY - s.startY) > CLICK_THRESHOLD) {
         setDragRender({ ...next });
       }
+
+      const scroller = scrollerRef.current;
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        const leftDist = ev.clientX - r.left;
+        const rightDist = r.right - ev.clientX;
+        if (leftDist < SCROLL_ZONE) {
+          scrollDeltaRef.current = -(1 - leftDist / SCROLL_ZONE) * SCROLL_SPEED_MAX;
+          if (!scrollRafRef.current) scrollRafRef.current = requestAnimationFrame(tick);
+        } else if (rightDist < SCROLL_ZONE) {
+          scrollDeltaRef.current = (1 - rightDist / SCROLL_ZONE) * SCROLL_SPEED_MAX;
+          if (!scrollRafRef.current) scrollRafRef.current = requestAnimationFrame(tick);
+        } else {
+          scrollDeltaRef.current = 0;
+        }
+      }
     }
 
     function onUp(ev: PointerEvent) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = 0;
+      scrollDeltaRef.current = 0;
       const s = dragRef.current;
       dragRef.current = null;
       setDragRender(null);
@@ -407,7 +449,7 @@ export default function JobKanban({ jobId }: { jobId: number }) {
         {t("company:jobs.kanban.totalCandidates", { count: applications.length })}
       </p>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" ref={scrollerRef}>
         <div className={`grid grid-cols-3 gap-4 min-w-[50rem] ${isDragging ? "cursor-grabbing" : ""}`}>
         {COLUMNS.map((col) => {
           const cards = byStatus[col.status] ?? [];
