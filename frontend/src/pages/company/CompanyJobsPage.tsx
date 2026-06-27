@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
+import Eyebrow from "@/components/ui/Eyebrow";
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
@@ -34,7 +35,7 @@ const STATUS_COLOR: Record<string, string> = {
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl border border-white/8 bg-card p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-copper">{label}</p>
+      <Eyebrow>{label}</Eyebrow>
       <p className="mt-1 text-2xl font-semibold tabular-nums text-white/90">{value}</p>
     </div>
   );
@@ -162,6 +163,7 @@ export default function CompanyJobsPage() {
                       <Button
                         variant="danger"
                         size="sm"
+                        disabled={deleting === job.id}
                         onClick={() => handleDelete(job.id)}
                       >
                         {deleting === job.id ? "…" : t("company:jobs.delete")}
@@ -225,6 +227,7 @@ export default function CompanyJobsPage() {
                           <Button
                             variant="danger"
                             size="sm"
+                            disabled={deleting === job.id}
                             onClick={() => handleDelete(job.id)}
                           >
                             {deleting === job.id ? "…" : t("company:jobs.delete")}
@@ -237,12 +240,14 @@ export default function CompanyJobsPage() {
               })}
             </tbody>
           </table>
-          {(hasMore || isFetchingMore) && (
-            <div ref={sentinelRef} className="py-2 text-center text-xs text-white/25">
-              {isFetchingMore ? t("common:loading") : ""}
-            </div>
-          )}
         </div>
+
+        {/* Shared infinite-scroll sentinel — must be outside display:none containers */}
+        {(hasMore || isFetchingMore) && (
+          <div ref={sentinelRef} className="py-2 text-center text-xs text-white/25">
+            {isFetchingMore ? t("common:loading") : ""}
+          </div>
+        )}
         </>
       )}
     </div>
