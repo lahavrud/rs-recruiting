@@ -275,7 +275,7 @@ async def update_job(
         embed_job_id = job.id
         defer_after_commit(lambda: enqueue_embed_job_task(embed_job_id))
 
-    await session.refresh(job)
+    await session.refresh(job, attribute_names=["company"])
     return JobRead.model_validate(job)
 
 
