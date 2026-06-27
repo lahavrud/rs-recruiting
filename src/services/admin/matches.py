@@ -49,10 +49,16 @@ async def get_global_matches(
     if not candidates:
         return []
 
+    candidate_ids = [c.id for c in candidates]
+
     applied_pairs: set[tuple[int, int]] = {
         (r[0], r[1])
         for r in (
-            await session.execute(select(Application.candidate_id, Application.job_id))
+            await session.execute(
+                select(Application.candidate_id, Application.job_id).where(
+                    Application.candidate_id.in_(candidate_ids)  # type: ignore[arg-type]
+                )
+            )
         ).all()
     }
 
@@ -60,7 +66,9 @@ async def get_global_matches(
         (r[0], r[1])
         for r in (
             await session.execute(
-                select(MatchSuggestion.candidate_id, MatchSuggestion.job_id)
+                select(MatchSuggestion.candidate_id, MatchSuggestion.job_id).where(
+                    MatchSuggestion.candidate_id.in_(candidate_ids)  # type: ignore[arg-type]
+                )
             )
         ).all()
     }
