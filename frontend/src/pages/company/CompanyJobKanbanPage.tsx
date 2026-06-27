@@ -40,12 +40,13 @@ export default function CompanyJobKanbanPage() {
   const [mutationError, setMutationError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isNaN(jobId)) { navigate("/company/jobs"); return; }
     let cancelled = false;
     getCompanyJob(jobId)
       .then((j) => { if (!cancelled) setJob(j); })
       .catch(() => { if (!cancelled) setLoadError(true); });
     return () => { cancelled = true; };
-  }, [jobId]);
+  }, [jobId, navigate]);
 
   async function handleDelete() {
     if (!job || !confirm(t("company:jobs.deleteConfirm"))) return;
@@ -59,6 +60,8 @@ export default function CompanyJobKanbanPage() {
       setIsDeleting(false);
     }
   }
+
+  if (isNaN(jobId)) return null;
 
   if (loadError) {
     return (

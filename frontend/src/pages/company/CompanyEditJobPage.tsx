@@ -19,18 +19,21 @@ export default function CompanyEditJobPage() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    if (isNaN(jobId)) { navigate("/company/jobs"); return; }
     let cancelled = false;
     getCompanyJob(jobId)
       .then((j) => { if (!cancelled) setJob(j); })
       .catch(() => { if (!cancelled) setLoadError(true); });
     return () => { cancelled = true; };
-  }, [jobId]);
+  }, [jobId, navigate]);
 
   async function handleSave(data: JobCreate) {
     const update: JobUpdate = { ...data };
     await updateJob(jobId, update);
     navigate(`/company/jobs/${jobId}`);
   }
+
+  if (isNaN(jobId)) return null;
 
   if (loadError) {
     return (
