@@ -277,7 +277,10 @@ async def list_job_applications(
             await session.execute(
                 select(Application)
                 .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
-                .where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
+                .where(
+                    Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
+                    Application.status.in_(_COMPANY_VISIBLE_STATUSES),  # pyright: ignore[reportArgumentType]
+                )
                 .order_by(Application.created_at.desc())  # pyright: ignore[reportArgumentType]
             )
         )
@@ -322,6 +325,14 @@ async def list_job_applications(
         for app in apps
     ]
 
+
+_COMPANY_VISIBLE_STATUSES = frozenset(
+    {
+        ApplicationStatus.APPROVED_BY_ADMIN,
+        ApplicationStatus.HIRED,
+        ApplicationStatus.REJECTED,
+    }
+)
 
 _COMPANY_ALLOWED_STATUSES = frozenset(
     {ApplicationStatus.HIRED, ApplicationStatus.REJECTED}
