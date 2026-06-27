@@ -10,21 +10,14 @@ import CandidateDashboard from "@/components/dashboard/CandidateDashboard";
 import Eyebrow from "@/components/ui/Eyebrow";
 import { useAuth } from "@/hooks/useAuth";
 import { UserRole } from "@/types/enums";
+import { formatTodayHebrew } from "@/utils/formatDate";
+
 function getGreetingKey(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "dashboard:greeting.morning";
   if (hour < 17) return "dashboard:greeting.afternoon";
   if (hour < 22) return "dashboard:greeting.evening";
   return "dashboard:greeting.night";
-}
-
-function formatToday(): string {
-  return new Date().toLocaleDateString("he-IL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 }
 
 /**
@@ -45,7 +38,7 @@ export default function DashboardPage() {
 
   const greeting = t(getGreetingKey());
   const name = isAdmin ? "" : nameFromEmail(user?.email);
-  const today = formatToday();
+  const today = formatTodayHebrew();
 
   const heroSubtitleKey = isAdmin
     ? "dashboard:heroSubtitle.admin"

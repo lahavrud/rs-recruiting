@@ -5,6 +5,7 @@ import type {
   CandidateApplicationsPage,
   CandidateMeRead,
 } from "@/services/candidate";
+import { formatTodayHebrew } from "@/utils/formatDate";
 
 import { profileCompletionPercent } from "./dashboardUtils";
 
@@ -18,12 +19,7 @@ export function Hero({
   appsPage: CandidateApplicationsPage | null;
 }) {
   const { t } = useTranslation('dashboard');
-  const today = new Date().toLocaleDateString("he-IL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const today = formatTodayHebrew();
   const hour = new Date().getHours();
   const greetingKey =
     hour < 12
