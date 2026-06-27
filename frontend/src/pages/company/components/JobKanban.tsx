@@ -62,8 +62,6 @@ const DROPPABLE_STATUSES = new Set(
 const PCT = 100;
 const SCORE_HIGH = 80;
 const SCORE_MID = 65;
-const FLOAT_ROTATE = "rotate(1.5deg)";
-const FLOAT_W = 272;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -163,6 +161,7 @@ interface DragState {
   y: number;
   offsetX: number;
   offsetY: number;
+  cardWidth: number;
   overStatus: string | null;
 }
 
@@ -248,6 +247,7 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
       y: e.clientY,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
+      cardWidth: rect.width,
       overStatus: null,
     };
     dragRef.current = state;
@@ -382,10 +382,9 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
               position: "fixed",
               left: dragRender.x - dragRender.offsetX,
               top: dragRender.y - dragRender.offsetY,
-              width: FLOAT_W,
+              width: dragRender.cardWidth,
               pointerEvents: "none",
               zIndex: 9999,
-              transform: FLOAT_ROTATE,
             }}
           >
             <Card app={dragRender.app} floating />
