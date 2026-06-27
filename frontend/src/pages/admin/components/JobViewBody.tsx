@@ -56,10 +56,10 @@ export function JobDetailBody({
   const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   const navigate = useNavigate();
 
-  // Lazy-fetch applications for this job. `null` = loading.
-  // We fetch a generous first page; if it's smaller than the limit the count is exact.
-  // If we got exactly the limit, we report "N+" since there may be more.
-  const APP_FETCH_LIMIT = 100;
+  // Lazy-fetch applications sorted by AI score. The backend score-sort path caps
+  // at SCORE_SORT_LIMIT regardless of the limit param, and only returns candidates
+  // whose embeddings exist — the note in the UI makes that filter explicit.
+  const SCORE_SORT_LIMIT = 200;
   const [jobApplications, setJobApplications] = useState<ApplicationWithDetails[] | null>(
     null,
   );
@@ -70,7 +70,7 @@ export function JobDetailBody({
     setJobApplications(null);
     setHasApplicationsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
-    getApplications({ job_id: job.id, limit: APP_FETCH_LIMIT, sort: "score" }, ctrl.signal)
+    getApplications({ job_id: job.id, limit: SCORE_SORT_LIMIT, sort: "score" }, ctrl.signal)
       .then((page) => setJobApplications(page.items))
       .catch((e) => {
         if (axios.isCancel(e)) return;
@@ -82,7 +82,7 @@ export function JobDetailBody({
   const applicationCount =
     jobApplications == null
       ? null
-      : { n: jobApplications.length, isCapped: jobApplications.length === APP_FETCH_LIMIT };
+      : { n: jobApplications.length, isCapped: jobApplications.length === SCORE_SORT_LIMIT };
 
   const applicationEntries: MatchEntry[] | null =
     jobApplications == null
@@ -244,6 +244,7 @@ export function JobDetailBody({
         <div className="mt-1 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <Eyebrow>{t("admin:jobs.applicationsColumn")}</Eyebrow>
+            <p className="mb-1 text-[10px] text-white/30">{t("admin:jobs.applicationsAiOnlyNote")}</p>
             <MatchList
               entries={applicationEntries}
               hasError={hasApplicationsError}

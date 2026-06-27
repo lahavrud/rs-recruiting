@@ -209,6 +209,7 @@
     "applicationsColumn": "בקשות שהוגשו",
     "aiRecommendationsColumn": "המלצות מנוע AI",
     "noApplicationsForJob": "אין בקשות שהוגשו עדיין.",
+    "applicationsAiOnlyNote": "מוצגים מועמדים עם ניתוח AI בלבד",
     "noMatches": "אין המלצות AI להצגה כרגע.",
     "matchesLoadError": "טעינת ההתאמות נכשלה.",
     "applicationsLoadError": "טעינת הבקשות נכשלה.",
