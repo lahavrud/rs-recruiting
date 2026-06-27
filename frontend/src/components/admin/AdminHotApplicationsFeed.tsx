@@ -51,7 +51,6 @@ function ScoreRing({ score }: { score: number }) {
 // ── Single hot-application row ────────────────────────────────────────────────
 
 function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
-  const { t } = useTranslation("dashboard");
   const navigate = useNavigate();
   const score = app.ai_score ?? 0;
 
@@ -91,10 +90,6 @@ function HotApplicationRow({ app }: { app: ApplicationWithDetails }) {
           <p className="truncate text-sm font-medium text-white/80">{app.job.title}</p>
           <p className="truncate text-xs text-white/40">{app.job.company_name}</p>
         </div>
-        <span className="hidden shrink-0 items-center rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/50 transition-colors group-hover:border-copper/30 group-hover:text-copper md:inline-flex">
-          {t("dashboard:matches.viewApplication")}
-        </span>
-
         {/* Mobile: forward chevron tap hint */}
         <ChevronIcon />
       </button>
@@ -117,7 +112,6 @@ function SkeletonRow() {
         <div className="h-3 w-36 animate-pulse rounded bg-white/8" />
         <div className="h-2.5 w-24 animate-pulse rounded bg-white/6" />
       </div>
-      <div className="hidden h-7 w-24 animate-pulse rounded-lg bg-white/6 md:block" />
       <div className="size-4 shrink-0 animate-pulse rounded bg-white/6 md:hidden" />
     </li>
   );
