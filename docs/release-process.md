@@ -14,7 +14,7 @@ Trunk-based, tag-gated releases. `main` is the only long-lived branch and never 
 
 5. **Once validated, click "Cut Release"** (`cut-release.yml`), pointing `rc_tag` at the validated RC (or leave blank for the most recent one). It strips the `-rc.N` suffix and pushes `vX.Y.Z` on the *same commit* — no rebuild, no bump arithmetic — then explicitly dispatches `release.yml`'s `promote-prod` job against that tag (same reason as step 2: the push alone doesn't trigger it): re-tag the existing RC image in ECR, deploy to EC2, deploy the frontend, create the GitHub Release, and finally trigger the infra repo's `staging-destroy.yml` to tear the ephemeral staging environment down.
 
-6. **Hotfix:** branch off `main`, PR back into `main` like any other change, click **Deploy Staging**, then immediately click **Cut Release**. Same two-button mechanism as a normal release — no special-casing, no back-merge, because there's only one branch.
+6. **Hotfix:** branch off `main`, PR back into `main` like any other change. Then either keep the gate (**Deploy Staging** → validate → **Cut Release**), or — for incident response where you accept skipping the staging smoke test + migration dry-run — click **Hotfix Deploy** (`hotfix.yml`), which patch-bumps off the latest final tag and pushes `vX.Y.(Z+1)` straight to production via `release.yml` (no RC, no ephemeral staging). Same one-branch model, no back-merge.
 
 7. **Rollback:** unchanged — `deploy.yml` (manual `workflow_dispatch` with a tag/SHA input) or `rollback.yml`. Both treat the deployed ref as an opaque string, so rolling back to a previous `vX.Y.Z` works the same as rolling back to a raw SHA.
 
@@ -24,6 +24,7 @@ Trunk-based, tag-gated releases. `main` is the only long-lived branch and never 
 |---|---|---|
 | `deploy-staging.yml` | Manual | Computes & pushes the next `vX.Y.Z-rc.N` tag |
 | `cut-release.yml` | Manual | Promotes an existing RC tag to `vX.Y.Z` on the same commit |
+| `hotfix.yml` | Manual | Patch-bumps off the latest final tag and pushes `vX.Y.(Z+1)` straight to prod via `release.yml` — skips RC + ephemeral staging |
 | `release.yml` | Tag push (`v*.*.*`) | RC: builds + mirrors image, triggers staging apply. Final: re-tags (no rebuild), deploys, releases, triggers staging destroy |
 | `staging-deploy.yml` | `repository_dispatch` (from infra) | Builds the frontend + SSM-deploys the RC to the ephemeral staging box |
 | `deploy.yml` | Manual | Redeploys an already-built tag or SHA — rollback / escape hatch |
