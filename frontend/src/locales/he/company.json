@@ -84,6 +84,13 @@
       "description": "תאר את התפקיד והאחריויות…"
     },
     "postedLabel": "פורסם",
+    "backToList": "חזרה לרשימה",
+    "table": {
+      "title": "כותרת",
+      "location": "מיקום",
+      "status": "סטטוס",
+      "posted": "פורסם"
+    },
     "errors": {
       "loadFailed": "טעינת המשרות נכשלה.",
       "saveFailed": "השמירה נכשלה. נסה שוב.",
