@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
+import CompanyName from "@/components/ui/CompanyName";
 import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useToast } from "@/hooks/useToast";
@@ -115,7 +116,7 @@ function MatchRow({ match, onPush, onDismiss }: MatchRowProps) {
         )}
         {/* Job title visible only when the job column is hidden */}
         <p className="mt-0.5 truncate text-xs text-white/30 md:hidden">
-          {match.job.title} · {match.job.company_name}
+          {match.job.title} · <CompanyName name={match.job.company_name} />
         </p>
       </div>
 
@@ -127,7 +128,7 @@ function MatchRow({ match, onPush, onDismiss }: MatchRowProps) {
       {/* Job */}
       <div className="hidden min-w-0 w-52 shrink-0 md:block">
         <p className="truncate text-sm font-medium text-white/80">{match.job.title}</p>
-        <p className="truncate text-xs text-white/40">{match.job.company_name}</p>
+        <p className="truncate text-xs"><CompanyName name={match.job.company_name} /></p>
       </div>
 
       {/* Actions */}
@@ -154,12 +155,12 @@ function MatchRow({ match, onPush, onDismiss }: MatchRowProps) {
 
         {/* Dismiss — persisted to backend */}
         <Button
-          variant="ghost"
+          variant="ghost-dim"
           size="sm"
           onClick={handleDismiss}
           disabled={busy !== null}
           aria-label={t("dashboard:matches.dismiss")}
-          className="px-1.5 py-1.5 text-white/20 hover:border-transparent hover:bg-white/6 hover:text-white/50"
+          className="px-1.5 py-1.5 text-white/20"
         >
           {busy === "dismiss" ? "…" : <XIcon />}
         </Button>
