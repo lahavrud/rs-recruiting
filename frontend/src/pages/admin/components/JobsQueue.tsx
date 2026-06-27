@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
+import CompanyName from "@/components/ui/CompanyName";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { useToast } from "@/hooks/useToast";
@@ -36,7 +37,7 @@ function JobQueueItem({
       aria-pressed={isSelected}
     >
       <p className="truncate font-medium text-white/90">{job.title}</p>
-      <p className="mt-0.5 truncate text-xs text-white/50">{job.company_name}</p>
+      <CompanyName name={job.company_name} className="mt-0.5 truncate text-xs" />
       <p className="mt-0.5 text-xs text-white/30">{formatDate(job.created_at)}</p>
     </button>
   );
