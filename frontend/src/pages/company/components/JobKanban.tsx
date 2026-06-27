@@ -364,19 +364,21 @@ export default function JobKanban({ jobId }: { jobId: number }) {
 
   if (applications === null) {
     return (
-      <div className="grid grid-cols-3 gap-4">
-        {COLUMNS.map((col) => (
-          <div key={col.status} className="flex flex-col rounded-xl border border-white/6">
-            <div className={`rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}>
-              <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-3 gap-4 min-w-[50rem]">
+          {COLUMNS.map((col) => (
+            <div key={col.status} className="flex flex-col rounded-xl border border-white/6">
+              <div className={`rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}>
+                <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
+              </div>
+              <div className={`space-y-2 rounded-b-xl p-3 min-h-40 ${col.colBg}`}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-24 animate-pulse rounded-xl bg-white/4" />
+                ))}
+              </div>
             </div>
-            <div className={`space-y-2 rounded-b-xl p-3 min-h-40 ${col.colBg}`}>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-24 animate-pulse rounded-xl bg-white/4" />
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     );
   }
@@ -405,7 +407,8 @@ export default function JobKanban({ jobId }: { jobId: number }) {
         {t("company:jobs.kanban.totalCandidates", { count: applications.length })}
       </p>
 
-      <div className={`grid grid-cols-3 gap-4 ${isDragging ? "cursor-grabbing" : ""}`}>
+      <div className="overflow-x-auto">
+        <div className={`grid grid-cols-3 gap-4 min-w-[50rem] ${isDragging ? "cursor-grabbing" : ""}`}>
         {COLUMNS.map((col) => {
           const cards = byStatus[col.status] ?? [];
           const isOver = dragRender?.overStatus === col.status;
@@ -494,6 +497,7 @@ export default function JobKanban({ jobId }: { jobId: number }) {
             </div>
           );
         })}
+        </div>
       </div>
 
       {dragRender &&
