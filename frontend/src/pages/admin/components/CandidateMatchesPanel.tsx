@@ -50,7 +50,7 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
       const next = new URLSearchParams(prev);
       next.delete("job");
       return next;
-    });
+    }, { replace: true });
   }
 
   async function handlePush() {
