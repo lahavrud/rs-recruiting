@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
 import PageHeader from "@/components/ui/PageHeader";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { getAdminOverview, type AdminInboxCounts } from "@/services/adminOverview";
 
@@ -86,9 +87,7 @@ export default function AdminReviewQueuePage() {
             >
               {t(labelKey)}
               {count != null && count > 0 && (
-                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-copper/20 px-1 py-px text-[10px] font-semibold text-copper">
-                  {count}
-                </span>
+                <StatusBadge variant="copper" label={String(count)} />
               )}
             </button>
           );
