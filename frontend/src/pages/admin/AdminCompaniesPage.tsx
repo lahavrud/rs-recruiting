@@ -282,6 +282,7 @@ export default function AdminCompaniesPage() {
               selectedId={selectedId}
               onSelect={handleSelect}
               reloadKey={listReloadKey}
+              compact
             />
           </div>
         </>

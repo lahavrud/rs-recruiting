@@ -37,6 +37,8 @@ interface ActiveTabProps {
   onSelect: (id: number) => void;
   /** Increment to force a full list reload (e.g. after record-pane edit/delete). */
   reloadKey?: number;
+  /** Compact rail layout: always render the card list, never the wide table. */
+  compact?: boolean;
 }
 
 export default function CompanyActiveTab({
@@ -44,6 +46,7 @@ export default function CompanyActiveTab({
   selectedId,
   onSelect,
   reloadKey = 0,
+  compact = false,
 }: ActiveTabProps) {
   const { t } = useTranslation(["admin", "md"]);
   const toast = useToast();
@@ -118,14 +121,17 @@ export default function CompanyActiveTab({
     }
   }
 
+  const mobileOnly = compact ? "" : "md:hidden";
+  const tableOnly = compact ? "hidden" : "hidden md:block";
+
   return (
     <>
       {isLoading ? (
         <>
-          <div className="md:hidden">
+          <div className={mobileOnly}>
             <MobileListSkeleton rows={5} />
           </div>
-          <div className="hidden md:block">
+          <div className={tableOnly}>
             <TableSkeleton rows={5} columns={3} />
           </div>
         </>
@@ -140,7 +146,7 @@ export default function CompanyActiveTab({
         <NoResults />
       ) : (
         <>
-          <div className="mb-3 md:hidden">
+          <div className={`mb-3 ${mobileOnly}`}>
             <SortControl
               ariaLabel={t("admin:companies.active.sort.label")}
               value={`${sort}:${order}`}
@@ -160,8 +166,9 @@ export default function CompanyActiveTab({
             />
           </div>
 
-          {/* Mobile — tap row to navigate to record pane */}
-          <div className="space-y-2 md:hidden">
+          {/* Card list — tap row to navigate to record pane. Always shown in
+              compact (rail) mode; mobile-only otherwise. */}
+          <div className={`space-y-2 ${mobileOnly}`}>
             {filteredCompanies.map((row) => {
               const isSelected = selectedId === row.company_profile.id;
               return (
@@ -219,7 +226,7 @@ export default function CompanyActiveTab({
             })}
           </div>
 
-          <div className="hidden overflow-x-auto rounded-xl border border-white/8 bg-card md:block">
+          <div className={`${tableOnly} overflow-x-auto rounded-xl border border-white/8 bg-card`}>
             <table className="min-w-full divide-y divide-white/6 text-sm">
               <thead className="bg-well text-xs font-medium uppercase tracking-wide text-white/35">
                 <tr>
