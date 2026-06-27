@@ -53,6 +53,10 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     "src/services/admin/_candidates_purge.py",
     "src/services/admin/_application_status.py",
     "src/services/admin/_job_close.py",
+    # Helper modules split out of src/services/company/jobs.py to satisfy the
+    # 300-line file cap. Exercised end-to-end via tests/services/company/test_jobs.py.
+    "src/services/company/_jobs_applications.py",
+    "src/services/company/_jobs_recommendations.py",
     # OTel SDK initialisation — thin wrappers around TracerProvider,
     # MeterProvider, and LoggerProvider. No domain logic; exercised
     # end-to-end by every request/task that emits telemetry in prod.

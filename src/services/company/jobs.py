@@ -14,27 +14,35 @@ from src.core.infrastructure.pagination import (
     clamp_limit,
 )
 from src.core.infrastructure.transactions import defer_after_commit
-from src.core.matching import cosine_similarity_score
 from src.core.tasks import enqueue_email_task
-from src.enums import ApplicationStatus, JobStatus
-from src.models import Application, CandidateProfile, CompanyProfile, Job
+from src.enums import JobStatus
+from src.models import CompanyProfile, Job
 from src.schemas import JobCreate, JobRead, JobUpdate
-from src.schemas.companies import (
-    CompanyApplicationCandidateRead,
-    CompanyApplicationRead,
-    CompanyJobRecommendationRead,
-)
 from src.services.admin.companies import get_all_admin_emails
+from src.services.company._jobs_applications import (
+    list_job_applications,
+    update_application_status,
+)
+from src.services.company._jobs_recommendations import get_job_recommendations
 from src.services.exceptions import (
-    ApplicationNotFoundError,
     CompanyNotFoundError,
-    InvalidApplicationStatusTransitionError,
     JobCannotBeDeletedError,
     JobCannotBeUpdatedError,
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
 from src.templates.email import build_job_updated_html, build_new_job_html
+
+__all__ = [
+    "create_job",
+    "delete_job",
+    "get_job",
+    "get_job_recommendations",
+    "list_company_jobs",
+    "list_job_applications",
+    "update_application_status",
+    "update_job",
+]
 
 
 async def create_job(
@@ -47,7 +55,6 @@ async def create_job(
     Raises:
         CompanyNotFoundError: If company not found
     """
-    # Verify company exists
     company = await get_by_id_or_raise(
         session,
         CompanyProfile,
@@ -55,7 +62,6 @@ async def create_job(
         lambda pk: CompanyNotFoundError(f"Company with ID {pk} not found"),
     )
 
-    # Create job with PENDING_APPROVAL status
     new_job = Job(
         company_id=company_id,
         title=job_data.title,
@@ -71,7 +77,6 @@ async def create_job(
     session.add(new_job)
     await session.flush()
 
-    # Send email notification to all admins
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
         from src.core.infrastructure.config import settings
@@ -154,23 +159,19 @@ async def update_job(
         options=[selectinload(Job.company)],  # pyright: ignore[reportArgumentType]
     )
 
-    # Verify ownership
     if job.company_id != company_id:
         raise JobNotOwnedByCompanyError(
             f"Job {job_id} is not owned by company {company_id}"
         )
 
-    # Verify job can be updated (only PENDING_APPROVAL or PUBLISHED)
     if job.status not in (JobStatus.PENDING_APPROVAL, JobStatus.PUBLISHED):
         raise JobCannotBeUpdatedError(
             f"Job {job_id} with status {job.status} cannot be updated"
         )
 
-    # Companies cannot change status (only admin can)
     if job_data.status is not None and job_data.status != job.status:
         raise JobCannotBeUpdatedError("Companies cannot change job status")
 
-    # Update fields
     if job_data.title is not None:
         job.title = job_data.title
     if job_data.short_description is not None:
@@ -188,11 +189,9 @@ async def update_job(
     if job_data.salary_max is not None:
         job.salary_max = job_data.salary_max
 
-    # Update updated_at timestamp
     job.updated_at = datetime.now(timezone.utc)
     await session.flush()
 
-    # Send email notification to all admins
     company = job.company
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
@@ -235,263 +234,16 @@ async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> Non
         session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
     )
 
-    # Verify ownership
     if job.company_id != company_id:
         raise JobNotOwnedByCompanyError(
             f"Job {job_id} is not owned by company {company_id}"
         )
 
-    # Verify job can be deleted (only PENDING_APPROVAL)
     if job.status != JobStatus.PENDING_APPROVAL:
         raise JobCannotBeDeletedError(
             f"Job {job_id} with status {job.status} cannot be deleted. "
             "Only jobs with PENDING_APPROVAL status can be deleted."
         )
 
-    # Delete the job
     await session.delete(job)
     await session.flush()
-
-
-async def list_job_applications(
-    job_id: int,
-    company_id: int,
-    session: AsyncSession,
-) -> list[CompanyApplicationRead]:
-    """Return all applications for a job owned by the given company.
-
-    Raises:
-        JobNotFoundError: If job not found
-        JobNotOwnedByCompanyError: If job is not owned by the company
-    """
-    job = await get_by_id_or_raise(
-        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
-    )
-    if job.company_id != company_id:
-        raise JobNotOwnedByCompanyError(
-            f"Job {job_id} is not owned by company {company_id}"
-        )
-
-    apps = list(
-        (
-            await session.execute(
-                select(Application)
-                .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
-                .where(
-                    Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
-                    Application.status.in_(_COMPANY_VISIBLE_STATUSES),  # pyright: ignore[reportArgumentType]
-                )
-                .order_by(Application.created_at.desc())  # pyright: ignore[reportArgumentType]
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    scores: dict[int, float] = {}
-    if job.embedding is not None and apps:
-        candidate_ids = [a.candidate_id for a in apps]
-        distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
-        score_rows = list(
-            (
-                await session.execute(
-                    select(CandidateProfile.id, distance_expr.label("dist")).where(  # pyright: ignore[reportArgumentType]
-                        CandidateProfile.id.in_(candidate_ids),  # pyright: ignore[reportArgumentType]
-                        CandidateProfile.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
-                    )
-                )
-            ).all()
-        )
-        for cid, dist in score_rows:
-            scores[cid] = cosine_similarity_score(dist)
-
-    return [
-        CompanyApplicationRead(
-            id=app.id or 0,
-            job_id=app.job_id,
-            candidate_id=app.candidate_id,
-            status=app.status.value,
-            created_at=app.created_at,
-            updated_at=app.updated_at,
-            match_score=scores.get(app.candidate_id),
-            ai_review=app.candidate.resume_summary,
-            candidate=CompanyApplicationCandidateRead(
-                id=app.candidate.id or 0,
-                full_name=app.candidate.full_name,
-                email=app.candidate.email,
-                phone=app.candidate.phone,
-            ),
-        )
-        for app in apps
-    ]
-
-
-_COMPANY_VISIBLE_STATUSES = frozenset(
-    {
-        ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.HIRED,
-        ApplicationStatus.REJECTED,
-    }
-)
-
-_COMPANY_ALLOWED_STATUSES = frozenset(
-    {ApplicationStatus.HIRED, ApplicationStatus.REJECTED}
-)
-
-
-async def update_application_status(
-    job_id: int,
-    application_id: int,
-    new_status: str,
-    company_id: int,
-    session: AsyncSession,
-) -> CompanyApplicationRead:
-    """Update the status of an application on a job owned by this company.
-
-    Companies may only move applications to HIRED or REJECTED.
-
-    Raises:
-        InvalidApplicationStatusTransitionError: Target status not allowed for companies
-        JobNotFoundError: If job not found
-        JobNotOwnedByCompanyError: If job is not owned by the company
-        ApplicationNotFoundError: If application not found for this job
-    """
-    try:
-        target = ApplicationStatus(new_status)
-    except ValueError as exc:
-        raise InvalidApplicationStatusTransitionError(
-            f"Unknown status: {new_status}"
-        ) from exc
-
-    if target not in _COMPANY_ALLOWED_STATUSES:
-        raise InvalidApplicationStatusTransitionError(
-            f"Companies cannot set status to {new_status}"
-        )
-
-    job = await get_by_id_or_raise(
-        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
-    )
-    if job.company_id != company_id:
-        raise JobNotOwnedByCompanyError(
-            f"Job {job_id} is not owned by company {company_id}"
-        )
-
-    app = (
-        await session.execute(
-            select(Application)
-            .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
-            .where(
-                Application.id == application_id,  # pyright: ignore[reportArgumentType]
-                Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
-            )
-        )
-    ).scalar_one_or_none()
-    if app is None:
-        raise ApplicationNotFoundError(
-            f"Application {application_id} not found for job {job_id}"
-        )
-
-    app.status = target
-    app.updated_at = datetime.now(timezone.utc)
-    await session.flush()
-
-    score: float | None = None
-    if job.embedding is not None and app.candidate.embedding is not None:
-        distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
-        row = (
-            await session.execute(
-                select(distance_expr.label("dist")).where(  # pyright: ignore[reportArgumentType]
-                    CandidateProfile.id == app.candidate_id
-                )  # pyright: ignore[reportArgumentType]
-            )
-        ).one_or_none()
-        if row is not None:
-            score = cosine_similarity_score(row.dist)
-
-    return CompanyApplicationRead(
-        id=app.id or 0,
-        job_id=app.job_id,
-        candidate_id=app.candidate_id,
-        status=str(app.status),
-        created_at=app.created_at,
-        updated_at=app.updated_at,
-        match_score=score,
-        ai_review=app.candidate.resume_summary,
-        candidate=CompanyApplicationCandidateRead(
-            id=app.candidate.id or 0,
-            full_name=app.candidate.full_name,
-            email=app.candidate.email,
-            phone=app.candidate.phone,
-        ),
-    )
-
-
-_RECOMMENDATION_POOL = 50
-_RECOMMENDATION_LIMIT = 10
-_RECOMMENDATION_MIN_SCORE = 0.50
-
-
-async def get_job_recommendations(
-    job_id: int,
-    company_id: int,
-    session: AsyncSession,
-) -> list[CompanyJobRecommendationRead]:
-    """Return AI-ranked candidate recommendations for a published company job.
-
-    Finds candidates with embeddings who have NOT already applied, ranked by
-    cosine similarity to the job's embedding. Returns an empty list when the
-    job has no embedding yet (not yet published or not yet indexed).
-
-    Raises:
-        JobNotFoundError: If job not found
-        JobNotOwnedByCompanyError: If job is not owned by the company
-    """
-    job = await get_by_id_or_raise(
-        session, Job, job_id, lambda pk: JobNotFoundError(f"Job with ID {pk} not found")
-    )
-    if job.company_id != company_id:
-        raise JobNotOwnedByCompanyError(
-            f"Job {job_id} is not owned by company {company_id}"
-        )
-    if job.embedding is None:
-        return []
-
-    applied_candidate_ids: set[int] = {
-        row[0]
-        for row in (
-            await session.execute(
-                select(Application.candidate_id).where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
-            )
-        ).all()
-    }
-
-    distance = CandidateProfile.embedding.cosine_distance(job.embedding)
-    rows = (
-        await session.execute(
-            select(CandidateProfile, distance.label("dist"))
-            .where(
-                CandidateProfile.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
-                ~CandidateProfile.id.in_(applied_candidate_ids),  # pyright: ignore[reportArgumentType]
-            )
-            .order_by(distance)
-            .limit(_RECOMMENDATION_POOL)
-        )
-    ).all()
-
-    results: list[CompanyJobRecommendationRead] = []
-    for candidate, dist in rows:
-        score = cosine_similarity_score(dist)
-        if score < _RECOMMENDATION_MIN_SCORE:
-            break
-        results.append(
-            CompanyJobRecommendationRead(
-                candidate_id=candidate.id or 0,
-                full_name=candidate.full_name,
-                email=candidate.email,
-                phone=candidate.phone,
-                score=score,
-            )
-        )
-        if len(results) >= _RECOMMENDATION_LIMIT:
-            break
-    return results
