@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -9,7 +9,7 @@ import type { CompanyApplicationRead } from "@/types/companies";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDate } from "@/utils/formatDate";
 
-// ─── Column config (3 columns only — no NEW / WITHDRAWN) ─────────────────────
+// ─── Column definitions ───────────────────────────────────────────────────────
 
 interface ColumnDef {
   status: string;
@@ -55,24 +55,52 @@ const COLUMNS: ColumnDef[] = [
   },
 ];
 
-const DROPPABLE_STATUSES = new Set(
-  COLUMNS.filter((c) => c.droppable).map((c) => c.status),
-);
+const DROPPABLE_STATUSES = new Set(COLUMNS.filter((c) => c.droppable).map((c) => c.status));
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const PCT = 100;
 const SCORE_HIGH = 80;
 const SCORE_MID = 65;
+const ORDER_KEY = (jobId: number) => `kanban_order_${jobId}`;
+const FLIP_DURATION = "280ms";
+const FLIP_EASE = "cubic-bezier(0.2,0,0,1)";
+const FLIP_THRESHOLD = 2;
+const CLICK_THRESHOLD = 5;
+
+// ─── Order helpers ────────────────────────────────────────────────────────────
+
+function loadOrder(jobId: number): Partial<Record<string, number[]>> {
+  try {
+    const raw = localStorage.getItem(ORDER_KEY(jobId));
+    return raw ? (JSON.parse(raw) as Partial<Record<string, number[]>>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistOrder(jobId: number, order: Record<string, number[]>) {
+  try {
+    localStorage.setItem(ORDER_KEY(jobId), JSON.stringify(order));
+  } catch {
+    /* ignore */
+  }
+}
+
+function buildOrder(
+  apps: CompanyApplicationRead[],
+  stored: Partial<Record<string, number[]>>,
+): Record<string, number[]> {
+  return Object.fromEntries(
+    COLUMNS.map(({ status }) => {
+      const ids = apps.filter((a) => a.status === status).map((a) => a.id);
+      const saved = stored[status] ?? [];
+      return [status, [...saved.filter((id) => ids.includes(id)), ...ids.filter((id) => !saved.includes(id))]];
+    }),
+  );
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
 
 const AVATAR_PALETTE = [
   "bg-copper/20 text-copper",
@@ -81,68 +109,57 @@ const AVATAR_PALETTE = [
   "bg-warning/20 text-warning",
 ];
 
+function cardInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0] ?? "")
+    .join("")
+    .toUpperCase();
+}
+
 function avatarCls(id: number) {
   return AVATAR_PALETTE[id % AVATAR_PALETTE.length];
 }
 
-// ─── Card (shared between column and floating) ────────────────────────────────
+// ─── Card ─────────────────────────────────────────────────────────────────────
 
-interface CardProps {
-  app: CompanyApplicationRead;
-  floating?: boolean;
-}
-
-function Card({ app, floating }: CardProps) {
+function Card({ app, floating }: { app: CompanyApplicationRead; floating?: boolean }) {
   const { t } = useTranslation("company");
   const pct = app.match_score != null ? Math.round(app.match_score * PCT) : null;
   const barColor =
-    pct == null ? ""
-    : pct >= SCORE_HIGH ? "bg-success"
-    : pct >= SCORE_MID ? "bg-copper"
-    : "bg-warning";
+    pct == null ? "" : pct >= SCORE_HIGH ? "bg-success" : pct >= SCORE_MID ? "bg-copper" : "bg-warning";
 
   return (
     <div
       dir="rtl"
-      className={`rounded-xl border bg-card p-4 space-y-2.5 select-none
-        ${floating
-          ? "border-white/20 shadow-2xl shadow-black/60"
-          : "border-white/8 shadow-sm"
-        }`}
+      className={`rounded-xl border bg-card p-4 select-none space-y-2.5 ${
+        floating ? "border-white/20 shadow-2xl shadow-black/70" : "border-white/8 shadow-sm"
+      }`}
     >
-      {/* Avatar + name */}
       <div className="flex items-center gap-3">
         <div
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${avatarCls(app.candidate.id)}`}
         >
-          {initials(app.candidate.full_name)}
+          {cardInitials(app.candidate.full_name)}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-[13px] font-semibold text-white/90">
-            {app.candidate.full_name}
-          </p>
+          <p className="truncate text-[13px] font-semibold text-white/90">{app.candidate.full_name}</p>
           <p className="truncate text-[11px] text-white/40">{app.candidate.email}</p>
         </div>
       </div>
 
-      {/* Score bar */}
       {pct != null && (
         <div className="flex items-center gap-2">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
-            <div
-              className={`h-full rounded-full ${barColor}`}
-              style={{ width: `${pct}%` }}
-            />
+            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
           </div>
           <span className="shrink-0 text-[10px] tabular-nums text-white/40">{pct}%</span>
         </div>
       )}
 
-      {/* AI review */}
       {app.ai_review && (
-        <p className="line-clamp-2 text-[11px] leading-relaxed text-white/45 italic">
-          {app.ai_review}
-        </p>
+        <p className="line-clamp-2 text-[11px] leading-relaxed text-white/45 italic">{app.ai_review}</p>
       )}
 
       <p className="text-[10px] text-white/20">
@@ -153,83 +170,166 @@ function Card({ app, floating }: CardProps) {
   );
 }
 
-// ─── JobKanban ────────────────────────────────────────────────────────────────
+// ─── Drag state ───────────────────────────────────────────────────────────────
 
 interface DragState {
   app: CompanyApplicationRead;
   startStatus: string;
+  startX: number;
+  startY: number;
   x: number;
   y: number;
   offsetX: number;
   offsetY: number;
   cardWidth: number;
   overStatus: string | null;
+  dropIndex: number;
 }
 
-interface JobKanbanProps {
-  jobId: number;
-}
+// ─── JobKanban ────────────────────────────────────────────────────────────────
 
-export default function JobKanban({ jobId }: JobKanbanProps) {
+export default function JobKanban({ jobId }: { jobId: number }) {
   const { t } = useTranslation("company");
   const [applications, setApplications] = useState<CompanyApplicationRead[] | null>(null);
+  const [order, setOrder] = useState<Record<string, number[]>>({});
   const [error, setError] = useState(false);
   const [selectedApp, setSelectedApp] = useState<CompanyApplicationRead | null>(null);
   const [dragRender, setDragRender] = useState<DragState | null>(null);
+
   const dragRef = useRef<DragState | null>(null);
+  const orderRef = useRef<Record<string, number[]>>({});
   const colRefs = useRef<Partial<Record<string, HTMLDivElement>>>({});
+  const cardElsRef = useRef(new Map<number, HTMLElement>());
+  const prevRectsRef = useRef(new Map<number, DOMRect>());
+
+  function applyOrder(fn: (prev: Record<string, number[]>) => Record<string, number[]>) {
+    setOrder((prev) => {
+      const next = fn(prev);
+      orderRef.current = next;
+      return next;
+    });
+  }
+
+  function snapshot(excludeId?: number) {
+    prevRectsRef.current = new Map();
+    for (const [id, el] of cardElsRef.current) {
+      if (id === excludeId) continue;
+      prevRectsRef.current.set(id, el.getBoundingClientRect());
+    }
+  }
+
+  // FLIP: animate cards from old positions to new positions after state update
+  useLayoutEffect(() => {
+    const prev = prevRectsRef.current;
+    if (prev.size === 0) return;
+    prevRectsRef.current = new Map();
+    for (const [id, el] of cardElsRef.current) {
+      const p = prev.get(id);
+      if (!p) continue;
+      const dy = p.top - el.getBoundingClientRect().top;
+      if (Math.abs(dy) < FLIP_THRESHOLD) continue;
+      el.style.transform = `translateY(${dy}px)`;
+      el.style.transition = "";
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          el.style.transform = "";
+          el.style.transition = `transform ${FLIP_DURATION} ${FLIP_EASE}`;
+        });
+      });
+    }
+  });
 
   useEffect(() => {
     let cancelled = false;
     getJobApplications(jobId)
-      .then((apps) => { if (!cancelled) setApplications(apps); })
+      .then((apps) => {
+        if (cancelled) return;
+        const stored = loadOrder(jobId);
+        const built = buildOrder(apps, stored);
+        orderRef.current = built;
+        setApplications(apps);
+        setOrder(built);
+      })
       .catch(() => { if (!cancelled) setError(true); });
     return () => { cancelled = true; };
   }, [jobId]);
 
-  // Attach/detach window pointer listeners only while a drag is active
+  function hitTest(x: number, y: number, draggingId: number): { status: string | null; idx: number } {
+    for (const col of COLUMNS) {
+      const el = colRefs.current[col.status];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const siblings = [...el.querySelectorAll<HTMLElement>("[data-card-id]")].filter(
+        (ce) => Number(ce.getAttribute("data-card-id")) !== draggingId,
+      );
+      let idx = siblings.length;
+      for (let i = 0; i < siblings.length; i++) {
+        const cr = siblings[i].getBoundingClientRect();
+        if (y < cr.top + cr.height / 2) { idx = i; break; }
+      }
+      return { status: col.status, idx };
+    }
+    return { status: null, idx: 0 };
+  }
+
   const isDragging = dragRender !== null;
   useEffect(() => {
     if (!isDragging) return;
 
-    function getOverStatus(x: number, y: number): string | null {
-      for (const status of DROPPABLE_STATUSES) {
-        const el = colRefs.current[status];
-        if (!el) continue;
-        const r = el.getBoundingClientRect();
-        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return status;
-      }
-      return null;
-    }
-
     function onMove(e: PointerEvent) {
-      if (!dragRef.current) return;
-      const next: DragState = {
-        ...dragRef.current,
-        x: e.clientX,
-        y: e.clientY,
-        overStatus: getOverStatus(e.clientX, e.clientY),
-      };
+      const state = dragRef.current;
+      if (!state) return;
+      const { status, idx } = hitTest(e.clientX, e.clientY, state.app.id);
+      const next: DragState = { ...state, x: e.clientX, y: e.clientY, overStatus: status, dropIndex: idx };
       dragRef.current = next;
       setDragRender({ ...next });
     }
 
-    function onUp() {
+    function onUp(e: PointerEvent) {
       const state = dragRef.current;
       dragRef.current = null;
       setDragRender(null);
-      if (!state || !state.overStatus || state.overStatus === state.startStatus) return;
-      const { app, overStatus } = state;
-      // Optimistic update — card moves immediately; rolls back on failure
-      const optimistic = { ...app, status: overStatus };
-      setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? optimistic : a)) : prev));
-      updateApplicationStatus(jobId, app.id, overStatus)
-        .then((updated) => {
-          setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? updated : a)) : prev));
-        })
-        .catch(() => {
-          setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? app : a)) : prev));
+      if (!state) return;
+
+      const didMove = Math.hypot(e.clientX - state.startX, e.clientY - state.startY) > CLICK_THRESHOLD;
+      if (!didMove) { setSelectedApp(state.app); return; }
+      if (!state.overStatus) return;
+
+      const { app, startStatus, overStatus, dropIndex } = state;
+      const orderSnapshot = orderRef.current;
+
+      if (overStatus === startStatus) {
+        snapshot();
+        applyOrder((prev) => {
+          const col = (prev[startStatus] ?? []).filter((id) => id !== app.id);
+          col.splice(dropIndex, 0, app.id);
+          const next = { ...prev, [startStatus]: col };
+          persistOrder(jobId, next);
+          return next;
         });
+      } else if (DROPPABLE_STATUSES.has(overStatus)) {
+        const optimistic: CompanyApplicationRead = { ...app, status: overStatus };
+        setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? optimistic : a)) : prev));
+        snapshot(app.id);
+        applyOrder((prev) => {
+          const src = (prev[startStatus] ?? []).filter((id) => id !== app.id);
+          const dst = [...(prev[overStatus] ?? [])];
+          dst.splice(dropIndex, 0, app.id);
+          const next = { ...prev, [startStatus]: src, [overStatus]: dst };
+          persistOrder(jobId, next);
+          return next;
+        });
+        updateApplicationStatus(jobId, app.id, overStatus)
+          .then((updated) => {
+            setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? updated : a)) : prev));
+          })
+          .catch(() => {
+            setApplications((prev) => (prev ? prev.map((a) => (a.id === app.id ? app : a)) : prev));
+            snapshot(app.id);
+            applyOrder(() => { persistOrder(jobId, orderSnapshot); return orderSnapshot; });
+          });
+      }
     }
 
     window.addEventListener("pointermove", onMove, { passive: true });
@@ -238,44 +338,39 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [isDragging, jobId]);
+  }, [isDragging, jobId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>, app: CompanyApplicationRead) {
     if (e.button !== 0) return;
     e.preventDefault();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startStatus = COLUMNS.find((c) => (orderRef.current[c.status] ?? []).includes(app.id))?.status ?? app.status;
     const state: DragState = {
       app,
-      startStatus: app.status,
+      startStatus,
+      startX: e.clientX,
+      startY: e.clientY,
       x: e.clientX,
       y: e.clientY,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
       cardWidth: rect.width,
-      overStatus: null,
+      overStatus: startStatus,
+      dropIndex: 0,
     };
     dragRef.current = state;
     setDragRender({ ...state });
   }
 
-  // ─── States ─────────────────────────────────────────────────────────────────
-
   if (error) {
-    return (
-      <p className="py-10 text-center text-sm text-danger">
-        {t("company:jobs.kanban.loadError")}
-      </p>
-    );
+    return <p className="py-10 text-center text-sm text-danger">{t("company:jobs.kanban.loadError")}</p>;
   }
 
   if (applications === null) {
     return (
       <div className="grid grid-cols-3 gap-4">
         {COLUMNS.map((col) => (
-          <div
-            key={col.status}
-            className="flex flex-col rounded-xl border border-white/6"
-          >
+          <div key={col.status} className="flex flex-col rounded-xl border border-white/6">
             <div className={`rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}>
               <div className="h-3 w-16 animate-pulse rounded bg-white/10" />
             </div>
@@ -299,8 +394,14 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
   }
 
   const byStatus = Object.fromEntries(
-    COLUMNS.map(({ status }) => [status, applications.filter((a) => a.status === status)]),
+    COLUMNS.map(({ status }) => {
+      const ids = order[status] ?? [];
+      const appMap = new Map(applications.map((a) => [a.id, a]));
+      return [status, ids.map((id) => appMap.get(id)).filter(Boolean) as CompanyApplicationRead[]];
+    }),
   );
+
+  const draggingId = dragRender?.app.id ?? null;
 
   return (
     <>
@@ -312,16 +413,20 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
         {COLUMNS.map((col) => {
           const cards = byStatus[col.status] ?? [];
           const isOver = dragRender?.overStatus === col.status;
+          const isDraggingFromHere = dragRender?.startStatus === col.status;
+          const dropIdx = isOver ? (dragRender?.dropIndex ?? null) : null;
 
           return (
             <div
               key={col.status}
               ref={(el) => { colRefs.current[col.status] = el ?? undefined; }}
-              className={`flex flex-col rounded-xl border transition-all duration-150
-                ${isOver ? `border-white/20 ring-1 ${col.dropRingCls} shadow-lg` : "border-white/6"}
-              `}
+              data-col={col.status}
+              className={`flex flex-col rounded-xl border transition-all duration-150 ${
+                isOver && col.droppable
+                  ? `border-white/20 ring-1 ${col.dropRingCls} shadow-lg`
+                  : "border-white/6"
+              }`}
             >
-              {/* Header */}
               <div
                 className={`flex items-center justify-between rounded-t-xl border-b border-white/6 px-4 py-3 ${col.headerBg}`}
               >
@@ -332,42 +437,55 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
                   </span>
                 </div>
                 <span
-                  className={`min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-bold tabular-nums
-                    ${cards.length > 0 ? `${col.headerBg} ${col.textCls}` : "text-white/20"}`}
+                  className={`min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-bold tabular-nums ${
+                    cards.length > 0 ? `${col.headerBg} ${col.textCls}` : "text-white/20"
+                  }`}
                 >
                   {cards.length}
                 </span>
               </div>
 
-              {/* Column body */}
               <div className={`flex flex-1 flex-col gap-2 rounded-b-xl p-3 min-h-40 ${col.colBg}`}>
-                {cards.map((app) => {
-                  const isFloating = dragRender?.app.id === app.id;
+                {cards.map((app, i) => {
+                  const isLifted = app.id === draggingId && isDraggingFromHere;
                   return (
-                    <div
-                      key={app.id}
-                      onPointerDown={(e) => handlePointerDown(e, app)}
-                      onClick={() => { if (!isDragging) setSelectedApp(app); }}
-                      className={`transition-opacity duration-150 ${
-                        isFloating ? "opacity-0 pointer-events-none" : "cursor-grab hover:opacity-90"
-                      }`}
-                      style={{ touchAction: "none" }}
-                    >
-                      <Card app={app} />
+                    <div key={app.id}>
+                      {dropIdx === i && isOver && (
+                        <div className={`mb-2 h-1 rounded-full ${col.dotCls}`} />
+                      )}
+                      <div
+                        ref={(el) => {
+                          if (el) cardElsRef.current.set(app.id, el);
+                          else cardElsRef.current.delete(app.id);
+                        }}
+                        data-card-id={app.id}
+                        onPointerDown={(e) => handlePointerDown(e, app)}
+                        style={{ touchAction: "none" }}
+                        className={`transition-opacity duration-100 ${
+                          isLifted ? "opacity-0 pointer-events-none" : "cursor-grab"
+                        }`}
+                      >
+                        <Card app={app} />
+                      </div>
                     </div>
                   );
                 })}
 
-                {col.droppable && cards.length === 0 && !isDragging && (
+                {dropIdx === cards.filter((a) => a.id !== draggingId).length && isOver && (
+                  <div className={`h-1 rounded-full ${col.dotCls}`} />
+                )}
+
+                {cards.length === 0 && !isDragging && (
                   <div className="flex flex-1 items-center justify-center py-8">
                     <span className="text-[11px] text-white/15">—</span>
                   </div>
                 )}
 
-                {col.droppable && isDragging && (
+                {col.droppable && isDragging && cards.filter((a) => a.id !== draggingId).length === 0 && (
                   <div
-                    className={`flex-1 rounded-lg border-2 border-dashed py-6 text-center text-[11px] transition-colors
-                      ${isOver ? `border-current ${col.textCls} bg-white/3` : "border-white/10 text-white/20"}`}
+                    className={`flex-1 rounded-lg border-2 border-dashed py-6 text-center text-[11px] transition-colors ${
+                      isOver ? `border-current ${col.textCls} bg-white/3` : "border-white/10 text-white/20"
+                    }`}
                   >
                     {isOver ? t("company:jobs.kanban.dropHere") : ""}
                   </div>
@@ -378,7 +496,6 @@ export default function JobKanban({ jobId }: JobKanbanProps) {
         })}
       </div>
 
-      {/* Floating card — physically follows the cursor */}
       {dragRender &&
         createPortal(
           <div
