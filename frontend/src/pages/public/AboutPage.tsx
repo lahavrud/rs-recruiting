@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
+import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
 import { useImageLoaded } from "@/hooks/useImageLoaded";
@@ -103,6 +104,7 @@ function CharRise({
 
 export default function AboutPage() {
   const { t } = useTranslation(['about', 'http', 'https']);
+  const navigate = useNavigate();
 
   /* Reading progress bar */
   const [progress, setProgress] = useState(0);
@@ -549,12 +551,14 @@ export default function AboutPage() {
           <p className="text-[clamp(1.4rem,3.5vw,2.2rem)] font-light text-white/45">
             {t("about:hero.subtitle")}
           </p>
-          <Link
-            to="/contact"
-            className="mt-10 inline-block rounded-sm bg-copper px-8 py-3 text-sm font-medium text-white transition-colors duration-300 hover:bg-gold"
+          <Button
+            variant="primary"
+            size="lg"
+            className="mt-10"
+            onClick={() => { navigate("/contact"); }}
           >
             {t("about:cta")}
-          </Link>
+          </Button>
         </div>
       </div>
 
