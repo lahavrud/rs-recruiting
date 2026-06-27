@@ -20,15 +20,18 @@ import { APPLICATION_STATUS_META } from "@/constants/statusColors";
 import { getAdminOverview, type AdminOverviewRead, type TrendPoint } from "@/services/adminOverview";
 import { ApplicationStatus } from "@/types/enums";
 
-// Chart visual constants — inline SVG/canvas props can't use CSS custom properties
-const CHART_COPPER = "#B87333";
+function cssVar(name: string) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const CHART_COPPER = cssVar("--color-copper");
 const CHART_GRID = "rgba(255,255,255,0.06)";
 const CHART_TICK = "rgba(255,255,255,0.28)";
-const CHART_BG = "#1E1C1A";
+const CHART_BG = cssVar("--color-card-raised");
 const CHART_BORDER = "rgba(255,255,255,0.08)";
-const CHART_SUCCESS = "#2d7d46";
-const CHART_DANGER = "#c72a2a";
-const CHART_HIRED = "#7c3aed";
+const CHART_SUCCESS = cssVar("--color-success");
+const CHART_DANGER = cssVar("--color-danger");
+const CHART_HIRED = cssVar("--color-hired");
 
 const PIPELINE_FILL: Record<string, string> = {
   [ApplicationStatus.NEW]: CHART_COPPER,
