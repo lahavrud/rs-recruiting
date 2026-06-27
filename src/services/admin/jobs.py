@@ -204,7 +204,7 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
     )
     session.add(job)
     await session.flush()
-    await session.refresh(job)
+    await session.refresh(job, attribute_names=["company"])
     return JobRead.model_validate(job)
 
 

@@ -48,7 +48,9 @@ async def list_pending_jobs(
     """One page of pending-approval jobs, newest first."""
     page_size = clamp_limit(limit)
     query = apply_cursor(
-        select(Job).where(Job.status == JobStatus.PENDING_APPROVAL),  # pyright: ignore[reportArgumentType]
+        select(Job)
+        .options(selectinload(Job.company))
+        .where(Job.status == JobStatus.PENDING_APPROVAL),  # pyright: ignore[reportArgumentType]
         sort_col=Job.created_at,  # pyright: ignore[reportArgumentType]
         id_col=Job.id,  # pyright: ignore[reportArgumentType]
         cursor=cursor,

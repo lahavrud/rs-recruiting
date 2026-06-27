@@ -495,7 +495,7 @@ async def test_purge_removes_old_closed_non_hired(
     )
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin.candidates.get_storage_provider") as factory:
+    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
         factory.return_value.delete_file = AsyncMock()
         purged = await purge_expired_candidates(session)
         await session.commit()
@@ -522,7 +522,7 @@ async def test_purge_preserves_hired_candidates(
         session, job=job, candidate=candidate, status=ApplicationStatus.HIRED
     )
 
-    with patch("src.services.admin.candidates.get_storage_provider") as factory:
+    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -537,7 +537,7 @@ async def test_purge_preserves_recently_closed_jobs(
     candidate = await _make_candidate(session, email="recent@test.com")
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin.candidates.get_storage_provider") as factory:
+    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -573,7 +573,7 @@ async def test_purge_preserves_candidate_with_any_active_application(
         session, job=active, candidate=candidate, status=ApplicationStatus.NEW
     )
 
-    with patch("src.services.admin.candidates.get_storage_provider") as factory:
+    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
 
@@ -587,7 +587,7 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
     candidate = await _make_candidate(session, email="idem@test.com")
     await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
 
-    with patch("src.services.admin.candidates.get_storage_provider") as factory:
+    with patch("src.services.admin._candidates_purge.get_storage_provider") as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 1
         await session.commit()

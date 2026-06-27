@@ -206,9 +206,14 @@ class JobRead(BaseModel):
     @classmethod
     def _populate_company_name(cls, value: Any, handler: Any) -> "JobRead":
         obj = handler(value)
-        has_company = not isinstance(value, dict) and hasattr(value, "company")
-        if has_company and value.company is not None:
-            obj.company_name = value.company.name
+        if not isinstance(value, dict):
+            # Use vars() to read only already-loaded relationships — avoids
+            # triggering async lazy loads in ORM paths that don't selectinload
+            # the company (e.g. company-facing endpoints where the caller already
+            # knows their own company name).
+            loaded_company = vars(value).get("company")
+            if loaded_company is not None:
+                obj.company_name = loaded_company.name
         return obj
 
 

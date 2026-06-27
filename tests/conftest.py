@@ -64,7 +64,7 @@ _EMAIL_TASK_TARGETS = [
     "src.services.admin.companies.enqueue_email_task",
     "src.services.admin.company_approval.enqueue_email_task",
     "src.services.admin.invites.enqueue_email_task",
-    "src.services.admin.jobs.enqueue_email_task",
+    "src.services.admin._job_close.enqueue_email_task",
     "src.services.admin.jobs_workflow.enqueue_email_task",
     "src.services.company.jobs.enqueue_email_task",
     "src.services.public.applications.enqueue_email_task",

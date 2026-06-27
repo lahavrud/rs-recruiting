@@ -86,8 +86,8 @@ async def test_update_job_not_found(session: AsyncSession):
         await update_job(99999, JobAdminUpdate(title="anything"), session)
 
 
-_PATCH_EMAIL = "src.services.admin.jobs.enqueue_email_task"
-_PATCH_DEFER = "src.services.admin.jobs.defer_after_commit"
+_PATCH_EMAIL = "src.services.admin._job_close.enqueue_email_task"
+_PATCH_DEFER = "src.services.admin._job_close.defer_after_commit"
 # Company-notification emails (closure / generic update) are built in the
 # sibling _job_emails module, which holds its own imports of these names.
 _PATCH_NOTIFY_EMAIL = "src.services.admin._job_emails.enqueue_email_task"

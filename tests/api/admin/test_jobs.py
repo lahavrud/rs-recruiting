@@ -571,7 +571,9 @@ async def test_list_jobs_sort_by_name(
 
 @pytest.mark.asyncio
 async def test_list_jobs_invalid_sort_returns_422(admin_client: AsyncClient):
-    response = await admin_client.get("/api/admin/jobs", params={"sort": "status"})
+    response = await admin_client.get(
+        "/api/admin/jobs", params={"sort": "not_a_column"}
+    )
     assert response.status_code == 422
 
 
