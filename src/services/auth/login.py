@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.infrastructure.security import is_password_valid
+from src.core.infrastructure.security import get_password_hash, is_password_valid
 from src.models import ActivationToken, User
 from src.services.exceptions import (
     AccountLockedError,
@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_DURATION = timedelta(minutes=15)
+
+# Pre-computed once at module load so authenticate_user takes ~100 ms
+# regardless of whether the email exists, preventing timing-based email
+# enumeration (comparing branch latency distinguishes "not found" from
+# "wrong password" without this equalisation).
+_DUMMY_HASH: str = get_password_hash("dummy-fixed-for-timing")
 
 
 def _email_prefix(email: str) -> str:
@@ -132,6 +138,7 @@ async def authenticate_user(
     )
     user = result.scalar_one_or_none()
     if not user:
+        is_password_valid(password, _DUMMY_HASH)  # equalise timing
         logger.warning("login_email_not_found", extra={"ip": client_ip})
         raise InvalidCredentialsError("Incorrect email or password")
 
