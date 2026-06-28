@@ -1,0 +1,68 @@
+name: Hotfix Deploy
+
+# Expedited production hotfix. Bumps the patch version off the latest final
+# tag, pushes vX.Y.(Z+1) directly — NO release-candidate, NO ephemeral
+# staging — then dispatches release.yml against it. release.yml's promote-prod
+# job builds the image fresh when no RC image exists for the commit, then runs
+# the full production deploy (frontend + backend + `alembic upgrade head` via
+# deploy_ec2.sh) and creates the GitHub Release.
+#
+# This is the deliberate "skip the staging gate" path for incident response;
+# the normal ritual (deploy-staging -> validate -> cut-release) stays the
+# default for everything else. See docs/release-process.md.
+#
+# A GITHUB_TOKEN-authored tag push doesn't fire release.yml's push trigger
+# (GitHub's recursion guard), so we dispatch it explicitly — same reason as
+# deploy-staging.yml / cut-release.yml. release.yml's teardown-staging job will
+# fire a destroy against nonexistent ephemeral staging; that's a harmless no-op.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or SHA to hotfix from (leave blank for main)"
+        required: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tag-creation
+  cancel-in-progress: false
+
+jobs:
+  hotfix:
+    name: Tag patch & deploy to production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Resolve target commit
+        id: target
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute next patch tag
+        id: version
+        run: |
+          TAG=$(bash scripts/compute_next_patch_tag.sh)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Push tag
+        run: |
+          git tag "${{ steps.version.outputs.tag }}" "${{ steps.target.outputs.sha }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Trigger production release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref "${{ steps.version.outputs.tag }}"
+
+      - name: Summary
+        run: |
+          echo "### Hotfix \`${{ steps.version.outputs.tag }}\` from \`${{ steps.target.outputs.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dispatched release.yml to build & deploy straight to production (no staging gate)." >> "$GITHUB_STEP_SUMMARY"

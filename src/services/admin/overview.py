@@ -164,7 +164,10 @@ async def _count_application_statuses(session: AsyncSession) -> dict[str, int]:
             )  # pyright: ignore[reportArgumentType]
         )
     ).all()
-    return {str(row[0]): row[1] for row in rows}
+    # Key by the enum *value* ("NEW"). str(member) would yield
+    # "ApplicationStatus.NEW", which the frontend's status-keyed lookups
+    # miss, leaving every status in the breakdown stuck at 0.
+    return {row[0].value: row[1] for row in rows}
 
 
 async def _top_jobs_by_applications(

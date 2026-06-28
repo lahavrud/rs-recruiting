@@ -56,9 +56,12 @@ export function JobDetailBody({
   const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   const navigate = useNavigate();
 
-  // Lazy-fetch applications sorted by AI score. The backend score-sort path caps
-  // at SCORE_SORT_LIMIT regardless of the limit param, and only returns candidates
-  // whose embeddings exist — the note in the UI makes that filter explicit.
+  // Lazy-fetch applications sorted by AI score. The backend score-sort path
+  // ignores the `limit` query param and always returns its own top-N
+  // (SCORE_SORT_LIMIT), returning only candidates whose embeddings exist — the
+  // note in the UI makes that filter explicit. We must NOT send `limit` here:
+  // the list route validates `limit <= MAX_LIMIT` (100), so passing 200 yields
+  // a 422. SCORE_SORT_LIMIT is kept only to detect the capped state below.
   const SCORE_SORT_LIMIT = 200;
   const [jobApplications, setJobApplications] = useState<ApplicationWithDetails[] | null>(
     null,
@@ -70,7 +73,7 @@ export function JobDetailBody({
     setJobApplications(null);
     setHasApplicationsError(false);
     /* eslint-enable react-hooks/set-state-in-effect */
-    getApplications({ job_id: job.id, limit: SCORE_SORT_LIMIT, sort: "score" }, ctrl.signal)
+    getApplications({ job_id: job.id, sort: "score" }, ctrl.signal)
       .then((page) => setJobApplications(page.items))
       .catch((e) => {
         if (axios.isCancel(e)) return;
