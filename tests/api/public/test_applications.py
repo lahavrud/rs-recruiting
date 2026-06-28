@@ -8,6 +8,10 @@ from sqlalchemy import and_, select
 
 from src.enums import ApplicationStatus, JobStatus
 from src.models import Application, AuditLog, CandidateProfile, CompanyProfile, Job
+from src.services.utils.legal import (
+    CURRENT_PRIVACY_POLICY_VERSION,
+    CURRENT_TERMS_OF_SERVICE_VERSION,
+)
 from tests.conftest import TestSessionLocal
 
 # Default resume payload for every apply-endpoint test that doesn't care
@@ -87,7 +91,7 @@ async def test_apply_endpoint_creates_candidate_with_consent_audit(
         assert candidate is not None
         assert candidate.full_name == "John Doe"
         assert candidate.consent_given_at is not None
-        assert candidate.consent_policy_version == "1.2"
+        assert candidate.consent_policy_version == CURRENT_PRIVACY_POLICY_VERSION
 
 
 @pytest.mark.asyncio
@@ -606,7 +610,7 @@ async def test_apply_endpoint_writes_consent_audit_event(
         )
         event = result.scalar_one_or_none()
         assert event is not None
-        assert event.detail == "policy_version=1.2"
+        assert event.detail == f"policy_version={CURRENT_PRIVACY_POLICY_VERSION}"
         assert event.actor_user_id is None
 
 
@@ -699,7 +703,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         )
         after_second = result.scalar_one()
         assert after_second.consent_given_at is not None
-        assert after_second.consent_policy_version == "1.2"
+        assert after_second.consent_policy_version == CURRENT_PRIVACY_POLICY_VERSION
         # Consent timestamp must be refreshed (>= first)
         assert after_second.consent_given_at >= first_consent_at  # type: ignore[operator]
 
@@ -778,7 +782,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
         )
         candidate = result.scalar_one()
         assert candidate.tos_accepted_at is not None
-        assert candidate.tos_version == "1.1"
+        assert candidate.tos_version == CURRENT_TERMS_OF_SERVICE_VERSION
 
         audit = await session.execute(
             select(AuditLog).where(
@@ -789,7 +793,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
         )
         event = audit.scalar_one_or_none()
         assert event is not None
-        assert event.detail == "terms_version=1.1"
+        assert event.detail == f"terms_version={CURRENT_TERMS_OF_SERVICE_VERSION}"
 
 
 # ── Sprint 11 / #606 — claim + logged-in API surfaces ─────────────────────────
