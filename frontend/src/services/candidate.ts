@@ -87,6 +87,8 @@ export interface SessionRead {
   id: number;
   created_at: string;
   expires_at: string;
+  user_agent: string | null;
+  is_current: boolean;
 }
 
 export async function listSessions(): Promise<SessionRead[]> {

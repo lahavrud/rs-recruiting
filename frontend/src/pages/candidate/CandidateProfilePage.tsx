@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import PageHeader from "@/components/ui/PageHeader";
+import SessionsSection from "@/components/ui/SessionsSection";
 import { useFetch } from "@/hooks/useFetch";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe, type CandidateMeRead } from "@/services/candidate";
@@ -12,7 +13,6 @@ import ApplyAutofillSection from "./components/ApplyAutofillSection";
 import DataExportSection from "./components/DataExportSection";
 import IdentitySection from "./components/IdentitySection";
 import SecuritySection from "./components/SecuritySection";
-import SessionsSection from "./components/SessionsSection";
 
 /**
  * Candidate self-service profile (Sprint 11 / #608).

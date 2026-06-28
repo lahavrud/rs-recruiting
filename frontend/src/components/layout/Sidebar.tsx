@@ -205,6 +205,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <NavGroup key={group.labelKey} group={group} onClose={onClose} />
             ))}
           </div>
+          <div className="my-2 border-t border-white/6" />
+          <NavRow
+            item={{ labelKey: "nav:adminProfile", to: "/admin/profile" }}
+            onClose={onClose}
+          />
         </div>
       ) : (
         <div className="space-y-0.5">

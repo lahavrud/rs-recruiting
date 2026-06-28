@@ -1,4 +1,8 @@
 {
+  "profile": {
+    "eyebrow": "הגדרות חשבון",
+    "subtitle": "ניהול הגישה לחשבון ואבטחה."
+  },
   "filters": {
     "selectedCount": "{{count}} נבחרו",
     "clearSelection": "נקה בחירה"

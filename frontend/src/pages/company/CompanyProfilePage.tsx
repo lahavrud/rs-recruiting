@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import Field from "@/components/ui/Field";
 import PageHeader from "@/components/ui/PageHeader";
+import SessionsSection from "@/components/ui/SessionsSection";
 import { getMyCompanyProfile, updateMyCompanyProfile } from "@/services/companyProfile";
 import { INPUT_CLS, errorAlertCls } from "@/styles/forms";
 import type { CompanyProfileRead, CompanyProfileSelfUpdate } from "@/types/companies";
@@ -52,6 +53,7 @@ function SkeletonCard({ rows }: { rows: number }) {
 
 export default function CompanyProfilePage() {
   const { t } = useTranslation("company");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [profile, setProfile] = useState<CompanyProfileRead | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -317,6 +319,47 @@ export default function CompanyProfilePage() {
           </Button>
         </div>
       </form>
+
+      <div className="mt-10">
+        <button
+          type="button"
+          onClick={() => setIsSettingsOpen((v) => !v)}
+          aria-expanded={isSettingsOpen}
+          aria-controls="company-settings-panel"
+          className="group flex w-full items-center justify-between gap-2 border-b border-white/8 pb-2 transition-colors hover:border-white/15"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40 transition-colors group-hover:text-white/60">
+            {t("company:profile.settings.title")}
+          </span>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            className={`size-4 text-white/40 transition-transform duration-200 ease-out ${
+              isSettingsOpen ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+
+        <div
+          id="company-settings-panel"
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-out"
+          style={{
+            gridTemplateRows: isSettingsOpen ? "1fr" : "0fr",
+            opacity: isSettingsOpen ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="pt-3">
+              <SessionsSection />
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
