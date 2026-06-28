@@ -142,9 +142,13 @@ async def authenticate_user(
         logger.warning("login_email_not_found", extra={"ip": client_ip})
         raise InvalidCredentialsError("Incorrect email or password")
 
+    # Run bcrypt before the lockout check so every code path where the email
+    # exists takes ~100 ms, preventing timing from distinguishing "locked" from
+    # "wrong password" and leaking that the email is registered.
+    password_ok = is_password_valid(password, user.hashed_password)
     _check_lockout(user, client_ip)
 
-    if not is_password_valid(password, user.hashed_password):
+    if not password_ok:
         assert user.id is not None
         await _record_failed_attempt(user.id, email, client_ip)
         raise InvalidCredentialsError("Incorrect email or password")
