@@ -62,12 +62,14 @@ async def _add_token(
     user_id: int,
     *,
     expired: bool = False,
+    user_agent: str | None = None,
 ) -> RefreshToken:
     delta = timedelta(days=-1) if expired else timedelta(days=7)
     token = RefreshToken(
         token_hash=f"hash-{user_id}-{next(_counter)}",
         user_id=user_id,
         expires_at=datetime.now(timezone.utc) + delta,
+        user_agent=user_agent,
     )
     session.add(token)
     await session.commit()
@@ -93,9 +95,10 @@ async def test_list_sessions_empty(test_db):
 
 @pytest.mark.asyncio
 async def test_list_sessions_returns_active_tokens(test_db):
+    ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120"
     async with TestSessionLocal() as session:
         user = await _seed_user(session, "list@test.com")
-        token = await _add_token(session, user.id)  # type: ignore[arg-type]
+        token = await _add_token(session, user.id, user_agent=ua)  # type: ignore[arg-type]
         _override_user(user)
 
     async with await _client() as client:
@@ -104,6 +107,20 @@ async def test_list_sessions_returns_active_tokens(test_db):
     body = resp.json()
     assert len(body) == 1
     assert body[0]["id"] == token.id
+    assert body[0]["user_agent"] == ua
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_user_agent_null(test_db):
+    async with TestSessionLocal() as session:
+        user = await _seed_user(session, "null-ua@test.com")
+        await _add_token(session, user.id)  # type: ignore[arg-type]
+        _override_user(user)
+
+    async with await _client() as client:
+        resp = await client.get("/api/auth/sessions")
+    assert resp.status_code == 200
+    assert resp.json()[0]["user_agent"] is None
 
 
 @pytest.mark.asyncio
@@ -136,6 +153,10 @@ async def test_revoke_session_success(test_db):
         remaining = await session.get(RefreshToken, token_id)
         assert remaining is None
 
+        # Explicit revocation deletes the row directly without adding to
+        # UsedRefreshToken — this avoids the replay-nuke path being triggered
+        # if the revoked browser tries to refresh, which would log out other
+        # sessions for the same user.
         used = (
             await session.execute(
                 __import__("sqlalchemy")
@@ -143,7 +164,7 @@ async def test_revoke_session_success(test_db):
                 .where(UsedRefreshToken.token_hash == token_hash)
             )
         ).scalar_one_or_none()
-        assert used is not None
+        assert used is None
 
 
 @pytest.mark.asyncio

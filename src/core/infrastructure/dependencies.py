@@ -1,5 +1,6 @@
 """FastAPI dependencies for authentication and authorization."""
 
+import functools
 import ipaddress
 from typing import Any
 
@@ -13,7 +14,7 @@ from src.core.infrastructure.config import settings
 from src.core.infrastructure.database import get_session
 from src.core.infrastructure.security import decode_access_token
 from src.enums import UserRole
-from src.models import CandidateProfile, CompanyProfile, User
+from src.models import CandidateProfile, CompanyProfile, RefreshToken, User
 
 security = HTTPBearer()
 
@@ -80,6 +81,24 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive",
         )
+
+    # Per-session revocation: `sid` = RefreshToken.id embedded in the JWT.
+    # If the session was revoked its row is gone → 401 forces the browser out.
+    # Tokens without `sid` (pre-feature) are allowed — they expire within 10 min.
+    sid = payload.get("sid")
+    if sid is not None:
+        sid_result = await session.execute(
+            select(RefreshToken.id).where(
+                RefreshToken.id == sid,  # type: ignore[arg-type]
+                RefreshToken.user_id == user.id,  # type: ignore[arg-type]
+            )
+        )
+        if sid_result.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="session_revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
     # Attach user to the current Sentry scope so any exception raised later
     # in this request gets tagged with them. No-op when Sentry isn't init'd.
@@ -245,20 +264,37 @@ async def get_current_candidate(
     return (current_user, candidate_profile)
 
 
+@functools.lru_cache(maxsize=None)
+def _parse_trusted_nets(
+    raw: str,
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    """Parse a comma-separated CIDR list into network objects.
+
+    Cached by the raw string so repeated calls with the same env value pay no
+    parsing cost. In tests the value changes per-case, so the cache key changes
+    and a fresh parse happens — no cross-test pollution.
+    """
+    nets: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for cidr in raw.split(","):
+        cidr = cidr.strip()
+        if cidr:
+            try:
+                nets.append(ipaddress.ip_network(cidr, strict=False))
+            except ValueError:
+                pass
+    return tuple(nets)
+
+
 def _is_trusted_proxy(peer_ip: str) -> bool:
     """Return True if peer_ip falls within settings.trusted_proxy_ips."""
-    raw = settings.trusted_proxy_ips.strip()
-    if not raw:
+    trusted_nets = _parse_trusted_nets(settings.trusted_proxy_ips.strip())
+    if not trusted_nets:
         return False
     try:
         addr = ipaddress.ip_address(peer_ip)
-        for cidr in raw.split(","):
-            cidr = cidr.strip()
-            if cidr and addr in ipaddress.ip_network(cidr, strict=False):
-                return True
+        return any(addr in net for net in trusted_nets)
     except ValueError:
-        pass
-    return False
+        return False
 
 
 def client_ip(request: Request) -> str | None:
