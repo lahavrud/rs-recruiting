@@ -12,6 +12,7 @@ import ApplyAutofillSection from "./components/ApplyAutofillSection";
 import DataExportSection from "./components/DataExportSection";
 import IdentitySection from "./components/IdentitySection";
 import SecuritySection from "./components/SecuritySection";
+import SessionsSection from "./components/SessionsSection";
 
 /**
  * Candidate self-service profile (Sprint 11 / #608).
@@ -121,6 +122,9 @@ export default function CandidateProfilePage() {
             <div className="grid gap-3 pt-3 grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <SecuritySection />
               <DataExportSection />
+            </div>
+            <div className="mt-3">
+              <SessionsSection />
             </div>
           </div>
         </div>

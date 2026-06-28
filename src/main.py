@@ -49,6 +49,7 @@ from src.api.auth import (
 from src.api.auth import (
     login as auth,
 )
+from src.api.auth import sessions as auth_sessions
 from src.api.candidate import applications as candidate_applications
 from src.api.candidate import data_export as candidate_data_export
 from src.api.candidate import profile as candidate_profile
@@ -180,6 +181,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(auth_sessions.router)
 app.include_router(registration.router)
 app.include_router(candidate_registration.router)
 app.include_router(activation.router)

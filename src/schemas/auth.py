@@ -143,3 +143,17 @@ class ResendActivationRequest(BaseModel):
     """
 
     email: str = Field(..., max_length=255)
+
+
+class SessionRead(BaseModel):
+    """One active session for the authenticated user.
+
+    Returned by ``GET /api/candidate/sessions``. Exposes only the DB id,
+    creation timestamp, and expiry — no token material is ever returned.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: datetime
+    expires_at: datetime
