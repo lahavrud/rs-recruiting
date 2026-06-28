@@ -28,7 +28,7 @@ interface Props {
 
 /** Applications & relations panel for the candidate record pane. */
 export default function CandidateApplicationsPanel({ candidateId }: Props) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation('admin');
   const navigate = useNavigate();
   const [applications, setApplications] = useState<ApplicationWithDetails[] | null>(null);
   const [error, setError] = useState(false);
@@ -88,7 +88,19 @@ export default function CandidateApplicationsPanel({ candidateId }: Props) {
           {t("admin:candidates.errors.applicationsLoadFailed")}
         </p>
       ) : applications == null ? (
-        <p className="mt-3 text-xs text-white/35">{t("common:loading")}</p>
+        <ul className="mt-3 space-y-3" aria-hidden>
+          {[0, 1].map((i) => (
+            <li key={i} className="animate-pulse rounded-xl border border-white/8 bg-card-raised p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-4 w-3/4 rounded bg-white/8" />
+                  <div className="h-3 w-1/3 rounded bg-white/5" />
+                </div>
+                <div className="h-5 w-16 rounded-full bg-white/8" />
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : applications.length === 0 ? (
         <p className="mt-3 text-xs text-white/35">{t("admin:candidates.noApplications")}</p>
       ) : (

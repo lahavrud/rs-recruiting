@@ -12,7 +12,7 @@ interface Props<T extends ActivityTimelineEvent> {
   error: boolean;
   emptyMessage: string;
   errorMessage: string;
-  loadingMessage: string;
+  loadingSlot?: ReactNode;
   /** Per-item content, rendered after the timeline dot and before the formatted date. */
   renderItem: (event: T) => ReactNode;
 }
@@ -23,14 +23,14 @@ export default function ActivityTimeline<T extends ActivityTimelineEvent>({
   error,
   emptyMessage,
   errorMessage,
-  loadingMessage,
+  loadingSlot,
   renderItem,
 }: Props<T>) {
   if (error) {
     return <p className="mt-3 text-xs text-danger">{errorMessage}</p>;
   }
   if (events == null) {
-    return <p className="mt-3 text-xs text-white/35">{loadingMessage}</p>;
+    return <>{loadingSlot ?? null}</>;
   }
   if (events.length === 0) {
     return <p className="mt-3 text-xs text-white/35">{emptyMessage}</p>;
