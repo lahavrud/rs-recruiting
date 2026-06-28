@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import RecordPane from "@/components/admin/RecordPane";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Eyebrow from "@/components/ui/Eyebrow";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { useToast } from "@/hooks/useToast";
 import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
 import type { CandidateProfileRead } from "@/types/candidates";
@@ -66,9 +67,15 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
               </div>
               <div className="min-w-0 flex-1">
                 <Eyebrow>{t("admin:candidates.record.eyebrow")}</Eyebrow>
-                <h2 className="mt-1 text-xl font-semibold text-white/95 @sm:text-2xl @lg:text-3xl">
-                  {c.full_name}
-                </h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl font-semibold text-white/95 @sm:text-2xl @lg:text-3xl">
+                    {c.full_name}
+                  </h2>
+                  <StatusBadge
+                    label={c.is_registered ? t("admin:candidates.statusRegistered") : t("admin:candidates.statusLead")}
+                    colorCls={c.is_registered ? "bg-success/10 text-success" : "bg-white/8 text-white/45"}
+                  />
+                </div>
                 {c.resume_summary && (
                   <p className="mt-1.5 text-sm leading-relaxed text-white/50">
                     {c.resume_summary}

@@ -9,7 +9,6 @@ import DropdownMenu, {
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import ResumeButton from "@/components/ui/ResumeViewer";
-import StatusBadge from "@/components/ui/StatusBadge";
 import type { SortOrder } from "@/hooks/useColumnSort";
 import type { CandidateProfileRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
@@ -99,10 +98,6 @@ export default function CandidatesTable({
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-white/85">{c.full_name}</p>
                     {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
-                    <StatusBadge
-                      label={c.is_registered ? t("admin:candidates.statusRegistered") : t("admin:candidates.statusLead")}
-                      colorCls={c.is_registered ? "bg-success/10 text-success" : "bg-white/8 text-white/45"}
-                    />
                   </div>
                   <p className="text-xs text-white/40">{c.email}</p>
                 </td>
