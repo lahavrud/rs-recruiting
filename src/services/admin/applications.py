@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from sqlalchemy import case, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -107,6 +107,7 @@ async def list_applications(
     status: ApplicationStatus | None = None,
     job_id: int | None = None,
     candidate_id: int | None = None,
+    q: str | None = None,
     cursor: str | None = None,
     limit: int | None = None,
     sort: ApplicationSortColumn = "created_at",
@@ -122,6 +123,9 @@ async def list_applications(
     `sort2` adds a second, independent sort column as a tiebreaker — e.g.
     `sort="status"` with `sort2="created_at"` groups by status, then orders
     by date within each group. A column can't be paired with itself.
+
+    `q`, when given, case-insensitively substring-matches candidate
+    name/email/phone and job title.
     """
     if sort == "score":
         return await _list_applications_by_score(
@@ -141,10 +145,22 @@ async def list_applications(
     if candidate_id is not None:
         base = base.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
 
-    if sort == "name" or sort2 == "name":
+    needs_candidate_join = (sort == "name" or sort2 == "name") or bool(q and q.strip())
+    if needs_candidate_join:
         base = base.join(
             CandidateProfile,
             Application.candidate_id == CandidateProfile.id,  # pyright: ignore[reportArgumentType]
+        )
+
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        base = base.join(Job, Application.job_id == Job.id).where(  # pyright: ignore[reportArgumentType]
+            or_(
+                CandidateProfile.full_name.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.email.ilike(term),  # pyright: ignore[reportArgumentType]
+                CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
+                Job.title.ilike(term),  # pyright: ignore[reportArgumentType]
+            )
         )
 
     sort_col = _sort_column(sort)

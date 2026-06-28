@@ -157,6 +157,66 @@ async def test_list_applications_filter_by_candidate_id(
 
 
 @pytest.mark.asyncio
+async def test_list_applications_search_by_candidate_name(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`q` matches on candidate full_name (case-insensitive substring)."""
+    c1 = CandidateProfile(full_name="Dina Cohen", email="dina@test.com", phone="050-1111111")
+    c2 = CandidateProfile(full_name="Yossi Levi", email="yossi@test.com", phone="050-2222222")
+    session.add_all([c1, c2])
+    await session.flush()
+    await _make_application(session, company_with_user, c1)
+    await _make_application(session, company_with_user, c2)
+
+    page = await list_applications(session, q="dina")
+    assert len(page.items) == 1
+    assert page.items[0].candidate.full_name == "Dina Cohen"
+
+
+@pytest.mark.asyncio
+async def test_list_applications_search_by_email(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`q` matches on candidate email."""
+    c1 = CandidateProfile(full_name="A", email="unique_addr@example.com", phone="050-1111111")
+    c2 = CandidateProfile(full_name="B", email="other@test.com", phone="050-2222222")
+    session.add_all([c1, c2])
+    await session.flush()
+    await _make_application(session, company_with_user, c1)
+    await _make_application(session, company_with_user, c2)
+
+    page = await list_applications(session, q="unique_addr")
+    assert len(page.items) == 1
+    assert page.items[0].candidate.email == "unique_addr@example.com"
+
+
+@pytest.mark.asyncio
+async def test_list_applications_search_by_job_title(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`q` matches on job title."""
+    candidate = await _make_candidate(session)
+    app = await _make_application(session, company_with_user, candidate)
+    await session.refresh(app, ["job"])
+
+    page = await list_applications(session, q="Test Job")
+    job_ids = [item.job_id for item in page.items]
+    assert app.job_id in job_ids
+
+
+@pytest.mark.asyncio
+async def test_list_applications_search_no_match(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`q` with no matches returns an empty page."""
+    candidate = await _make_candidate(session)
+    await _make_application(session, company_with_user, candidate)
+
+    page = await list_applications(session, q="zzz_no_match_xyz")
+    assert len(page.items) == 0
+
+
+@pytest.mark.asyncio
 async def test_list_applications_sort_by_name(
     session: AsyncSession, company_with_user: CompanyProfile
 ):

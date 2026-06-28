@@ -111,13 +111,17 @@ export default function AdminApplicationsPage() {
     };
   };
 
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 200);
+
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
       const params: ApplicationListParams = { cursor, sort, order, sort2, order2 };
       if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
+      if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
       return getApplications(params);
     },
-    [filter, sort, order, sort2, order2],
+    [filter, sort, order, sort2, order2, debouncedQuery],
   );
 
   const {
@@ -137,9 +141,6 @@ export default function AdminApplicationsPage() {
   );
   const [isPendingDelete, setIsPendingDelete] = useState(false);
 
-  // Client-side filters (status is server-side via fetcher).
-  const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounce(query, 200);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<number[]>([]);
 
@@ -174,23 +175,14 @@ export default function AdminApplicationsPage() {
   }, []);
 
   const filteredApplications = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
     const jobSet = new Set(jobFilter);
     const companySet = new Set(companyFilter);
     return applications.filter((a) => {
       if (jobSet.size > 0 && !jobSet.has(a.job_id)) return false;
       if (companySet.size > 0 && !companySet.has(a.job.company_id)) return false;
-      if (!q) return true;
-      return [
-        a.candidate.full_name,
-        a.candidate.email,
-        a.candidate.phone ?? "",
-        a.job.title,
-        a.job.location,
-        a.admin_notes ?? "",
-      ].some((s) => s.toLowerCase().includes(q));
+      return true;
     });
-  }, [applications, debouncedQuery, jobFilter, companyFilter]);
+  }, [applications, jobFilter, companyFilter]);
 
   const activeFilterCount =
     (debouncedQuery.trim() ? 1 : 0) +

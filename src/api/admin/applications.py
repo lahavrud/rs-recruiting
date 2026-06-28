@@ -42,6 +42,7 @@ async def get_applications(
     status: ApplicationStatus | None = None,
     job_id: int | None = None,
     candidate_id: int | None = None,
+    q: str | None = Query(default=None, max_length=255),
     cursor: str | None = None,
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     sort: Literal["name", "created_at", "status", "score"] = Query(  # noqa: E501
@@ -55,7 +56,8 @@ async def get_applications(
 ) -> CursorPage[ApplicationWithDetails]:
     """List applications with optional filters, sorted by `sort`/`order`.
 
-    `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
+    `q` case-insensitively substring-matches candidate name/email/phone and
+    job title. `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
     `sort=status&sort2=created_at` groups by status, then by date.
     Cursor-paginated.
     """
@@ -65,6 +67,7 @@ async def get_applications(
             status=status,
             job_id=job_id,
             candidate_id=candidate_id,
+            q=q,
             cursor=cursor,
             limit=limit,
             sort=sort,

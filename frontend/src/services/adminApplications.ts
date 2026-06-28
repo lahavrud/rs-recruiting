@@ -7,6 +7,7 @@ export interface ApplicationListParams {
   status?: ApplicationStatus;
   job_id?: number;
   candidate_id?: number;
+  q?: string;
   cursor?: string | null;
   limit?: number;
   sort?: "name" | "created_at" | "status" | "score";
@@ -23,6 +24,7 @@ export async function getApplications(
   if (params?.status) query.status = params.status;
   if (params?.job_id != null) query.job_id = params.job_id;
   if (params?.candidate_id != null) query.candidate_id = params.candidate_id;
+  if (params?.q?.trim()) query.q = params.q.trim();
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
   if (params?.sort) query.sort = params.sort;
