@@ -1,9 +1,19 @@
 """Rate limiting configuration."""
 
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from src.core.infrastructure.config import settings
+from src.core.infrastructure.dependencies import client_ip as _client_ip
+
+
+def _limiter_key(request) -> str:
+    """Trusted-proxy-aware rate-limit key.
+
+    Uses the same XFF extraction logic as the ``client_ip`` dependency so
+    the limiter cannot be bypassed by spoofing ``X-Forwarded-For`` when the
+    peer is not in ``TRUSTED_PROXY_IPS``.
+    """
+    return _client_ip(request) or "unknown"
 
 
 def get_limiter() -> Limiter:
@@ -17,7 +27,7 @@ def get_limiter() -> Limiter:
         "staging",
     )
     return Limiter(
-        key_func=get_remote_address,
+        key_func=_limiter_key,
         enabled=enabled,
     )
 

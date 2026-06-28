@@ -3,7 +3,14 @@
 import re
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+)
 
 from src.enums import UserRole
 
@@ -143,3 +150,20 @@ class ResendActivationRequest(BaseModel):
     """
 
     email: str = Field(..., max_length=255)
+
+
+class SessionRead(BaseModel):
+    """One active session for the authenticated user.
+
+    Returned by ``GET /api/auth/sessions``. Exposes only the DB id,
+    timestamps, and the raw User-Agent stored at login time — no token
+    material is ever returned.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    created_at: AwareDatetime
+    expires_at: AwareDatetime
+    user_agent: str | None
+    is_current: bool = False

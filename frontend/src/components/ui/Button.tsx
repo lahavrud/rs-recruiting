@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "ghost" | "ghost-dim" | "danger" | "success";
-type Size = "sm" | "md" | "lg";
+type Variant = "primary" | "ghost" | "ghost-dim" | "ghost-danger" | "danger" | "success";
+type Size = "xs" | "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -16,6 +16,8 @@ const variantCls: Record<Variant, string> = {
     "border border-white/20 text-white/60 hover:border-white/40 hover:text-white/90 disabled:cursor-not-allowed disabled:opacity-60",
   "ghost-dim":
     "border border-white/20 text-white/60 hover:border-transparent hover:bg-white/6 hover:text-white/50 disabled:cursor-not-allowed disabled:opacity-60",
+  "ghost-danger":
+    "border border-white/10 text-white/50 hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40",
   danger:
     "border border-danger/40 text-danger hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50",
   success:
@@ -23,6 +25,7 @@ const variantCls: Record<Variant, string> = {
 };
 
 const sizeCls: Record<Size, string> = {
+  xs: "px-2 py-1 text-[11px]",
   sm: "px-3 py-1.5 text-sm",
   md: "px-4 py-2 text-sm",
   lg: "px-6 py-2.5 text-sm",

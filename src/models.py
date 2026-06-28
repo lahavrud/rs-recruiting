@@ -130,6 +130,7 @@ class RefreshToken(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
     remember_me: bool = Field(default=False)
+    user_agent: str | None = Field(default=None, max_length=512)
     # Refresh tokens are deleted on use / logout / password change instead
     # of being marked revoked. A boolean revoked flag provided no security
     # benefit (revoked + missing were treated identically) and let dead
@@ -251,6 +252,10 @@ class User(SQLModel, table=True):
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     locked_until: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    sessions_invalidated_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
     )

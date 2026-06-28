@@ -4,10 +4,9 @@ import axios from "axios";
 import { useTranslation } from "react-i18next";
 
 import Field from "@/components/ui/Field";
+import SettingsCard from "@/components/ui/SettingsCard";
 import { changePassword } from "@/services/candidate";
 import { INPUT_CLS } from "@/styles/forms";
-
-import SettingsCard from "./SettingsCard";
 
 export default function SecuritySection() {
   const { t } = useTranslation('candidate');

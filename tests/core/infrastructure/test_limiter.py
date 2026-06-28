@@ -1,9 +1,11 @@
 """Unit tests for rate limiter module."""
 
+from unittest.mock import MagicMock
+
 from slowapi import Limiter
 
 from src.core.infrastructure.config import settings
-from src.core.infrastructure.limiter import get_limiter
+from src.core.infrastructure.limiter import _limiter_key, get_limiter
 
 
 class TestGetLimiter:
@@ -20,8 +22,51 @@ class TestGetLimiter:
         """Test that limiter configuration is correct."""
         limiter = get_limiter()
 
-        # Verify limiter has key_func set (it's stored as _key_func internally)
         assert limiter._key_func is not None
+
+    def test_key_func_is_limiter_key(self):
+        """Limiter key function must be the trusted-proxy-aware variant."""
+        limiter = get_limiter()
+
+        assert limiter._key_func is _limiter_key
+
+
+class TestLimiterKey:
+    """Tests for _limiter_key() — the trusted-proxy-aware key extraction."""
+
+    def _make_request(self, host: str, xff: str | None = None) -> MagicMock:
+        req = MagicMock()
+        req.client.host = host
+        req.headers.get = lambda key, default=None: (
+            xff if key == "x-forwarded-for" else default
+        )
+        return req
+
+    def test_returns_peer_ip_when_not_a_trusted_proxy(self):
+        """When the peer is not a trusted proxy, return request.client.host."""
+        original = settings.trusted_proxy_ips
+        try:
+            settings.trusted_proxy_ips = ""
+            req = self._make_request("1.2.3.4", xff="9.9.9.9")
+            assert _limiter_key(req) == "1.2.3.4"
+        finally:
+            settings.trusted_proxy_ips = original
+
+    def test_returns_xff_first_entry_for_trusted_proxy(self):
+        """When the peer is a trusted proxy, read XFF and return its first entry."""
+        original = settings.trusted_proxy_ips
+        try:
+            settings.trusted_proxy_ips = "172.28.0.0/24"
+            req = self._make_request("172.28.0.2", xff="203.0.113.5, 1.1.1.1")
+            assert _limiter_key(req) == "203.0.113.5"
+        finally:
+            settings.trusted_proxy_ips = original
+
+    def test_returns_unknown_when_no_client(self):
+        """Falls back to 'unknown' when request.client is None."""
+        req = MagicMock()
+        req.client = None
+        assert _limiter_key(req) == "unknown"
 
 
 class TestLimiterTestingMode:
@@ -29,19 +74,14 @@ class TestLimiterTestingMode:
 
     def test_limiter_disabled_when_testing_true(self):
         """Test that rate limiting is disabled when settings.testing=True."""
-        # Save original testing value
         original_testing = settings.testing
 
         try:
-            # Set testing mode
             settings.testing = True
             limiter = get_limiter()
 
-            # In testing mode, limiter should be disabled
-            # The enabled attribute should be False
             assert limiter.enabled is False
         finally:
-            # Restore original testing value
             settings.testing = original_testing
 
     def test_limiter_enabled_in_production(self):

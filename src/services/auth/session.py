@@ -71,16 +71,17 @@ async def _nuke_user_refresh_tokens(user_id: int) -> None:
 
 
 async def create_user_tokens(
-    user: User, session: AsyncSession, *, remember_me: bool = False
+    user: User,
+    session: AsyncSession,
+    *,
+    remember_me: bool = False,
+    user_agent: str | None = None,
 ) -> tuple[str, str]:
     """Issue a new access + refresh token pair.
 
     Returns (access_token, raw_refresh_token).
     """
     assert user.id is not None
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email, "role": user.role.value}
-    )
 
     raw_refresh, hashed_refresh, expires_at = create_refresh_token(
         remember_me=remember_me
@@ -90,8 +91,21 @@ async def create_user_tokens(
         user_id=user.id,
         expires_at=expires_at,
         remember_me=remember_me,
+        user_agent=user_agent,
     )
     session.add(db_token)
+    # Flush to get the auto-generated PK so we can embed it in the JWT.
+    # The caller's transactional() context still controls the commit.
+    await session.flush()
+
+    access_token = create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role.value,
+            "sid": db_token.id,
+        }
+    )
 
     return access_token, raw_refresh
 
@@ -161,6 +175,7 @@ async def refresh_user_tokens(
         raise InvalidCredentialsError("Invalid or expired refresh token")
 
     remember_me = db_token.remember_me
+    user_agent = db_token.user_agent
 
     # Rotate: delete the consumed token and record its hash atomically so a
     # later replay is detected.
@@ -175,7 +190,7 @@ async def refresh_user_tokens(
     await session.flush()
 
     access_token, raw_refresh = await create_user_tokens(
-        user, session, remember_me=remember_me
+        user, session, remember_me=remember_me, user_agent=user_agent
     )
     return access_token, raw_refresh, remember_me
 

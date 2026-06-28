@@ -80,6 +80,31 @@ export async function requestDataExport(): Promise<void> {
 }
 
 /* -------------------------------------------------------------------------
+ * Session listing and revocation (#645)
+ * ----------------------------------------------------------------------- */
+
+export interface SessionRead {
+  id: number;
+  created_at: string;
+  expires_at: string;
+  user_agent: string | null;
+  is_current: boolean;
+}
+
+export async function listSessions(): Promise<SessionRead[]> {
+  const res = await api.get<SessionRead[]>("/api/auth/sessions");
+  return res.data;
+}
+
+export async function revokeSession(sessionId: number): Promise<void> {
+  await api.delete(`/api/auth/sessions/${sessionId}`);
+}
+
+export async function revokeAllSessions(): Promise<void> {
+  await api.delete("/api/auth/sessions");
+}
+
+/* -------------------------------------------------------------------------
  * Application list + detail (Sprint 11 / #609)
  *
  * The candidate-facing API deliberately never surfaces raw application

@@ -1,12 +1,5 @@
 import type { ReactNode } from "react";
 
-/**
- * Smaller, account-controls card — visually demoted from the profile
- * cards above. Icon-led title in a single row so the header takes less
- * vertical space, lighter border + subtler background, ghost-buttoned
- * actions to keep the surface from competing with the main profile
- * group for attention.
- */
 export default function SettingsCard({
   icon,
   title,

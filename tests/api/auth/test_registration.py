@@ -11,6 +11,10 @@ from src.core.infrastructure.security import is_password_valid
 from src.main import app
 from src.models import AuditLog, CompanyProfile, User
 from src.services.exceptions import InvalidInviteTokenError
+from src.services.utils.legal import (
+    CURRENT_PRIVACY_POLICY_VERSION,
+    CURRENT_TERMS_OF_SERVICE_VERSION,
+)
 from tests.conftest import FAKE_PNG, TestSessionLocal
 from tests.conftest import FAKE_SIG_B64 as _FAKE_SIG_B64
 
@@ -112,9 +116,9 @@ async def test_register_persists_legal_acceptance_metadata(client: AsyncClient):
             )
         ).scalar_one()
         assert cp.privacy_accepted_at is not None
-        assert cp.privacy_policy_version == "1.2"
+        assert cp.privacy_policy_version == CURRENT_PRIVACY_POLICY_VERSION
         assert cp.terms_accepted_at is not None
-        assert cp.terms_version == "1.1"
+        assert cp.terms_version == CURRENT_TERMS_OF_SERVICE_VERSION
         assert cp.acceptance_user_agent == "pytest-ua/1.0"
 
         actions = {

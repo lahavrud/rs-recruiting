@@ -111,9 +111,12 @@ async def login(
         extra={"user_id": str(user.id), "role": user.role.value, "ip": ip},
     )
 
+    raw_ua = request.headers.get("user-agent", "")
+    ua = raw_ua[:512] or None
+
     async with transactional(session):
         access_token, refresh_token = await create_user_tokens(
-            user, session, remember_me=login_data.remember_me
+            user, session, remember_me=login_data.remember_me, user_agent=ua
         )
         if user.role == UserRole.ADMIN:
             await record_audit_event(

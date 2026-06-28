@@ -3,9 +3,8 @@ import { useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 
+import SettingsCard from "@/components/ui/SettingsCard";
 import { requestDataExport } from "@/services/candidate";
-
-import SettingsCard from "./SettingsCard";
 
 export default function DataExportSection() {
   const { t } = useTranslation('candidate');

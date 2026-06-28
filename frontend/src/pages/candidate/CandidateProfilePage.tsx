@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import PageHeader from "@/components/ui/PageHeader";
+import SessionsSection from "@/components/ui/SessionsSection";
 import { useFetch } from "@/hooks/useFetch";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe, type CandidateMeRead } from "@/services/candidate";
@@ -121,6 +122,9 @@ export default function CandidateProfilePage() {
             <div className="grid gap-3 pt-3 grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <SecuritySection />
               <DataExportSection />
+            </div>
+            <div className="mt-3">
+              <SessionsSection />
             </div>
           </div>
         </div>
