@@ -1,13 +1,12 @@
 """Rate limiting configuration."""
 
-from fastapi import Request
 from slowapi import Limiter
 
 from src.core.infrastructure.config import settings
 from src.core.infrastructure.dependencies import client_ip as _client_ip
 
 
-def _limiter_key(request: Request) -> str:
+def _limiter_key(request) -> str:
     """Trusted-proxy-aware rate-limit key.
 
     Uses the same XFF extraction logic as the ``client_ip`` dependency so
