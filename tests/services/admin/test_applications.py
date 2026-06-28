@@ -161,8 +161,12 @@ async def test_list_applications_search_by_candidate_name(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
     """`q` matches on candidate full_name (case-insensitive substring)."""
-    c1 = CandidateProfile(full_name="Dina Cohen", email="dina@test.com", phone="050-1111111")
-    c2 = CandidateProfile(full_name="Yossi Levi", email="yossi@test.com", phone="050-2222222")
+    c1 = CandidateProfile(
+        full_name="Dina Cohen", email="dina@test.com", phone="050-1111111"
+    )
+    c2 = CandidateProfile(
+        full_name="Yossi Levi", email="yossi@test.com", phone="050-2222222"
+    )
     session.add_all([c1, c2])
     await session.flush()
     await _make_application(session, company_with_user, c1)
@@ -178,7 +182,9 @@ async def test_list_applications_search_by_email(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
     """`q` matches on candidate email."""
-    c1 = CandidateProfile(full_name="A", email="unique_addr@example.com", phone="050-1111111")
+    c1 = CandidateProfile(
+        full_name="A", email="unique_addr@example.com", phone="050-1111111"
+    )
     c2 = CandidateProfile(full_name="B", email="other@test.com", phone="050-2222222")
     session.add_all([c1, c2])
     await session.flush()
