@@ -16,6 +16,7 @@ import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 import ApplicationAnswerFields from "./ApplicationAnswerFields";
+import ApplicationRelationsPanel from "./ApplicationRelationsPanel";
 import { ALL_STATUSES, APPLICATION_STATUS_SEGMENT_CONFIG, TERMINAL_STATUSES } from "./applicationStatusOptions";
 import { IconArrowRight } from "./TriageIcons";
 
@@ -243,9 +244,9 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
 
       <ApplicationAnswerFields app={app} />
 
-      <p className="border-t border-white/8 pt-4 text-sm text-white/35">
-        {t("admin:applications.record.relationsComingSoon")}
-      </p>
+      <div className="border-t border-white/8 pt-4">
+        <ApplicationRelationsPanel application={app} />
+      </div>
     </div>
   );
 }

@@ -393,7 +393,10 @@
       "emptyHeadline": "בחר מועמדות להצגה",
       "emptyDescription": "בחר מועמדות מהרשימה כדי לצפות בפרטיה.",
       "notFound": "המועמדות לא נמצאה.",
-      "relationsComingSoon": "הקישורים לחברה ולמשרה יתווספו בקרוב."
+      "relationsSection": "קשרים",
+      "relationsCandidate": "מועמד",
+      "relationsJob": "משרה",
+      "relationsCompany": "חברה"
     },
     "triage": {
       "entryButton": "סקירה מהירה",
