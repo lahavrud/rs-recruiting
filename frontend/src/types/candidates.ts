@@ -12,6 +12,7 @@ export interface CandidateProfileRead {
   linkedin_url: string | null;
   created_at: string;
   ai_score: number | null;
+  is_registered: boolean;
 }
 
 /**

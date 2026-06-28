@@ -5,7 +5,14 @@ import re
 from datetime import datetime
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from src.enums import ApplicationStatus
 from src.schemas.jobs import JobRead
@@ -134,6 +141,12 @@ class CandidateProfileRead(BaseModel):
     tos_version: str | None
     created_at: datetime
     ai_score: float | None = None
+    user_id: int | None = Field(default=None, exclude=True)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_registered(self) -> bool:
+        return self.user_id is not None
 
 
 class CandidateMeRead(BaseModel):
