@@ -44,9 +44,29 @@ _purged_counter = _meter.create_counter(
     description="Number of candidate records purged by the retention task",
     unit="1",
 )
+_unactivated_users_counter = _meter.create_counter(
+    name="purged_unactivated_users",
+    description="Unactivated CANDIDATE users deleted by the nightly cleanup",
+    unit="1",
+)
+_export_zips_counter = _meter.create_counter(
+    name="purged_export_zips",
+    description="Expired DataExportRequest rows deleted by the nightly cleanup",
+    unit="1",
+)
+_deletion_tokens_counter = _meter.create_counter(
+    name="purged_deletion_tokens",
+    description="Expired/used AccountDeletionToken rows deleted by the nightly cleanup",
+    unit="1",
+)
+_activation_tokens_counter = _meter.create_counter(
+    name="purged_activation_tokens",
+    description="Stale ActivationToken rows deleted by the nightly cleanup",
+    unit="1",
+)
 _last_purge_ran_gauge = _meter.create_gauge(
     name="last_purge_ran_at",
-    description="Unix timestamp of the last successful retention purge run",
+    description="Unix timestamp of the last successful nightly cleanup run",
     unit="s",
 )
 
@@ -161,21 +181,63 @@ async def build_data_export_task(user_id: int) -> None:
         logger.exception("Failed to enqueue data export notification email")
 
 
-async def purge_expired_candidate_data_task() -> int:
-    """Purge candidates past the 12-month retention window.
+async def nightly_cleanup_task() -> dict:
+    """Nightly data-hygiene dispatcher.
 
-    Triggered nightly by EventBridge Scheduler → SQS.
+    Runs five independent sub-tasks in sequence; a failure in one does not
+    abort the rest. Each sub-task is wrapped in its own transaction.
+
+    Triggered nightly by EventBridge Scheduler → SQS (message task key:
+    ``purge_expired_candidates`` — unchanged from the previous single-task
+    registration for backward compatibility with the existing EventBridge rule).
+
+    Returns a summary dict of counts per sub-task.
     """
-    from rs_shared.services.admin.candidates import purge_expired_candidates
+    from rs_shared.services.admin._candidates_purge import purge_expired_candidates
+    from rs_shared.services.admin.maintenance import (
+        purge_expired_account_deletion_tokens,
+        purge_expired_activation_tokens,
+        purge_expired_data_export_zips,
+        purge_unactivated_candidate_users,
+    )
 
-    async with async_session() as session:
-        async with transactional(session):
-            count = await purge_expired_candidates(session)
-    attrs = {"environment": settings.environment}
-    _purged_counter.add(count, attrs)
-    _last_purge_ran_gauge.set(time.time(), attrs)
-    logger.info("purge_complete", extra={"count": count})
-    return count
+    results: dict[str, int] = {}
+
+    async def _run(name: str, coro) -> int:
+        try:
+            async with async_session() as session:
+                async with transactional(session):
+                    return await coro(session)
+        except Exception:
+            logger.exception("nightly_cleanup_subtask_failed", extra={"subtask": name})
+            return 0
+
+    results["purge_expired_candidates"] = await _run(
+        "purge_expired_candidates", purge_expired_candidates
+    )
+    results["purge_unactivated_users"] = await _run(
+        "purge_unactivated_users", purge_unactivated_candidate_users
+    )
+    results["purge_export_zips"] = await _run(
+        "purge_export_zips", purge_expired_data_export_zips
+    )
+    results["purge_deletion_tokens"] = await _run(
+        "purge_deletion_tokens", purge_expired_account_deletion_tokens
+    )
+    results["purge_activation_tokens"] = await _run(
+        "purge_activation_tokens", purge_expired_activation_tokens
+    )
+
+    attrs_env = {"environment": settings.environment}
+    _purged_counter.add(results["purge_expired_candidates"], attrs_env)
+    _unactivated_users_counter.add(results["purge_unactivated_users"], attrs_env)
+    _export_zips_counter.add(results["purge_export_zips"], attrs_env)
+    _deletion_tokens_counter.add(results["purge_deletion_tokens"], attrs_env)
+    _activation_tokens_counter.add(results["purge_activation_tokens"], attrs_env)
+    _last_purge_ran_gauge.set(time.time(), attrs_env)
+
+    logger.info("nightly_cleanup_complete", extra=results)
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +346,10 @@ async def enqueue_match_candidate_task(candidate_id: int) -> str:
 TASK_REGISTRY: dict = {
     TaskName.SEND_EMAIL: send_email_task,
     TaskName.BUILD_DATA_EXPORT: build_data_export_task,
-    TaskName.PURGE_EXPIRED_CANDIDATES: purge_expired_candidate_data_task,
+    # Wire-format key kept as PURGE_EXPIRED_CANDIDATES for backward compatibility
+    # with the existing EventBridge Scheduler rule. Update the rule to send
+    # "nightly_cleanup" after this deploys.
+    TaskName.PURGE_EXPIRED_CANDIDATES: nightly_cleanup_task,
     TaskName.EMBED_JOB: embed_job_task,
     TaskName.MATCH_CANDIDATE: match_candidate_task,
 }

@@ -39,6 +39,7 @@ from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
 from rs_shared.models import (
+    AccountDeletionToken,  # noqa: F401 -- force SQLModel registration before create_all
     ActivationToken,  # noqa: F401  -- force SQLModel registration before create_all
     Application,
     AuditLog,  # noqa: F401
