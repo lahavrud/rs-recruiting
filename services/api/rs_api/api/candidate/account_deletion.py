@@ -98,7 +98,9 @@ async def request_deletion_anonymous(
 
 
 @router.get("/deletion-confirm")
+@limiter.limit("10/hour")
 async def validate_deletion_token(
+    request: Request,
     token: str,
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -114,7 +116,9 @@ async def validate_deletion_token(
 
 
 @router.post("/deletion-confirm", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/hour")
 async def confirm_deletion_endpoint(
+    request: Request,
     body: _DeletionConfirmBody,
     session: AsyncSession = Depends(get_session),
 ) -> None:
