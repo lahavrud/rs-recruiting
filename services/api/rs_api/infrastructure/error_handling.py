@@ -18,6 +18,7 @@ from rs_shared.services.exceptions import (
     ApplicationAlreadyLockedError,
     ApplicationNotEditableError,
     ApplicationNotFoundError,
+    CandidateAlreadyDeletedError,
     CandidateNotFoundError,
     CompanyNotFoundError,
     CompanyNotPendingError,
@@ -49,6 +50,8 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     CompanyNotFoundError: status.HTTP_404_NOT_FOUND,
     ApplicationNotFoundError: status.HTTP_404_NOT_FOUND,
     CandidateNotFoundError: status.HTTP_404_NOT_FOUND,
+    # Conflict (409)
+    CandidateAlreadyDeletedError: status.HTTP_409_CONFLICT,
     # Conflict errors (409)
     ApplicationAlreadyExistsError: status.HTTP_409_CONFLICT,
     ApplicationAlreadyEditableError: status.HTTP_409_CONFLICT,
@@ -95,6 +98,8 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     ApplicationNotFoundError: "application_not_found",
     CandidateNotFoundError: "candidate_not_found",
     InviteNotFoundError: "invite_not_found",
+    # Conflict
+    CandidateAlreadyDeletedError: "candidate_already_deleted",
     # Conflict
     ApplicationAlreadyExistsError: "already_applied",
     ApplicationAlreadyEditableError: "already_applied_editable",

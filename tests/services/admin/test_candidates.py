@@ -1,7 +1,7 @@
 """Unit tests for the admin candidates service layer."""
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -18,13 +18,17 @@ from rs_shared.models import (
 )
 from rs_shared.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
-    delete_candidate,
+    admin_tombstone_candidate,
     get_candidate,
     list_candidate_activity,
     list_candidates,
     purge_expired_candidates,
 )
-from rs_shared.services.exceptions import CandidateNotFoundError, InvalidCursorError
+from rs_shared.services.exceptions import (
+    CandidateAlreadyDeletedError,
+    CandidateNotFoundError,
+    InvalidCursorError,
+)
 
 
 @pytest.mark.asyncio
@@ -330,16 +334,114 @@ async def test_list_candidate_activity_empty(
     assert page.next_cursor is None
 
 
-# ── delete_candidate ──────────────────────────────────────────────────────────
+# ── list_candidates — new filter params ─────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_delete_candidate_cascades_applications(
+async def test_list_candidates_excludes_deleted_by_default(session: AsyncSession):
+    """Tombstoned profiles are hidden from the default listing."""
+    from datetime import datetime, timezone
+
+    live = CandidateProfile(full_name="Live", email="live@test.com")
+    dead = CandidateProfile(
+        full_name="[מחוק]",
+        email="dead@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add_all([live, dead])
+    await session.commit()
+
+    page = await list_candidates(session)
+    emails = [item.email for item in page.items]
+    assert "live@test.com" in emails
+    assert "dead@deleted" not in emails
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_include_deleted_shows_tombstones(session: AsyncSession):
+    """``include_deleted=True`` surfaces tombstoned profiles."""
+    from datetime import datetime, timezone
+
+    dead = CandidateProfile(
+        full_name="[מחוק]",
+        email="shown@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add(dead)
+    await session.commit()
+
+    page = await list_candidates(session, include_deleted=True)
+    emails = [item.email for item in page.items]
+    assert "shown@deleted" in emails
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_has_account_filter(session: AsyncSession):
+    """``has_account=True`` returns only profiles with a linked User."""
+    user = User(
+        email="linked@test.com",
+        hashed_password="hashed",
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    linked = CandidateProfile(
+        user_id=user.id, full_name="Linked", email="linked@test.com"
+    )
+    anon = CandidateProfile(full_name="Anon", email="anon@test.com")
+    session.add_all([linked, anon])
+    await session.commit()
+
+    only_linked = await list_candidates(session, has_account=True)
+    assert all(item.has_account for item in only_linked.items)
+    assert all(item.email == "linked@test.com" for item in only_linked.items)
+
+    only_anon = await list_candidates(session, has_account=False)
+    assert all(not item.has_account for item in only_anon.items)
+    assert all(item.email == "anon@test.com" for item in only_anon.items)
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_items_include_admin_fields(session: AsyncSession):
+    """Response items carry the ``has_account`` / ``is_deleted`` derived fields."""
+    session.add(CandidateProfile(full_name="Test", email="admin_fields@test.com"))
+    await session.commit()
+
+    page = await list_candidates(session)
+    item = next(i for i in page.items if i.email == "admin_fields@test.com")
+    assert item.has_account is False
+    assert item.is_deleted is False
+    assert item.user_email is None
+
+
+# ── admin_tombstone_candidate ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_preserves_profile_row(
     session: AsyncSession, candidate_profile: CandidateProfile
 ):
-    # Build a published job so we can attach an application
+    """Tombstone leaves the profile row intact with deleted_at set."""
+    storage = MagicMock()
+    storage.delete_file = AsyncMock()
+
+    await admin_tombstone_candidate(candidate_profile.id, session, storage=storage)
+    await session.flush()
+
+    row = await session.get(CandidateProfile, candidate_profile.id)
+    assert row is not None
+    assert row.deleted_at is not None
+    assert row.full_name == "[מחוק]"
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_preserves_applications(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    """Applications are retained (with resume_path NULLed), not cascaded-deleted."""
     user = User(
-        email="c-deltest@test.com",
+        email="c-tombtest@test.com",
         hashed_password="hashed",
         role=UserRole.COMPANY,
         is_active=True,
@@ -348,7 +450,7 @@ async def test_delete_candidate_cascades_applications(
     await session.flush()
     company = CompanyProfile(
         user_id=user.id,
-        name="DelTest Co",
+        name="Tomb Co",
         company_id="123456789",
         contact_email=user.email,
         contact_first_name="א",
@@ -371,39 +473,29 @@ async def test_delete_candidate_cascades_applications(
     )
     session.add(job)
     await session.flush()
-    session.add(
-        Application(
-            job_id=job.id,
-            candidate_id=candidate_profile.id,
-            status=ApplicationStatus.NEW,
-        )
+    app = Application(
+        job_id=job.id,
+        candidate_id=candidate_profile.id,
+        status=ApplicationStatus.NEW,
+        resume_path="resumes/cv.pdf",
     )
+    session.add(app)
     await session.commit()
+    await session.refresh(app)
+    app_id = app.id
 
-    with patch(
-        "rs_shared.services.admin.candidates.get_storage_provider"
-    ) as storage_factory:
-        # delete_candidate calls get_storage_provider(); make it return a noop.
-        storage_factory.return_value.delete_file = AsyncMock()
-        await delete_candidate(candidate_profile.id, session)
-        await session.commit()
+    storage = MagicMock()
+    storage.delete_file = AsyncMock()
+    await admin_tombstone_candidate(candidate_profile.id, session, storage=storage)
+    await session.flush()
 
-    candidate_row = await session.execute(
-        select(CandidateProfile).where(  # pyright: ignore[reportArgumentType]
-            CandidateProfile.id == candidate_profile.id
-        )
-    )
-    assert candidate_row.scalar_one_or_none() is None
-    app_row = await session.execute(
-        select(Application).where(  # pyright: ignore[reportArgumentType]
-            Application.candidate_id == candidate_profile.id
-        )
-    )
-    assert app_row.scalar_one_or_none() is None
+    app_row = await session.get(Application, app_id)
+    assert app_row is not None
+    assert app_row.resume_path is None
 
 
 @pytest.mark.asyncio
-async def test_delete_candidate_with_resume_calls_storage(session: AsyncSession):
+async def test_admin_tombstone_with_resume_calls_storage(session: AsyncSession):
     candidate = CandidateProfile(
         full_name="Resume Holder",
         email="resume@test.com",
@@ -414,20 +506,40 @@ async def test_delete_candidate_with_resume_calls_storage(session: AsyncSession)
     await session.commit()
     await session.refresh(candidate)
 
-    with patch(
-        "rs_shared.services.admin.candidates.get_storage_provider"
-    ) as storage_factory:
-        delete_mock = AsyncMock()
-        storage_factory.return_value.delete_file = delete_mock
-        await delete_candidate(candidate.id, session)
-        await session.commit()
-        delete_mock.assert_awaited_once_with("resumes/2026/05/abc.pdf")
+    delete_mock = AsyncMock()
+    storage = MagicMock()
+    storage.delete_file = delete_mock
+
+    await admin_tombstone_candidate(candidate.id, session, storage=storage)
+    await session.commit()
+    delete_mock.assert_awaited_once_with("resumes/2026/05/abc.pdf")
 
 
 @pytest.mark.asyncio
-async def test_delete_candidate_not_found(session: AsyncSession):
+async def test_admin_tombstone_not_found(session: AsyncSession):
+    storage = MagicMock()
+    storage.delete_file = AsyncMock()
     with pytest.raises(CandidateNotFoundError):
-        await delete_candidate(99999, session)
+        await admin_tombstone_candidate(99999, session, storage=storage)
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_already_deleted_raises(session: AsyncSession):
+    from datetime import datetime, timezone
+
+    candidate = CandidateProfile(
+        full_name="[מחוק]",
+        email="already@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(candidate)
+
+    storage = MagicMock()
+    storage.delete_file = AsyncMock()
+    with pytest.raises(CandidateAlreadyDeletedError):
+        await admin_tombstone_candidate(candidate.id, session, storage=storage)
 
 
 # ── purge_expired_candidates ──────────────────────────────────────────────────

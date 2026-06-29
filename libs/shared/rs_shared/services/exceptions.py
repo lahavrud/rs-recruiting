@@ -205,3 +205,9 @@ class InvalidAccountDeletionTokenError(AuthError):
     """Raised when an account deletion token is invalid, expired, or already used."""
 
     pass
+
+
+class CandidateAlreadyDeletedError(Exception):
+    """Raised when attempting to tombstone an already-deleted candidate profile."""
+
+    pass
