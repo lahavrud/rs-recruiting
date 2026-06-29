@@ -23,6 +23,7 @@ from rs_shared.services.exceptions import (
     CompanyNotPendingError,
     EmailAlreadyExistsError,
     InactiveUserError,
+    InvalidAccountDeletionTokenError,
     InvalidActivationTokenError,
     InvalidApplicationStatusTransitionError,
     InvalidCredentialsError,
@@ -57,9 +58,10 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     EmailAlreadyExistsError: status.HTTP_409_CONFLICT,
     # Forbidden errors (403)
     JobNotOwnedByCompanyError: status.HTTP_403_FORBIDDEN,
-    # Bad request — invalid activation token
+    # Bad request — invalid tokens
     InvalidActivationTokenError: status.HTTP_400_BAD_REQUEST,
     InvalidPasswordResetTokenError: status.HTTP_400_BAD_REQUEST,
+    InvalidAccountDeletionTokenError: status.HTTP_400_BAD_REQUEST,
     # Unauthorized errors (401) — all login failures return 401 regardless of
     # account state, so HTTP status code alone cannot confirm registration.
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
@@ -107,6 +109,7 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     InvalidPasswordResetTokenError: (
         "invalid_password_reset_token"  # pragma: allowlist secret
     ),
+    InvalidAccountDeletionTokenError: "invalid_deletion_token",
     InvalidCredentialsError: "invalid_credentials",
     InactiveUserError: "inactive_user",
     PendingApprovalError: "pending_approval",

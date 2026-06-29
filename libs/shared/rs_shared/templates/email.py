@@ -404,3 +404,12 @@ def build_data_export_ready_html(download_url: str, ttl_hours: int) -> str:
         download_url=download_url,
         ttl_hours=ttl_hours,
     )
+
+
+def build_account_deletion_confirmation_html(confirm_url: str) -> str:
+    return _render(
+        "account_deletion_confirmation.html",
+        subject="אישור מחיקת חשבון — RS Recruiting",
+        preheader="קיבלנו בקשה למחיקת חשבונכם. לחצו לאישור — הפעולה בלתי הפיכה.",
+        confirm_url=confirm_url,
+    )

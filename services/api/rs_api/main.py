@@ -50,6 +50,7 @@ from rs_api.api.auth import (
     login as auth,
 )
 from rs_api.api.auth import sessions as auth_sessions
+from rs_api.api.candidate import account_deletion as candidate_account_deletion
 from rs_api.api.candidate import applications as candidate_applications
 from rs_api.api.candidate import data_export as candidate_data_export
 from rs_api.api.candidate import profile as candidate_profile
@@ -203,6 +204,7 @@ app.include_router(companies.router)
 app.include_router(company_jobs.router)
 app.include_router(candidate_profile.router)
 app.include_router(candidate_data_export.router)
+app.include_router(candidate_account_deletion.router)
 app.include_router(candidate_applications.router)
 app.include_router(public.router)
 app.include_router(candidates.router)

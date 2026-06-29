@@ -199,3 +199,9 @@ class ApplicationNotEditableError(Exception):
     no longer NEW. WITHDRAWN applications map to 404 (invisible) instead."""
 
     pass
+
+
+class InvalidAccountDeletionTokenError(AuthError):
+    """Raised when an account deletion token is invalid, expired, or already used."""
+
+    pass
