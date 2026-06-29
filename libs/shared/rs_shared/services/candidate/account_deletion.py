@@ -127,10 +127,12 @@ async def _load_active_deletion_token(
 ) -> AccountDeletionToken:
     """Load a deletion token only if it is still usable (not used, not expired)."""
     result = await session.execute(
-        select(AccountDeletionToken).where(
+        select(AccountDeletionToken)
+        .where(
             AccountDeletionToken.token_hash  # pyright: ignore[reportArgumentType]
             == hash_token(raw_token)
         )
+        .with_for_update()
     )
     record = result.scalar_one_or_none()
     if record is None or record.used:
@@ -177,7 +179,15 @@ async def confirm_deletion(
 
     profile = await session.get(CandidateProfile, token.candidate_profile_id)
     if profile is None:
-        # Profile already hard-deleted — treat as success (idempotent edge case).
+        # FK CASCADE should have removed the token too; treat as success.
+        return
+
+    if profile.deleted_at is not None:
+        # Admin already tombstoned this profile — acknowledge without re-running.
+        logger.info(
+            "account_deletion_confirm_noop_already_tombstoned",
+            extra={"profile_id": profile.id},
+        )
         return
 
     # NULL application resume snapshots (preserve application rows themselves).
