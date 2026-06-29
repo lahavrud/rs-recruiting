@@ -103,7 +103,7 @@ async def request_account_deletion(
     )
 
     confirm_url = (
-        f"{settings.frontend_base_url}/account/delete-confirm?token={raw_token}"
+        f"{settings.frontend_base_url}/candidate/delete-account?token={raw_token}"
     )
     recipient = profile.email
     html = build_account_deletion_confirmation_html(confirm_url=confirm_url)
