@@ -189,7 +189,7 @@ jobs:
         # -n auto: pytest-xdist creates one worker per CPU. tests/conftest.py
         # provisions a per-worker DB so the autouse table.delete() cleanup
         # does not race across workers.
-        run: uv run pytest -n auto --cov=src --cov-report=xml --cov-report=term
+        run: uv run pytest -n auto --cov=rs_shared --cov=rs_api --cov=rs_worker --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
         if: always() && needs.detect-changes.outputs.backend == 'true'
