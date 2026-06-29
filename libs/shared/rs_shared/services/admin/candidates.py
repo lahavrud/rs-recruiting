@@ -1,7 +1,6 @@
 """Admin service functions for candidate management."""
 
 import logging
-from datetime import datetime, timezone
 from typing import Literal
 
 from sqlalchemy import and_, or_, select, update
@@ -32,6 +31,7 @@ from rs_shared.services.admin._candidates_purge import (
 from rs_shared.services.admin._candidates_purge import (
     purge_expired_candidates as purge_expired_candidates,
 )
+from rs_shared.services.candidate.account_deletion import _scrub_candidate_pii
 from rs_shared.services.exceptions import (
     CandidateAlreadyDeletedError,
     CandidateNotFoundError,
@@ -385,7 +385,7 @@ async def admin_tombstone_candidate(
     await session.execute(
         update(Application)
         .where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
-        .values(resume_path=None)
+        .values(resume_path=None, resume_filename=None, resume_hash=None)
     )
 
     # Best-effort resume storage delete.
@@ -402,20 +402,7 @@ async def admin_tombstone_candidate(
     linked_user_id = candidate.user_id
 
     # Tombstone: scrub all PII, mark deleted.
-    now = datetime.now(timezone.utc)
-    candidate.deleted_at = now
-    candidate.full_name = "[מחוק]"
-    candidate.email = f"deleted-{candidate.id}@deleted"
-    candidate.phone = None
-    candidate.resume_path = None
-    candidate.resume_filename = None
-    candidate.resume_hash = None
-    candidate.parsed_text = None
-    candidate.resume_summary = None
-    candidate.embedding = None
-    candidate.linkedin_url = None
-    candidate.consent_ip = None
-    candidate.consent_user_agent = None
+    _scrub_candidate_pii(candidate)
 
     # Hard-delete linked User.  FK SET NULL cascade updates profile.user_id;
     # FK CASCADE cleans up RefreshToken, PasswordResetToken, etc.
