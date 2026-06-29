@@ -20,7 +20,7 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
 import { deleteCandidate, getCandidates } from "@/services/adminCandidates";
 import { getJobs } from "@/services/adminJobs";
-import type { CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead } from "@/types/candidates";
 import type { JobRead } from "@/types/jobs";
 
 import CandidateRecordPane from "./components/CandidateRecordPane";
@@ -48,6 +48,7 @@ export default function AdminCandidatesPage() {
   // AI score sort
   const [scoreSort, setScoreSort] = useState(false);
   const [scoreSortJobId, setScoreSortJobId] = useState<number | null>(null);
+  const [includeDeleted, setIncludeDeleted] = useState(false);
   const [jobs, setJobs] = useState<Pick<JobRead, "id" | "title">[]>([]);
 
   useEffect(() => {
@@ -59,17 +60,24 @@ export default function AdminCandidatesPage() {
   }, []);
 
   const fetcher = useCallback(
-    (cursor: string | null): Promise<CursorPage<CandidateProfileRead>> => {
+    (cursor: string | null): Promise<CursorPage<CandidateAdminRead>> => {
       if (scoreSort && scoreSortJobId != null) {
         return getCandidates({
           q: debouncedQuery.trim() || undefined,
           sort: "score",
           job_id: scoreSortJobId,
+          include_deleted: includeDeleted || undefined,
         });
       }
-      return getCandidates({ cursor, q: debouncedQuery.trim() || undefined, sort, order });
+      return getCandidates({
+        cursor,
+        q: debouncedQuery.trim() || undefined,
+        sort,
+        order,
+        include_deleted: includeDeleted || undefined,
+      });
     },
-    [debouncedQuery, sort, order, scoreSort, scoreSortJobId],
+    [debouncedQuery, sort, order, scoreSort, scoreSortJobId, includeDeleted],
   );
 
   const {
@@ -80,9 +88,9 @@ export default function AdminCandidatesPage() {
     sentinelRef,
     reload,
     removeItem,
-  } = useInfiniteList<CandidateProfileRead>(fetcher);
+  } = useInfiniteList<CandidateAdminRead>(fetcher);
 
-  const [deletePending, setDeletePending] = useState<CandidateProfileRead | null>(null);
+  const [deletePending, setDeletePending] = useState<CandidateAdminRead | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
 
   useEffect(() => {
@@ -102,8 +110,17 @@ export default function AdminCandidatesPage() {
       if (selectedId === deletePending.id) {
         navigate("/admin/candidates");
       }
-    } catch {
-      toast.error(t("admin:candidates.errors.deleteFailed"));
+    } catch (err) {
+      const isAlreadyDeleted =
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        (err as { response?: { status?: number } }).response?.status === 409;
+      toast.error(
+        isAlreadyDeleted
+          ? t("admin:candidates.errors.alreadyDeleted")
+          : t("admin:candidates.errors.deleteFailed"),
+      );
     } finally {
       setPendingDelete(false);
     }
@@ -169,7 +186,7 @@ export default function AdminCandidatesPage() {
   const jobOptions = jobs.map((j) => ({ value: j.id, label: j.title }));
 
   const aiSortPanel = (
-    <div className="mb-3 flex items-center gap-2">
+    <div className="mb-3 flex flex-wrap items-center gap-2">
       <button
         type="button"
         onClick={() => {
@@ -213,6 +230,20 @@ export default function AdminCandidatesPage() {
           ]}
         />
       )}
+
+      <button
+        type="button"
+        onClick={() => setIncludeDeleted((v) => !v)}
+        className={[
+          "ms-auto inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+          includeDeleted
+            ? "border-danger/40 bg-danger/10 text-danger/80"
+            : "border-white/12 bg-card-raised/40 text-white/40 hover:border-white/20 hover:text-white/60",
+        ].join(" ")}
+        aria-pressed={includeDeleted}
+      >
+        {t("admin:candidates.showDeletedToggle")}
+      </button>
     </div>
   );
 

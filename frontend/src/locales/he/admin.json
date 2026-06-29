@@ -495,11 +495,16 @@
     "pushError": "יצירת המועמדות נכשלה. נסו שוב.",
     "pushAlreadyApplied": "מועמדות כבר קיימת עבור צמד זה.",
     "deleteConfirmTitle": "מחיקת מועמד – {{name}}",
-    "deleteConfirmMessage": "פעולה זו תמחק לצמיתות את המועמד, את כל המועמדויות שלו ואת קובץ קורות החיים שלו מהמאגר. לא ניתן לבטל פעולה זו.",
+    "deleteConfirmMessage": "פעולה זו תמחק לצמיתות את כל הנתונים האישיים של המועמד ואת קורות החיים שלו. המועמדויות יישמרו ללא שם. לא ניתן לבטל פעולה זו.",
     "deleteConfirmYes": "כן, מחק",
     "deletedToast": "המועמד נמחק",
+    "showDeletedToggle": "הצג מועמדים שנמחקו",
+    "statusAccount": "בעל חשבון",
+    "statusDeleted": "נמחק",
+    "userEmailLabel": "דוא\"ל חשבון",
     "errors": {
       "deleteFailed": "מחיקת המועמד נכשלה. נסה שוב.",
+      "alreadyDeleted": "מועמד זה כבר נמחק.",
       "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה.",
       "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."
     },

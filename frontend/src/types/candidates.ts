@@ -15,6 +15,24 @@ export interface CandidateProfileRead {
   is_registered: boolean;
 }
 
+/** Mirrors backend CandidateAdminRead — richer admin view with account + tombstone fields. */
+export interface CandidateAdminRead {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  resume_path: string | null;
+  resume_summary: string | null;
+  linkedin_url: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  ai_score: number | null;
+  has_account: boolean;
+  is_deleted: boolean;
+  user_email: string | null;
+  user_is_active: boolean | null;
+}
+
 /**
  * Form input shape for the application form.
  * Submitted as multipart/form-data to POST /api/candidates/apply.

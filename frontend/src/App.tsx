@@ -82,6 +82,9 @@ const CandidateApplicationsPage = lazyWithRetry(
 const CandidateApplicationDetailPage = lazyWithRetry(
   () => import("@/pages/candidate/CandidateApplicationDetailPage"),
 );
+const DeleteAccountConfirmPage = lazyWithRetry(
+  () => import("@/pages/candidate/DeleteAccountConfirmPage"),
+);
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -379,6 +382,16 @@ export default function App() {
                         <CandidateApplicationDetailPage />
                       </RouteErrorBoundary>
                     </CandidateRoute>
+                  }
+                />
+
+                {/* Account deletion confirmation — public, accessed via emailed link */}
+                <Route
+                  path="/candidate/delete-account"
+                  element={
+                    <RouteErrorBoundary>
+                      <DeleteAccountConfirmPage />
+                    </RouteErrorBoundary>
                   }
                 />
 

@@ -9,15 +9,15 @@ import DropdownMenu, {
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import { useScrollSelectedIntoView } from "@/hooks/useScrollSelectedIntoView";
-import type { CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 
 interface CandidatesRailListProps {
-  candidates: CandidateProfileRead[];
+  candidates: CandidateAdminRead[];
   selectedId?: number | null;
   showScore?: boolean;
-  onView: (c: CandidateProfileRead) => void;
-  onDelete: (c: CandidateProfileRead) => void;
+  onView: (c: CandidateAdminRead) => void;
+  onDelete: (c: CandidateAdminRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
   isFetchingMore: boolean;
 }
@@ -32,7 +32,7 @@ export default function CandidatesRailList({
   sentinelRef,
   isFetchingMore,
 }: CandidatesRailListProps) {
-  const { t } = useTranslation('admin');
+  const { t } = useTranslation("admin");
   const rowRef = useScrollSelectedIntoView(selectedId, candidates);
 
   return (
@@ -52,28 +52,39 @@ export default function CandidatesRailList({
                 <DropdownMenuItem onSelect={() => onView(c)}>
                   {t("admin:candidates.viewAction")}
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() =>
-                    window.open(
-                      `mailto:${c.email}?subject=${encodeURIComponent(
-                        t("admin:candidates.emailSubject", { name: c.full_name }),
-                      )}`,
-                      "_self",
-                    )
-                  }
-                >
-                  {t("admin:candidates.emailAction")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
-                  {t("admin:candidates.deleteAction")}
-                </DropdownMenuItem>
+                {!c.is_deleted && (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      window.open(
+                        `mailto:${c.email}?subject=${encodeURIComponent(
+                          t("admin:candidates.emailSubject", { name: c.full_name }),
+                        )}`,
+                        "_self",
+                      )
+                    }
+                  >
+                    {t("admin:candidates.emailAction")}
+                  </DropdownMenuItem>
+                )}
+                {!c.is_deleted && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
+                      {t("admin:candidates.deleteAction")}
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenu>
             }
           >
-            <div className="min-w-0 flex-1">
+            <div className={`min-w-0 flex-1 ${c.is_deleted ? "opacity-50" : ""}`}>
               <div className="flex items-center gap-2">
                 <p className="truncate font-medium text-white/85">{c.full_name}</p>
+                {c.is_deleted && (
+                  <span className="shrink-0 rounded bg-danger/15 px-1 py-0.5 text-[9px] font-medium text-danger/70">
+                    {t("admin:candidates.statusDeleted")}
+                  </span>
+                )}
                 {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
               </div>
               {c.resume_summary ? (
@@ -81,7 +92,6 @@ export default function CandidatesRailList({
               ) : (
                 <p className="truncate text-xs text-white/40">{c.email}</p>
               )}
-
             </div>
             <span className="shrink-0 text-[11px] text-white/40">
               {formatDate(c.created_at)}

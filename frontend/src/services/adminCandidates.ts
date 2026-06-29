@@ -1,7 +1,7 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
 import type { CandidateActivityEvent } from "@/types/audit";
-import type { CandidateJobMatchRead, CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead, CandidateJobMatchRead } from "@/types/candidates";
 
 export interface CandidateListParams {
   cursor?: string | null;
@@ -13,20 +13,24 @@ export interface CandidateSearchParams extends CandidateListParams {
   sort?: "name" | "created_at" | "score";
   order?: "asc" | "desc";
   job_id?: number | null;
+  has_account?: boolean | null;
+  include_deleted?: boolean;
 }
 
 export async function getCandidates(
   params?: CandidateSearchParams,
   signal?: AbortSignal,
-): Promise<CursorPage<CandidateProfileRead>> {
-  const query: Record<string, string | number> = {};
+): Promise<CursorPage<CandidateAdminRead>> {
+  const query: Record<string, string | number | boolean> = {};
   if (params?.cursor) query.cursor = params.cursor;
   if (params?.limit != null) query.limit = params.limit;
   if (params?.q) query.q = params.q;
   if (params?.sort) query.sort = params.sort;
   if (params?.order) query.order = params.order;
   if (params?.job_id != null) query.job_id = params.job_id;
-  const res = await api.get<CursorPage<CandidateProfileRead>>("/api/admin/candidates", {
+  if (params?.has_account != null) query.has_account = params.has_account;
+  if (params?.include_deleted) query.include_deleted = true;
+  const res = await api.get<CursorPage<CandidateAdminRead>>("/api/admin/candidates", {
     params: query,
     signal,
   });
@@ -36,8 +40,8 @@ export async function getCandidates(
 export async function getCandidate(
   id: number,
   signal?: AbortSignal,
-): Promise<CandidateProfileRead> {
-  const res = await api.get<CandidateProfileRead>(`/api/admin/candidates/${id}`, {
+): Promise<CandidateAdminRead> {
+  const res = await api.get<CandidateAdminRead>(`/api/admin/candidates/${id}`, {
     signal,
   });
   return res.data;
