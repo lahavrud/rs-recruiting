@@ -3,6 +3,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 
+import Button from "@/components/ui/Button";
 import SettingsCard from "@/components/ui/SettingsCard";
 import { requestAccountDeletion } from "@/services/candidate";
 
@@ -66,16 +67,16 @@ export default function AccountDeletionSection() {
               <span className="text-danger">{error}</span>
             )}
           </div>
-          <button
-            type="button"
+          <Button
+            variant="danger"
+            size="sm"
             disabled={busy || state === "sent"}
             onClick={handleRequest}
-            className="rounded-sm border border-danger/30 px-3 py-1.5 text-xs text-danger/70 transition hover:border-danger/50 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy
               ? t("candidate:profile.deletion.requesting")
               : t("candidate:profile.deletion.request")}
-          </button>
+          </Button>
         </div>
       </div>
     </SettingsCard>
