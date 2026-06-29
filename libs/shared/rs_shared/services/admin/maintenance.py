@@ -58,13 +58,9 @@ async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
     now = datetime.now(timezone.utc)
 
     # Users who still have a valid pending token are exempt.
-    has_valid_token_subq = (
-        select(ActivationToken.user_id)
-        .where(
-            ActivationToken.used == False,  # noqa: E712
-            ActivationToken.expires_at > now,
-        )
-        .subquery()
+    has_valid_token_subq = select(ActivationToken.user_id).where(
+        ActivationToken.used == False,  # noqa: E712
+        ActivationToken.expires_at > now,
     )
 
     eligible = list(
@@ -74,7 +70,7 @@ async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
                     User.role == UserRole.CANDIDATE,
                     User.is_active == False,  # noqa: E712
                     User.created_at < cutoff,
-                    User.id.notin_(select(has_valid_token_subq)),  # type: ignore[attr-defined]
+                    User.id.notin_(has_valid_token_subq),  # type: ignore[attr-defined]
                 )
             )
         )
@@ -82,16 +78,16 @@ async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
         .all()
     )
 
-    for user in eligible:
-        _logger.info("cleanup.unactivated_user user_id=%d", user.id)
-        await session.delete(user)
-
-    await session.flush()
-    if eligible:
+    user_ids = [u.id for u in eligible]
+    if user_ids:
+        for uid in user_ids:
+            _logger.info("cleanup.unactivated_user user_id=%d", uid)
+        await session.execute(delete(User).where(User.id.in_(user_ids)))  # type: ignore[attr-defined]
+        await session.flush()
         _logger.info(
-            "purge_unactivated_candidate_users: removed %d users", len(eligible)
+            "purge_unactivated_candidate_users: removed %d users", len(user_ids)
         )
-    return len(eligible)
+    return len(user_ids)
 
 
 async def purge_expired_data_export_zips(session: AsyncSession) -> int:
