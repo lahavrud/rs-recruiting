@@ -85,7 +85,7 @@ services:
   api:
     image: ${ECR_REGISTRY}/rs-recruiting/api:${IMAGE_TAG}
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=prod
       - SENTRY_RELEASE=${IMAGE_TAG}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-alloy:4317
       # Trust nginx's pinned IP (see `networks.default.ipam` + the nginx
@@ -119,7 +119,7 @@ services:
     image: ${ECR_REGISTRY}/rs-recruiting/worker:${IMAGE_TAG}
     command: ["rs-worker"]
     environment:
-      - ENVIRONMENT=production
+      - ENVIRONMENT=prod
       - SENTRY_RELEASE=${IMAGE_TAG}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://grafana-alloy:4317
     networks:

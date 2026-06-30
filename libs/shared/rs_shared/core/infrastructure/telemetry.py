@@ -48,7 +48,7 @@ def configure_telemetry(
         return
 
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
-    env = deployment_environment or os.environ.get("ENVIRONMENT", "development")
+    env = deployment_environment or os.environ.get("ENVIRONMENT", "dev")
 
     resource = Resource.create(
         {

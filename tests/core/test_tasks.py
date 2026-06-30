@@ -243,14 +243,14 @@ async def test_purge_task_records_otel_metrics():
         patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
         patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
-        mock_settings.environment = "production"
+        mock_settings.environment = "prod"
         result = await purge_expired_candidate_data_task()
 
     assert result == 7
-    counter.add.assert_called_once_with(7, {"environment": "production"})
+    counter.add.assert_called_once_with(7, {"environment": "prod"})
     gauge.set.assert_called_once()
     _, attrs = gauge.set.call_args[0]
-    assert attrs == {"environment": "production"}
+    assert attrs == {"environment": "prod"}
 
 
 @pytest.mark.asyncio
@@ -266,11 +266,11 @@ async def test_purge_task_records_zero_count():
         patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
         patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
-        mock_settings.environment = "production"
+        mock_settings.environment = "prod"
         result = await purge_expired_candidate_data_task()
 
     assert result == 0
-    counter.add.assert_called_once_with(0, {"environment": "production"})
+    counter.add.assert_called_once_with(0, {"environment": "prod"})
     gauge.set.assert_called_once()
 
 
@@ -285,7 +285,7 @@ async def test_purge_task_returns_count_in_all_environments():
         patch("rs_shared.core.tasks._last_purge_ran_gauge"),
         patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
-        mock_settings.environment = "development"
+        mock_settings.environment = "dev"
         result = await purge_expired_candidate_data_task()
 
     assert result == 3

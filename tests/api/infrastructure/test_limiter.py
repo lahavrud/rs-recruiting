@@ -91,7 +91,7 @@ class TestLimiterTestingMode:
 
         try:
             settings.testing = False
-            settings.environment = "production"
+            settings.environment = "prod"
             limiter = get_limiter()
             assert limiter.enabled is True
         finally:
@@ -105,7 +105,7 @@ class TestLimiterTestingMode:
 
         try:
             settings.testing = False
-            settings.environment = "development"
+            settings.environment = "dev"
             limiter = get_limiter()
             assert limiter.enabled is False
         finally:

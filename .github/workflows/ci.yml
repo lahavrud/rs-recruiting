@@ -333,7 +333,7 @@ jobs:
           try:
               data = json.load(sys.stdin)
               assert data['status'] == 'ok', f'Unexpected status: {data.get(\"status\")}'
-              assert data['environment'] == 'development', f'Unexpected env: {data.get(\"environment\")}'
+              assert data['environment'] == 'dev', f'Unexpected env: {data.get(\"environment\")}'
               print('✅ Health endpoint verified')
           except Exception as e:
               print(f'❌ Verification failed: {e}')

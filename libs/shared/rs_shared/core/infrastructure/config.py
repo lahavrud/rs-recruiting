@@ -56,10 +56,9 @@ class SsmSettingsSource(PydanticBaseSettingsSource):
 
 
 def _ssm_path_prefix() -> str:
-    # Map ENVIRONMENT value to the SSM path segment (production → prod)
-    env = os.environ.get("ENVIRONMENT", "development")
-    segment = {"production": "prod"}.get(env, env)
-    return f"/rs-recruiting/{segment}/"
+    # ENVIRONMENT is the SSM path segment directly (dev / staging / prod).
+    env = os.environ.get("ENVIRONMENT", "dev")
+    return f"/rs-recruiting/{env}/"
 
 
 class Settings(BaseSettings):
@@ -173,7 +172,7 @@ class Settings(BaseSettings):
     # account, HTTP-only). It behaves like production — loads config from SSM,
     # enforces rate limiting and the FRONTEND_BASE_URL check — except where its
     # plain-HTTP ingress forces a difference (see _is_refresh_cookie_secure).
-    environment: Literal["development", "staging", "production"] = "development"
+    environment: Literal["dev", "staging", "prod"] = "dev"
 
     # Trusted reverse-proxy IPs/CIDRs.
     # Comma-separated list of IP addresses or CIDR ranges whose X-Forwarded-For
@@ -209,7 +208,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        if os.environ.get("ENVIRONMENT") in ("production", "staging"):
+        if os.environ.get("ENVIRONMENT") in ("prod", "staging"):
             return (
                 init_settings,
                 SsmSettingsSource(settings_cls, _ssm_path_prefix()),
@@ -260,7 +259,7 @@ def validate_settings() -> None:
         raise ValueError("AWS_SES_FROM_EMAIL must be set when EMAIL_PROVIDER=ses")
 
     # Validate frontend base URL in deployed environments
-    if settings.environment in ("production", "staging") and (
+    if settings.environment in ("prod", "staging") and (
         "localhost" in settings.frontend_base_url
         or "127.0.0.1" in settings.frontend_base_url
     ):

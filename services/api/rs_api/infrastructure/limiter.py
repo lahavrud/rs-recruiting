@@ -23,7 +23,7 @@ def get_limiter() -> Limiter:
     production and staging environments.
     """
     enabled = not settings.testing and settings.environment in (
-        "production",
+        "prod",
         "staging",
     )
     return Limiter(
