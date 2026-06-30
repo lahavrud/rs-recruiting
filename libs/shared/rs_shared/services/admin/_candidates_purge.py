@@ -54,11 +54,15 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     ).subquery()
 
     # Eligible: candidates with at least one application AND zero
-    # preserve-flagging applications.
+    # preserve-flagging applications. Tombstoned profiles are excluded —
+    # their Application rows must survive for recruiting-history purposes.
     eligible_query = (
         select(CandidateProfile)
         .join(Application, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
-        .where(CandidateProfile.id.notin_(select(preserved_ids_subq)))  # pyright: ignore[attr-defined]
+        .where(
+            CandidateProfile.id.notin_(select(preserved_ids_subq)),  # pyright: ignore[attr-defined]
+            CandidateProfile.deleted_at.is_(None),
+        )
         .distinct()
     )
 
