@@ -82,7 +82,12 @@ async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
     if user_ids:
         for uid in user_ids:
             _logger.info("cleanup.unactivated_user user_id=%d", uid)
-        await session.execute(delete(User).where(User.id.in_(user_ids)))  # type: ignore[attr-defined]
+        await session.execute(
+            delete(User).where(
+                User.id.in_(user_ids),  # type: ignore[attr-defined]
+                User.is_active.is_(False),
+            )
+        )
         await session.flush()
         _logger.info(
             "purge_unactivated_candidate_users: removed %d users", len(user_ids)
