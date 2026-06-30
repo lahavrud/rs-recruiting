@@ -62,12 +62,12 @@ async def request_deletion_authenticated(
 
     Sends a confirmation email with a 24-hour link. Always 202.
     """
-    user, _profile = current
+    user, profile = current
     ip = request.client.host if request.client else None
 
     async with transactional(session):
         await request_account_deletion(
-            user.email,
+            profile.email,
             session,
             ip_address=ip,
         )
