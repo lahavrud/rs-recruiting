@@ -20,7 +20,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
@@ -99,6 +99,13 @@ async def request_account_deletion(
     profile = result.scalar_one_or_none()
     if profile is None or profile.id is None or profile.deleted_at is not None:
         return
+
+    # Serialize concurrent requests for the same profile so that the rate-limit
+    # count check and the token insert are effectively atomic. The lock is
+    # transaction-scoped and released automatically on commit/rollback.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)").bindparams(key=profile.id)
+    )
 
     if not await _rate_limit_ok(profile.id, session):
         logger.info(
