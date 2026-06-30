@@ -460,6 +460,16 @@ async def session(test_db) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
+def session_local_factory():
+    """Provides the async session factory for tests that need direct session control.
+
+    Use this instead of importing TestSessionLocal directly from conftest — a
+    direct import violates the no-cross-test-import rule.
+    """
+    return TestSessionLocal
+
+
+@pytest.fixture
 def mock_s3_bucket():
     """Fixture providing mock S3 bucket configuration.
 

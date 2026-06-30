@@ -26,7 +26,6 @@ from rs_shared.services.candidate.account_deletion import (
     request_account_deletion,
 )
 from rs_shared.services.exceptions import InvalidAccountDeletionTokenError
-from tests.conftest import TestSessionLocal
 
 _NOW = datetime.now(timezone.utc)
 
@@ -444,9 +443,9 @@ async def test_confirm_deletion_works_for_anonymous_profile(session):
 
 
 @pytest.mark.asyncio
-async def test_confirm_deletion_token_reuse_raises(session):
+async def test_confirm_deletion_token_reuse_raises(session_local_factory):
     """Consuming a token marks it used; replaying the same raw token must fail."""
-    async with TestSessionLocal() as s1:
+    async with session_local_factory() as s1:
         user = await _make_user(s1, email="reuse@test.com")
         profile = await _make_profile(s1, user=user, email="reuse@test.com")
         raw, rec = _make_deletion_token_row(profile)
@@ -454,10 +453,10 @@ async def test_confirm_deletion_token_reuse_raises(session):
         await s1.commit()
 
     storage = _mock_storage()
-    async with TestSessionLocal() as s2:
+    async with session_local_factory() as s2:
         await confirm_deletion(raw, s2, storage=storage)
         await s2.commit()
 
-    async with TestSessionLocal() as s3:
+    async with session_local_factory() as s3:
         with pytest.raises(InvalidAccountDeletionTokenError):
             await confirm_deletion(raw, s3, storage=storage)

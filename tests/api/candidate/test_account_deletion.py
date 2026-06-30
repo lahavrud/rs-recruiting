@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_api.infrastructure.dependencies import get_current_candidate
 from rs_api.main import app
@@ -15,14 +16,8 @@ from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import get_password_hash, hash_token
 from rs_shared.enums import UserRole
 from rs_shared.models import AccountDeletionToken, CandidateProfile, User
-from tests.conftest import TestSessionLocal
 
 _NOW = datetime.now(timezone.utc)
-
-
-async def _override_session():
-    async with TestSessionLocal() as session:
-        yield session
 
 
 def _override_candidate(user: User, profile: CandidateProfile):
@@ -33,7 +28,11 @@ def _override_candidate(user: User, profile: CandidateProfile):
 
 
 @pytest.fixture(autouse=True)
-def _isolate():
+def _isolate(session_local_factory):
+    async def _override_session():
+        async with session_local_factory() as s:
+            yield s
+
     app.dependency_overrides[get_session] = _override_session
     yield
     app.dependency_overrides.pop(get_session, None)
@@ -44,44 +43,45 @@ async def _client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
-async def _seed_candidate(email: str = "del@test.com") -> tuple[User, CandidateProfile]:
-    async with TestSessionLocal() as session:
-        user = User(
-            email=email,
-            hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
-            role=UserRole.CANDIDATE,
-            is_active=True,
-        )
-        session.add(user)
-        await session.flush()
-        profile = CandidateProfile(
-            user_id=user.id,
-            full_name="Del Candidate",
-            email=email,
-        )
-        session.add(profile)
-        await session.commit()
-        await session.refresh(user)
-        await session.refresh(profile)
+async def _seed_candidate(
+    session: AsyncSession, email: str = "del@test.com"
+) -> tuple[User, CandidateProfile]:
+    user = User(
+        email=email,
+        hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    profile = CandidateProfile(
+        user_id=user.id,
+        full_name="Del Candidate",
+        email=email,
+    )
+    session.add(profile)
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(profile)
     return user, profile
 
 
 async def _seed_deletion_token(
+    session: AsyncSession,
     profile: CandidateProfile,
     *,
     used: bool = False,
     expires_at: datetime | None = None,
 ) -> str:
     raw = secrets.token_urlsafe(32)
-    async with TestSessionLocal() as session:
-        rec = AccountDeletionToken(
-            token_hash=hash_token(raw),
-            candidate_profile_id=profile.id,
-            expires_at=expires_at or (_NOW + timedelta(hours=24)),
-            used=used,
-        )
-        session.add(rec)
-        await session.commit()
+    rec = AccountDeletionToken(
+        token_hash=hash_token(raw),
+        candidate_profile_id=profile.id,
+        expires_at=expires_at or (_NOW + timedelta(hours=24)),
+        used=used,
+    )
+    session.add(rec)
+    await session.commit()
     return raw
 
 
@@ -91,8 +91,8 @@ async def _seed_deletion_token(
 
 
 @pytest.mark.asyncio
-async def test_authenticated_deletion_request_returns_202(test_db):
-    user, profile = await _seed_candidate("auth-del@test.com")
+async def test_authenticated_deletion_request_returns_202(session, test_db):
+    user, profile = await _seed_candidate(session, "auth-del@test.com")
     _override_candidate(user, profile)
 
     with patch("rs_shared.services.candidate.account_deletion.defer_after_commit"):
@@ -108,8 +108,8 @@ async def test_authenticated_deletion_request_returns_202(test_db):
 
 
 @pytest.mark.asyncio
-async def test_anonymous_deletion_request_returns_202_for_known_email(test_db):
-    _, profile = await _seed_candidate("anon-del@test.com")
+async def test_anonymous_deletion_request_returns_202_for_known_email(session, test_db):
+    await _seed_candidate(session, "anon-del@test.com")
 
     with patch("rs_shared.services.candidate.account_deletion.defer_after_commit"):
         async with await _client() as client:
@@ -139,9 +139,9 @@ async def test_anonymous_deletion_request_returns_202_for_unknown_email(test_db)
 
 
 @pytest.mark.asyncio
-async def test_validate_token_returns_200_for_valid_token(test_db):
-    _, profile = await _seed_candidate("chkv@test.com")
-    raw = await _seed_deletion_token(profile)
+async def test_validate_token_returns_200_for_valid_token(session, test_db):
+    _, profile = await _seed_candidate(session, "chkv@test.com")
+    raw = await _seed_deletion_token(session, profile)
 
     async with await _client() as client:
         resp = await client.get(
@@ -153,9 +153,10 @@ async def test_validate_token_returns_200_for_valid_token(test_db):
 
 
 @pytest.mark.asyncio
-async def test_validate_token_returns_400_for_expired_token(test_db):
-    _, profile = await _seed_candidate("chkexp@test.com")
-    raw = await _seed_deletion_token(profile, expires_at=_NOW - timedelta(hours=1))
+async def test_validate_token_returns_400_for_expired_token(session, test_db):
+    _, profile = await _seed_candidate(session, "chkexp@test.com")
+    expired = _NOW - timedelta(hours=1)
+    raw = await _seed_deletion_token(session, profile, expires_at=expired)
 
     async with await _client() as client:
         resp = await client.get(
@@ -183,9 +184,9 @@ async def test_validate_token_returns_400_for_unknown_token(test_db):
 
 
 @pytest.mark.asyncio
-async def test_confirm_deletion_returns_204(test_db):
-    user, profile = await _seed_candidate("conf@test.com")
-    raw = await _seed_deletion_token(profile)
+async def test_confirm_deletion_returns_204(session, test_db):
+    user, profile = await _seed_candidate(session, "conf@test.com")
+    raw = await _seed_deletion_token(session, profile)
 
     mock_storage = MagicMock()
     mock_storage.delete_file = AsyncMock(return_value=True)
@@ -222,9 +223,9 @@ async def test_confirm_deletion_returns_400_for_invalid_token(test_db):
 
 
 @pytest.mark.asyncio
-async def test_confirm_deletion_returns_400_on_token_reuse(test_db):
-    user, profile = await _seed_candidate("reuse@test.com")
-    raw = await _seed_deletion_token(profile)
+async def test_confirm_deletion_returns_400_on_token_reuse(session, test_db):
+    user, profile = await _seed_candidate(session, "reuse@test.com")
+    raw = await _seed_deletion_token(session, profile)
 
     mock_storage = MagicMock()
     mock_storage.delete_file = AsyncMock(return_value=True)
