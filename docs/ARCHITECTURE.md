@@ -222,21 +222,19 @@ These principles guide all architectural decisions:
 
 ### 5. CI/CD Pipeline
 
-**Problem:** Need automated quality checks, testing against production-identical database, and zero-touch deployment on every push to main.
+**Problem:** Need automated quality checks, testing against a production-identical database, and safe deployment on every merge to main.
 
-**Decision:** GitHub Actions CI/CD with OIDC-based AWS authentication, PostgreSQL service container for tests, and SSM Run Command for keyless deployment.
+**Decision:** GitHub Actions with OIDC-based AWS authentication, a PostgreSQL service container for tests, and **continuous delivery to ECS** with a manual production gate. See [`release-process.md`](./release-process.md).
 
 **Implementation:**
-- **Workflow:** `.github/workflows/ci.yml`
+- **Workflows:** `.github/workflows/ci.yml` (checks) + `deliver.yml` / `_deploy.yml` / `rollback.yml` (delivery)
 - **On pull_request to main:**
   - `lint`: Ruff linter + formatter + 5 custom validation scripts
   - `test`: Pytest against a PostgreSQL 16 service container (dialect parity with production)
   - `docker-build`: Build image and verify `/health` endpoint
-- **On push to main (after lint + test pass):**
-  - `lint` + `test`: (same as above)
-  - `deploy`: OIDC auth → ECR push (`:latest` + `:<sha>`) → frontend build → S3 upload → SSM Run Command → poll until complete
-- **Authentication:** GitHub Actions OIDC — role `github-actions-rs-recruiting` (no stored AWS credentials)
-- **Deploy Script:** `scripts/deploy_ec2.sh` runs on EC2 via SSM; derives ECR registry and S3 bucket from the EC2 IAM role at runtime (nothing hardcoded)
+- **On merge to main (after CI passes):** `deliver.yml` fires off CI completion → builds base+api+worker+alloy by SHA into the ops-account ECR → deploys staging (`_deploy.yml`: gated migrate → roll web+worker → frontend) → **pauses for manual approval** → deploys prod → auto-tags `vX.Y.Z` + creates the GitHub Release.
+- **Authentication:** GitHub Actions OIDC — per-environment deploy roles (no stored AWS credentials)
+- **Deploy mechanism:** `_deploy.yml` rolls each ECS service via the `ecs-roll` action (render the live task-def with the new image → `aws-actions/amazon-ecs-deploy-task-definition` → wait for stability, circuit breaker armed). Terraform owns the task-def shape; CI owns only the image tag.
 - **Validation Scripts:**
   - `validate_imports.py` - SOC enforcement (separation of concerns)
   - `check_file_sizes.py` - File size limits
@@ -608,7 +606,7 @@ erDiagram
 
 ### 2. Production Infrastructure
 
-**Decision:** Single EC2 instance running Docker Compose behind CloudFront, with managed RDS PostgreSQL. Simple and cost-effective for MVP scale; migrating to ECS/ALB when load requires it.
+**Decision:** ECS Fargate services (web + worker) behind CloudFront, with managed RDS PostgreSQL. _(Originally a single EC2 host running Docker Compose; migrated to ECS Fargate on 2026-06-30 — see the INFRASTRUCTURE.md decisions log. Exact resource IDs for the ECS layer live in the infra repo / live AWS; this section is the higher-level shape.)_
 
 **Architecture:**
 
@@ -620,35 +618,35 @@ Cloudflare (DNS only, grey-cloud — no proxy)
 CloudFront distribution (d2ghcom3efd3zg.cloudfront.net)
   ├── Lambda@Edge viewer-request  ← bot/crawler detection → FastAPI OG prerender
   ├── Default behavior            ← S3 origin (frontend SPA bundle, 3-day lifecycle)
-  └── /api/* /auth/* /health      ← EC2 origin (Host header forwarded)
-        │ HTTP :80 (CloudFront prefix list only)
-EC2 t3.micro (Amazon Linux 2023, us-east-1)
-  ├── api container      ← FastAPI (pulled from ECR on each deploy)
-  └── worker container   ← SQS worker (same ECR image, different CMD: python -m src.worker)
+  └── /api/* /auth/* /health      ← ECS web service origin
+        │
+ECS Fargate (cluster rs-recruiting-prod, us-east-1)
+  ├── web service     ← FastAPI + alloy sidecar (image from ops-account ECR)
+  └── worker service  ← SQS worker, same image family (python -m rs_worker.worker)
         │
 RDS PostgreSQL db.t3.micro  ← private subnets, encrypted at rest
-S3 rs-recruiting-app       ← file uploads + CI deploy artifacts + frontend bundle
-ECR rs-recruiting/api      ← Docker image registry
+S3 rs-recruiting-app       ← file uploads
+S3 rs-recruiting-frontend  ← SPA bundle (CloudFront default origin)
+ECR (ops account)          ← Docker image registry, pulled cross-account
 AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, retention purge)
 ```
 
-**AWS Resources:**
+**AWS Resources:** (conceptual — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative inventory, which is pending its post-ECS audit pass)
 
 | Resource | Identifier | Purpose |
 |---|---|---|
-| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + EC2 origins |
+| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + ECS origins |
 | ACM | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-…` | TLS cert for rs-recruiting.com + www |
-| EC2 | `<EC2_INSTANCE_ID>` | API + worker server (port 80, CloudFront-only) |
+| ECS Fargate | cluster `rs-recruiting-prod` (`-web` / `-worker` services) | API + worker, behind CloudFront |
 | RDS | `rs-recruiting-prod-db` | PostgreSQL 16, private subnets |
-| S3 | `<APP_BUCKET>` | Uploads + deploy artifacts + frontend bundle |
-| ECR | `rs-recruiting/api` | Docker images |
+| S3 | `<APP_BUCKET>` + `rs-recruiting-frontend` | Uploads + frontend bundle |
+| ECR (ops account) | `rs-recruiting/{api,worker,alloy}` | Docker images, pulled cross-account |
 | SQS | `rs-recruiting-tasks` | Async task queue for worker |
-| IAM Role (EC2) | `rs-recruiting-app-role` | SSM, ECR pull, S3, SQS receive/delete, CloudWatch metrics |
-| IAM Role (CI) | `github-actions-rs-recruiting` | OIDC, ECR push, S3 deploy, SSM send |
+| IAM Role (CI) | per-environment OIDC deploy roles | ECR push (ops), ECS deploy, S3/CloudFront |
 
 **Domain:** `rs-recruiting.com` — DNS in Cloudflare (grey-cloud, DNS only). TLS terminates at CloudFront via ACM certificate (`us-east-1`). Cloudflare proxying intentionally disabled — CloudFront handles CDN and certificate.
 
-**Configuration:** Runtime secrets stored in a `.env` file on EC2 (`/home/ec2-user/app/.env`). Non-secret config stored in AWS SSM Parameter Store under `/rs-recruiting/prod/`.
+**Configuration:** Runtime secrets in AWS SSM Parameter Store under `/rs-recruiting/prod/`, read by the ECS task at startup (no `.env` materialized on a host). Non-secret config rides the task definition.
 
 **Related Issues:**
 
@@ -660,21 +658,17 @@ AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, ret
 
 ### 3. Environment Deployment Strategy
 
-**Decision:** Trunk-based deployment. CI validates everything (lint → test → docker-build), then merge to `main` auto-deploys to production. No separate dev/staging environments — overkill for current scale ($30/mo infra budget, small team).
+**Decision:** Trunk-based **continuous delivery** (since 2026-06-30). CI validates everything (lint → test → docker-build); a green merge to `main` auto-deploys to **staging**, then promotes to **production** behind a single manual approval (`production` GitHub Environment required reviewer). See [`release-process.md`](./release-process.md).
 
 **Environments:**
 
 1. **Development** – Local Docker Compose (`docker-compose.yml`) with PostgreSQL
-2. **Production** – Live at `https://rs-recruiting.com` (see Production Infrastructure above)
+2. **Staging** – Persistent ECS environment; every merge to `main` deploys here automatically (separate AWS account)
+3. **Production** – Live at `https://rs-recruiting.com`, promoted from the same image after manual approval (see Production Infrastructure above)
 
-**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before deploy.
+**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before the build/deliver pipeline runs.
 
-**Related Issues (icebox):**
-
-* [#95](https://github.com/lahavrud/rs-recruiting/issues/95) - devops2: Dev Environment Deployment 🧊 ICEBOX
-* [#96](https://github.com/lahavrud/rs-recruiting/issues/96) - devops3: Staging Environment Deployment 🧊 ICEBOX
-
-**Status:** ✅ Production live, 🧊 Dev/staging deferred
+**Status:** ✅ Production live · ✅ Staging live (persistent, replaced the earlier ephemeral box)
 
 ---
 

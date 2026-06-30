@@ -9,7 +9,7 @@ The 12-month candidate retention purge: what it does, how to verify it ran, how 
 A nightly background job that deletes candidate data past the 12-month retention window mandated by our privacy policy.
 
 - **Schedule:** 03:00 UTC nightly (off-peak for our user base)
-- **Runs in:** the `worker` container (Arq) on the EC2 host
+- **Runs in:** the `worker` ECS Fargate service
 - **Defined in:** `src/core/tasks.py::purge_expired_candidate_data_task`
 - **Eligibility logic:** `src/services/candidates_admin.py::purge_expired_candidates`
 
@@ -52,7 +52,7 @@ Every deletion emits one structured log line — ID only, no PII:
 INFO  retention.purge candidate_id=42
 ```
 
-This is the auditor evidence trail. Lives wherever the worker container's stdout goes (today: docker logs on the EC2 host).
+This is the auditor evidence trail. Lives wherever the worker service's stdout goes (today: CloudWatch Logs, `/ecs/rs-recruiting-prod-worker`).
 
 ### CloudWatch metric
 
@@ -125,8 +125,8 @@ Decision tree when the alarm fires:
 ```
 retention-purge-stale fires
 │
-├── Worker container running? (`docker ps` on EC2)
-│   ├── No  → restart container, check why it died
+├── Worker service running? (ECS service running-task count ≥ 1)
+│   ├── No  → check the ECS service events / stopped-task reason
 │   └── Yes ↓
 │
 ├── Worker logs show cron firing? (`docker logs worker | grep purge_expired`)
@@ -146,7 +146,7 @@ retention-purge-stale fires
 
 ## IAM
 
-The EC2 role has `cloudwatch:PutMetricData` scoped to the `RsRecruiting/Retention` namespace via an IAM condition:
+The worker task role has `cloudwatch:PutMetricData` scoped to the `RsRecruiting/Retention` namespace via an IAM condition:
 
 ```json
 {

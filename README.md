@@ -58,8 +58,8 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 | Email | Resend via SMTP relay (production) — provider abstraction; 10+ HTML templates |
 | Auth | JWT (PyJWT), bcrypt, HttpOnly refresh cookie, slowapi rate limiting |
 | Observability | Sentry (backend + frontend with source maps), Google Tag Manager, CloudWatch |
-| Infrastructure | EC2 + RDS + S3 + SQS + ECR + SSM + CloudFront, Cloudflare (DNS only) |
-| CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL, SSM deploy |
+| Infrastructure | ECS Fargate + RDS + S3 + SQS + ECR + SSM + CloudFront, Cloudflare (DNS only) |
+| CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL, continuous delivery to ECS with a manual prod gate |
 | Code Quality | Ruff, ESLint, TypeScript strict, 5 custom validation scripts, weekly pip-audit |
 
 ---
@@ -68,7 +68,7 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 
 <img src="docs/screenshots/aws-architecture.png" width="750" alt="AWS architecture diagram" />
 
-<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or EC2 via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background jobs: SQS → worker container. CI/CD path: GitHub Actions → S3 (frontend bundle) + ECR (Docker images) + SSM Run Command → EC2. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or the ECS Fargate web service via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background jobs: SQS → ECS Fargate worker service. CI/CD path: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
 
 ### Data model
 
@@ -126,9 +126,9 @@ erDiagram
 
 **Storage and email abstraction** — Both file storage and email are behind provider interfaces. A single env var switches between local/S3 for storage with no code changes. Email providers can be SES or SMTP; production uses Resend via SMTP relay. This made local development cheap and production deployment straightforward.
 
-**Async task queue with AWS SQS** — Sending email from inside a request handler risks timeouts and drops on provider throttling. All outbound email is pushed to an SQS queue and processed by a separate worker container (`src/worker.py`) with retry logic. Ten transactional email templates cover the full company and candidate lifecycle. The `defer_after_commit` pattern ensures tasks are enqueued only after the originating transaction commits, preventing phantom messages on rollback.
+**Async task queue with AWS SQS** — Sending email from inside a request handler risks timeouts and drops on provider throttling. All outbound email is pushed to an SQS queue and processed by a separate worker service (`rs_worker/worker.py`) with retry logic. Ten transactional email templates cover the full company and candidate lifecycle. The `defer_after_commit` pattern ensures tasks are enqueued only after the originating transaction commits, preventing phantom messages on rollback.
 
-**OIDC-based CI/CD with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. The deploy workflow supports manual re-deploy by SHA, checks if an ECR image already exists before rebuilding, and polls SSM run-command status rather than fire-and-forget. Deployments are never cancelled mid-flight.
+**OIDC-based continuous delivery with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR), deployed to staging, then promoted to production behind a manual approval (a `production` GitHub Environment required reviewer). Each ECS roll runs a gated DB migration first and waits for service stability with the deployment circuit breaker armed.
 
 **Custom CI validation scripts** — Beyond Ruff and TypeScript, five custom scripts run in CI: SOC import enforcement (services must not import FastAPI), blocking I/O detection in async functions (catches `open()`, `requests.*`, `time.sleep()`), type hint coverage on public functions, test file existence checks (1:1 mapping with source files), and file size limits. Catches architecture drift that standard linters miss.
 
@@ -233,6 +233,8 @@ rs-recruiting/
 ├── docs/             # Architecture decisions, API design, infrastructure, runbooks
 └── .github/workflows/
     ├── ci.yml        # Lint, test, docker-build (change-aware)
-    ├── deploy.yml    # Build + deploy to production (OIDC + SSM)
+    ├── deliver.yml   # Build by SHA → staging → manual approval → prod → tag
+    ├── _deploy.yml   # Reusable per-environment ECS deploy (migrate → roll → frontend)
+    ├── rollback.yml  # Re-point an ECS service to its previous task-def revision
     └── security-audit.yml  # Weekly pip-audit for CVEs
 ```
