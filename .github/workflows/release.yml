@@ -166,6 +166,68 @@ jobs:
           aws s3 cp nginx/nginx.conf          "s3://${S3_BUCKET}/deploy/${TAG}/nginx.conf"
           aws s3 cp alloy/config.alloy        "s3://${S3_BUCKET}/deploy/${TAG}/alloy/config.alloy"
 
+  # ── Deploy backend to ECS (Fargate) ───────────────────────────────────────
+  # Rolls the prod web + worker services to the released image via
+  # aws-actions/amazon-ecs-deploy-task-definition: download the live (tofu-owned)
+  # task definition, swap only the app + alloy image tags, register, update the
+  # service, wait for stability. Terraform still owns the task-def *shape*
+  # (ignore_changes = [task_definition]); CI owns only the image. Auth is GitHub
+  # OIDC into rs-recruiting-prod-ecs-deploy (no stored AWS keys).
+  deploy-ecs:
+    name: Deploy to ECS (${{ matrix.container }})
+    needs: [promote-prod]
+    if: ${{ !contains(github.ref_name, '-rc.') && needs.promote-prod.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: rs-recruiting-prod-web
+            container: web
+            repo: api
+          - service: rs-recruiting-prod-worker
+            container: worker
+            repo: worker
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ vars.AWS_ECS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Download live task definition
+        run: |
+          aws ecs describe-task-definition --task-definition ${{ matrix.service }} \
+            --query 'taskDefinition' --output json \
+            | jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' \
+            > task-definition.json
+
+      - name: Render app image
+        id: render-app
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ matrix.container }}
+          image: ${{ secrets.OPS_ECR_REGISTRY }}/rs-recruiting/${{ matrix.repo }}:${{ github.ref_name }}
+
+      - name: Render alloy sidecar image
+        id: render-alloy
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
+        with:
+          task-definition: ${{ steps.render-app.outputs.task-definition }}
+          container-name: alloy
+          image: ${{ secrets.OPS_ECR_REGISTRY }}/rs-recruiting/alloy:${{ github.ref_name }}
+
+      - name: Deploy
+        uses: aws-actions/amazon-ecs-deploy-task-definition@a310a830f5c14e583e35d84e4e1ec7dd177c3c9c # v2.6.2
+        with:
+          task-definition: ${{ steps.render-alloy.outputs.task-definition }}
+          service: ${{ matrix.service }}
+          cluster: rs-recruiting-prod
+          wait-for-service-stability: true
+
   # ── Build & deploy frontend to S3 + CloudFront ────────────────────────────
 
   deploy-frontend:
