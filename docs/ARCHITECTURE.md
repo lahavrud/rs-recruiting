@@ -232,7 +232,7 @@ These principles guide all architectural decisions:
   - `lint`: Ruff linter + formatter + 5 custom validation scripts
   - `test`: Pytest against a PostgreSQL 16 service container (dialect parity with production)
   - `docker-build`: Build image and verify `/health` endpoint
-- **On merge to main (after CI passes):** `deliver.yml` fires off CI completion → builds base+api+worker+alloy by SHA into the ops-account ECR → deploys staging (`_deploy.yml`: gated migrate → roll web+worker → frontend) → **pauses for manual approval** → deploys prod → auto-tags `vX.Y.Z` + creates the GitHub Release.
+- **On merge to main (after CI passes):** `deliver.yml` fires off CI completion → builds base+api+worker+alloy by SHA into the ops-account ECR → **pauses for manual approval** → deploys prod (`_deploy.yml`: gated migrate → roll web+worker → frontend) → auto-tags `vX.Y.Z` + creates the GitHub Release. _(Staging is retired for cost; the staging stage is preserved commented in `deliver.yml`.)_
 - **Authentication:** GitHub Actions OIDC — per-environment deploy roles (no stored AWS credentials)
 - **Deploy mechanism:** `_deploy.yml` rolls each ECS service via the `ecs-roll` action (render the live task-def with the new image → `aws-actions/amazon-ecs-deploy-task-definition` → wait for stability, circuit breaker armed). Terraform owns the task-def shape; CI owns only the image tag.
 - **Validation Scripts:**
@@ -658,17 +658,18 @@ AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, ret
 
 ### 3. Environment Deployment Strategy
 
-**Decision:** Trunk-based **continuous delivery** (since 2026-06-30). CI validates everything (lint → test → docker-build); a green merge to `main` auto-deploys to **staging**, then promotes to **production** behind a single manual approval (`production` GitHub Environment required reviewer). See [`release-process.md`](./release-process.md).
+**Decision:** Trunk-based **continuous delivery** (since 2026-06-30). CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and promotes it to **production** behind a single manual approval (`production` GitHub Environment required reviewer). See [`release-process.md`](./release-process.md).
 
 **Environments:**
 
 1. **Development** – Local Docker Compose (`docker-compose.yml`) with PostgreSQL
-2. **Staging** – Persistent ECS environment; every merge to `main` deploys here automatically (separate AWS account)
-3. **Production** – Live at `https://rs-recruiting.com`, promoted from the same image after manual approval (see Production Infrastructure above)
+2. **Production** – Live at `https://rs-recruiting.com`, deployed from the SHA-tagged image after manual approval (see Production Infrastructure above)
+
+**Staging:** retired for cost (was an on-demand scale-to-zero ECS env). The staging stage is preserved (commented) in `deliver.yml` and `_deploy.yml` is environment-agnostic, so it can be re-enabled later; pre-prod risk is covered by CI + the prod approval gate + fast `rollback.yml`.
 
 **CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before the build/deliver pipeline runs.
 
-**Status:** ✅ Production live · ✅ Staging live (persistent, replaced the earlier ephemeral box)
+**Status:** ✅ Production live · 🧊 Staging deferred (infra + workflow preserved)
 
 ---
 

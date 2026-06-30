@@ -128,7 +128,7 @@ erDiagram
 
 **Async task queue with AWS SQS** — Sending email from inside a request handler risks timeouts and drops on provider throttling. All outbound email is pushed to an SQS queue and processed by a separate worker service (`rs_worker/worker.py`) with retry logic. Ten transactional email templates cover the full company and candidate lifecycle. The `defer_after_commit` pattern ensures tasks are enqueued only after the originating transaction commits, preventing phantom messages on rollback.
 
-**OIDC-based continuous delivery with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR), deployed to staging, then promoted to production behind a manual approval (a `production` GitHub Environment required reviewer). Each ECS roll runs a gated DB migration first and waits for service stability with the deployment circuit breaker armed.
+**OIDC-based continuous delivery with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR), then promoted to production behind a manual approval (a `production` GitHub Environment required reviewer). The prod roll runs a gated DB migration first and waits for service stability with the deployment circuit breaker armed.
 
 **Custom CI validation scripts** — Beyond Ruff and TypeScript, five custom scripts run in CI: SOC import enforcement (services must not import FastAPI), blocking I/O detection in async functions (catches `open()`, `requests.*`, `time.sleep()`), type hint coverage on public functions, test file existence checks (1:1 mapping with source files), and file size limits. Catches architecture drift that standard linters miss.
 
@@ -233,7 +233,7 @@ rs-recruiting/
 ├── docs/             # Architecture decisions, API design, infrastructure, runbooks
 └── .github/workflows/
     ├── ci.yml        # Lint, test, docker-build (change-aware)
-    ├── deliver.yml   # Build by SHA → staging → manual approval → prod → tag
+    ├── deliver.yml   # Build by SHA → manual approval → prod → tag
     ├── _deploy.yml   # Reusable per-environment ECS deploy (migrate → roll → frontend)
     ├── rollback.yml  # Re-point an ECS service to its previous task-def revision
     └── security-audit.yml  # Weekly pip-audit for CVEs

@@ -3,7 +3,7 @@ name: Deliver
 # Trunk-based continuous delivery. Every commit that lands on `main` and passes
 # CI flows automatically:
 #
-#   merge to main → CI green → build image (by SHA) → deploy STAGING
+#   merge to main → CI green → build image (by SHA)
 #                 → ⏸ manual approval → deploy PRODUCTION → tag vX.Y.Z + Release
 #
 # We trigger off CI *completion* (not raw push) so a commit only ships after its
@@ -12,9 +12,12 @@ name: Deliver
 # (configured in repo settings, see docs/release-process.md); the deploy-prod job
 # pauses there until a reviewer approves.
 #
+# Staging was retired for cost — the build is promoted straight to the prod gate.
+# The staging stage is preserved (commented) below for later re-enable.
+#
 # Backing out a bad commit:
-#   - before you approve prod → reject the pending deployment (it stays on
-#     staging), then `git revert` on main to roll a clean build forward.
+#   - before you approve prod → reject the pending deployment (nothing ships),
+#     then `git revert` on main to roll a clean build forward.
 #   - already in prod → run rollback.yml (re-point ECS to the previous task-def
 #     revision, seconds, no rebuild), then `git revert` so git matches prod.
 
@@ -74,31 +77,38 @@ jobs:
           image-tag: ${{ github.event.workflow_run.head_sha }}
           sha: ${{ github.event.workflow_run.head_sha }}
 
-  # ── Deploy to staging (auto) ───────────────────────────────────────────────
-  deploy-staging:
-    name: Staging
-    needs: build
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      environment: staging
-      cluster: rs-recruiting-staging
-      web-service: rs-recruiting-staging-web
-      worker-service: rs-recruiting-staging-worker
-      image-tag: ${{ needs.build.outputs.sha }}
-      run-migrations: true
-      smoke-url: https://staging.rsrecruit.com/health
-    secrets:
-      ecs_role_arn: ${{ secrets.AWS_STAGING_ECS_DEPLOY_ROLE_ARN }}
-      frontend_role_arn: ${{ secrets.AWS_STAGING_ECS_DEPLOY_ROLE_ARN }}
-      ops_ecr_registry: ${{ secrets.OPS_ECR_REGISTRY }}
-      frontend_bucket: ${{ secrets.S3_FRONTEND_BUCKET_STAGING }}
-      frontend_distribution_id: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_STAGING }}
-      # No Sentry on staging.
+  # ── Deploy to staging (RETIRED — kept for later re-enable) ─────────────────
+  # Staging was retired for cost (the env was on-demand scale-to-zero and didn't
+  # justify the moving parts). The reusable `_deploy.yml` is environment-agnostic,
+  # so re-enabling is: uncomment this job, add `deploy-staging` back to
+  # deploy-prod's `needs`, and provision the staging infra + AWS_STAGING_ECS_DEPLOY_ROLE_ARN.
+  # NOTE: a disabled workflow stage does NOT stop AWS charges — destroy the
+  # staging tofu units in rs-recruiting-infra to actually save cost.
+  #
+  # deploy-staging:
+  #   name: Staging
+  #   needs: build
+  #   uses: ./.github/workflows/_deploy.yml
+  #   with:
+  #     environment: staging
+  #     cluster: rs-recruiting-staging
+  #     web-service: rs-recruiting-staging-web
+  #     worker-service: rs-recruiting-staging-worker
+  #     image-tag: ${{ needs.build.outputs.sha }}
+  #     run-migrations: true
+  #     # Staging is backend-only (no edge/S3-frontend) and has no stable hostname
+  #     # (web on the task's ephemeral public IP, scale-to-zero) — no frontend, no smoke.
+  #     deploy-frontend: false
+  #     smoke-url: ""
+  #   secrets:
+  #     ecs_role_arn: ${{ secrets.AWS_STAGING_ECS_DEPLOY_ROLE_ARN }}
+  #     ops_ecr_registry: ${{ secrets.OPS_ECR_REGISTRY }}
+  #     # No Sentry / frontend on staging.
 
   # ── Deploy to production (manual approval gate inside _deploy.yml) ──────────
   deploy-prod:
     name: Production
-    needs: [build, deploy-staging]
+    needs: [build]
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: production
@@ -107,7 +117,8 @@ jobs:
       worker-service: rs-recruiting-prod-worker
       image-tag: ${{ needs.build.outputs.sha }}
       run-migrations: true
-      smoke-url: https://rsrecruit.com/health
+      deploy-frontend: true
+      smoke-url: https://rs-recruiting.com/health
     secrets:
       ecs_role_arn: ${{ vars.AWS_ECS_DEPLOY_ROLE_ARN }}
       frontend_role_arn: ${{ secrets.AWS_ROLE_ARN }}
@@ -149,7 +160,7 @@ jobs:
   notify-failure:
     name: Notify delivery failure
     runs-on: ubuntu-latest
-    needs: [build, deploy-staging, deploy-prod, tag-release]
+    needs: [build, deploy-prod, tag-release]
     if: failure()
     permissions:
       issues: write

@@ -52,10 +52,15 @@ on:
         default: true
         type: boolean
       smoke-url:
-        description: "Public health URL to curl after the roll (blank to skip)"
+        description: "Public health URL to curl after the roll (blank to skip — staging has no stable hostname)"
         required: false
         default: ""
         type: string
+      deploy-frontend:
+        description: "Build + ship the frontend to S3/CloudFront. Off for backend-only envs (staging has no edge)."
+        required: false
+        default: true
+        type: boolean
       aws-region:
         required: false
         default: us-east-1
@@ -64,16 +69,17 @@ on:
       ecs_role_arn:
         description: "OIDC role to assume for ECS migrate + deploy in this environment's account"
         required: true
-      frontend_role_arn:
-        description: "OIDC role to assume for the frontend S3 sync + CloudFront invalidation"
-        required: true
       ops_ecr_registry:
         description: "Ops-account ECR registry host (build-once registry both accounts pull from)"
         required: true
+      # Frontend secrets are only required when deploy-frontend is true.
+      frontend_role_arn:
+        description: "OIDC role for the frontend S3 sync + CloudFront invalidation (frontend envs only)"
+        required: false
       frontend_bucket:
-        required: true
+        required: false
       frontend_distribution_id:
-        required: true
+        required: false
       sentry_dsn:
         required: false
 
@@ -167,7 +173,9 @@ jobs:
           alloy-image: ${{ secrets.ops_ecr_registry }}/rs-recruiting/alloy:${{ inputs.image-tag }}
 
       # ── Frontend ────────────────────────────────────────────────────────────
+      # Backend-only envs (staging: no edge/S3-frontend/CloudFront) skip this.
       - name: Build & deploy frontend
+        if: ${{ inputs.deploy-frontend }}
         uses: ./.github/actions/deploy-frontend
         with:
           ref: ${{ inputs.image-tag }}
