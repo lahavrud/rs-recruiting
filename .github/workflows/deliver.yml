@@ -88,6 +88,9 @@ jobs:
   # deploy-staging:
   #   name: Staging
   #   needs: build
+  #   permissions:
+  #     id-token: write
+  #     contents: read
   #   uses: ./.github/workflows/_deploy.yml
   #   with:
   #     environment: staging
@@ -106,9 +109,15 @@ jobs:
   #     # No Sentry / frontend on staging.
 
   # ── Deploy to production (manual approval gate inside _deploy.yml) ──────────
+  # A called workflow's token is capped by THIS job's permissions, so grant the
+  # OIDC + read perms _deploy.yml's job needs (the top-level `contents: read`
+  # would otherwise default id-token to none).
   deploy-prod:
     name: Production
     needs: [build]
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: production
