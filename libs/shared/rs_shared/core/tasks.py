@@ -201,16 +201,16 @@ async def nightly_cleanup_task() -> dict:
         purge_unactivated_candidate_users,
     )
 
-    results: dict[str, int] = {}
+    results: dict[str, int | None] = {}
 
-    async def _run(name: str, coro) -> int:
+    async def _run(name: str, coro) -> int | None:
         try:
             async with async_session() as session:
                 async with transactional(session):
                     return await coro(session)
         except Exception:
             logger.exception("nightly_cleanup_subtask_failed", extra={"subtask": name})
-            return 0
+            return None
 
     results["purge_expired_candidates"] = await _run(
         "purge_expired_candidates", purge_expired_candidates
@@ -229,12 +229,13 @@ async def nightly_cleanup_task() -> dict:
     )
 
     attrs_env = {"environment": settings.environment}
-    _purged_counter.add(results["purge_expired_candidates"], attrs_env)
-    _unactivated_users_counter.add(results["purge_unactivated_users"], attrs_env)
-    _export_zips_counter.add(results["purge_export_zips"], attrs_env)
-    _deletion_tokens_counter.add(results["purge_deletion_tokens"], attrs_env)
-    _activation_tokens_counter.add(results["purge_activation_tokens"], attrs_env)
-    _last_purge_ran_gauge.set(time.time(), attrs_env)
+    _purged_counter.add(results["purge_expired_candidates"] or 0, attrs_env)
+    _unactivated_users_counter.add(results["purge_unactivated_users"] or 0, attrs_env)
+    _export_zips_counter.add(results["purge_export_zips"] or 0, attrs_env)
+    _deletion_tokens_counter.add(results["purge_deletion_tokens"] or 0, attrs_env)
+    _activation_tokens_counter.add(results["purge_activation_tokens"] or 0, attrs_env)
+    if any(v is not None for v in results.values()):
+        _last_purge_ran_gauge.set(time.time(), attrs_env)
 
     logger.info("nightly_cleanup_complete", extra=results)
     return results
