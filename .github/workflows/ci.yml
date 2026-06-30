@@ -236,7 +236,9 @@ jobs:
         run: npm test
 
   docker-build:
-    runs-on: ubuntu-latest
+    # arm64 native — match the prod ECS arch so arm64 wheel/build issues surface
+    # on PRs, before a release. Free on public repos.
+    runs-on: ubuntu-24.04-arm
     # Skip on push to main (deploy.yml builds and pushes images), on draft
     # PRs, and when no Docker-relevant files changed (see detect-changes).
     needs: [detect-changes, backend-checks]

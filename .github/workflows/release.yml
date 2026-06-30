@@ -31,7 +31,8 @@ jobs:
   build-rc:
     name: Build & push RC images
     if: contains(github.ref_name, '-rc.')
-    runs-on: ubuntu-latest
+    # arm64 (Graviton) native build — prod ECS tasks run ARM64. Free on public repos.
+    runs-on: ubuntu-24.04-arm
     permissions:
       id-token: write
       contents: read
@@ -93,7 +94,8 @@ jobs:
   promote-prod:
     name: Promote to production
     if: ${{ !contains(github.ref_name, '-rc.') }}
-    runs-on: ubuntu-latest
+    # arm64 native — the rebuild fallback must also produce ARM64 images.
+    runs-on: ubuntu-24.04-arm
     permissions:
       id-token: write
       contents: read
