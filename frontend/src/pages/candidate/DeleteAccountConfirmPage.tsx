@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
 import Logo from "@/components/ui/Logo";
-import { confirmAccountDeletion } from "@/services/candidate";
+import { checkDeletionToken, confirmAccountDeletion } from "@/services/candidate";
 
 import AuthShell from "../components/AuthShell";
 
@@ -16,7 +16,14 @@ export default function DeleteAccountConfirmPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
-  const [state, setState] = useState<State>(() => (token ? "confirming" : "error"));
+  const [state, setState] = useState<State>(() => (token ? "loading" : "error"));
+
+  useEffect(() => {
+    if (!token) return;
+    checkDeletionToken(token)
+      .then(() => setState("confirming"))
+      .catch(() => setState("error"));
+  }, [token]);
 
   async function handleConfirm() {
     if (!token) return;
