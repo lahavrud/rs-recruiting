@@ -166,17 +166,74 @@ jobs:
           aws s3 cp nginx/nginx.conf          "s3://${S3_BUCKET}/deploy/${TAG}/nginx.conf"
           aws s3 cp alloy/config.alloy        "s3://${S3_BUCKET}/deploy/${TAG}/alloy/config.alloy"
 
+  # ── DB migration gate (must pass before any service rolls) ────────────────
+  # Runs `alembic upgrade head` as a one-off ECS task on the RELEASED image,
+  # BEFORE the services roll. If it fails, deploy-ecs never runs and the old
+  # image keeps serving (no half-deployed schema). The migrate task is derived
+  # from the live web task-def (same roles/env/secrets/SG, so it reaches RDS and
+  # pulls DATABASE_URL from SSM — no secrets in CI), minus the sidecar/ports.
+  # Migrations must be backward-compatible with the running version (expand now,
+  # contract a release later).
+  migrate:
+    name: DB migrate (alembic upgrade head)
+    needs: [promote-prod]
+    if: ${{ !contains(github.ref_name, '-rc.') && needs.promote-prod.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ vars.AWS_ECS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run migrations (gated)
+        env:
+          IMAGE: ${{ secrets.OPS_ECR_REGISTRY }}/rs-recruiting/api:${{ github.ref_name }}
+          CLUSTER: rs-recruiting-prod
+        run: |
+          set -euo pipefail
+          # Derive a one-off migrate task-def from the live web definition.
+          aws ecs describe-task-definition --task-definition rs-recruiting-prod-web \
+            --query 'taskDefinition' --output json \
+            | jq --arg img "$IMAGE" '
+                del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+                | .family = "rs-recruiting-prod-migrate"
+                | .containerDefinitions = [ .containerDefinitions[] | select(.name=="web")
+                    | .image = $img | .command = ["alembic","upgrade","head"] | del(.portMappings) ]
+              ' > migrate-td.json
+          TD=$(aws ecs register-task-definition --cli-input-json file://migrate-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "registered $TD"
+          # Reuse the web service's network config (subnets/SG/public-ip) — DRY.
+          NET=$(aws ecs describe-services --cluster "$CLUSTER" --services rs-recruiting-prod-web \
+            --query 'services[0].networkConfiguration' --output json)
+          TASK=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$TD" \
+            --launch-type FARGATE --network-configuration "$NET" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "migrate task: $TASK"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
+          EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "--- migration logs ---"
+          aws logs get-log-events --log-group-name /ecs/rs-recruiting-prod-web \
+            --log-stream-name "web/web/${TASK##*/}" --query 'events[].message' --output text || true
+          echo "migrate exit code: $EXIT"
+          [ "$EXIT" = "0" ] || { echo "::error::DB migration failed (exit $EXIT) — services NOT rolled"; exit 1; }
+
   # ── Deploy backend to ECS (Fargate) ───────────────────────────────────────
   # Rolls the prod web + worker services to the released image via
   # aws-actions/amazon-ecs-deploy-task-definition: download the live (tofu-owned)
   # task definition, swap only the app + alloy image tags, register, update the
   # service, wait for stability. Terraform still owns the task-def *shape*
   # (ignore_changes = [task_definition]); CI owns only the image. Auth is GitHub
-  # OIDC into rs-recruiting-prod-ecs-deploy (no stored AWS keys).
+  # OIDC into rs-recruiting-prod-ecs-deploy (no stored AWS keys). Gated on the
+  # migration succeeding first.
   deploy-ecs:
     name: Deploy to ECS (${{ matrix.container }})
-    needs: [promote-prod]
-    if: ${{ !contains(github.ref_name, '-rc.') && needs.promote-prod.result == 'success' }}
+    needs: [promote-prod, migrate]
+    if: ${{ !contains(github.ref_name, '-rc.') && needs.migrate.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
