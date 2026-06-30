@@ -1,6 +1,6 @@
 """add_account_deletion_token_and_candidateprofile_deleted_at
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: c5d6e7f8a9b0
 Revises: fb9f578fac9d
 Create Date: 2026-06-29 00:00:00.000000
 
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "c5d6e7f8a9b0"
 down_revision: Union[str, Sequence[str], None] = "fb9f578fac9d"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
