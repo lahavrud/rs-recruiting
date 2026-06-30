@@ -1,10 +1,9 @@
 name: CI Pipeline
 
 # Cancel in-flight runs only for PRs — saves Actions minutes on rapid push
-# cycles (typo fixes, force-pushes). For pushes to main, we never cancel:
-# GitHub-side cancellation does NOT stop an in-flight SSM Run-Command on
-# the prod EC2, so cancelling a deploy in CI would just race a second SSM
-# command against the first on the same instance.
+# cycles (typo fixes, force-pushes). Pushes to main are never cancelled: a
+# green CI run on main is what triggers deliver.yml (continuous delivery), so
+# cancelling it would silently skip a deploy.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -32,7 +31,6 @@ jobs:
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       frontend: ${{ steps.diff.outputs.frontend }}
-      deploy: ${{ steps.diff.outputs.deploy }}
       docker: ${{ steps.diff.outputs.docker }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -45,7 +43,6 @@ jobs:
             {
               echo "backend=true"
               echo "frontend=true"
-              echo "deploy=true"
               echo "docker=true"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -55,11 +52,11 @@ jobs:
           FILES=$(git diff --name-only "$BASE" "$HEAD")
           match() { grep -qE "$1" <<<"$FILES"; }
 
-          backend=false; frontend=false; deploy=false; docker=false
+          backend=false; frontend=false; docker=false
 
           # Workflow edits invalidate every assumption — run everything.
           if match '^\.github/workflows/'; then
-            backend=true; frontend=true; deploy=true; docker=true
+            backend=true; frontend=true; docker=true
           fi
           if match '^(libs/|services/|tests/|alembic/|scripts/.*\.py|pyproject\.toml|uv\.lock)'; then
             backend=true
@@ -67,10 +64,7 @@ jobs:
           if match '^frontend/'; then
             frontend=true
           fi
-          if match '^(services/[^/]+/Dockerfile|docker/base\.Dockerfile|frontend/Dockerfile|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh|scripts/validate_deploy_artifacts\.sh)'; then
-            deploy=true
-          fi
-          if match '^(services/[^/]+/Dockerfile|docker/(base|alloy)\.Dockerfile|alloy/[^/]+\.alloy|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml|scripts/deploy_ec2(_staging)?\.sh)'; then
+          if match '^(services/[^/]+/Dockerfile|docker/(base|alloy)\.Dockerfile|alloy/[^/]+\.alloy|frontend/Dockerfile|(libs|services)/[^/]+/pyproject\.toml|pyproject\.toml|uv\.lock|frontend/package(-lock)?\.json|docker-compose.*\.yml)'; then
             docker=true
             # docker-build smoke-tests the backend image, so guard it with
             # the same checks the image depends on.
@@ -80,7 +74,6 @@ jobs:
           {
             echo "backend=$backend"
             echo "frontend=$frontend"
-            echo "deploy=$deploy"
             echo "docker=$docker"
           } >> "$GITHUB_OUTPUT"
 
@@ -199,10 +192,6 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
-      - name: Validate deploy artifacts (HTTPS contract)
-        if: needs.detect-changes.outputs.deploy == 'true'
-        run: bash scripts/validate_deploy_artifacts.sh
-
   frontend-checks:
     needs: detect-changes
     if: needs.detect-changes.outputs.frontend == 'true'
@@ -237,8 +226,8 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    # Skip on push to main (deploy.yml builds and pushes images), on draft
-    # PRs, and when no Docker-relevant files changed (see detect-changes).
+    # Skip on push to main (deliver.yml builds and pushes the real images), on
+    # draft PRs, and when no Docker-relevant files changed (see detect-changes).
     needs: [detect-changes, backend-checks]
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && needs.detect-changes.outputs.docker == 'true'
     env:

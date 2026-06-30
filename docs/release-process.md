@@ -1,47 +1,94 @@
 # Release Process
 
-Trunk-based, tag-gated releases. `main` is the only long-lived branch and never auto-deploys by itself — every deploy is triggered by pushing a semver tag, and tags only ever get created by clicking one of two workflow buttons.
+Trunk-based **continuous delivery**. `main` is the only long-lived branch. Every
+commit that lands on `main` and passes CI is built once and flows automatically
+to staging; promotion to production is a single manual approval. There are no
+release-candidate tags and no hand-cut version tags — the `vX.Y.Z` tag is created
+*after* a production deploy, as a record of what shipped.
 
-## The ritual
+```
+merge to main → CI green → build image (by SHA) → deploy STAGING
+              → ⏸ manual approval → deploy PRODUCTION → tag vX.Y.Z + GitHub Release
+```
 
-1. **PR into `main`.** Feature branches go through the existing ruleset: CI green, code-owner review, squash merge with a Conventional Commit title.
+## The flow
 
-2. **Click "Deploy Staging"** (`deploy-staging.yml`, optionally pinning a `ref` other than `main`). It computes the next release-candidate version from the commits since the last final tag, pushes `vX.Y.Z-rc.N`, then explicitly dispatches `release.yml`'s `build-rc` job against that tag (a `GITHUB_TOKEN`-authored push doesn't fire push-based workflows on its own, so the tag push alone wouldn't trigger it), which builds and pushes the image.
+1. **PR into `main`.** Feature branches go through the ruleset: CI green,
+   code-owner review, squash merge with a Conventional Commit title.
 
-3. **Validate the RC on staging.** The `build-rc` job mirrors the RC image into the staging-account ECR and triggers the infra repo's `staging-apply.yml` (via the shared GitHub App), which `tofu apply`s the ephemeral `tofu/staging-app` root (EC2 + RDS) in the separate staging account. On success it dispatches `staging-provisioned` back to this repo, where `staging-deploy.yml` builds the frontend, ships the image, runs migrations, and seeds mock data. The result is a clickable environment at `http://<eip>/` (admin: `admin@rsrecruit.com` / `Admin123!`) — no CloudFront/TLS; nginx on the box serves the bundle and proxies the API. The environment self-destroys after 3 idle days (infra `staging-ttl-check.yml`) or when the release is cut (step 5).
+2. **Build + staging are automatic.** When CI passes on the merge commit,
+   `deliver.yml` (triggered off CI *completion* for a `push` to `main`, so a
+   commit only ships after its own tests are green) builds the base + api +
+   worker + alloy images, tags them by commit SHA, pushes to the **ops-account
+   ECR**, then deploys to the persistent **staging** environment via `_deploy.yml`:
+   `alembic upgrade head` (gated) → roll web → roll worker → frontend → smoke
+   check. Staging takes latest-wins (a newer merge cancels an in-flight staging
+   deploy).
 
-4. **If validation fails:** fix forward, merge more PRs into `main`, click **Deploy Staging** again. It re-scans commits since the last final tag, so if a `feat:` landed since the last RC the target version escalates correctly (e.g. `v1.3.0-rc.1` → `v1.4.0-rc.1`). Repeat until green.
+3. **Validate on staging**, then **approve production.** The `deploy-prod` job
+   runs under the `production` GitHub Environment, so it **pauses for a required
+   reviewer**. Approve it in the run's UI (or the Environments page) to promote;
+   reject it to abort. The same image SHA that was validated on staging is
+   deployed to prod — no rebuild.
 
-5. **Once validated, click "Cut Release"** (`cut-release.yml`), pointing `rc_tag` at the validated RC (or leave blank for the most recent one). It strips the `-rc.N` suffix and pushes `vX.Y.Z` on the *same commit* — no rebuild, no bump arithmetic — then explicitly dispatches `release.yml`'s `promote-prod` job against that tag (same reason as step 2: the push alone doesn't trigger it): re-tag the existing RC image in ECR, deploy to EC2, deploy the frontend, create the GitHub Release, and finally trigger the infra repo's `staging-destroy.yml` to tear the ephemeral staging environment down.
+4. **Tag + Release are automatic.** After prod deploys, `tag-release` computes the
+   next `vX.Y.Z` from Conventional Commits since the last final tag
+   (`scripts/compute_next_release_tag.sh`), tags the shipped commit, and creates a
+   GitHub Release with generated notes.
 
-6. **Hotfix:** branch off `main`, PR back into `main` like any other change. Then either keep the gate (**Deploy Staging** → validate → **Cut Release**), or — for incident response where you accept skipping the staging smoke test + migration dry-run — click **Hotfix Deploy** (`hotfix.yml`), which patch-bumps off the latest final tag and pushes `vX.Y.(Z+1)` straight to production via `release.yml` (no RC, no ephemeral staging). Same one-branch model, no back-merge.
+## Backing out a bad change
 
-7. **Rollback:** unchanged — `deploy.yml` (manual `workflow_dispatch` with a tag/SHA input) or `rollback.yml`. Both treat the deployed ref as an opaque string, so rolling back to a previous `vX.Y.Z` works the same as rolling back to a raw SHA.
+- **Caught on staging, before you approve prod:** **reject** the pending
+  deployment — it never leaves staging. Then `git revert` the bad commit on
+  `main`; the next delivery rolls a clean build forward.
+- **Already in production:** run **`rollback.yml`** (manual) — it re-points the
+  ECS service(s) to the previous task-definition revision (seconds, no rebuild).
+  Then `git revert` on `main` so git matches the deployed state and the next
+  delivery doesn't re-ship the bad commit.
+- **Hotfix** is not a separate path any more: merge the fix to `main` and approve
+  prod quickly. The break-glass for an active incident is `rollback.yml`.
+
+> ⚠️ A rollback restores previous **app code only** — it does **not** undo a
+> database migration. Migrations must stay backward-compatible with the running
+> version (**expand now, contract a release later**), or a rollback will run old
+> code against a new schema. See `.claude/rules/migrations.md`.
 
 ## Workflow reference
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `deploy-staging.yml` | Manual | Computes & pushes the next `vX.Y.Z-rc.N` tag |
-| `cut-release.yml` | Manual | Promotes an existing RC tag to `vX.Y.Z` on the same commit |
-| `hotfix.yml` | Manual | Patch-bumps off the latest final tag and pushes `vX.Y.(Z+1)` straight to prod via `release.yml` — skips RC + ephemeral staging |
-| `release.yml` | Tag push (`v*.*.*`) | RC: builds + mirrors image, triggers staging apply. Final: re-tags (no rebuild), deploys, releases, triggers staging destroy |
-| `staging-deploy.yml` | `repository_dispatch` (from infra) | Builds the frontend + SSM-deploys the RC to the ephemeral staging box |
-| `deploy.yml` | Manual | Redeploys an already-built tag or SHA — rollback / escape hatch |
-| `rollback.yml` | Manual | Redeploys `PREV_SHA` |
+| `deliver.yml` | CI completion on `main` (push) | Build by SHA → staging → ⏸ approval → prod → tag + Release |
+| `_deploy.yml` | `workflow_call` (from `deliver.yml`) | Migrate gate → roll web + worker (via `ecs-roll`) → frontend → smoke check, under `environment:` |
+| `rollback.yml` | Manual | Re-point an ECS service to its previous (or a pinned) task-def revision |
+| `ci.yml` | PR / push / merge_group | Lint, test, docker-build (change-aware) |
+| `security-audit.yml` | Weekly | pip-audit for CVEs |
 
-The staging tofu lifecycle lives in the **infra** repo (`rs-recruiting-infra`): `staging-apply.yml` / `staging-destroy.yml` / `staging-ttl-check.yml`. Cross-repo triggers use a shared GitHub App.
+## Manual approval setup (one-time)
+
+The production gate is the **`production` GitHub Environment** with a required
+reviewer (repo Settings → Environments). Both `staging` and `production` restrict
+deployments to the `main` branch. These are configured in repo settings, not in
+YAML.
+
+## Environments & accounts
+
+Staging and production are **separate AWS accounts**; images are built once into
+the **ops account** ECR and pulled cross-account by both. Each environment
+assumes its own OIDC deploy role — no stored AWS keys. The persistent staging
+cluster + role live in the infra repo (`rs-recruiting-infra`).
 
 ## Version bump detection
 
-`deploy-staging.yml` looks at every commit since the last final tag (each one is a single squashed PR with a Conventional Commit title) and takes the highest severity seen:
+`compute_next_release_tag.sh` scans commits since the last final tag (each a
+squashed PR with a Conventional Commit title) and takes the highest severity:
 
-- `feat!:` / `fix!:` / any `!:` breaking-change marker → major
+- any `!:` breaking-change marker or `BREAKING CHANGE:` footer → major
 - `feat:` → minor
 - everything else → patch
 
-A `release:major` / `release:minor` / `release:patch` label on the originating PR overrides the parsed type — use it when a PR title was misclassified.
-
 ## Tag scope
 
-One shared `vX.Y.Z` tag covers the backend image (API + worker, which run from the same image with different `command:`), and the frontend bundle. They already deploy together in lockstep and share the same `VITE_RELEASE` / `SENTRY_RELEASE` value for Sentry correlation — there's no independent release cadence to version separately.
+One shared `vX.Y.Z` tag covers the backend image (API + worker run from the same
+image with different `command:`) and the frontend bundle. They deploy together in
+lockstep and share the same `VITE_RELEASE` / `SENTRY_RELEASE` value for Sentry
+correlation — there's no independent release cadence to version separately.

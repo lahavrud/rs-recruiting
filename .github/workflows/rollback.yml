@@ -1,23 +1,35 @@
-name: Rollback Production
+name: Rollback
 
-# Redeploy a previous image that is already in ECR.
-# By default deploys PREV_SHA (the version running before the most recent
-# deploy). You can also specify any SHA that has been deployed before.
+# Break-glass: re-point an ECS service at a previous task-definition revision —
+# seconds, no rebuild. By default rolls BOTH web + worker in the chosen
+# environment back to the most recent ACTIVE revision older than the one running
+# now. You can also pin an explicit revision number.
 #
-# WARNING — PREV_SHA footgun: after a successful rollback, deploy_ec2.sh sets
-# PREV_SHA = the bad version it just replaced. Clicking "Rollback" a second
-# time would redeploy the bad SHA. Always read the "Resolving rollback SHA"
-# step output to confirm what is about to be deployed before acting.
+# Scope: this restores previous *app code* only. It does NOT undo a database
+# migration — schema changes must stay backward-compatible (expand/contract).
+# After rolling back, `git revert` the bad commit on main so git matches the
+# deployed state and the next delivery doesn't re-ship it.
+
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        description: "SHA to deploy (must exist in ECR — leave blank to use PREV_SHA)"
+      environment:
+        description: "Environment to roll back"
+        type: choice
+        options: [production, staging]
+        default: production
+      service:
+        description: "Which service(s) to roll back"
+        type: choice
+        options: [both, web, worker]
+        default: both
+      revision:
+        description: "Explicit task-def revision number to roll to (blank = previous ACTIVE revision)"
         required: false
 
-# Share the deploy lock so this never races an in-flight deploy.
+# Share the deploy lock so a rollback never races an in-flight deploy.
 concurrency:
-  group: deploy-production
+  group: deploy-${{ inputs.environment }}
   cancel-in-progress: false
 
 permissions:
@@ -25,52 +37,57 @@ permissions:
 
 jobs:
   rollback:
-    name: Roll back production
+    name: Roll back ${{ inputs.environment }} (${{ inputs.service }})
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
+    env:
+      CLUSTER: rs-recruiting-${{ inputs.environment == 'production' && 'prod' || 'staging' }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          fetch-depth: 1
-
       - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ inputs.environment == 'production' && vars.AWS_ECS_DEPLOY_ROLE_ARN || secrets.AWS_STAGING_ECS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Resolve rollback SHA
-        id: sha
+      - name: Roll back service(s)
         run: |
-          INPUT_SHA="${{ github.event.inputs.sha }}"
-          CURRENT=$(aws ssm get-parameter \
-            --name /rs-recruiting/infra/CURRENT_SHA \
-            --query 'Parameter.Value' --output text 2>/dev/null || echo "")
-          PREV=$(aws ssm get-parameter \
-            --name /rs-recruiting/infra/PREV_SHA \
-            --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+          set -euo pipefail
+          PREFIX="${CLUSTER}"
+          case "${{ inputs.service }}" in
+            both)   SERVICES=("${PREFIX}-web" "${PREFIX}-worker") ;;
+            web)    SERVICES=("${PREFIX}-web") ;;
+            worker) SERVICES=("${PREFIX}-worker") ;;
+          esac
 
-          echo "==> CURRENT_SHA (running now): ${CURRENT:-<none>}"
-          echo "==> PREV_SHA    (last deploy):  ${PREV:-<none>}"
+          for svc in "${SERVICES[@]}"; do
+            CURRENT=$(aws ecs describe-services --cluster "$CLUSTER" --services "$svc" \
+              --query 'services[0].taskDefinition' --output text)
+            CUR_REV="${CURRENT##*:}"
+            echo "==> ${svc}: currently running revision ${CUR_REV}"
 
-          if [ -n "${INPUT_SHA}" ]; then
-            echo "==> Using specified SHA: ${INPUT_SHA}"
-            echo "sha=${INPUT_SHA}" >> "$GITHUB_OUTPUT"
-          elif [ -n "${PREV}" ]; then
-            echo "==> Using PREV_SHA: ${PREV}"
-            echo "==> NOTE: if you previously ran a rollback, PREV_SHA may be a bad version."
-            echo "==>       Check the SHA above. To deploy a specific version, re-run with an explicit SHA."
-            echo "sha=${PREV}" >> "$GITHUB_OUTPUT"
-          else
-            echo "ERROR: PREV_SHA is not set and no SHA was provided. Cannot roll back."
-            exit 1
-          fi
+            if [ -n "${{ inputs.revision }}" ]; then
+              TARGET_REV="${{ inputs.revision }}"
+            else
+              # Most recent ACTIVE revision strictly older than the running one.
+              TARGET_REV=$(aws ecs list-task-definitions --family-prefix "$svc" \
+                --status ACTIVE --sort DESC --query 'taskDefinitionArns[]' --output text \
+                | tr '\t' '\n' | sed 's/.*://' \
+                | awk -v cur="$CUR_REV" '$1 < cur {print; exit}')
+            fi
 
-      - uses: ./.github/actions/ssm-deploy
-        with:
-          ref: ${{ steps.sha.outputs.sha }}
-          instance-id: ${{ secrets.EC2_INSTANCE_ID }}
+            if [ -z "${TARGET_REV:-}" ]; then
+              echo "::error::${svc}: no older ACTIVE revision found to roll back to"
+              exit 1
+            fi
+            echo "==> ${svc}: rolling back to revision ${TARGET_REV}"
+            aws ecs update-service --cluster "$CLUSTER" --service "$svc" \
+              --task-definition "${svc}:${TARGET_REV}" >/dev/null
+          done
+
+          echo "==> waiting for service stability"
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "${SERVICES[@]}"
+          echo "✅ rollback complete — remember to git revert the bad commit on main"
 
   notify-failure:
     name: Notify rollback failure
@@ -87,8 +104,8 @@ jobs:
       - uses: ./.github/actions/notify-failure
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-          title: "Rollback failed — manual intervention required"
+          title: "Rollback failed — manual intervention required (${{ inputs.environment }})"
           body: |
-            **Rollback workflow failed.** Production state is uncertain.
+            **Rollback workflow failed** for `${{ inputs.environment }}`. The environment state is uncertain.
 
-            Check the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for logs, then inspect the EC2 instance directly.
+            Check the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for logs, then inspect the ECS service in the console.
