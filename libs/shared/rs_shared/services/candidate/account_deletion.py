@@ -190,6 +190,7 @@ async def confirm_deletion(
     session: AsyncSession,
     *,
     storage: StorageProvider,
+    ip_address: str | None = None,
 ) -> None:
     """Atomically tombstone the candidate identified by *raw_token*.
 
@@ -257,6 +258,7 @@ async def confirm_deletion(
         action="account_deleted",
         target_type="candidateprofile",
         target_id=profile.id,
+        ip_address=ip_address,
     )
 
     logger.info("account_deleted", extra={"profile_id": profile.id})

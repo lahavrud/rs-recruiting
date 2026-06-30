@@ -129,8 +129,9 @@ async def confirm_deletion_endpoint(
     the token is invalid / expired / already used.
     """
     storage = get_storage_provider()
+    ip = request.client.host if request.client else None
     try:
         async with transactional(session):
-            await confirm_deletion(body.token, session, storage=storage)
+            await confirm_deletion(body.token, session, storage=storage, ip_address=ip)
     except InvalidAccountDeletionTokenError as exc:
         raise service_exception_to_http(exc) from exc
