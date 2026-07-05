@@ -2,16 +2,28 @@
 
 ## Token model
 - Access token: 10min TTL, stored in `localStorage`
-- Refresh token: 7-day TTL, HttpOnly cookie, **single-use** — deleted on use, logout, or password reset
+- Refresh token: 7-day TTL, HttpOnly cookie, **single-use** — deleted on use and on logout
+- Multi-session: one `RefreshToken` row per session; users list/revoke sessions via `GET/DELETE /api/auth/sessions`. Revoking deletes the row directly (never through the replay-nuke path, which would kill the user's other sessions).
+- Password reset deletes **all** of the user's refresh tokens; password change deletes all **except** the session that submitted the change
 - No blacklist — short access TTL is the post-logout tolerance window
-- Refresh rotation: delete consumed token, issue new pair → prevents replay attacks
+- Refresh rotation: delete consumed token, issue new pair; replay of a consumed token nukes all the user's refresh tokens
 
 ## Account lockout
 5 failed login attempts → locked for 15 minutes. Tracked on `User.locked_until` column.
 
 ## Rate limiting (slowapi)
-- Login: 5 / minute · Register: 3 / hour
-- Never surface the raw slowapi detail string (`"5 per 1 minute"`) in the UI — map to Hebrew error key
+The `@limiter.limit` decorators in `services/api/rs_api/api/auth/` are the source of truth. Current limits:
+
+| Endpoint | Limit |
+|---|---|
+| login | 5/minute |
+| refresh | 30/minute |
+| register (company + candidate) | 3/hour |
+| activate · resend-activation · password change · forgot-password | 5/hour |
+| reset-password | 10/hour (validate: 30/hour) |
+| sessions: list / revoke one / revoke all | 60 / 30 / 10 per minute |
+
+Never surface the raw slowapi detail string (`"5 per 1 minute"`) in the UI — map to a Hebrew error key.
 
 ## Activation flows
 
@@ -29,6 +41,6 @@ Resolves initial state synchronously from `localStorage`, then verifies via `/ap
 - Session logic: `libs/shared/rs_shared/services/auth/session.py`
 - Registration: `libs/shared/rs_shared/services/auth/registration.py` (company) + `.../candidate_registration.py`
 - Activation: `libs/shared/rs_shared/services/auth/activation.py`
-- Password reset: `libs/shared/rs_shared/services/auth/password_reset.py`
-- Auth API routers: `services/api/rs_api/api/auth/`; web infra (auth deps, slowapi limiter): `services/api/rs_api/infrastructure/`
+- Password reset / change: `libs/shared/rs_shared/services/auth/password_reset.py` + `.../password_change.py`
+- Auth API routers: `services/api/rs_api/api/auth/` (incl. `sessions.py` — list/revoke sessions); web infra (auth deps, slowapi limiter): `services/api/rs_api/infrastructure/`
 - Route guards: `frontend/src/components/guards/`
