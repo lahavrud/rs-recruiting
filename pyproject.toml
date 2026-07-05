@@ -35,10 +35,10 @@ test = [
     "moto[s3,ses]>=5.2.2,<6",
 ]
 dev = [
-    "ruff>=0.15.18",
+    "ruff>=0.15.20",
     "pre-commit>=4.0.0",
     "aiosmtpd>=1.4.6,<2",
-    "import-linter>=2.0",
+    "import-linter>=2.13",
     {include-group = "test"},
 ]
 

@@ -9,6 +9,14 @@
 //
 // aws_ecs_cpuutilization_average backs the ecs-cpu-high alert; EC2 is gone. The
 // ECS task role grants cloudwatch:GetMetricData + ListMetrics.
+//
+// Cadence is 15m, not 5m: GetMetricData bills per metric requested per scrape,
+// so 7 metrics x N resources at 5m cost ~3x more for series that back alerts
+// with >=15m for-durations anyway. The infra alert rules query 30m ranges (2
+// samples at this cadence) and the cloudwatch-metrics-absent watchdog counts
+// samples over 45m (3 scrapes) — if you change the cadence here, re-derive
+// both windows in tofu/modules/observability/grafana_alerts_infra.tf
+// (rs-recruiting-infra) or the watchdog will false-page.
 
 prometheus.exporter.cloudwatch "aws" {
   sts_region = "us-east-1"
@@ -19,12 +27,12 @@ prometheus.exporter.cloudwatch "aws" {
     metric {
       name       = "CPUUtilization"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
     metric {
       name       = "MemoryUtilization"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
   }
 
@@ -34,17 +42,17 @@ prometheus.exporter.cloudwatch "aws" {
     metric {
       name       = "CPUUtilization"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
     metric {
       name       = "DatabaseConnections"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
     metric {
       name       = "FreeStorageSpace"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
   }
 
@@ -54,12 +62,12 @@ prometheus.exporter.cloudwatch "aws" {
     metric {
       name       = "NumberOfMessagesSent"
       statistics = ["Sum"]
-      period     = "5m"
+      period     = "15m"
     }
     metric {
       name       = "ApproximateNumberOfMessagesVisible"
       statistics = ["Average"]
-      period     = "5m"
+      period     = "15m"
     }
   }
 }
@@ -67,5 +75,5 @@ prometheus.exporter.cloudwatch "aws" {
 prometheus.scrape "cloudwatch" {
   targets         = prometheus.exporter.cloudwatch.aws.targets
   forward_to      = [prometheus.remote_write.mimir.receiver]
-  scrape_interval = "5m"
+  scrape_interval = "15m"
 }
