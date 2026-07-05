@@ -47,7 +47,10 @@ merge to main → CI green → build image (by SHA)
 - **Already in production:** run **`rollback.yml`** (manual) — it re-points the
   ECS service(s) to the previous task-definition revision (seconds, no rebuild).
   Then `git revert` on `main` so git matches the deployed state and the next
-  delivery doesn't re-ship the bad commit.
+  delivery doesn't re-ship the bad commit. Note that `rollback.yml` moves **ECS
+  only** — it does not move git tags, so the newest `vX.Y.Z` still points at the
+  rolled-back commit until the `git revert` ships and gets its own tag. During an
+  active rollback, read the latest tag as "last *attempted*", not "currently live".
 - **Hotfix** is not a separate path any more: merge the fix to `main` and approve
   prod quickly. The break-glass for an active incident is `rollback.yml`.
 

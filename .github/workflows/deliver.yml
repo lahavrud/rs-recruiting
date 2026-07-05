@@ -141,6 +141,15 @@ jobs:
     name: Tag & release
     needs: [build, deploy-prod]
     runs-on: ubuntu-latest
+    # Serialize tag computation + push across overlapping deliveries. The version
+    # is derived from the existing tags, so two runs tagging at once could compute
+    # the same vX.Y.Z and the second push would collide (compute_next_release_tag.sh
+    # exits 1 → the run fails into notify-failure). cancel-in-progress:false queues
+    # the later run instead of dropping it. Deploys already serialize via
+    # _deploy.yml's `deploy-production` group; this closes the same race on the tag.
+    concurrency:
+      group: release-tag
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
