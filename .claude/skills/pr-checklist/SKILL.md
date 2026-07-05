@@ -4,34 +4,24 @@ Run the full pre-PR validation suite for rs-recruiting.
 
 ## Steps
 
-1. Run backend linters:
+1. Run the canonical CI-parity suite (single source of truth — the `check` target in `Makefile`):
+
    ```bash
-   uv run ruff check .
-   uv run ruff format --check .
-   ```
-   If format check fails, run `uv run ruff format .` to fix, then re-check.
-
-2. Run frontend type check, lint, and tests:
-   ```bash
-   cd frontend && npx tsc --noEmit && npm run lint && npm run test
+   make check
    ```
 
-3. Run backend tests:
-   ```bash
-   uv run pytest -n auto -q
-   ```
+   It covers backend lint + format, import boundaries (`lint-imports` + `validate_imports.py`), the quality-gate scripts (`check_file_sizes`, `validate_type_hints`, `validate_blocking_io`, `validate_test_files`), frontend types + lint + tests, and the backend test suite. Make stops at the first failure.
 
-4. If `CHANGELOG.md` exists, verify it has an entry under `## Unreleased` for behaviour-changing PRs.
+   If `ruff format --check` fails, run `uv run ruff format .` to fix, then re-run.
 
-5. Report a final summary:
+2. Report a final summary:
+
    ```
-   ✓/✗ backend lint
-   ✓/✗ backend format
-   ✓/✗ frontend types
-   ✓/✗ frontend lint
-   ✓/✗ frontend tests
+   ✓/✗ backend lint + format
+   ✓/✗ import boundaries
+   ✓/✗ quality-gate scripts
+   ✓/✗ frontend types + lint + tests
    ✓/✗ backend tests (N passed, N failed)
-   ✓/✗ changelog
    ```
 
 Do not proceed with PR creation if any check fails.
