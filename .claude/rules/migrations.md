@@ -22,6 +22,11 @@ uv run alembic upgrade --sql head   # review SQL output first
 uv run alembic upgrade head         # only after reviewing
 ```
 
+A `PreToolUse` hook in `.claude/settings.json` blocks any `alembic upgrade`
+without `--sql` from Claude. This is intentional: Claude generates and previews
+migrations; **applying them is a human step** — ask the user to run the apply
+command themselves.
+
 - Never auto-apply a migration without reviewing the generated SQL
 - Never squash or delete migrations that have been applied to production
 - After adding a nullable→non-nullable column, always provide a server_default or a data migration step
@@ -49,5 +54,5 @@ All DB calls must be `await`ed. Never use sync SQLAlchemy sessions in async rout
 1. Write the Alembic migration (`uv run alembic revision --autogenerate -m "description"`)
 2. Review the generated file — autogenerate misses some things (constraints, indexes, enum changes)
 3. Run `uv run alembic upgrade --sql head` and read the output
-4. Apply: `uv run alembic upgrade head`
+4. Apply: `uv run alembic upgrade head` — human-run; the settings hook blocks Claude from applying
 5. Update `libs/shared/rs_shared/models.py` if the migration adds/removes columns

@@ -12,7 +12,7 @@ When invoked, review the diff or files provided for:
 
 4. **Rate limiting** — login endpoints must have slowapi limits applied. Check that `429` responses never expose the raw slowapi detail string to the frontend.
 
-5. **Session teardown** — logout, password reset, and password change must all invalidate the current refresh token. Password change should also invalidate all other sessions if multi-session support is added.
+5. **Session teardown** — multi-session is supported (one refresh-token row per session; list/revoke via `/api/auth/sessions`). Logout must delete the current refresh token; password reset must delete **all** of the user's refresh tokens; password change must revoke every refresh token **except** the session that submitted the change. Revoking a session must return 404 for another user's session (indistinguishable from not-found) and must delete the row directly — never through the replay-nuke path, which would kill the user's other sessions.
 
 6. **JWT claims** — access tokens must include `user_id` and `role`. No sensitive fields (password hash, locked_until) in the payload.
 

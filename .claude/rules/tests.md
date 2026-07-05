@@ -12,10 +12,13 @@ tests/
 ├── models/           # ORM model validation
 ├── services/         # Business logic (rs_shared/services: auth, admin, company, public, candidate)
 │   └── utils/        # Audit log, contract PDF generation
-├── api/              # rs_api endpoint tests (SEO, rate limiting, request handling)
-│   └── infrastructure/  # rs_api/infrastructure: dependencies, error_handling, limiter, middleware
+├── api/              # rs_api endpoint tests, mirroring the router packages
+│   ├── admin/ auth/ candidate/ company/ public/
+│   ├── infrastructure/  # rs_api/infrastructure: dependencies, error_handling, limiter, middleware
+│   └── …             # analytics, sentry tunnel, SEO
 ├── templates/        # Email template rendering
 ├── conftest.py       # Shared fixtures, fakes (storage/email/SQS mocks), model factories
+├── test_main.py  test_schemas.py
 ├── test_domain_is_framework_free.py  # guard: worker surface imports no web stack
 └── core/
     ├── services/     # Email, storage, file validation, embeddings, cv_extraction
@@ -25,9 +28,11 @@ tests/
 ## Execution
 ```bash
 uv run pytest -n auto              # full suite, parallel (each worker = dedicated DB)
+scripts/test_fast.sh [args…]       # same, no coverage — fast dev loop, forwards extra args
 uv run pytest tests/services/auth/ # single directory
 uv run pytest -k "test_lockout"    # filter by name
 uv run pytest -x                   # stop on first failure
+make check                         # full CI-parity gate (lint + validators + both test suites)
 ```
 
 ## Patterns

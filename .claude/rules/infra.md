@@ -24,6 +24,7 @@ Trunk-based **continuous delivery**: merge to `main` → CI green → build (by 
 - `_deploy.yml` — reusable (`workflow_call`), called by `deliver.yml` once per environment. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
 - `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild.
 - `security-audit.yml` — weekly pip-audit for CVEs.
+- `stale.yml` — weekly stale-issue sweep (60d stale → 14d close; `P1`/`security`/`icebox` labels exempt).
 
 Composite actions: `build-images` (base + api + worker + alloy → ops ECR), `ecs-roll` (render live task-def with new image + deploy via `aws-actions/amazon-ecs-*`, circuit breaker armed), `deploy-frontend` (build + S3 sync + CloudFront invalidation), `notify-failure` (open a GitHub issue).
 
