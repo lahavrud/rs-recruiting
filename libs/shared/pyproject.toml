@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 # python-multipart / sentry / markdown — those are web-only and live in the API
 # service so the worker image (which depends only on this package) stays lean.
 dependencies = [
-    "sqlmodel>=0.0.22",
+    "sqlmodel>=0.0.39",
     "sqlalchemy>=2.0.51,<2.1",
     "asyncpg>=0.30.0",
     "pydantic[email]>=2.13.4",
