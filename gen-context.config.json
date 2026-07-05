@@ -1,0 +1,16 @@
+{
+  "_comment": "SigMap config. srcDirs must track the uv-workspace layout — the defaults miss libs/ and frontend/. NEVER add 'claude' to outputs: that adapter overwrites the handcrafted CLAUDE.md.",
+
+  "output": ".github/copilot-instructions.md",
+  "outputs": ["copilot"],
+
+  "srcDirs": ["libs", "services", "frontend/src", "scripts"],
+
+  "exclude": [
+    "node_modules", ".git", "dist", "build", "out",
+    "__pycache__", ".next", "coverage", "target", "vendor",
+    ".context", ".venv", "alembic"
+  ],
+
+  "mcp": { "autoRegister": false }
+}

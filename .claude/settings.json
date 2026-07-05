@@ -1,5 +1,18 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx -y sigmap >/dev/null 2>&1 || true",
+            "async": true,
+            "timeout": 120,
+            "statusMessage": "Refreshing sigmap index"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
