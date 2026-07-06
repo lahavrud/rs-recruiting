@@ -65,7 +65,7 @@ from rs_api.infrastructure.middleware import (
     RequestMiddleware,
 )
 from rs_shared.core.infrastructure.config import settings, validate_settings
-from rs_shared.core.infrastructure.database import engine, init_db
+from rs_shared.core.infrastructure.database import engine, init_db, warm_up_pool
 from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
@@ -94,6 +94,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
     validate_settings()
     await init_db()
+    # Fill the connection pool up front so early requests don't each pay a
+    # cold TCP+TLS connect to RDS on the request path.
+    await warm_up_pool()
     yield
     shutdown_telemetry()
 

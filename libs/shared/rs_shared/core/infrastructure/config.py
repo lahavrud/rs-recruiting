@@ -94,6 +94,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = 20
     db_pool_recycle: int = 1800  # 30 min — keepalives handle NAT; recycle last resort
     db_pool_pre_ping: bool = True  # SELECT 1 before checkout — catches any dead conn
+    # Seconds a request waits for a free pooled connection before giving up.
+    # SQLAlchemy defaults to 30 s — long enough that a burst that exhausts the
+    # pool stalls silently. Fail fast (and loud) instead so exhaustion shows up
+    # as a 500 we can alarm on rather than a 30 s hang. See _log_pool_pressure.
+    db_pool_timeout: int = 10
 
     # SQS task queue — empty string means tasks run inline (local dev)
     sqs_queue_url: str = ""

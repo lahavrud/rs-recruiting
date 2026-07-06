@@ -159,6 +159,7 @@ class TestEngineConfiguration:
         assert getattr(engine.pool, "_max_overflow") == settings.db_max_overflow
         assert getattr(engine.pool, "_recycle") == settings.db_pool_recycle
         assert getattr(engine.pool, "_pre_ping") == settings.db_pool_pre_ping
+        assert getattr(engine.pool, "_timeout") == settings.db_pool_timeout
 
     def test_pool_settings_have_sensible_defaults(self):
         """Defaults must beat SQLAlchemy's 5+10 to handle modest production load."""
@@ -169,6 +170,60 @@ class TestEngineConfiguration:
         assert defaults["db_max_overflow"].default >= 10
         assert defaults["db_pool_recycle"].default > 0
         assert defaults["db_pool_pre_ping"].default is True
+        # Fail fast, well under SQLAlchemy's 30 s default, so pool exhaustion
+        # surfaces as an alarmable error rather than a silent long stall.
+        assert 0 < defaults["db_pool_timeout"].default < 30
+
+
+class TestWarmUpPool:
+    """warm_up_pool() fills the pool up front and never crashes startup."""
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_opens_connections(self, monkeypatch, caplog):
+        """Happy path: pre-warm succeeds against a live DB and logs the count."""
+        from rs_shared.core.infrastructure.config import settings
+
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        monkeypatch.setattr(database_module, "engine", test_engine)
+        monkeypatch.setattr(settings, "db_pool_size", 3)
+
+        with caplog.at_level(logging.INFO, logger=database_module.logger.name):
+            await database_module.warm_up_pool()
+
+        assert any("pre-warmed with 3" in r.message for r in caplog.records)
+        await test_engine.dispose()
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_no_op_when_size_zero(self, monkeypatch):
+        """size <= 0 returns immediately without touching the engine."""
+        from rs_shared.core.infrastructure.config import settings
+
+        # A sentinel engine whose use would raise — proves we never connect.
+        monkeypatch.setattr(settings, "db_pool_size", 0)
+        monkeypatch.setattr(database_module, "engine", object())
+
+        await database_module.warm_up_pool()  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_swallows_connect_failure(self, monkeypatch, caplog):
+        """A DB that's unreachable at boot logs a warning, never crashes startup.
+
+        No network: a fake engine whose ``connect()`` raises stands in for an
+        unreachable DB, so the except branch runs without touching a socket.
+        """
+        from rs_shared.core.infrastructure.config import settings
+
+        class _BrokenEngine:
+            def connect(self):
+                raise ConnectionError("simulated DB unreachable at boot")
+
+        monkeypatch.setattr(database_module, "engine", _BrokenEngine())
+        monkeypatch.setattr(settings, "db_pool_size", 2)
+
+        with caplog.at_level(logging.WARNING, logger=database_module.logger.name):
+            await database_module.warm_up_pool()  # must not raise
+
+        assert any("pre-warm failed" in r.message for r in caplog.records)
 
 
 class TestSessionFactory:
