@@ -349,21 +349,17 @@ class CandidateApplicationJobDetail(BaseModel):
     closed: bool
 
 
-class CandidateApplicationCompany(BaseModel):
-    """Company snapshot embedded in candidate-facing application responses."""
-
-    id: int
-    name: str
-
-
 class CandidateApplicationListItem(BaseModel):
-    """Row shape for ``GET /api/candidate/me/applications``."""
+    """Row shape for ``GET /api/candidate/me/applications``.
+
+    Deliberately has no company field — the hiring company's identity must
+    never be visible to a candidate (blind recruiting model).
+    """
 
     id: int
     submitted_at: datetime
     editable: bool
     job: CandidateApplicationJobSummary
-    company: CandidateApplicationCompany
 
 
 class CandidateApplicationMyAnswers(BaseModel):
@@ -425,12 +421,15 @@ class CandidateApplicationResumeMeta(BaseModel):
 
 
 class CandidateApplicationDetail(BaseModel):
-    """Response for ``GET /api/candidate/me/applications/:id``."""
+    """Response for ``GET /api/candidate/me/applications/:id``.
+
+    Deliberately has no company field — the hiring company's identity must
+    never be visible to a candidate (blind recruiting model).
+    """
 
     id: int
     submitted_at: datetime
     editable: bool
     job: CandidateApplicationJobDetail
-    company: CandidateApplicationCompany
     my_answers: CandidateApplicationMyAnswers
     resume: CandidateApplicationResumeMeta | None

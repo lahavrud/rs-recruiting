@@ -114,7 +114,7 @@ async def test_list_filters_to_owner_and_excludes_withdrawn(test_db):
         await session.commit()
 
         page = await list_my_applications(session, candidate_id=cand.id)
-    assert {item.company.name for item in page.items} == {"A"}
+    assert {item.job.title for item in page.items} == {"Job A"}
     assert page.next_cursor is None
 
 

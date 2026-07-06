@@ -26,7 +26,6 @@ from rs_shared.core.services.storage import StorageProvider
 from rs_shared.enums import ApplicationStatus, JobStatus
 from rs_shared.models import Application, Job
 from rs_shared.schemas.candidates import (
-    CandidateApplicationCompany,
     CandidateApplicationDetail,
     CandidateApplicationJobDetail,
     CandidateApplicationJobSummary,
@@ -61,17 +60,12 @@ def _job_detail(job: Job) -> CandidateApplicationJobDetail:
     )
 
 
-def _company(job: Job) -> CandidateApplicationCompany:
-    return CandidateApplicationCompany(id=job.company.id, name=job.company.name)
-
-
 def _list_item(app: Application) -> CandidateApplicationListItem:
     return CandidateApplicationListItem(
         id=app.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         submitted_at=app.created_at,
         editable=app.status == ApplicationStatus.NEW,
         job=_job_summary(app.job),
-        company=_company(app.job),
     )
 
 
@@ -93,7 +87,7 @@ async def list_my_applications(
         Application.candidate_id == candidate_id,  # pyright: ignore[reportArgumentType]
         Application.status != ApplicationStatus.WITHDRAWN,  # pyright: ignore[reportArgumentType]
     )
-    query = query.options(selectinload(Application.job).selectinload(Job.company))
+    query = query.options(selectinload(Application.job))
     query = apply_cursor(
         query,
         sort_col=Application.created_at,
@@ -124,7 +118,7 @@ async def get_my_application(
     """
     query = (
         select(Application)
-        .options(selectinload(Application.job).selectinload(Job.company))
+        .options(selectinload(Application.job))
         .where(
             Application.id == application_id,  # pyright: ignore[reportArgumentType]
             Application.candidate_id == candidate_id,  # pyright: ignore[reportArgumentType]
@@ -163,7 +157,7 @@ async def get_application_resume_key(
 def _build_detail(app: Application) -> CandidateApplicationDetail:
     """Build a CandidateApplicationDetail from a loaded Application row.
 
-    Requires app.job and app.job.company to be eagerly loaded.
+    Requires app.job to be eagerly loaded.
     """
     resume: CandidateApplicationResumeMeta | None = None
     if app.resume_path:
@@ -176,7 +170,6 @@ def _build_detail(app: Application) -> CandidateApplicationDetail:
         submitted_at=app.created_at,
         editable=app.status == ApplicationStatus.NEW,
         job=_job_detail(app.job),
-        company=_company(app.job),
         my_answers=CandidateApplicationMyAnswers(
             service_concept=app.service_concept,
             salary_expectations=app.salary_expectations,
@@ -213,7 +206,7 @@ async def edit_my_application(
     """
     query = (
         select(Application)
-        .options(selectinload(Application.job).selectinload(Job.company))
+        .options(selectinload(Application.job))
         .where(
             Application.id == application_id,  # pyright: ignore[reportArgumentType]
             Application.candidate_id == candidate_id,  # pyright: ignore[reportArgumentType]

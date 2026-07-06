@@ -169,7 +169,7 @@ async def test_list_returns_only_this_candidates_applications(test_db):
     assert resp.status_code == 200
     items = resp.json()["items"]
     assert len(items) == 1
-    assert items[0]["company"]["name"] == "Mine"
+    assert items[0]["job"]["id"] == j1.id
 
 
 @pytest.mark.asyncio
@@ -192,7 +192,7 @@ async def test_list_excludes_withdrawn_rows(test_db):
         resp = await client.get("/api/candidate/me/applications")
     items = resp.json()["items"]
     assert len(items) == 1
-    assert items[0]["company"]["name"] == "Active"
+    assert items[0]["job"]["id"] == j_active.id
 
 
 @pytest.mark.asyncio
@@ -207,9 +207,34 @@ async def test_list_row_shape_excludes_status_and_admin_notes(test_db):
     async with await _client() as client:
         resp = await client.get("/api/candidate/me/applications")
     row = resp.json()["items"][0]
-    assert set(row.keys()) == {"id", "submitted_at", "editable", "job", "company"}
+    assert set(row.keys()) == {"id", "submitted_at", "editable", "job"}
     assert set(row["job"].keys()) == {"id", "title", "closed"}
-    assert set(row["company"].keys()) == {"id", "name"}
+
+
+@pytest.mark.asyncio
+async def test_list_never_exposes_company_identity(test_db):
+    """Regression guard for the candidate/company-name leak (blind recruiting).
+
+    Asserts against the raw response body, not just the schema shape — a
+    well-typed but wrongly-scoped field (like the old `company.name`) would
+    pass a shape-only check.
+    """
+    async with TestSessionLocal() as session:
+        _, job = await _seed_company_and_job(session, company_name="Acme Rocket Corp")
+        await session.commit()
+        user, profile = await _seed_candidate(session, "noleak@test.com")
+        await _make_app(session, candidate_id=profile.id, job_id=job.id)
+    _override_user(user.id, user.email)
+
+    async with await _client() as client:
+        list_resp = await client.get("/api/candidate/me/applications")
+        detail_resp = await client.get(
+            f"/api/candidate/me/applications/{list_resp.json()['items'][0]['id']}"
+        )
+
+    for resp in (list_resp, detail_resp):
+        assert "company" not in resp.text
+        assert "Acme Rocket Corp" not in resp.text
 
 
 @pytest.mark.asyncio
