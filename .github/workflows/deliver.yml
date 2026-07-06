@@ -141,10 +141,11 @@ jobs:
     name: Tag & release
     needs: [build, deploy-prod]
     runs-on: ubuntu-latest
-    # Serialize tag computation + push across overlapping deliveries. The version
-    # is derived from the existing tags, so two runs tagging at once could compute
-    # the same vX.Y.Z and the second push would collide (compute_next_release_tag.sh
-    # exits 1 → the run fails into notify-failure). cancel-in-progress:false queues
+    # Serialize tag computation + creation across overlapping deliveries. The
+    # version is derived from the existing tags, so two runs tagging at once could
+    # compute the same vX.Y.Z and the second release-create would collide
+    # (compute_next_release_tag.sh exits 1 → the run fails into notify-failure).
+    # cancel-in-progress:false queues
     # the later run instead of dropping it. Deploys already serialize via
     # _deploy.yml's `deploy-production` group; this closes the same race on the tag.
     concurrency:
@@ -152,7 +153,6 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
-      workflows: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -164,14 +164,19 @@ jobs:
         id: version
         run: echo "tag=$(bash scripts/compute_next_release_tag.sh)" >> "$GITHUB_OUTPUT"
 
+      # Create the tag through the Releases API (--target), not `git push`. The
+      # default GITHUB_TOKEN cannot push a ref whose `.github/workflows/` tree
+      # differs from a branch head — GitHub rejects it ("refusing to allow a
+      # GitHub App to create or update workflow … without workflows permission"),
+      # which fires whenever main has moved past the tagged SHA. There is no
+      # `workflows` scope for GITHUB_TOKEN to grant; the Releases API creates the
+      # tag server-side and sidesteps the git receive-pack hook entirely.
       - name: Tag & create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
           SHA: ${{ needs.build.outputs.sha }}
         run: |
-          git tag "$TAG" "$SHA"
-          git push origin "$TAG"
           gh release create "$TAG" --target "$SHA" --generate-notes \
             --repo "${{ github.repository }}"
 
