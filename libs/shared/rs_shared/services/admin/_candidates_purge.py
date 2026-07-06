@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.services.storage import get_storage_provider
 from rs_shared.enums import ApplicationStatus, JobStatus
-from rs_shared.models import Application, CandidateProfile, Job
+from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.services.utils.audit import record_audit_event
 
 CANDIDATE_RETENTION_DAYS = 365  # 12 months per privacy policy
@@ -38,6 +38,9 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     Resume files are best-effort deleted from storage before the DB row
     is removed; storage failures are logged and ignored so a partial S3
     outage cannot block compliance deletions.
+
+    Each purged candidate's backing User (if any) is deleted too, so the
+    purge never leaves an orphaned candidate-role account behind.
 
     Returns the number of candidates purged.
     """
@@ -85,7 +88,15 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
         await session.execute(
             delete(Application).where(Application.candidate_id == candidate.id)  # pyright: ignore[reportArgumentType]
         )
+        user_id = candidate.user_id
         await session.delete(candidate)
+        # Also remove the backing User so no orphaned candidate-role account
+        # survives the purge (it would still authenticate but 404 everywhere and
+        # keep the email "taken"). The User's auth/token rows DB-cascade.
+        if user_id is not None:
+            user = await session.get(User, user_id)
+            if user is not None:
+                await session.delete(user)
         # Audit trail: candidate id only (no PII) — needed to prove the
         # 12-month deletion to a privacy auditor.
         _logger.info("retention.purge candidate_id=%d", candidate_id)
