@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import CompanyName from "@/components/ui/CompanyName";
 import Eyebrow from "@/components/ui/Eyebrow";
 import type { CandidateApplicationListItem } from "@/services/candidate";
 
@@ -15,8 +14,7 @@ function formatRelative(
   const days = Math.max(0, Math.floor((now - submitted) / 86_400_000));
   if (days === 0) return t("candidate:applications.relative.today");
   if (days === 1) return t("candidate:applications.relative.yesterday");
-  if (days < 7)
-    return t("candidate:applications.relative.daysAgo", { count: days });
+  if (days < 7) return t("candidate:applications.relative.daysAgo", { count: days });
   if (days < 30)
     return t("candidate:applications.relative.weeksAgo", {
       count: Math.floor(days / 7),
@@ -35,7 +33,7 @@ export function RecentApplications({
 }: {
   items: CandidateApplicationListItem[] | null;
 }) {
-  const { t, i18n } = useTranslation(['candidate', 'dashboard']);
+  const { t, i18n } = useTranslation(["candidate", "dashboard"]);
 
   if (items === null) {
     return (
@@ -107,14 +105,13 @@ export function RecentApplications({
                 className="block rounded-xl border border-white/8 bg-card p-4 transition hover:border-white/20 hover:bg-card-raised"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <CompanyName name={row.company.name} className="truncate" />
+                  <span className="truncate text-sm font-medium text-copper">
+                    {row.job.title}
+                  </span>
                   <span className="shrink-0 text-[11px] text-white/45">
                     {formatRelative(row.submitted_at, i18n.language, t)}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-sm text-white/80">
-                  {row.job.title}
-                </p>
                 {row.job.closed && (
                   <span className="mt-2 inline-block rounded-sm border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/45">
                     {t("candidate:applications.closedPill")}
@@ -139,11 +136,7 @@ function IconArrow() {
       className="size-4"
       aria-hidden="true"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M5 12h14m0 0-5-5m5 5-5 5"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m0 0-5-5m5 5-5 5" />
     </svg>
   );
 }

@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import CompanyName from "@/components/ui/CompanyName";
 import PageHeader from "@/components/ui/PageHeader";
 import { useFetch } from "@/hooks/useFetch";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
@@ -16,7 +15,7 @@ import {
 const BANNER_DISMISS_MS = 4000;
 
 export default function CandidateApplicationsPage() {
-  const { t, i18n } = useTranslation('candidate');
+  const { t, i18n } = useTranslation("candidate");
   const location = useLocation();
   const navigate = useNavigate();
   const [items, setItems] = useState<CandidateApplicationListItem[]>([]);
@@ -31,17 +30,21 @@ export default function CandidateApplicationsPage() {
   useEffect(() => {
     if (withdrawnBanner) {
       navigate(".", { replace: true, state: {} });
-      bannerTimerRef.current = setTimeout(() => setWithdrawnBanner(false), BANNER_DISMISS_MS);
+      bannerTimerRef.current = setTimeout(
+        () => setWithdrawnBanner(false),
+        BANNER_DISMISS_MS,
+      );
     }
     return () => {
       if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { data: firstPage, loading, error: fetchError } = useFetch<ApplicationsPageResult>(
-    listMyApplications,
-    [],
-  );
+  const {
+    data: firstPage,
+    loading,
+    error: fetchError,
+  } = useFetch<ApplicationsPageResult>(listMyApplications, []);
   useResetOnTrigger(firstPage, () => {
     setItems(firstPage!.items);
     setCursor(firstPage!.next_cursor);
@@ -81,15 +84,11 @@ export default function CandidateApplicationsPage() {
         <p className="mt-6 text-white/60">{t("candidate:applications.loading")}</p>
       )}
 
-      {error && !loading && (
-        <p className="mt-6 text-danger">{error}</p>
-      )}
+      {error && !loading && <p className="mt-6 text-danger">{error}</p>}
 
       {!loading && !error && items.length === 0 && (
         <div className="mt-8 rounded-xl border border-white/8 bg-card p-8 text-center">
-          <p className="text-white/70">
-            {t("candidate:applications.empty")}
-          </p>
+          <p className="text-white/70">{t("candidate:applications.empty")}</p>
           <Link
             to="/jobs"
             className="mt-4 inline-block rounded-sm bg-copper px-4 py-2 text-sm font-medium text-white hover:bg-gold"
@@ -108,12 +107,13 @@ export default function CandidateApplicationsPage() {
                 className="block rounded-xl border border-white/8 bg-card p-5 transition-colors hover:border-white/20 hover:bg-card-raised"
               >
                 <div className="flex items-baseline justify-between gap-4">
-                  <CompanyName name={row.company.name} className="truncate" />
+                  <span className="truncate font-medium text-copper">
+                    {row.job.title}
+                  </span>
                   <span className="shrink-0 text-xs text-white/50">
                     {formatRelative(row.submitted_at, i18n.language, t)}
                   </span>
                 </div>
-                <p className="mt-2 text-base text-white/85">{row.job.title}</p>
                 {row.job.closed && (
                   <span className="mt-3 inline-block rounded-sm border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/50">
                     {t("candidate:applications.closedPill")}
