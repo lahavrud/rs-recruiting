@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     # Example: ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
     allowed_origins: str = Field(default="http://localhost:3000")
 
+    # CloudFront origin verification — when set (prod task definition, from
+    # SSM), requests must carry a matching x-origin-verify header or get 403'd
+    # (OriginVerifyMiddleware). None = no enforcement (local dev, worker).
+    origin_verify_secret: Optional[str] = None
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rs_recruitment"  # pragma: allowlist secret  # noqa: E501
     database_echo: bool = False  # Enable SQL query logging (for debugging only)

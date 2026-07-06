@@ -9,7 +9,11 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from rs_api.infrastructure.middleware import RequestMiddleware, request_id_var
+from rs_api.infrastructure.middleware import (
+    OriginVerifyMiddleware,
+    RequestMiddleware,
+    request_id_var,
+)
 
 
 def _make_app(handler=None):
@@ -121,3 +125,82 @@ async def test_error_still_logs_with_500(caplog):
     records = [r for r in caplog.records if r.getMessage() == "request"]
     assert len(records) == 1
     assert records[0].__dict__["status_code"] == 500
+
+
+# --- OriginVerifyMiddleware (CloudFront origin verification) ---
+
+
+def _make_verify_app(secret):
+    """Minimal Starlette app with OriginVerifyMiddleware for testing."""
+
+    async def _default(request: Request) -> Response:
+        return JSONResponse({"path": request.url.path})
+
+    app = Starlette(routes=[Route("/ok", _default), Route("/health", _default)])
+    app.add_middleware(OriginVerifyMiddleware, secret=secret)
+    return app
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_disabled_without_secret():
+    """secret=None disables enforcement entirely (local dev / worker)."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_verify_app(None)), base_url="http://test"
+    ) as client:
+        response = await client.get("/ok")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_rejects_missing_header():
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_verify_app("s3cret")), base_url="http://test"
+    ) as client:
+        response = await client.get("/ok")
+    assert response.status_code == 403
+    assert response.json() == {"detail": "forbidden"}
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_rejects_wrong_header():
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_verify_app("s3cret")), base_url="http://test"
+    ) as client:
+        response = await client.get("/ok", headers={"x-origin-verify": "wrong"})
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_accepts_matching_header():
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_verify_app("s3cret")), base_url="http://test"
+    ) as client:
+        response = await client.get("/ok", headers={"x-origin-verify": "s3cret"})
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_health_always_exempt():
+    """/health must pass without the header — the ALB health checker probes the
+    target directly (not through CloudFront); a 403 would fail the target group."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_verify_app("s3cret")), base_url="http://test"
+    ) as client:
+        response = await client.get("/health")
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_origin_verify_failure_logs_path_not_secret(caplog):
+    """Rejections log the path but never the provided header value."""
+    with caplog.at_level(logging.WARNING, logger="rs_api.infrastructure.middleware"):
+        async with AsyncClient(
+            transport=ASGITransport(app=_make_verify_app("s3cret")),
+            base_url="http://test",
+        ) as client:
+            await client.get("/ok", headers={"x-origin-verify": "sniffed-value"})
+
+    records = [r for r in caplog.records if r.getMessage() == "origin_verify_failed"]
+    assert len(records) == 1
+    assert records[0].__dict__["path"] == "/ok"
+    assert "sniffed-value" not in str(records[0].__dict__)

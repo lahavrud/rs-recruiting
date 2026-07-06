@@ -59,7 +59,11 @@ from rs_api.api.company import resumes
 from rs_api.api.public import applications as candidates
 from rs_api.api.public import jobs as public
 from rs_api.infrastructure.dependencies import client_ip
-from rs_api.infrastructure.middleware import RequestIdFilter, RequestMiddleware
+from rs_api.infrastructure.middleware import (
+    OriginVerifyMiddleware,
+    RequestIdFilter,
+    RequestMiddleware,
+)
 from rs_shared.core.infrastructure.config import settings, validate_settings
 from rs_shared.core.infrastructure.database import engine, init_db
 from rs_shared.core.infrastructure.telemetry import (
@@ -181,6 +185,12 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# CloudFront origin verification — registered last so it runs OUTERMOST
+# (Starlette middleware executes in reverse registration order): direct-to-
+# origin probes are 403'd before CORS, instrumentation, or APM logging see
+# them. No-op unless ORIGIN_VERIFY_SECRET is set (prod web task only).
+app.add_middleware(OriginVerifyMiddleware, secret=settings.origin_verify_secret)
 
 # Include routers
 app.include_router(auth.router)
