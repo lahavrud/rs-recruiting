@@ -33,4 +33,4 @@ jobs:
       - name: Audit Python dependencies for known CVEs
         # Export the locked runtime set (no dev/test deps) and pipe to pip-audit
         # so the audit reflects exactly what production runs.
-        run: uv export --frozen --no-dev --no-emit-project --format requirements-txt | uv tool run pip-audit -r /dev/stdin
+        run: uv export --frozen --no-dev --no-emit-workspace --format requirements-txt | uv tool run pip-audit -r /dev/stdin
