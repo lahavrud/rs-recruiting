@@ -9,6 +9,13 @@
             "async": true,
             "timeout": 120,
             "statusMessage": "Refreshing sigmap index"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/prune_worktrees.sh",
+            "async": true,
+            "timeout": 60,
+            "statusMessage": "Pruning stale agent worktrees"
           }
         ]
       }
@@ -19,7 +26,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c \"import json,sys; d=json.load(sys.stdin); cmd=d.get('command',''); exit(2) if 'alembic upgrade' in cmd and '--sql' not in cmd else exit(0)\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre_bash_guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/inject_rules.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format_on_edit.sh",
+            "timeout": 60
           }
         ]
       }
@@ -78,6 +106,12 @@
       "Bash(aws ce get-cost-and-usage *)",
       "Bash(aws rds describe-db-snapshots *)",
       "Bash(aws sso-admin list-*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
     ]
   }
 }

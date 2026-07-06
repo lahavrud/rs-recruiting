@@ -18,8 +18,10 @@ BUILD ?= docker buildx build --load
 
 # Full local validation with CI parity: everything ci.yml enforces, in one
 # target. Agents and the pre-PR checklist delegate here so the list of checks
-# has a single source of truth.
+# has a single source of truth. (The claude-hooks self-test is local-only —
+# it guards the .claude/hooks/ guard rails against silent rot.)
 check:
+	bash scripts/test_claude_hooks.sh
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run lint-imports

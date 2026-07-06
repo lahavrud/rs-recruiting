@@ -25,7 +25,10 @@ Use plan mode before starting any change that touches `alembic/`, `libs/shared/r
 
 ## Path-scoped rules
 
-Load the relevant rule file before planning changes in these areas:
+Load the relevant rule file before planning changes in these areas. (A
+PreToolUse hook — `.claude/hooks/inject_rules.sh` — also injects the matching
+rule file automatically on the first edit in each area; the list below is its
+path map, so keep the two in sync. Still load rules up front when planning.)
 
 - **Frontend** (design system, components, i18n, linting): `.claude/rules/frontend.md`  
   → any change touching `frontend/`
