@@ -18,7 +18,7 @@ from rs_shared.core.infrastructure.pagination import (
 from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.core.services.storage import get_storage_provider
 from rs_shared.enums import JobStatus
-from rs_shared.models import Application, AuditLog, CandidateProfile, Job
+from rs_shared.models import Application, AuditLog, CandidateProfile, Job, User
 from rs_shared.schemas import (
     CandidateActivityEvent,
     CandidateJobMatchRead,
@@ -275,7 +275,15 @@ async def delete_candidate(
     actor_user_id: int | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Hard-delete a candidate, cascading through their applications.
+    """Hard-delete a candidate, cascading through their applications and User.
+
+    Removes the CandidateProfile, its Application rows, and — for a registered
+    candidate — the backing User account (which DB-cascades its auth/token rows).
+    Deleting the User rather than leaving it behind avoids an orphaned
+    candidate-role account with no profile: one that can still authenticate but
+    404s on every candidate endpoint, and whose email stays "taken" so the
+    person can't cleanly re-register. Anonymous leads (``user_id is None``) have
+    no User to remove.
 
     Best-effort delete of the latest resume snapshot from storage. Failures
     on the storage delete are logged and ignored — DB state stays consistent.
@@ -308,7 +316,12 @@ async def delete_candidate(
                 "Failed to delete candidate resume file %s", candidate.resume_path
             )
 
+    user_id = candidate.user_id
     await session.delete(candidate)
+    if user_id is not None:
+        user = await session.get(User, user_id)
+        if user is not None:
+            await session.delete(user)
     await session.flush()
 
     await record_audit_event(

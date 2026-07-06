@@ -430,6 +430,89 @@ async def test_delete_candidate_not_found(session: AsyncSession):
         await delete_candidate(99999, session)
 
 
+async def _make_registered_candidate(
+    session: AsyncSession, *, email: str
+) -> tuple[User, CandidateProfile]:
+    """Create a User(role=CANDIDATE) linked 1:1 to a CandidateProfile."""
+    user = User(
+        email=email,
+        hashed_password="hashed",
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    candidate = CandidateProfile(
+        user_id=user.id, full_name="Reg Candidate", email=email, phone="050-9999999"
+    )
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(candidate)
+    return user, candidate
+
+
+@pytest.mark.asyncio
+async def test_delete_candidate_removes_backing_user(session: AsyncSession):
+    user, candidate = await _make_registered_candidate(
+        session, email="registered@test.com"
+    )
+    user_id = user.id
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await delete_candidate(candidate.id, session)
+        await session.commit()
+
+    user_row = await session.execute(
+        select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
+    )
+    assert user_row.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_delete_candidate_frees_email_for_reregistration(session: AsyncSession):
+    _, candidate = await _make_registered_candidate(session, email="reuse@test.com")
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await delete_candidate(candidate.id, session)
+        await session.commit()
+
+    # No orphaned User / CandidateProfile holds the unique email hostage.
+    session.add(
+        User(
+            email="reuse@test.com",
+            hashed_password="hashed",
+            role=UserRole.CANDIDATE,
+            is_active=True,
+        )
+    )
+    await session.commit()  # would raise IntegrityError if the email were taken
+
+
+@pytest.mark.asyncio
+async def test_delete_candidate_anonymous_lead_has_no_user(session: AsyncSession):
+    """A lead with user_id=None deletes cleanly (nothing to cascade to)."""
+    candidate = await _make_candidate(session, email="lead@test.com")
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await delete_candidate(candidate.id, session)
+        await session.commit()
+
+    remaining = await session.execute(
+        select(CandidateProfile).where(CandidateProfile.id == candidate.id)  # pyright: ignore[reportArgumentType]
+    )
+    assert remaining.scalar_one_or_none() is None
+
+
 # ── purge_expired_candidates ──────────────────────────────────────────────────
 
 
@@ -606,6 +689,33 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         assert await purge_expired_candidates(session) == 1
         await session.commit()
         assert await purge_expired_candidates(session) == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_removes_backing_user(
+    session: AsyncSession, company_profile: CompanyProfile
+):
+    """A purged registered candidate leaves no orphaned User behind."""
+    job = await _make_closed_job(
+        session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
+    )
+    user, candidate = await _make_registered_candidate(
+        session, email="purge-user@test.com"
+    )
+    user_id = user.id
+    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
+        factory.return_value.delete_file = AsyncMock()
+        assert await purge_expired_candidates(session) == 1
+        await session.commit()
+
+    user_row = await session.execute(
+        select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
+    )
+    assert user_row.scalar_one_or_none() is None
 
 
 # ---------------------------------------------------------------------------
