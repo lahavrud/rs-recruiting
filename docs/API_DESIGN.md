@@ -244,7 +244,7 @@ Send the agency-contact email to the company associated with a pending job.
 | `PUT` | `/api/admin/applications/{application_id}/notes` | Update `admin_notes` only — does not change status or send email |
 | `DELETE` | `/api/admin/applications/{application_id}` | Delete an application (candidate profile preserved) |
 
-> Schemas (request bodies, response shapes, error codes) are in `src/schemas.py` and surfaced via the OpenAPI schema at `/docs`.
+> Schemas (request bodies, response shapes, error codes) live in the `libs/shared/rs_shared/schemas/` package (split by domain) and are surfaced via the OpenAPI schema at `/docs`.
 
 ---
 
@@ -420,7 +420,7 @@ Stream the snapshotted resume from `Application.resume_path`.
 * **Response:** `200` with the file bytes (inline for PDFs, attachment
   otherwise). `404` if the application is foreign, `WITHDRAWN`, or has no
   snapshot. Reuses the storage-streaming helper at
-  `src/api/_resume_streaming.py` shared with the admin endpoint.
+  `services/api/rs_api/api/_resume_streaming.py` shared with the admin endpoint.
 
 ### `PATCH /api/candidate/me/applications/{id}`
 Partially update text answers and/or replace the resume snapshot. Sprint 11 / #610.
