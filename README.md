@@ -164,7 +164,7 @@ scripts/test_fast.sh         # same, no coverage — fast dev loop
 
 ## Local development
 
-**Prerequisites:** Python 3.12+ · [uv](https://github.com/astral-sh/uv) · Docker + Compose · Node 18+
+**Prerequisites:** Python 3.12+ · [uv](https://github.com/astral-sh/uv) · Docker + Compose · Node 22+
 
 The schema is built locally from `SQLModel.metadata.create_all`, **not** by running migrations — the Alembic chain is designed to run on top of an existing production schema, so don't point `alembic upgrade` at a fresh database.
 
