@@ -1,48 +1,37 @@
 # RS Recruitment
 
-A full-stack recruitment CRM built for a boutique agency. Manages the full pipeline from company onboarding and job posting through candidate applications to admin-gated match decisions — with a dark luxury React frontend served over a production AWS stack.
+A production recruitment CRM for a boutique agency — the whole pipeline, from company onboarding and job postings through candidate applications to admin-gated match decisions. Hebrew-first, RTL, dark-luxury React on the front; an async FastAPI backend split across three services on AWS Fargate behind it.
 
 **Live:** [rs-recruiting.com](https://rs-recruiting.com)
 
 <img src="docs/screenshots/apply-flow.gif" width="700" alt="Landing page and public job board" />
-<p><em>Public-facing site — landing page, job board, and candidate application flow</em></p>
+<p><em>Public site — landing page, job board, and the candidate application flow</em></p>
 
 <img src="docs/screenshots/admin-dashboard.png" width="650" alt="Admin dashboard" />
-<p><em>Admin dashboard — live stats across companies, jobs, applications, and candidates with quick-action shortcuts</em></p>
+<p><em>Admin dashboard — live stats across companies, jobs, applications, and candidates, with quick actions</em></p>
 
 ---
 
-## Features
+## What it does
 
-**Public**
-- Job board with per-job detail pages and JSON-LD `JobPosting` structured data
-- Candidate application form with resume upload (PDF/DOCX → S3)
-- GDPR-style consent tracking: timestamp, policy version, IP, user-agent stored per submission
-- SEO: dynamic sitemap.xml, robots.txt, Open Graph meta, server-side prerendered OG pages
+Four actors, one pipeline.
 
-**Admin**
-- Invite-based company onboarding (token → registration → approval → activation)
-- Job approval queue (review, approve, or reject postings)
-- Application management with status tracking (New → Approved → Hired/Rejected/Withdrawn)
-- Candidate directory with profile and resume access
-- Append-only audit log: every admin action is recorded with actor, target, IP, and timestamp
+- **Candidates** self-register, verify by email, upload a résumé, apply to jobs, track application status, and export their data (GDPR ZIP) or have it purged.
+- **Companies** are invited by an admin, post jobs, and watch applications land per posting.
+- **Admins** approve invites and job postings, triage applications through their lifecycle, browse the candidate directory, and see every action they take written to an append-only audit log.
+- **The public** browses an SEO-indexed job board — server-prerendered Open Graph pages and JSON-LD `JobPosting` data so a job link unfurls and ranks like a real page, not a blank SPA shell.
 
-**Company**
-- Job posting and management dashboard
-- View applications per job
+Under the hood, a **résumé-matching engine** embeds jobs and résumés (Cohere multilingual, strong on Hebrew) into pgvector and ranks candidate–job fit by cosine similarity — computed off the request path by the background worker.
 
-**Candidate**
-- Self-registration with email verification (2-hour activation window)
-- Profile management (name, phone, LinkedIn URL, resume upload)
-- View submitted applications and their status
-- GDPR data export (profile + per-application resumes as ZIP)
-- Password reset (forgot-password → email link → reset flow)
+### Feature map
 
-**Auth**
-- JWT access token (10 min) + HttpOnly refresh cookie (7 days)
-- Role-based route guards (ADMIN / COMPANY / CANDIDATE / public)
-- Account lockout after 5 failed attempts (15-min cooldown, database-backed)
-- Refresh token rotation: single-use tokens deleted on use, logout, or password reset
+| Area | Highlights |
+|---|---|
+| **Public** | Job board + per-job detail pages · résumé upload (PDF/DOCX → S3, magic-byte validated) · GDPR consent captured per submission (timestamp, policy version, IP, UA) · sitemap.xml, robots.txt, OG prerender |
+| **Candidate** | Email-verified signup (2h window) · profile + résumé management · application tracking · GDPR export & retention purge · forgot-password flow |
+| **Company** | Job posting & management · applications per job |
+| **Admin** | Invite → approve → activate onboarding · job approval queue · application triage (New → Approved → Hired / Rejected / Withdrawn) · candidate directory · audit log |
+| **Auth** | 10-min JWT access + 7-day HttpOnly refresh cookie · role guards (admin / company / candidate / public) · single-use rotating refresh tokens · 5-strike account lockout (15-min, DB-backed) |
 
 ---
 
@@ -50,17 +39,17 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 
 | Layer | Technologies |
 |---|---|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, React Router v7 |
-| Backend | FastAPI, SQLModel (SQLAlchemy + Pydantic), Alembic, Python 3.12 |
-| Database | PostgreSQL 16, asyncpg (connection pool + pre-ping) |
-| Background Jobs | AWS SQS + custom Python worker, EventBridge Scheduler (nightly purge) |
-| File Storage | AWS S3 (production), local filesystem (dev) — provider abstraction |
-| Email | Resend via SMTP relay (production) — provider abstraction; 10+ HTML templates |
-| Auth | JWT (PyJWT), bcrypt, HttpOnly refresh cookie, slowapi rate limiting |
-| Observability | Sentry (backend + frontend with source maps), Google Tag Manager, CloudWatch |
-| Infrastructure | ECS Fargate + RDS + S3 + SQS + ECR + SSM + CloudFront, Cloudflare (DNS only) |
-| CI/CD | GitHub Actions — OIDC auth, change detection, Pytest against PostgreSQL, continuous delivery to ECS with a manual prod gate |
-| Code Quality | Ruff, ESLint, TypeScript strict, 5 custom validation scripts, weekly pip-audit |
+| Frontend | React 19 · TypeScript (strict) · Vite · Tailwind CSS v4 · React Router v7 |
+| Backend | FastAPI · SQLModel (SQLAlchemy + Pydantic) async · Alembic · Python 3.12 |
+| Database | PostgreSQL 16 · asyncpg (warm pool + pre-ping) · pgvector for match embeddings |
+| Background jobs | AWS SQS + a bespoke Python worker service · EventBridge Scheduler (nightly retention purge) |
+| Matching | Cohere multilingual embeddings · pgvector cosine similarity |
+| Storage / Email | S3 (prod) & local FS (dev) · Resend over SMTP (prod) & Mailpit (dev) — both behind provider factories · 18 transactional HTML templates |
+| Auth | PyJWT · bcrypt · HttpOnly refresh cookie · slowapi rate limiting |
+| Observability | Sentry (backend + frontend source maps) · Grafana (Loki / Tempo / Mimir) · CloudWatch alarms → SNS |
+| Infrastructure | ECS Fargate · RDS · S3 · SQS · ECR · SSM · CloudFront · Cloudflare (DNS only) |
+| CI/CD | GitHub Actions — OIDC (no stored keys), change detection, Pytest on real PostgreSQL, continuous delivery to ECS with a manual prod gate |
+| Quality gates | Ruff · ESLint · TypeScript strict · 5 custom validators · import-linter · weekly pip-audit |
 
 ---
 
@@ -68,7 +57,15 @@ A full-stack recruitment CRM built for a boutique agency. Manages the full pipel
 
 <img src="docs/screenshots/aws-architecture.png" width="750" alt="AWS architecture diagram" />
 
-<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or the ECS Fargate web service via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background jobs: SQS → ECS Fargate worker service. CI/CD path: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scanning ECR images. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or the ECS Fargate API service via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background: SQS → ECS Fargate worker. CI/CD: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scans ECR on push. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+
+The backend is a **uv workspace** of three members that deploy as two images:
+
+- **`rs_shared`** (`libs/shared`) — the framework-free domain: models, enums, business services, email templates, and the `core/` infrastructure and provider abstractions. Installed into *both* images.
+- **`rs_api`** (`services/api`) — the FastAPI web stack: routers, request middleware, auth dependencies, the slowapi limiter.
+- **`rs_worker`** (`services/worker`) — the SQS consumer that runs email, data-export, purge, and matching tasks.
+
+`rs_shared` and `rs_worker` stay web-stack-free; the boundary is enforced by import-linter contracts and a guard test, so a stray `fastapi` import in the domain fails CI rather than shipping.
 
 ### Data model
 
@@ -111,130 +108,131 @@ erDiagram
         int id
         int job_id
         int candidate_id
-        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN"
+        enum status "NEW, APPROVED_BY_ADMIN, REJECTED, HIRED, WITHDRAWN, JOB_CLOSED"
         text admin_notes
     }
 ```
 
 ---
 
-## Design Decisions
+## Design decisions
 
-**Three-tier authentication** — Admins, companies, and candidates are all full authenticated roles (ADMIN, COMPANY, CANDIDATE). Admins approve company invites; companies post jobs; candidates self-register, activate via email, and claim their applications. The schema distinguishes authenticated candidates (`user_id` linked) from anonymous leads (applications submitted before registration), enabling a seamless "register and claim" flow without breaking legacy data.
+The choices worth explaining — the *why*, not the *what*.
 
-**Stateless JWT with short-lived access tokens** — Access tokens have a 10-minute TTL; refresh tokens are single-use and deleted from the database on logout or refresh. There is no blacklist — the short TTL serves as the post-logout tolerance window. Refresh token rotation (delete consumed token, issue new pair) prevents replays. Failed login attempts and account lockout are tracked on the `User` row with a `locked_until` timestamp.
+**Three-tier authentication.** Admins, companies, and candidates are all first-class roles. The schema tells authenticated candidates (`user_id` linked) apart from anonymous leads (applications submitted before signup), so a "register and claim" flow reconciles the two without special-casing legacy rows.
 
-**Storage and email abstraction** — Both file storage and email are behind provider interfaces. A single env var switches between local/S3 for storage with no code changes. Email providers can be SES or SMTP; production uses Resend via SMTP relay. This made local development cheap and production deployment straightforward.
+**Stateless JWT, short access tokens, no blacklist.** Access tokens live 10 minutes; refresh tokens are single-use and deleted on logout or rotation. The short TTL *is* the post-logout tolerance window, so there's no revocation list to maintain. Replaying a consumed refresh token nukes the whole family. Lockout state rides on the `User` row (`locked_until`).
 
-**Async task queue with AWS SQS** — Sending email from inside a request handler risks timeouts and drops on provider throttling. All outbound email is pushed to an SQS queue and processed by a separate worker service (`rs_worker/worker.py`) with retry logic. Ten transactional email templates cover the full company and candidate lifecycle. The `defer_after_commit` pattern ensures tasks are enqueued only after the originating transaction commits, preventing phantom messages on rollback.
+**Everything external is a provider abstraction.** Storage, email, and embeddings each sit behind an ABC + factory chosen by config. One env var flips storage between local disk and S3, or email between Mailpit and Resend — no code change. Local dev needs zero cloud accounts.
 
-**OIDC-based continuous delivery with change detection** — GitHub Actions authenticates to AWS via OIDC (no stored credentials). A `detect-changes` job skips irrelevant work — a docs-only PR never runs backend tests or builds Docker. Every commit that lands on `main` and passes CI is built once (tagged by SHA, pushed to the ops-account ECR), then promoted to production behind a manual approval (a `production` GitHub Environment required reviewer). The prod roll runs a gated DB migration first and waits for service stability with the deployment circuit breaker armed.
+**Work leaves the request path.** Sending mail or computing embeddings inline invites timeouts and provider throttling. Instead, tasks are pushed to SQS and run by the worker; a `defer_after_commit` hook enqueues them *only after* the originating transaction commits, so a rollback can't leave a phantom message. SQS is at-least-once, so every task is idempotent by construction.
 
-**Custom CI validation scripts** — Beyond Ruff and TypeScript, five custom scripts run in CI: SOC import enforcement (services must not import FastAPI), blocking I/O detection in async functions (catches `open()`, `requests.*`, `time.sleep()`), type hint coverage on public functions, test file existence checks (1:1 mapping with source files), and file size limits. Catches architecture drift that standard linters miss.
+**OIDC continuous delivery with change detection.** GitHub Actions authenticates to AWS via OIDC — no stored keys anywhere in the repo. A `detect-changes` job skips work a diff doesn't touch (a docs-only PR never builds Docker). Each commit that lands on `main` green is built once (tagged by SHA, pushed to the ops-account ECR) and promoted to prod behind a manual approval (a `production` Environment reviewer). Prod runs a gated migration first, then rolls with the deployment circuit breaker armed.
 
-**Docker hardening** — Multi-stage build with layer caching on the lockfile. Runtime image runs as a non-root `appuser` (permissions fixed in entrypoint script). Dev and test dependencies are excluded. Health check hits the `/health` endpoint via the same proxy path a real client uses.
+**Custom validators catch what linters miss.** Beyond Ruff and tsc, five CI scripts enforce architecture: SOC import boundaries (domain can't import FastAPI), blocking-I/O detection in async code (`open()`, `requests.*`, `time.sleep()`), type-hint coverage on public functions, 1:1 test-file mapping, and file-size limits.
 
-**SEO prerendering for a SPA** — Client-side React can't be indexed for job-specific pages. The backend generates server-side HTML snapshots with full Open Graph meta, canonical URLs, and JSON-LD `JobPosting` structured data (title, salary range, location, dates). A dynamic sitemap.xml lists all published jobs with `lastmod` from `updated_at`. Googlebot gets a real HTML response; users get the SPA.
+**SEO prerendering for a SPA.** A client-rendered React page is invisible to a job-specific crawler. The backend serves real HTML snapshots — full OG meta, canonical URLs, JSON-LD `JobPosting` (title, salary, location, dates) — plus a dynamic sitemap with `lastmod` from `updated_at`. Bots get HTML; humans get the SPA.
 
-**Hebrew-only RTL UI** — The entire frontend is in Hebrew with `<html dir="rtl">` forced globally. All UI strings live in per-namespace JSON files under `locales/he/` (13 files, one per feature area); raw backend error strings are never surfaced to the user.
+**Hebrew-only RTL.** The entire UI is Hebrew with `<html dir="rtl">` forced globally. Strings live in per-namespace JSON under `locales/he/` (14 files); raw backend error strings are never shown — they map to Hebrew keys.
 
 ---
 
 ## Testing
 
-70+ test files, ~18k lines, parallel execution via `pytest-xdist` (each worker gets a dedicated database).
+88 test files running in parallel via `pytest-xdist` — each worker gets a dedicated database. No test touches the network; SQS, S3, and email are faked in `conftest.py`.
 
 ```
 tests/
-├── models/           # ORM model validation
-├── services/         # Business logic (auth, admin, company, public, candidate flows)
-├── api/              # Endpoint tests (SEO, rate limiting, request handling)
-├── templates/        # Email template rendering
+├── models/                  # ORM model validation
+├── services/                # Business logic (auth, admin, company, public, candidate)
+├── api/                     # Endpoint tests, mirroring the routers
+│   └── infrastructure/      # web plumbing: deps, error mapping, limiter, middleware
+├── templates/               # Email template rendering
 └── core/
-    ├── services/     # Email, storage, file validation
-    └── infrastructure/  # Database, config, security, transactions, rate limiting
+    ├── services/            # email, storage, file validation, embeddings, cv extraction
+    └── infrastructure/      # DB, config, security, transactions, request context
 ```
 
-Notable coverage: full auth lifecycle (invite → registration → approval → activation → login → lockout → logout), candidate registration and activation, SEO output (sitemap, JSON-LD, OG prerender), SQS task enqueue/handling (email, data export, candidate purge), storage abstraction, database transactions and rollback guarantees.
+Notable coverage: the full auth lifecycle (invite → registration → approval → activation → login → lockout → logout), candidate signup/activation, SEO output (sitemap, JSON-LD, OG prerender), SQS enqueue/consume for every task, the storage abstraction, and transaction rollback guarantees.
 
 ```bash
-uv run pytest -n auto
+uv run pytest -n auto        # full suite, parallel
+scripts/test_fast.sh         # same, no coverage — fast dev loop
 ```
 
 ---
 
-## Local Development
+## Local development
 
-**Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv), Docker + Docker Compose, Node 18+
+**Prerequisites:** Python 3.12+ · [uv](https://github.com/astral-sh/uv) · Docker + Compose · Node 18+
+
+The schema is built locally from `SQLModel.metadata.create_all`, **not** by running migrations — the Alembic chain is designed to run on top of an existing production schema, so don't point `alembic upgrade` at a fresh database.
 
 ```bash
-# 1. Clone and install
+# 1. Clone and install the whole workspace (all three members, editable)
 git clone https://github.com/lahavrud/rs-recruiting.git
 cd rs-recruiting
 uv sync
 
-# 2. Start services (PostgreSQL + Mailpit local SMTP)
-docker-compose up -d
+# 2. Start backing services — Postgres + Mailpit (SMTP) + LocalStack
+make services
 
-# 3. Run migrations
-uv run alembic upgrade head
+# 3. Run the API (tasks run inline while SQS_QUEUE_URL is unset)
+uv run uvicorn rs_api.main:app --reload
 
-# 4. Start backend
-uv run uvicorn src.main:app --reload
-
-# 5. Start frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
+# 4. Frontend, in a second terminal
+cd frontend && npm install && npm run dev
 ```
 
-The frontend proxies `/api/*` to `http://localhost:8000`. Outbound email goes to [Mailpit](http://localhost:8025) — no provider account needed in development. Tasks (email, exports) run inline in the API process when `SQS_QUEUE_URL` is unset.
+The frontend proxies `/api/*` to `localhost:8000`. Outbound mail lands in [Mailpit](http://localhost:8025) — no provider account needed. For the full containerized split (API + worker images, real queue via LocalStack), use `make up` instead of `make services`.
 
 ### Environment
 
 ```bash
-# Minimum required
+# The one thing you must set:
 export JWT_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
 ```
 
-Production env vars (AWS credentials, Sentry DSN, Resend SMTP credentials, S3 bucket) are only needed outside local dev — the defaults in `docker-compose.yml` cover everything for local work.
+Production-only vars (AWS, Sentry DSN, Resend SMTP, S3 bucket) aren't needed for local work — the compose defaults cover everything else.
 
-### Linting
+### Before you commit
 
 ```bash
-uv run ruff check . && uv run ruff format --check .
-cd frontend && npx tsc --noEmit && npm run lint
+uv run ruff check . && uv run ruff format --check .      # backend
+cd frontend && npx tsc --noEmit && npm run lint          # frontend
+make check                                               # full CI-parity gate
 ```
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 rs-recruiting/
-├── src/
-│   ├── api/          # Thin FastAPI routers (auth, admin, company, public, seo)
-│   ├── services/     # Business logic, decoupled from routers
-│   │   ├── auth/     # session, registration, activation, password_reset, candidate_registration, password_change
-│   │   ├── admin/    # companies, jobs, applications, candidates, invites, audit
-│   │   ├── company/  # jobs, profile, candidates
-│   │   └── utils/    # audit logging, contract PDF, legal text
-│   ├── core/         # Infrastructure abstractions: storage, email, task queue definitions
-│   ├── models.py     # SQLModel ORM models
-│   ├── templates/    # Transactional email templates (HTML)
-│   └── worker.py     # SQS worker — polls queue and dispatches to task registry
+├── libs/shared/rs_shared/     # framework-free domain (installed into both images)
+│   ├── models.py  enums.py  schemas/  templates/  assets/
+│   ├── services/              # business logic, one package per actor:
+│   │                          #   auth/ admin/ company/ candidate/ public/ utils/
+│   └── core/
+│       ├── tasks.py  task_contract.py  matching.py   # SQS task queue + résumé matching
+│       ├── infrastructure/    # config, database, security, pagination, telemetry
+│       └── services/          # provider ABCs: email, storage, embeddings, cv_extraction
+├── services/api/rs_api/       # FastAPI service
+│   ├── main.py
+│   ├── api/                   # routers: auth/ admin/ company/ candidate/ public/ seo/
+│   └── infrastructure/        # web-only: auth deps, error→HTTP mapping, limiter, middleware
+├── services/worker/rs_worker/ # SQS consumer (console script: rs-worker)
 ├── frontend/src/
-│   ├── pages/        # public/, admin/, company/, candidate/ + auth pages
-│   ├── components/   # layout/, guards/, ui/ — shared React components
-│   ├── hooks/        # useAuth, useInfiniteList, useDebounce, usePageTitle…
-│   └── locales/he/   # per-namespace translation files (common, auth, admin, …)
-├── tests/            # 70+ test files, pytest-xdist parallel execution
-├── scripts/          # 5 CI validation scripts
-├── docs/             # Architecture decisions, API design, infrastructure, runbooks
+│   ├── pages/                 # public/ admin/ company/ candidate/ + auth pages
+│   ├── components/            # guards/ layout/ ui/ (~35 shared primitives)
+│   ├── hooks/  services/  types/  locales/he/
+├── tests/                     # 88 test files, xdist-parallel
+├── scripts/                   # 5 CI validators + seed/backfill tooling
+├── alembic/                   # migrations (prod-only; local uses create_all)
 └── .github/workflows/
-    ├── ci.yml        # Lint, test, docker-build (change-aware)
-    ├── deliver.yml   # Build by SHA → manual approval → prod → tag
-    ├── _deploy.yml   # Reusable per-environment ECS deploy (migrate → roll → frontend)
-    ├── rollback.yml  # Re-point an ECS service to its previous task-def revision
-    └── security-audit.yml  # Weekly pip-audit for CVEs
+    ├── ci.yml                 # lint · test · docker-build (change-aware)
+    ├── deliver.yml            # build by SHA → staging → manual approval → prod → tag
+    ├── _deploy.yml            # reusable per-env ECS deploy (migrate → roll → frontend)
+    ├── rollback.yml           # re-point an ECS service to a prior task-def revision
+    └── security-audit.yml     # weekly pip-audit
 ```
