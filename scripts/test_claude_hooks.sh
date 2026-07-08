@@ -55,6 +55,17 @@ t 2 gate_push.sh "{\"cwd\":\"$otherrepo\",\"tool_input\":{\"command\":\"cd $proj
   "cd-back-into-this-repo push is gated"
 t 2 gate_push.sh '{"cwd":"/nonexistent-dir-xyz","tool_input":{"command":"git push"}}' \
   "unresolvable push directory stays gated (fail closed)"
+
+# Worktrees of the SAME repo share the git common dir → still gated.
+wtrepo=$(mktemp -d) wtdir=$(mktemp -d -u)
+git -C "$wtrepo" init -q && git -C "$wtrepo" commit -q --allow-empty -m init
+git -C "$wtrepo" worktree add -q "$wtdir" -b wt-test
+printf '%s' "{\"cwd\":\"$wtdir\",\"tool_input\":{\"command\":\"git push\"}}" \
+  | CLAUDE_PROJECT_DIR="$wtrepo" bash "$hooks/gate_push.sh" >/dev/null 2>&1
+if [ $? -ne 2 ]; then
+  echo "FAIL: push from a worktree of the project repo is not gated"; fail=1
+fi
+rm -rf "$wtrepo" "$wtdir"
 rm -rf "$otherrepo"
 unset RS_HOOK_DRY_RUN
 

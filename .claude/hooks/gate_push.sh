@@ -21,8 +21,10 @@ dir=${cdtarget:-$cwd}
 dir=${dir/#\~/$HOME}
 if [ -n "$dir" ]; then
   case "$dir" in /*) ;; *) dir="${cwd:-${CLAUDE_PROJECT_DIR:?}}/$dir" ;; esac
-  top=$(cd "$dir" 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null)
-  proj=$(cd "${CLAUDE_PROJECT_DIR:?}" && git rev-parse --show-toplevel 2>/dev/null || pwd)
+  # --git-common-dir (not --show-toplevel): worktrees of this repo share the
+  # common dir, so pushes from them are still gated.
+  top=$(cd "$dir" 2>/dev/null && git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
+  proj=$(cd "${CLAUDE_PROJECT_DIR:?}" && git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || pwd)
   [ -n "$top" ] && [ "$top" != "$proj" ] && exit 0
 fi
 
