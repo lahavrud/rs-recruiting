@@ -41,6 +41,21 @@ t 2 gate_push.sh '{"tool_input":{"command":"git push origin feat/x"}}' \
   "git push triggers the test gate"
 t 0 gate_push.sh '{"tool_input":{"command":"git pull origin main"}}' \
   "git pull passes the test gate"
+
+# gate_push.sh is scoped to THIS repo: pushes from other checkouts pass.
+otherrepo=$(mktemp -d)
+git -C "$otherrepo" init -q
+t 2 gate_push.sh "{\"cwd\":\"$proj\",\"tool_input\":{\"command\":\"git push\"}}" \
+  "push with cwd inside this repo is gated"
+t 0 gate_push.sh "{\"cwd\":\"$otherrepo\",\"tool_input\":{\"command\":\"git push\"}}" \
+  "push with cwd in another repo passes"
+t 0 gate_push.sh "{\"cwd\":\"$proj\",\"tool_input\":{\"command\":\"cd $otherrepo && git push origin main\"}}" \
+  "cd-to-another-repo push passes"
+t 2 gate_push.sh "{\"cwd\":\"$otherrepo\",\"tool_input\":{\"command\":\"cd $proj && git push\"}}" \
+  "cd-back-into-this-repo push is gated"
+t 2 gate_push.sh '{"cwd":"/nonexistent-dir-xyz","tool_input":{"command":"git push"}}' \
+  "unresolvable push directory stays gated (fail closed)"
+rm -rf "$otherrepo"
 unset RS_HOOK_DRY_RUN
 
 # --- inject_rules.sh: rule injection fires once per session per rule ---------
