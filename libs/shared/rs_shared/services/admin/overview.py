@@ -2,7 +2,16 @@
 
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import (
+    String,
+    cast,
+    func,
+    literal,
+    literal_column,
+    null,
+    select,
+    union_all,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
@@ -31,13 +40,8 @@ async def get_overview(session: AsyncSession) -> dict:
     scalars = await _fetch_scalar_stats(session)
     status_counts = await _count_application_statuses(session)
     top_jobs = await _top_jobs_by_applications(session)
-    recent_companies = await _recent_pending_companies(session)
-    recent_jobs = await _recent_pending_jobs(session)
-    recent_applications = await _recent_new_applications(session)
+    all_recent = await _fetch_recent_items(session)
     trend_30d = await _application_trend_30d(session)
-
-    all_recent = recent_companies + recent_jobs + recent_applications
-    all_recent.sort(key=lambda x: x["created_at"], reverse=True)
 
     return {
         "inbox": {
@@ -222,41 +226,64 @@ async def _top_jobs_by_applications(
     ]
 
 
-async def _recent_pending_companies(session: AsyncSession) -> list[dict]:
-    rows = (
-        await session.execute(
-            select(CompanyProfile.name, CompanyProfile.created_at)
-            .join(User, User.id == CompanyProfile.user_id)  # pyright: ignore[reportArgumentType]
-            .where(User.role == UserRole.COMPANY, User.is_active == False)  # noqa: E712
-            .order_by(CompanyProfile.created_at.desc())
-            .limit(RECENT_ITEMS_PER_TYPE)
+async def _fetch_recent_items(session: AsyncSession) -> list[dict]:
+    """The three 'recent' feeds (pending companies, pending jobs, new
+    applications) as one UNION ALL — a single round-trip instead of three.
+
+    Each branch keeps its own ORDER BY + LIMIT (compiled parenthesized), so
+    the DB does the per-type top-N; the cross-type merge order is applied by
+    the caller's sort. Returned newest-first across all types.
+    """
+    companies = (
+        select(
+            literal("company").label("item_type"),
+            CompanyProfile.name.label("label"),
+            cast(null(), String).label("sublabel"),
+            CompanyProfile.created_at.label("created_at"),
         )
-    ).all()
-    return [
+        .join(User, User.id == CompanyProfile.user_id)  # pyright: ignore[reportArgumentType]
+        .where(User.role == UserRole.COMPANY, User.is_active == False)  # noqa: E712
+        .order_by(CompanyProfile.created_at.desc())
+        .limit(RECENT_ITEMS_PER_TYPE)
+    )
+    jobs = (
+        select(
+            literal("job").label("item_type"),
+            Job.title.label("label"),
+            CompanyProfile.name.label("sublabel"),
+            Job.created_at.label("created_at"),
+        )
+        .join(CompanyProfile, Job.company_id == CompanyProfile.id)  # pyright: ignore[reportArgumentType]
+        .where(Job.status == JobStatus.PENDING_APPROVAL)  # pyright: ignore[reportArgumentType]
+        .order_by(Job.created_at.desc())
+        .limit(RECENT_ITEMS_PER_TYPE)
+    )
+    applications = (
+        select(
+            literal("application").label("item_type"),
+            CandidateProfile.full_name.label("label"),
+            Job.title.label("sublabel"),
+            Application.created_at.label("created_at"),
+        )
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
+        .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
+        .where(Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW)  # pyright: ignore[reportArgumentType]
+        .order_by(Application.created_at.desc())
+        .limit(RECENT_ITEMS_PER_TYPE)
+    )
+
+    rows = (await session.execute(union_all(companies, jobs, applications))).all()
+    items = [
         {
-            "type": "company",
-            "label": r[0],
-            "sublabel": None,
-            "created_at": r[1].isoformat(),
-        }  # noqa: E501
+            "type": r[0],
+            "label": r[1],
+            "sublabel": r[2],
+            "created_at": r[3].isoformat(),
+        }
         for r in rows
     ]
-
-
-async def _recent_pending_jobs(session: AsyncSession) -> list[dict]:
-    rows = (
-        await session.execute(
-            select(Job.title, CompanyProfile.name, Job.created_at)
-            .join(CompanyProfile, Job.company_id == CompanyProfile.id)  # pyright: ignore[reportArgumentType]
-            .where(Job.status == JobStatus.PENDING_APPROVAL)  # pyright: ignore[reportArgumentType]
-            .order_by(Job.created_at.desc())
-            .limit(RECENT_ITEMS_PER_TYPE)
-        )
-    ).all()
-    return [
-        {"type": "job", "label": r[0], "sublabel": r[1], "created_at": r[2].isoformat()}
-        for r in rows
-    ]
+    items.sort(key=lambda x: x["created_at"], reverse=True)
+    return items
 
 
 async def _application_trend_30d(session: AsyncSession) -> list[dict]:
@@ -283,25 +310,3 @@ async def _application_trend_30d(session: AsyncSession) -> list[dict]:
         d = today - timedelta(days=i)
         out.append({"date": d.isoformat(), "n": counts.get(d, 0)})
     return out
-
-
-async def _recent_new_applications(session: AsyncSession) -> list[dict]:
-    rows = (
-        await session.execute(
-            select(CandidateProfile.full_name, Job.title, Application.created_at)
-            .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
-            .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
-            .where(Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW)  # pyright: ignore[reportArgumentType]
-            .order_by(Application.created_at.desc())
-            .limit(RECENT_ITEMS_PER_TYPE)
-        )
-    ).all()
-    return [
-        {
-            "type": "application",
-            "label": r[0],
-            "sublabel": r[1],
-            "created_at": r[2].isoformat(),
-        }  # noqa: E501
-        for r in rows
-    ]

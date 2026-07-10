@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.models import Application
+from rs_shared.models import Application, Job, User
 from rs_shared.services.admin.overview import get_overview
 
 
@@ -54,3 +54,35 @@ async def test_get_overview_status_counts_keyed_by_enum_value(
 
     assert counts.get("PENDING_ADMIN_REVIEW") == 1
     assert "ApplicationStatus.PENDING_ADMIN_REVIEW" not in counts
+
+
+@pytest.mark.asyncio
+async def test_get_overview_recent_items_all_types_newest_first(
+    session: AsyncSession,
+    application: Application,
+    pending_job: Job,
+    company_user: User,
+):
+    """recent_items merges all three feeds and orders newest-first.
+
+    Covers the UNION ALL branches: a pending-review application, a
+    pending-approval job, and a pending (inactive) company must each surface,
+    with each type's label/sublabel shape intact.
+    """
+    result = await get_overview(session)
+    items = result["pulse"]["recent_items"]
+
+    assert {item["type"] for item in items} == {"application", "job", "company"}
+
+    stamps = [item["created_at"] for item in items]
+    assert stamps == sorted(stamps, reverse=True)
+
+    companies = [i for i in items if i["type"] == "company"]
+    jobs = [i for i in items if i["type"] == "job"]
+    applications = [i for i in items if i["type"] == "application"]
+
+    assert "Test Company" in {c["label"] for c in companies}
+    assert all(c["sublabel"] is None for c in companies)
+    assert jobs[0]["label"] == "Senior Python Developer"
+    assert jobs[0]["sublabel"] == "Approved Company"  # its company's name
+    assert applications[0]["sublabel"] == "Senior Python Developer"  # job title
