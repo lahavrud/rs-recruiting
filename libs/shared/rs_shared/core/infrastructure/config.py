@@ -92,7 +92,12 @@ class Settings(BaseSettings):
     # pool sizing before scaling to multiple workers on the same RDS instance.
     db_pool_size: int = 15
     db_max_overflow: int = 20
-    db_pool_recycle: int = 1800  # 30 min — keepalives handle NAT; recycle last resort
+    # Recycle is a last resort, not the liveness mechanism — keepalives hold the
+    # NAT mapping and pool_pre_ping catches any conn that dies anyway. At 30 min
+    # this forced a full reconnect storm (~3 s each, on the request path) on the
+    # first burst after every idle half hour; prod traces showed it dominating
+    # admin page latency. 12 h keeps a safety bound without request-path churn.
+    db_pool_recycle: int = 43200
     db_pool_pre_ping: bool = True  # SELECT 1 before checkout — catches any dead conn
     # Seconds a request waits for a free pooled connection before giving up.
     # SQLAlchemy defaults to 30 s — long enough that a burst that exhausts the

@@ -4,7 +4,7 @@ import logging
 import os
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import event, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import rs_shared.core.infrastructure.database as database_module
@@ -224,6 +224,35 @@ class TestWarmUpPool:
             await database_module.warm_up_pool()  # must not raise
 
         assert any("pre-warm failed" in r.message for r in caplog.records)
+
+
+class TestTcpKeepalive:
+    """_set_tcp_keepalive must work against the real asyncpg driver.
+
+    The listener reaches into asyncpg internals, so its failure mode is an
+    AttributeError caught and logged as a WARNING on every physical connect —
+    silently leaving connections without client-side keepalives (this happened
+    in prod when the attribute path went stale). Connecting through a real
+    asyncpg engine and asserting the warning never fires is the regression
+    guard; it breaks the moment a driver bump changes the internals again.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_keepalive_warning_on_real_asyncpg_connect(self, caplog):
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        event.listen(
+            test_engine.sync_engine, "connect", database_module._set_tcp_keepalive
+        )
+
+        with caplog.at_level(logging.WARNING, logger=database_module.logger.name):
+            async with test_engine.connect() as conn:
+                await conn.execute(select(1))
+
+        keepalive_warnings = [
+            r for r in caplog.records if "keepalive" in r.message.lower()
+        ]
+        assert not keepalive_warnings, keepalive_warnings[0].message
+        await test_engine.dispose()
 
 
 class TestSessionFactory:

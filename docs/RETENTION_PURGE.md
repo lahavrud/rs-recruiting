@@ -10,8 +10,8 @@ A nightly background job that deletes candidate data past the 12-month retention
 
 - **Schedule:** 03:00 UTC nightly (off-peak for our user base)
 - **Runs in:** the `worker` ECS Fargate service
-- **Defined in:** `src/core/tasks.py::purge_expired_candidate_data_task`
-- **Eligibility logic:** `src/services/candidates_admin.py::purge_expired_candidates`
+- **Defined in:** `libs/shared/rs_shared/core/tasks.py::purge_expired_candidate_data_task`
+- **Eligibility logic:** `libs/shared/rs_shared/services/admin/_candidates_purge.py::purge_expired_candidates`
 
 ---
 
@@ -171,9 +171,9 @@ If you need to run the purge outside the cron schedule (e.g. compliance request 
 ssh ec2
 docker exec -it rs-recruiting-worker-1 python -c "
 import asyncio
-from src.core.infrastructure.database import async_session
-from src.core.infrastructure.transactions import transactional
-from src.services.candidates_admin import purge_expired_candidates
+from rs_shared.core.infrastructure.database import async_session
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.services.admin._candidates_purge import purge_expired_candidates
 
 async def run():
     async with async_session() as s:
@@ -200,8 +200,8 @@ The metric will not be emitted by a manual run — that's only the cron task wra
 
 ## Related
 
-- Service logic: `src/services/candidates_admin.py`
-- Task wrapper: `src/core/tasks.py`
+- Service logic: `libs/shared/rs_shared/services/admin/_candidates_purge.py`
+- Task wrapper: `libs/shared/rs_shared/core/tasks.py`
 - Tests: `tests/core/test_tasks.py` (look for `purge_task_*`)
 - Original implementation: PR #295
 - Observability + alarm: PR #298

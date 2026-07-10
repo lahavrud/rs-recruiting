@@ -75,15 +75,15 @@ These principles guide all architectural decisions:
 - **Local Volume Mount** – Only for development, not production
 
 **Chosen Solution:** Storage abstraction layer with provider abstraction interface
-- **Local Storage** – For development and tests (`src/core/services/storage.py::LocalStorageProvider`)
-- **S3/MinIO Storage** – For production (`src/core/services/storage.py::S3StorageProvider`)
+- **Local Storage** – For development and tests (`libs/shared/rs_shared/core/services/storage.py::LocalStorageProvider`)
+- **S3/MinIO Storage** – For production (`libs/shared/rs_shared/core/services/storage.py::S3StorageProvider`)
 - Provider selection via `STORAGE_PROVIDER` environment variable (`local` or `s3`)
 
 **Implementation:**
-- Abstract base class: `StorageProvider` in `src/core/services/storage.py`
+- Abstract base class: `StorageProvider` in `libs/shared/rs_shared/core/services/storage.py`
 - Methods: `upload_file()`, `get_file_url()`, `delete_file()`
 - File validation: Size limits and file type checking
-- Configuration: `src/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
 
 **Related Issues:**
 - [#43](https://github.com/lahavrud/rs-recruiting/issues/43) - feat(infra): Implement storage abstraction layer for file uploads (S3/MinIO/Local) ✅ CLOSED
@@ -108,17 +108,17 @@ These principles guide all architectural decisions:
 **Chosen Solution:** Email abstraction layer with SQS-based async task queue
 - **Development:** SMTP to Mailpit (`docker-compose` service on port 1025; web UI at http://localhost:8025) — no provider account needed
 - **Production:** Resend via SMTP relay (`EMAIL_PROVIDER=smtp`; `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` loaded from SSM). AWS SES was considered but sandbox migration to production was blocked.
-- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `src/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
-- **Task Queue:** AWS SQS → `src/worker.py` worker process (`src/core/tasks.py`)
+- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `libs/shared/rs_shared/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
+- **Task Queue:** AWS SQS → `services/worker/rs_worker/worker.py` worker process (`libs/shared/rs_shared/core/tasks.py`)
 - **Retry Logic:** SQS at-least-once delivery; tasks are idempotent; DLQ captures failures
 - Local dev: tasks run inline when `SQS_QUEUE_URL` is not set (no queue needed)
 
 **Implementation:**
-- Abstract base class: `EmailProvider` in `src/core/services/email.py`
+- Abstract base class: `EmailProvider` in `libs/shared/rs_shared/core/services/email.py`
 - Implementations: `SESEmailProvider`, `SMTPEmailProvider`
-- Task producer: `enqueue_email_task()` in `src/core/tasks.py` — call sites unchanged from Arq era
-- Worker: `src/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
-- Configuration: `src/core/infrastructure/config.py`
+- Task producer: `enqueue_email_task()` in `libs/shared/rs_shared/core/tasks.py` — call sites unchanged from Arq era
+- Worker: `services/worker/rs_worker/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py`
 
 **Notification Triggers (all implemented):**
 - Candidate applies → email admin + confirmation email to candidate
@@ -170,9 +170,9 @@ These principles guide all architectural decisions:
 3. If multiple worker instances are ever needed, the sleep-based throttle no longer gives a global rate limit — replace it with a Redis token bucket shared across workers (each worker acquires a token before sending, with a refill rate of `1 / EMAIL_SEND_DELAY_SECONDS` tokens/s). The `email_quota` counter logic is already multi-instance safe because it uses a Postgres upsert (`ON CONFLICT DO UPDATE`) — no change needed there.
 
 **Implementation:**
-- `src/core/services/email_quota.py` — `increment_and_alert(session)`
-- `src/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
-- `src/worker.py` — sleep after `delete_message` for `send_email` tasks only
+- `libs/shared/rs_shared/core/services/email_quota.py` — `increment_and_alert(session)`
+- `libs/shared/rs_shared/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
+- `services/worker/rs_worker/worker.py` — sleep after `delete_message` for `send_email` tasks only
 - `alembic/versions/e03b8aa073a3_add_email_quota_table.py` — creates `email_quota`
 
 **Status:** ✅ Implemented
@@ -187,12 +187,12 @@ These principles guide all architectural decisions:
 
 **Chosen Solution:**
 - **Broker:** AWS SQS (managed, durable, at-least-once delivery; visibility timeout = 300 s)
-- **Worker:** `src/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
+- **Worker:** `services/worker/rs_worker/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
 - **Cron:** Nightly purge triggered by EventBridge Scheduler → SQS (not a cron inside the worker process)
 
 **Implementation:**
-- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `src/core/tasks.py`.
-- **Worker Process:** Separate Docker container (`worker`) runs `python -m src.worker` to consume from SQS.
+- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `libs/shared/rs_shared/core/tasks.py`.
+- **Worker Process:** Separate Docker container (`worker`) runs the `rs-worker` console script (`rs_worker.worker`) to consume from SQS.
 - **API Integration:** Service layer calls `enqueue_*_task()` via `defer_after_commit()` — tasks enqueue after the DB transaction commits, preventing phantom messages on rollback. Endpoints return their normal status codes immediately.
 - **Local Dev:** `SQS_QUEUE_URL` unset → tasks run inline (no queue needed).
 - **Resilience:** SQS at-least-once delivery; tasks are written to be idempotent. Dead-letter queue captures repeated failures.
@@ -369,7 +369,7 @@ frontend/
 **Decision:** Configure CORS middleware in FastAPI with environment-based origin whitelisting.
 
 **Implementation:**
-- **Middleware:** FastAPI `CORSMiddleware` in `src/main.py`
+- **Middleware:** FastAPI `CORSMiddleware` in `services/api/rs_api/main.py`
 - **Configuration:** `ALLOWED_ORIGINS` environment variable (comma-separated list)
 - **Default:** `http://localhost:3000` (development)
 - **Security:** Never use wildcard (`*`) in production
@@ -380,7 +380,7 @@ frontend/
 - **Allowed Headers:** `Content-Type`, `Authorization` (for JWT tokens)
 - **Credentials:** `True` (to allow cookies/auth headers)
 
-**Code Location:** `src/main.py` lines 27-34
+**Code Location:** `services/api/rs_api/main.py`
 
 **Related Issues:**
 - Architecture decision documented in this file (no specific issue, part of frontend architecture)
@@ -398,25 +398,25 @@ frontend/
 **Decision:** Extract business logic into a dedicated service layer, keeping routers thin.
 
 **Implementation:**
-- **Structure:** `src/services/` directory with domain-specific services
+- **Structure:** business logic lives in `libs/shared/rs_shared/services/`, one package per domain; the FastAPI routers in `services/api/rs_api/api/` delegate to it
 - **Pattern:** Routers delegate to services, services contain business logic
-- **Benefits:** Better testability, separation of concerns, reusable business logic
+- **Benefits:** Better testability, separation of concerns, reusable business logic — and, since `rs_shared` is framework-free, the same services run in the worker without a web stack
 
 **Example Structure:**
 
 ```
-src/
-├── api/              # Thin routers (FastAPI endpoints) — one package per domain
-│   ├── auth/         # login, registration, activation, password_reset, candidate_registration
-│   ├── admin/        # companies, jobs, applications, candidates, invites, audit
-│   ├── candidate/    # me, applications, data_export
-│   ├── company/      # jobs, profile, resumes
-│   └── public/       # job board, apply flow
-└── services/         # Business logic — mirrors api/ layout
-    ├── auth/
-    ├── admin/
-    ├── candidate/
-    └── public/
+services/api/rs_api/api/     # Thin routers (FastAPI endpoints) — one package per domain
+├── auth/         # login, registration, activation, password_reset, candidate_registration
+├── admin/        # companies, jobs, applications, candidates, invites, audit
+├── candidate/    # me, applications, data_export
+├── company/      # jobs, profile, resumes
+└── public/       # job board, apply flow
+
+libs/shared/rs_shared/services/   # Business logic — mirrors the router layout
+├── auth/
+├── admin/
+├── candidate/
+└── public/
 ```
 
 **Related Issues:**
@@ -433,9 +433,9 @@ src/
 **Decision:** Use SQLModel (SQLAlchemy + Pydantic) for database models with Alembic for migrations.
 
 **Implementation:**
-- **Models:** `src/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
-- **Enums:** `src/enums.py` with UserRole, JobStatus, ApplicationStatus
-- **Schemas:** `src/schemas.py` with Pydantic schemas for API validation
+- **Models:** `libs/shared/rs_shared/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
+- **Enums:** `libs/shared/rs_shared/enums.py` with UserRole, JobStatus, ApplicationStatus
+- **Schemas:** the `libs/shared/rs_shared/schemas/` package (split by domain) with Pydantic schemas for API validation
 - **Migrations:** Alembic for database schema versioning
 - **Async:** Async SQLModel engine for async/await support
 
@@ -456,7 +456,7 @@ src/
 **Implementation:**
 - **Transaction Rollback:** Explicit `session.rollback()` on all error paths
 - **IntegrityError Handling:** Catch database constraint violations and convert to domain exceptions
-- **Error Types:** Custom exceptions in `src/services/exceptions.py`
+- **Error Types:** Custom exceptions in `libs/shared/rs_shared/services/exceptions.py`
 
 **Related Issues:**
 - [#47](https://github.com/lahavrud/rs-recruiting/issues/47) - fix(auth): Handle race condition in user registration (TOCTOU) ✅ CLOSED
