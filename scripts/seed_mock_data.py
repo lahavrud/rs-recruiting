@@ -678,8 +678,12 @@ def _days_ago(days: float) -> datetime:
 # Admin notes per application outcome
 ADMIN_NOTES_BY_OUTCOME = {
     "approved": "מועמד מתאים, עם ניסיון רלוונטי. מאושר לראיון.",
-    "rejected_direct": "הניסיון אינו עומד בדרישות המינימום לתפקיד.",
-    "rejected_after_review": (
+    "interviewing": "המועמד בתהליך ראיונות מול הלקוח.",
+    "offer": "הלקוח הגיש הצעה למועמד וממתין לתשובתו.",
+    # REJECTED_BY_ADMIN — RS screen-out before the employer sees the candidate.
+    "rejected_by_admin": "הניסיון אינו עומד בדרישות המינימום לתפקיד.",
+    # REJECTED_BY_COMPANY — employer decline after reviewing the candidate.
+    "rejected_by_company": (
         "המועמד עבר סינון ראשוני, אך לאחר שיחה עם הצוות לא נמצאה התאמה להמשך התהליך."
     ),
     "hired": "התאמה מעולה. המועמד קיבל את ההצעה ואישר תחילת עבודה.",
@@ -689,51 +693,73 @@ ADMIN_NOTES_BY_OUTCOME = {
 _StatusTransition = tuple[datetime, ApplicationStatus, ApplicationStatus]
 _StatusHistory = tuple[list[_StatusTransition], datetime, str | None]
 
-_NEW = ApplicationStatus.NEW
+_PENDING = ApplicationStatus.PENDING_ADMIN_REVIEW
 _APPROVED = ApplicationStatus.APPROVED_BY_ADMIN
-_REJECTED = ApplicationStatus.REJECTED
+_INTERVIEWING = ApplicationStatus.INTERVIEWING
+_OFFER = ApplicationStatus.OFFER
 _HIRED = ApplicationStatus.HIRED
+_REJECTED_BY_COMPANY = ApplicationStatus.REJECTED_BY_COMPANY
+_REJECTED_BY_ADMIN = ApplicationStatus.REJECTED_BY_ADMIN
 
 
 def _status_history(
-    app_status: ApplicationStatus, applied_at: datetime, *, via_review: bool
+    app_status: ApplicationStatus, applied_at: datetime
 ) -> _StatusHistory:
     """Build a realistic status-transition history for an application.
 
+    The path a candidate takes now follows the enriched pipeline
+    (PENDING_ADMIN_REVIEW → APPROVED_BY_ADMIN → INTERVIEWING → OFFER → HIRED)
+    and the actor split: an admin screen-out (REJECTED_BY_ADMIN) happens
+    before the employer ever sees the candidate, while an employer decline
+    (REJECTED_BY_COMPANY) only happens after review.
+
     Returns (transition events, last updated_at, admin note).
     """
-    if app_status == _NEW:
+    approved_at = applied_at + timedelta(days=2)
+    approved_leg: list[_StatusTransition] = [(approved_at, _PENDING, _APPROVED)]
+
+    if app_status == _PENDING:
         return [], applied_at, None
 
     if app_status == _APPROVED:
-        approved_at = applied_at + timedelta(days=2)
-        return (
-            [(approved_at, _NEW, _APPROVED)],
-            approved_at,
-            ADMIN_NOTES_BY_OUTCOME["approved"],
-        )
+        return approved_leg, approved_at, ADMIN_NOTES_BY_OUTCOME["approved"]
 
-    if app_status == _REJECTED:
-        if via_review:
-            approved_at = applied_at + timedelta(days=2)
-            rejected_at = applied_at + timedelta(days=6)
-            return (
-                [(approved_at, _NEW, _APPROVED), (rejected_at, _APPROVED, _REJECTED)],
-                rejected_at,
-                ADMIN_NOTES_BY_OUTCOME["rejected_after_review"],
-            )
+    # RS screen-out — rejected before approval, never pushed to the employer.
+    if app_status == _REJECTED_BY_ADMIN:
         rejected_at = applied_at + timedelta(days=1)
         return (
-            [(rejected_at, _NEW, _REJECTED)],
+            [(rejected_at, _PENDING, _REJECTED_BY_ADMIN)],
             rejected_at,
-            ADMIN_NOTES_BY_OUTCOME["rejected_direct"],
+            ADMIN_NOTES_BY_OUTCOME["rejected_by_admin"],
         )
 
-    # HIRED — always passes through admin approval before being hired
-    approved_at = applied_at + timedelta(days=2)
-    hired_at = applied_at + timedelta(days=9)
+    interviewing_at = applied_at + timedelta(days=5)
+    interviewing_leg = approved_leg + [
+        (interviewing_at, _APPROVED, _INTERVIEWING),
+    ]
+
+    if app_status == _INTERVIEWING:
+        return interviewing_leg, interviewing_at, ADMIN_NOTES_BY_OUTCOME["interviewing"]
+
+    # Employer decline after meeting the candidate.
+    if app_status == _REJECTED_BY_COMPANY:
+        rejected_at = applied_at + timedelta(days=8)
+        return (
+            interviewing_leg + [(rejected_at, _INTERVIEWING, _REJECTED_BY_COMPANY)],
+            rejected_at,
+            ADMIN_NOTES_BY_OUTCOME["rejected_by_company"],
+        )
+
+    offer_at = applied_at + timedelta(days=9)
+    offer_leg = interviewing_leg + [(offer_at, _INTERVIEWING, _OFFER)]
+
+    if app_status == _OFFER:
+        return offer_leg, offer_at, ADMIN_NOTES_BY_OUTCOME["offer"]
+
+    # HIRED — the full pipeline, offer accepted.
+    hired_at = applied_at + timedelta(days=12)
     return (
-        [(approved_at, _NEW, _APPROVED), (hired_at, _APPROVED, _HIRED)],
+        offer_leg + [(hired_at, _OFFER, _HIRED)],
         hired_at,
         ADMIN_NOTES_BY_OUTCOME["hired"],
     )
@@ -951,11 +977,16 @@ async def seed(resume_fixtures: list[Path] | None = None) -> None:
 
         # ── מועמדויות ──
         published_jobs = [j for j in all_jobs if j.status == JobStatus.PUBLISHED]
+        # Round-robin across the full enriched pipeline so seeded data exercises
+        # every stage and both rejection actors.
         statuses = [
-            ApplicationStatus.NEW,
+            ApplicationStatus.PENDING_ADMIN_REVIEW,
             ApplicationStatus.APPROVED_BY_ADMIN,
-            ApplicationStatus.REJECTED,
+            ApplicationStatus.INTERVIEWING,
+            ApplicationStatus.OFFER,
             ApplicationStatus.HIRED,
+            ApplicationStatus.REJECTED_BY_COMPANY,
+            ApplicationStatus.REJECTED_BY_ADMIN,
         ]
 
         for i, candidate in enumerate(created_candidates):
@@ -983,17 +1014,20 @@ async def seed(resume_fixtures: list[Path] | None = None) -> None:
                 applied_at = registered_at + timedelta(
                     days=3 + offset * 10 + (i % 3) * 4
                 )
-                # REJECTED only occurs when (i + offset) is even, so vary on i
-                # alone to get both rejection paths represented.
-                via_review = i % 2 == 0
                 status_events, updated_at, admin_notes = _status_history(
-                    app_status, applied_at, via_review=via_review
+                    app_status, applied_at
                 )
+                # An application only carries pushed_by_admin_id once it has been
+                # forwarded to the employer — i.e. it reached a company-visible
+                # status. RS-only states (pending review, admin screen-out) stay
+                # unpushed.
+                pushed_by = admin_user.id if app_status.company_visible else None
 
                 app = Application(
                     job_id=job.id,
                     candidate_id=candidate.id,
                     status=app_status,
+                    pushed_by_admin_id=pushed_by,
                     admin_notes=admin_notes,
                     service_concept=cand_data["service_concept"],
                     salary_expectations=cand_data["salary_expectations"],
