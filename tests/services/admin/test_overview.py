@@ -43,13 +43,14 @@ async def test_get_overview_empty_db(session: AsyncSession):
 async def test_get_overview_status_counts_keyed_by_enum_value(
     session: AsyncSession, application: Application
 ):
-    """Breakdown is keyed by the enum value ('NEW'), not str(member).
+    """Breakdown is keyed by the enum value, not str(member).
 
-    Regression: str(ApplicationStatus.NEW) is 'ApplicationStatus.NEW', which
-    the frontend's status-keyed lookups miss, leaving the breakdown at 0.
+    Regression: str(ApplicationStatus.PENDING_ADMIN_REVIEW) is
+    'ApplicationStatus.PENDING_ADMIN_REVIEW', which the frontend's status-keyed
+    lookups miss, leaving the breakdown at 0.
     """
     result = await get_overview(session)
     counts = result["stats"]["application_status_counts"]
 
-    assert counts.get("NEW") == 1
-    assert "ApplicationStatus.NEW" not in counts
+    assert counts.get("PENDING_ADMIN_REVIEW") == 1
+    assert "ApplicationStatus.PENDING_ADMIN_REVIEW" not in counts

@@ -156,7 +156,7 @@ async def push_match(
     application = Application(
         job_id=job_id,
         candidate_id=candidate_id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         pushed_by_admin_id=admin_id,
     )
     session.add(application)
@@ -220,7 +220,7 @@ async def get_hot_applications(
         .where(
             CandidateProfile.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
             Job.embedding.is_not(None),  # pyright: ignore[reportArgumentType]
-            Application.status == ApplicationStatus.NEW,  # pyright: ignore[reportArgumentType]
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW,  # pyright: ignore[reportArgumentType]
         )
         .order_by(distance_expr.asc())
         .limit(limit * _HOT_OVERSAMPLE)

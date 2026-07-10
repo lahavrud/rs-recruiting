@@ -98,7 +98,7 @@ async def check_no_blocking_application(
     existing = result.scalar_one_or_none()
     if existing is None:
         return
-    if existing.status == ApplicationStatus.NEW:
+    if existing.status == ApplicationStatus.PENDING_ADMIN_REVIEW:
         assert existing.id is not None
         raise ApplicationAlreadyEditableError(application_id=existing.id)
     raise ApplicationAlreadyLockedError(
@@ -208,7 +208,7 @@ async def upsert_candidate_and_application(
         Application(
             job_id=job_id,
             candidate_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
             service_concept=payload.service_concept,
             salary_expectations=payload.salary_expectations,
             strength=payload.strength,

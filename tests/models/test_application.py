@@ -87,7 +87,7 @@ async def test_application_creation_sets_new_status_and_timestamps(
     assert application.id is not None
     assert application.job_id == job.id
     assert application.candidate_id == candidate.id
-    assert application.status == ApplicationStatus.NEW
+    assert application.status == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert application.admin_notes is None
     assert application.created_at is not None
     assert application.updated_at is not None
@@ -149,7 +149,7 @@ async def test_partial_unique_index_blocks_duplicate_active(
     a1 = Application(
         job_id=job.id,  # type: ignore[arg-type]
         candidate_id=candidate.id,  # type: ignore[arg-type]
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     session.add(a1)
     await session.commit()
@@ -157,7 +157,7 @@ async def test_partial_unique_index_blocks_duplicate_active(
     a2 = Application(
         job_id=job.id,  # type: ignore[arg-type]
         candidate_id=candidate.id,  # type: ignore[arg-type]
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     session.add(a2)
     with pytest.raises(Exception):  # IntegrityError on partial unique index
@@ -190,10 +190,10 @@ async def test_partial_unique_index_allows_reapply_after_withdrawn(
     fresh = Application(
         job_id=job.id,  # type: ignore[arg-type]
         candidate_id=candidate.id,  # type: ignore[arg-type]
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     session.add(fresh)
     await session.commit()
     await session.refresh(fresh)
     assert fresh.id is not None
-    assert fresh.status == ApplicationStatus.NEW
+    assert fresh.status == ApplicationStatus.PENDING_ADMIN_REVIEW

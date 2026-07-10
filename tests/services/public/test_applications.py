@@ -111,7 +111,7 @@ async def test_create_candidate_profile_success(
             )
         )
     ).scalar_one()
-    assert application.status == ApplicationStatus.NEW
+    assert application.status == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert application.service_concept == "I want to work on exciting projects"
     assert application.salary_expectations == "100k-120k"
 

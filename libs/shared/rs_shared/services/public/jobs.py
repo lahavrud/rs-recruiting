@@ -99,7 +99,7 @@ async def get_published_job(
             assert my_app.id is not None
             job_read.my_application = MyApplicationInfo(
                 id=my_app.id,
-                editable=my_app.status == ApplicationStatus.NEW,
+                editable=my_app.status == ApplicationStatus.PENDING_ADMIN_REVIEW,
             )
 
     return job_read

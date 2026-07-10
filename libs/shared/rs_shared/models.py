@@ -604,7 +604,9 @@ class Application(SQLModel, table=True):
             index=True,
         )
     )
-    status: ApplicationStatus = Field(default=ApplicationStatus.NEW, index=True)
+    status: ApplicationStatus = Field(
+        default=ApplicationStatus.PENDING_ADMIN_REVIEW, index=True
+    )
     admin_notes: str | None = Field(default=None, sa_column=Column(Text))
     service_concept: str | None = Field(default=None, sa_column=Column(Text))
     salary_expectations: str | None = Field(default=None, sa_column=Column(Text))

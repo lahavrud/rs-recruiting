@@ -87,11 +87,15 @@ async def update_application_status(
         )
 
     email_payloads: list[dict[str, str]] = []
-    newly_rejected = (
-        new_status == ApplicationStatus.REJECTED
-        and old_status != ApplicationStatus.REJECTED
+    # The screen-out rejection email is for RS-side rejections only
+    # (REJECTED_BY_ADMIN) — an employer's own decline (REJECTED_BY_COMPANY)
+    # is a separate, company-owned notification. The actor is now explicit in
+    # the status, so we no longer infer it from ``pushed_by_admin_id``.
+    newly_rejected_by_admin = (
+        new_status == ApplicationStatus.REJECTED_BY_ADMIN
+        and old_status != ApplicationStatus.REJECTED_BY_ADMIN
     )
-    if newly_rejected and application.pushed_by_admin_id is None:
+    if newly_rejected_by_admin:
         candidate = application.candidate
         job = application.job
         plain = (

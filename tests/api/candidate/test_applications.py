@@ -124,7 +124,7 @@ async def _make_app(
     *,
     candidate_id: int,
     job_id: int,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
     resume_path: str | None = None,
     service_concept: str | None = "concept",
     salary_expectations: str | None = "30k",
@@ -241,9 +241,9 @@ async def test_list_never_exposes_company_identity(test_db):
 @pytest.mark.parametrize(
     "status,expected",
     [
-        (ApplicationStatus.NEW, True),
+        (ApplicationStatus.PENDING_ADMIN_REVIEW, True),
         (ApplicationStatus.APPROVED_BY_ADMIN, False),
-        (ApplicationStatus.REJECTED, False),
+        (ApplicationStatus.REJECTED_BY_ADMIN, False),
         (ApplicationStatus.HIRED, False),
     ],
 )
@@ -580,7 +580,7 @@ async def test_patch_with_resume_replaces_snapshot(test_db):
     "status",
     [
         ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.REJECTED,
+        ApplicationStatus.REJECTED_BY_ADMIN,
         ApplicationStatus.HIRED,
     ],
 )
@@ -780,7 +780,7 @@ async def test_withdraw_on_new_sets_status_and_hides_from_list(test_db):
     "status",
     [
         ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.REJECTED,
+        ApplicationStatus.REJECTED_BY_ADMIN,
         ApplicationStatus.HIRED,
     ],
 )
@@ -858,7 +858,7 @@ async def test_withdraw_allows_reapply_via_partial_unique_index(test_db):
         second = Application(
             job_id=job.id,
             candidate_id=profile.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
         session.add(second)
         await session.commit()

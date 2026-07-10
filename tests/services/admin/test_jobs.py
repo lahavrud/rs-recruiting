@@ -183,7 +183,7 @@ async def test_delete_job_cascades_applications_keeps_candidate(
         Application(
             job_id=job_id,
             candidate_id=candidate.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
     )
     await session.commit()
@@ -220,7 +220,7 @@ async def _make_application(
     session: AsyncSession,
     job_id: int,
     email: str,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
 ) -> Application:
     candidate = CandidateProfile(full_name="מועמד", email=email, phone="050-0000000")
     session.add(candidate)
@@ -285,13 +285,13 @@ async def test_close_published_job_transitions_active_applications(
     await session.flush()
 
     app_new = await _make_application(
-        session, job_id, "new@test.com", ApplicationStatus.NEW
+        session, job_id, "new@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
     app_approved = await _make_application(
         session, job_id, "approved@test.com", ApplicationStatus.APPROVED_BY_ADMIN
     )
     app_rejected = await _make_application(
-        session, job_id, "rejected@test.com", ApplicationStatus.REJECTED
+        session, job_id, "rejected@test.com", ApplicationStatus.REJECTED_BY_ADMIN
     )
     await session.commit()
 
@@ -313,7 +313,7 @@ async def test_close_published_job_transitions_active_applications(
 
     assert app_new.status == ApplicationStatus.JOB_CLOSED
     assert app_approved.status == ApplicationStatus.JOB_CLOSED
-    assert app_rejected.status == ApplicationStatus.REJECTED  # untouched
+    assert app_rejected.status == ApplicationStatus.REJECTED_BY_ADMIN  # untouched
 
 
 @pytest.mark.asyncio
@@ -422,7 +422,7 @@ async def test_non_published_to_closed_skips_cascade(
 
     await session.refresh(app)
     assert (
-        app.status == ApplicationStatus.NEW
+        app.status == ApplicationStatus.PENDING_ADMIN_REVIEW
     )  # cascade only fires on PUBLISHED → CLOSED
 
 

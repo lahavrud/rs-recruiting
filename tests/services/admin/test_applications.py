@@ -30,7 +30,7 @@ async def _make_application(
     session: AsyncSession,
     company: CompanyProfile,
     candidate: CandidateProfile,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
     job_status: JobStatus = JobStatus.PUBLISHED,
 ) -> Application:
     """Helper to create a job + application in the given session."""
@@ -112,20 +112,25 @@ async def test_list_applications_filter_by_status(
     """Filters correctly by application status."""
     candidate = await _make_candidate(session)
     await _make_application(
-        session, company_with_user, candidate, status=ApplicationStatus.NEW
+        session,
+        company_with_user,
+        candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     c2 = await _make_candidate(session, email="c2@test.com")
     await _make_application(
         session, company_with_user, c2, status=ApplicationStatus.APPROVED_BY_ADMIN
     )
 
-    new_page = await list_applications(session, status=ApplicationStatus.NEW)
+    new_page = await list_applications(
+        session, status=ApplicationStatus.PENDING_ADMIN_REVIEW
+    )
     approved_page = await list_applications(
         session, status=ApplicationStatus.APPROVED_BY_ADMIN
     )
 
     assert len(new_page.items) == 1
-    assert new_page.items[0].status == ApplicationStatus.NEW
+    assert new_page.items[0].status == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert len(approved_page.items) == 1
     assert approved_page.items[0].status == ApplicationStatus.APPROVED_BY_ADMIN
 
@@ -266,7 +271,7 @@ async def _make_application_at(
     company: CompanyProfile,
     candidate: CandidateProfile,
     created_at: datetime,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
 ) -> Application:
     """Like `_make_application`, but pins `created_at` at insert time.
 
@@ -310,7 +315,11 @@ async def test_list_applications_sort_by_status_asc_groups_new_first(
     base = datetime(2026, 1, 1, tzinfo=timezone.utc)
     old_new = await _make_candidate(session, email="old-new@test.com")
     await _make_application_at(
-        session, company_with_user, old_new, base, status=ApplicationStatus.NEW
+        session,
+        company_with_user,
+        old_new,
+        base,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     new_closed = await _make_candidate(session, email="new-closed@test.com")
     await _make_application_at(
@@ -323,7 +332,7 @@ async def test_list_applications_sort_by_status_asc_groups_new_first(
 
     page = await list_applications(session, sort="status", order="asc")
     assert [item.status for item in page.items] == [
-        ApplicationStatus.NEW,
+        ApplicationStatus.PENDING_ADMIN_REVIEW,
         ApplicationStatus.JOB_CLOSED,
     ]
 
@@ -337,7 +346,10 @@ async def test_list_applications_sort_by_status_desc_reverses_grouping(
     tiebreak."""
     new_candidate = await _make_candidate(session, email="new@test.com")
     await _make_application(
-        session, company_with_user, new_candidate, status=ApplicationStatus.NEW
+        session,
+        company_with_user,
+        new_candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     closed_candidate = await _make_candidate(session, email="closed@test.com")
     await _make_application(
@@ -350,7 +362,7 @@ async def test_list_applications_sort_by_status_desc_reverses_grouping(
     page = await list_applications(session, sort="status", order="desc")
     assert [item.status for item in page.items] == [
         ApplicationStatus.JOB_CLOSED,
-        ApplicationStatus.NEW,
+        ApplicationStatus.PENDING_ADMIN_REVIEW,
     ]
 
 
@@ -444,7 +456,8 @@ async def test_list_applications_sort_by_status_paginates_across_groups(
 
     assert len(seen_ids) == total_new + 1
     assert statuses_seen == (
-        [ApplicationStatus.NEW] * total_new + [ApplicationStatus.JOB_CLOSED]
+        [ApplicationStatus.PENDING_ADMIN_REVIEW] * total_new
+        + [ApplicationStatus.JOB_CLOSED]
     )
 
 
@@ -534,7 +547,7 @@ async def test_get_application_activity_returns_own_status_changes(
             action="application.status_change",
             target_type="Application",
             target_id=app.id,
-            detail="NEW->APPROVED_BY_ADMIN",
+            detail="PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
             created_at=base,
         )
     )
@@ -553,7 +566,7 @@ async def test_get_application_activity_returns_own_status_changes(
             action="application.status_change",
             target_type="Application",
             target_id=other_app.id,
-            detail="NEW->REJECTED",
+            detail="PENDING_ADMIN_REVIEW->REJECTED",
             created_at=base + timedelta(minutes=2),
         )
     )
@@ -568,7 +581,7 @@ async def test_get_application_activity_returns_own_status_changes(
     ]
     assert [r.detail for r in page.items] == [
         "APPROVED_BY_ADMIN->HIRED",
-        "NEW->APPROVED_BY_ADMIN",
+        "PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
         None,
     ]
     assert page.items[-1].created_at == app.created_at
@@ -619,10 +632,10 @@ async def test_update_status_new_to_rejected(
     app = await _make_application(session, company_with_user, candidate)
 
     result, _ = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_ADMIN, session
     )
 
-    assert result.status == ApplicationStatus.REJECTED
+    assert result.status == ApplicationStatus.REJECTED_BY_ADMIN
 
 
 @pytest.mark.asyncio
@@ -659,10 +672,10 @@ async def test_update_status_approved_to_rejected(
     )
 
     result, _ = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_ADMIN, session
     )
 
-    assert result.status == ApplicationStatus.REJECTED
+    assert result.status == ApplicationStatus.REJECTED_BY_ADMIN
 
 
 @pytest.mark.asyncio
@@ -672,7 +685,10 @@ async def test_update_status_revert_from_rejected(
     """Admin can revert a REJECTED application — mis-click recovery."""
     candidate = await _make_candidate(session)
     app = await _make_application(
-        session, company_with_user, candidate, status=ApplicationStatus.REJECTED
+        session,
+        company_with_user,
+        candidate,
+        status=ApplicationStatus.REJECTED_BY_ADMIN,
     )
 
     result, _ = await update_application_status(
@@ -692,9 +708,9 @@ async def test_update_status_revert_from_hired(
     )
 
     result, _ = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_ADMIN, session
     )
-    assert result.status == ApplicationStatus.REJECTED
+    assert result.status == ApplicationStatus.REJECTED_BY_ADMIN
 
 
 @pytest.mark.asyncio
@@ -748,7 +764,7 @@ async def test_update_status_rejection_email_payload(
     app = await _make_application(session, company_with_user, candidate)
 
     _, email_payloads = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_ADMIN, session
     )
 
     assert len(email_payloads) == 1
@@ -765,33 +781,39 @@ async def test_update_status_rereject_no_email(
     """Re-rejecting an already-rejected application sends no email."""
     candidate = await _make_candidate(session)
     app = await _make_application(
-        session, company_with_user, candidate, status=ApplicationStatus.REJECTED
+        session,
+        company_with_user,
+        candidate,
+        status=ApplicationStatus.REJECTED_BY_ADMIN,
     )
 
     _, email_payloads = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_ADMIN, session
     )
 
     assert email_payloads == []
 
 
 @pytest.mark.asyncio
-async def test_update_status_rejection_no_email_for_admin_pushed(
+async def test_update_status_company_decline_no_admin_email(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
-    """Rejecting an admin-pushed application does not send a rejection email.
+    """An employer's decline (REJECTED_BY_COMPANY) sends no RS screen-out email.
 
-    Admin-pushed applications are created without the candidate's knowledge,
-    so sending a rejection email referencing their own submission would be
-    confusing. The suppression is intentional.
+    The RS-side screen-out email is keyed on REJECTED_BY_ADMIN only. A company
+    declining a candidate it reviewed is a separate, company-owned
+    notification, so the admin flow stays silent for it.
     """
-    candidate = await _make_candidate(session, email="pushed@test.com")
-    app = await _make_application(session, company_with_user, candidate)
-    app.pushed_by_admin_id = 1
-    await session.flush()
+    candidate = await _make_candidate(session, email="declined@test.com")
+    app = await _make_application(
+        session,
+        company_with_user,
+        candidate,
+        status=ApplicationStatus.APPROVED_BY_ADMIN,
+    )
 
     _, email_payloads = await update_application_status(
-        app.id, ApplicationStatus.REJECTED, session
+        app.id, ApplicationStatus.REJECTED_BY_COMPANY, session
     )
 
     assert email_payloads == []
@@ -815,7 +837,7 @@ async def test_update_application_notes_persists_text(
 
     assert isinstance(result, ApplicationRead)
     assert result.admin_notes == "Looks promising — schedule call."
-    assert result.status == ApplicationStatus.NEW  # untouched
+    assert result.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # untouched
 
 
 @pytest.mark.asyncio

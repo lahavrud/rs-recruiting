@@ -81,7 +81,7 @@ async def _app(
     *,
     candidate_id: int,
     job_id: int,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
     resume_path: str | None = None,
 ) -> Application:
     a = Application(

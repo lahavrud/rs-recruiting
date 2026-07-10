@@ -297,7 +297,7 @@ async def test_list_candidate_activity_merges_candidate_and_application_events(
             action="application.status_change",
             target_type="Application",
             target_id=application.id,
-            detail="NEW->APPROVED_BY_ADMIN",
+            detail="PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
             created_at=base + timedelta(minutes=1),
         )
     )
@@ -375,7 +375,7 @@ async def test_delete_candidate_cascades_applications(
         Application(
             job_id=job.id,
             candidate_id=candidate_profile.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
     )
     await session.commit()
@@ -497,7 +497,12 @@ async def test_purge_removes_old_closed_non_hired(
     candidate = await _make_candidate(
         session, email="purge@test.com", resume_path="uploads/resumes/x.pdf"
     )
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
@@ -543,7 +548,12 @@ async def test_purge_preserves_recently_closed_jobs(
         session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS - 30
     )
     candidate = await _make_candidate(session, email="recent@test.com")
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
@@ -577,10 +587,16 @@ async def test_purge_preserves_candidate_with_any_active_application(
 
     candidate = await _make_candidate(session, email="mixed@test.com")
     await _make_app(
-        session, job=old_closed, candidate=candidate, status=ApplicationStatus.NEW
+        session,
+        job=old_closed,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     await _make_app(
-        session, job=active, candidate=candidate, status=ApplicationStatus.NEW
+        session,
+        job=active,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
 
     with patch(
@@ -597,7 +613,12 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
     )
     candidate = await _make_candidate(session, email="idem@test.com")
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
