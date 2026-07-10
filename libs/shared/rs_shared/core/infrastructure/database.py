@@ -69,7 +69,9 @@ def _set_tcp_keepalive(dbapi_conn: object, _connection_record: object) -> None:
     # pooled connections start dying and every request pays a fresh reconnect.
     try:
         raw = dbapi_conn._connection  # type: ignore[attr-defined]  # reaching into the DBAPI driver's private connection attr; not in the stubs
-        sock: socket.socket | None = raw._protocol.transport.get_extra_info("socket")
+        # asyncpg's Connection holds the asyncio transport as `_transport`
+        # (its Protocol object has no `.transport` attribute).
+        sock: socket.socket | None = raw._transport.get_extra_info("socket")
         if sock is None:
             logger.warning("DB connection exposed no socket; TCP keepalive not set")
             return
