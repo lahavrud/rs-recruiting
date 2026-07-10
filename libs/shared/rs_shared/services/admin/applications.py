@@ -29,13 +29,10 @@ ApplicationSortColumn = Literal["name", "created_at", "status", "score"]
 
 _SCORE_SORT_LIMIT = 200
 
+# Status display ordering — derived from the pipeline order on the enum
+# (ApplicationStatus.sort_weight) so it can never drift from the value set.
 _STATUS_PRIORITY: dict[ApplicationStatus, int] = {
-    ApplicationStatus.NEW: 0,
-    ApplicationStatus.APPROVED_BY_ADMIN: 1,
-    ApplicationStatus.HIRED: 2,
-    ApplicationStatus.REJECTED: 3,
-    ApplicationStatus.WITHDRAWN: 4,
-    ApplicationStatus.JOB_CLOSED: 5,
+    s: s.sort_weight for s in ApplicationStatus
 }
 
 

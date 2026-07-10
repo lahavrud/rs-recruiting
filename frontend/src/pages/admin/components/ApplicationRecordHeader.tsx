@@ -8,7 +8,10 @@ import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import { useToast } from "@/hooks/useToast";
-import { updateApplicationNotes, updateApplicationStatus } from "@/services/adminApplications";
+import {
+  updateApplicationNotes,
+  updateApplicationStatus,
+} from "@/services/adminApplications";
 import { TEXTAREA_CLS } from "@/styles/forms";
 import type { ApplicationWithDetails } from "@/types/candidates";
 import { ApplicationStatus } from "@/types/enums";
@@ -17,7 +20,11 @@ import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 import ApplicationAnswerFields from "./ApplicationAnswerFields";
 import ApplicationRelationsPanel from "./ApplicationRelationsPanel";
-import { ALL_STATUSES, APPLICATION_STATUS_SEGMENT_CONFIG, TERMINAL_STATUSES } from "./applicationStatusOptions";
+import {
+  ALL_STATUSES,
+  APPLICATION_STATUS_SEGMENT_CONFIG,
+  TERMINAL_STATUSES,
+} from "./applicationStatusOptions";
 import { IconArrowRight } from "./TriageIcons";
 
 type AppPatch = Pick<ApplicationWithDetails, "id"> &
@@ -29,7 +36,10 @@ interface Props {
 }
 
 /** Record-page header: identity, status-change, and notes — folds the old status/notes dialogs in as inline actions. */
-export default function ApplicationRecordHeader({ application: app, onUpdated }: Props) {
+export default function ApplicationRecordHeader({
+  application: app,
+  onUpdated,
+}: Props) {
   const { t } = useTranslation(["admin", "common"]);
   const toast = useToast();
   const navigate = useNavigate();
@@ -51,7 +61,8 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
   const isWithdrawn = app.status === ApplicationStatus.WITHDRAWN;
   const isRevert = TERMINAL_STATUSES.has(app.status) && statusDraft !== app.status;
   const isNewRejection =
-    statusDraft === ApplicationStatus.REJECTED && app.status !== ApplicationStatus.REJECTED;
+    statusDraft === ApplicationStatus.REJECTED_BY_ADMIN &&
+    app.status !== ApplicationStatus.REJECTED_BY_ADMIN;
   const notesDirty = notesDraft.trim() !== (app.admin_notes ?? "").trim();
 
   async function handleSaveStatus() {
@@ -117,7 +128,9 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
           </span>
         </div>
 
-        <EntityLinkCard onClick={() => navigate(`/admin/candidates/${app.candidate_id}`)}>
+        <EntityLinkCard
+          onClick={() => navigate(`/admin/candidates/${app.candidate_id}`)}
+        >
           <p className="text-base font-medium text-white/90">{c.full_name}</p>
           <div
             onClick={(e) => e.stopPropagation()}
@@ -148,7 +161,8 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
               />
             ) : (
               <span className="text-white/35">
-                {t("admin:applications.details.resume")}: {t("admin:applications.details.noFile")}
+                {t("admin:applications.details.resume")}:{" "}
+                {t("admin:applications.details.noFile")}
               </span>
             )}
           </div>
@@ -205,7 +219,9 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
 
         {isRevert && (
           <div className="mt-3 rounded-sm bg-warning/8 px-2.5 py-2 text-[11px] leading-relaxed">
-            <p className="font-medium text-warning/85">{t("admin:applications.revertConfirm")}</p>
+            <p className="font-medium text-warning/85">
+              {t("admin:applications.revertConfirm")}
+            </p>
           </div>
         )}
         {isNewRejection && app.pushed_by_admin_id == null && (
@@ -252,16 +268,20 @@ export default function ApplicationRecordHeader({ application: app, onUpdated }:
 }
 
 /** Identity card for a related entity (candidate/job) — the whole card navigates; nested interactive children stop propagation. */
-function EntityLinkCard({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+function EntityLinkCard({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
     <div
       onClick={onClick}
       className="group relative cursor-pointer rounded-xl border border-white/8 bg-card-raised p-4 pe-10 transition hover:border-white/15 hover:bg-card active:scale-[0.99]"
     >
       {children}
-      <IconArrowRight
-        className="absolute end-3 top-1/2 size-4 -translate-y-1/2 -scale-x-100 text-white/25 transition group-hover:text-copper"
-      />
+      <IconArrowRight className="absolute end-3 top-1/2 size-4 -translate-y-1/2 -scale-x-100 text-white/25 transition group-hover:text-copper" />
     </div>
   );
 }

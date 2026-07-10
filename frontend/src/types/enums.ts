@@ -19,10 +19,13 @@ export const JobStatus = {
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 
 export const ApplicationStatus = {
-  NEW: "NEW",
+  PENDING_ADMIN_REVIEW: "PENDING_ADMIN_REVIEW",
   APPROVED_BY_ADMIN: "APPROVED_BY_ADMIN",
-  REJECTED: "REJECTED",
+  INTERVIEWING: "INTERVIEWING",
+  OFFER: "OFFER",
   HIRED: "HIRED",
+  REJECTED_BY_COMPANY: "REJECTED_BY_COMPANY",
+  REJECTED_BY_ADMIN: "REJECTED_BY_ADMIN",
   WITHDRAWN: "WITHDRAWN",
   JOB_CLOSED: "JOB_CLOSED",
 } as const;

@@ -17,7 +17,11 @@ import {
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import { APPLICATION_STATUS_META } from "@/constants/statusColors";
-import { getAdminOverview, type AdminOverviewRead, type TrendPoint } from "@/services/adminOverview";
+import {
+  getAdminOverview,
+  type AdminOverviewRead,
+  type TrendPoint,
+} from "@/services/adminOverview";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDateShort } from "@/utils/formatDate";
 
@@ -34,12 +38,17 @@ const CHART_BORDER = "rgba(255,255,255,0.08)";
 const CHART_SUCCESS = cssVar("--color-success");
 const CHART_DANGER = cssVar("--color-danger");
 const CHART_HIRED = cssVar("--color-hired");
+const CHART_INFO = cssVar("--color-info");
+const CHART_WARNING = cssVar("--color-warning");
 
 const PIPELINE_FILL: Record<string, string> = {
-  [ApplicationStatus.NEW]: CHART_COPPER,
+  [ApplicationStatus.PENDING_ADMIN_REVIEW]: CHART_COPPER,
   [ApplicationStatus.APPROVED_BY_ADMIN]: CHART_SUCCESS,
+  [ApplicationStatus.INTERVIEWING]: CHART_INFO,
+  [ApplicationStatus.OFFER]: CHART_WARNING,
   [ApplicationStatus.HIRED]: CHART_HIRED,
-  [ApplicationStatus.REJECTED]: CHART_DANGER,
+  [ApplicationStatus.REJECTED_BY_COMPANY]: CHART_DANGER,
+  [ApplicationStatus.REJECTED_BY_ADMIN]: CHART_DANGER,
 };
 
 export default function AdminStats() {
@@ -96,7 +105,13 @@ export default function AdminStats() {
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((k) => (
-          <KpiCard key={k.label} label={k.label} n={k.n} weekDelta={k.weekDelta} to={k.to} />
+          <KpiCard
+            key={k.label}
+            label={k.label}
+            n={k.n}
+            weekDelta={k.weekDelta}
+            to={k.to}
+          />
         ))}
       </div>
 
@@ -209,7 +224,11 @@ function TrendChart({ points }: { points: TrendPoint[] | null }) {
                   fontSize: "11px",
                   color: CHART_TEXT,
                 }}
-                labelStyle={{ color: CHART_TICK, fontSize: "10px", marginBottom: "2px" }}
+                labelStyle={{
+                  color: CHART_TICK,
+                  fontSize: "10px",
+                  marginBottom: "2px",
+                }}
                 formatter={(value) => [value, t("dashboard:trend.tooltip")]}
                 cursor={{ stroke: CHART_COPPER, strokeWidth: 1, strokeOpacity: 0.4 }}
               />
@@ -233,10 +252,13 @@ function TrendChart({ points }: { points: TrendPoint[] | null }) {
 // ── Pipeline funnel ───────────────────────────────────────────────────────────
 
 const PIPELINE_STATUSES = [
-  ApplicationStatus.NEW,
+  ApplicationStatus.PENDING_ADMIN_REVIEW,
   ApplicationStatus.APPROVED_BY_ADMIN,
+  ApplicationStatus.INTERVIEWING,
+  ApplicationStatus.OFFER,
   ApplicationStatus.HIRED,
-  ApplicationStatus.REJECTED,
+  ApplicationStatus.REJECTED_BY_COMPANY,
+  ApplicationStatus.REJECTED_BY_ADMIN,
 ] as const;
 
 function PipelineFunnel({ counts }: { counts: Record<string, number> | null }) {
@@ -264,7 +286,9 @@ function PipelineFunnel({ counts }: { counts: Record<string, number> | null }) {
           ))}
         </div>
       ) : total === 0 ? (
-        <p className="mt-3 text-sm text-white/35">{t("dashboard:stats.noApplications")}</p>
+        <p className="mt-3 text-sm text-white/35">
+          {t("dashboard:stats.noApplications")}
+        </p>
       ) : (
         <div className="mt-4 flex items-center gap-4">
           {/* Donut chart */}
@@ -282,7 +306,11 @@ function PipelineFunnel({ counts }: { counts: Record<string, number> | null }) {
                   stroke="none"
                 >
                   {(pieData ?? []).map((d) => (
-                    <Cell key={d.status} fill={PIPELINE_FILL[d.status]} opacity={0.85} />
+                    <Cell
+                      key={d.status}
+                      fill={PIPELINE_FILL[d.status]}
+                      opacity={0.85}
+                    />
                   ))}
                 </Pie>
               </PieChart>
@@ -297,7 +325,10 @@ function PipelineFunnel({ counts }: { counts: Record<string, number> | null }) {
               const meta = APPLICATION_STATUS_META[status];
               return (
                 <li key={status} className="flex items-center gap-2">
-                  <span className={`size-2 shrink-0 rounded-full ${meta.dotClass}`} aria-hidden="true" />
+                  <span
+                    className={`size-2 shrink-0 rounded-full ${meta.dotClass}`}
+                    aria-hidden="true"
+                  />
                   <span className="min-w-0 flex-1 truncate text-xs text-white/50">
                     {t(`admin:applications.statusLabels.${status}`)}
                   </span>
@@ -358,7 +389,10 @@ function TopJobsList({
                     <span
                       className="block h-1 rounded-full bg-copper/60 transition-all duration-500"
                       style={{
-                        width: maxCount === 0 ? "0%" : `${(j.application_count / maxCount) * 100}%`,
+                        width:
+                          maxCount === 0
+                            ? "0%"
+                            : `${(j.application_count / maxCount) * 100}%`,
                       }}
                     />
                   </span>

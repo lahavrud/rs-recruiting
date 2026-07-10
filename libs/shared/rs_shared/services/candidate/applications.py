@@ -64,7 +64,7 @@ def _list_item(app: Application) -> CandidateApplicationListItem:
     return CandidateApplicationListItem(
         id=app.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         submitted_at=app.created_at,
-        editable=app.status == ApplicationStatus.NEW,
+        editable=app.status == ApplicationStatus.PENDING_ADMIN_REVIEW,
         job=_job_summary(app.job),
     )
 
@@ -168,7 +168,7 @@ def _build_detail(app: Application) -> CandidateApplicationDetail:
     return CandidateApplicationDetail(
         id=app.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
         submitted_at=app.created_at,
-        editable=app.status == ApplicationStatus.NEW,
+        editable=app.status == ApplicationStatus.PENDING_ADMIN_REVIEW,
         job=_job_detail(app.job),
         my_answers=CandidateApplicationMyAnswers(
             service_concept=app.service_concept,
@@ -217,7 +217,7 @@ async def edit_my_application(
         raise ApplicationNotFoundError("Application not found")
     if app.status == ApplicationStatus.WITHDRAWN:
         raise ApplicationNotFoundError("Application not found")
-    if app.status != ApplicationStatus.NEW:
+    if app.status != ApplicationStatus.PENDING_ADMIN_REVIEW:
         raise ApplicationNotEditableError("Application is no longer editable")
 
     has_text = any(
@@ -284,7 +284,7 @@ async def withdraw_my_application(
         raise ApplicationNotFoundError("Application not found")
     if app.status == ApplicationStatus.WITHDRAWN:
         raise ApplicationNotFoundError("Application not found")
-    if app.status != ApplicationStatus.NEW:
+    if app.status != ApplicationStatus.PENDING_ADMIN_REVIEW:
         raise ApplicationNotEditableError("Application is no longer editable")
 
     old_status = app.status

@@ -28,7 +28,7 @@ function makeApp(
     id,
     job_id: 100,
     candidate_id: 200 + id,
-    status: ApplicationStatus.NEW,
+    status: ApplicationStatus.PENDING_ADMIN_REVIEW,
     admin_notes: null,
     service_concept: null,
     salary_expectations: null,
@@ -108,7 +108,7 @@ describe("useTriageQueue", () => {
     expect(result.current.items[0].companyName).toBe("Acme Boutique");
     // The hook should request only NEW applications
     expect(mockGetApplications).toHaveBeenCalledWith(
-      expect.objectContaining({ status: ApplicationStatus.NEW, limit: 100 }),
+      expect.objectContaining({ status: ApplicationStatus.PENDING_ADMIN_REVIEW, limit: 100 }),
       expect.any(AbortSignal),
     );
   });

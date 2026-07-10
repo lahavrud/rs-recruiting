@@ -119,7 +119,7 @@ async def _count_new_applications(session: AsyncSession) -> int:
         select(func.count())
         .select_from(Application)
         .where(
-            Application.status == ApplicationStatus.NEW  # pyright: ignore[reportArgumentType]
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # pyright: ignore[reportArgumentType]
         )
     )
     return result.scalar_one()
@@ -164,9 +164,9 @@ async def _count_application_statuses(session: AsyncSession) -> dict[str, int]:
             )  # pyright: ignore[reportArgumentType]
         )
     ).all()
-    # Key by the enum *value* ("NEW"). str(member) would yield
-    # "ApplicationStatus.NEW", which the frontend's status-keyed lookups
-    # miss, leaving every status in the breakdown stuck at 0.
+    # Key by the enum *value* ("PENDING_ADMIN_REVIEW"). str(member) would yield
+    # "ApplicationStatus.PENDING_ADMIN_REVIEW", which the frontend's status-keyed
+    # lookups miss, leaving every status in the breakdown stuck at 0.
     return {row[0].value: row[1] for row in rows}
 
 
@@ -207,7 +207,7 @@ async def _oldest_pending_job_days(session: AsyncSession) -> int | None:
 async def _oldest_new_application_days(session: AsyncSession) -> int | None:
     result = await session.execute(
         select(func.min(Application.created_at)).where(
-            Application.status == ApplicationStatus.NEW
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW
         )  # pyright: ignore[reportArgumentType]
     )
     return _age_days(result.scalar_one_or_none())
@@ -302,7 +302,7 @@ async def _recent_new_applications(session: AsyncSession) -> list[dict]:
             select(CandidateProfile.full_name, Job.title, Application.created_at)
             .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
             .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
-            .where(Application.status == ApplicationStatus.NEW)  # pyright: ignore[reportArgumentType]
+            .where(Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW)  # pyright: ignore[reportArgumentType]
             .order_by(Application.created_at.desc())
             .limit(RECENT_ITEMS_PER_TYPE)
         )

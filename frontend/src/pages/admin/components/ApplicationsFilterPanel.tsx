@@ -11,10 +11,13 @@ const ALL_FILTER = "ALL";
 type FilterValue = string;
 
 const ALL_STATUSES = [
-  ApplicationStatus.NEW,
+  ApplicationStatus.PENDING_ADMIN_REVIEW,
   ApplicationStatus.APPROVED_BY_ADMIN,
-  ApplicationStatus.REJECTED,
+  ApplicationStatus.INTERVIEWING,
+  ApplicationStatus.OFFER,
   ApplicationStatus.HIRED,
+  ApplicationStatus.REJECTED_BY_COMPANY,
+  ApplicationStatus.REJECTED_BY_ADMIN,
   ApplicationStatus.WITHDRAWN,
 ];
 

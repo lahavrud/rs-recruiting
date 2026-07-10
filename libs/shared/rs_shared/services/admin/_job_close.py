@@ -17,7 +17,9 @@ from rs_shared.models import Application, CandidateProfile
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_job_closed_candidate_html
 
-_ACTIVE_STATUSES = (ApplicationStatus.NEW, ApplicationStatus.APPROVED_BY_ADMIN)
+# In-flight applications swept into JOB_CLOSED when the parent job closes —
+# source of truth is ``ApplicationStatus.is_active``.
+_ACTIVE_STATUSES = tuple(s for s in ApplicationStatus if s.is_active)
 
 
 async def close_active_applications(

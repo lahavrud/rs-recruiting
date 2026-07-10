@@ -21,16 +21,12 @@ from rs_shared.services.exceptions import (
     JobNotOwnedByCompanyError,
 )
 
-_COMPANY_VISIBLE_STATUSES = frozenset(
-    {
-        ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.HIRED,
-        ApplicationStatus.REJECTED,
-    }
-)
+# Source of truth lives on the enum (see rs_shared.enums.ApplicationStatus):
+# what an employer can see, and which statuses it may move an application into.
+_COMPANY_VISIBLE_STATUSES = frozenset(s for s in ApplicationStatus if s.company_visible)
 
 _COMPANY_ALLOWED_STATUSES = frozenset(
-    {ApplicationStatus.HIRED, ApplicationStatus.REJECTED}
+    s for s in ApplicationStatus if s.company_settable
 )
 
 
@@ -116,7 +112,9 @@ async def update_application_status(
 ) -> CompanyApplicationRead:
     """Update the status of an application on a job owned by this company.
 
-    Companies may only move applications to HIRED or REJECTED.
+    Companies may only move applications through their own pipeline —
+    INTERVIEWING, OFFER, HIRED, or REJECTED_BY_COMPANY (see
+    ``ApplicationStatus.company_settable``).
 
     Raises:
         InvalidApplicationStatusTransitionError: Target status not allowed for companies
@@ -180,7 +178,7 @@ async def update_application_status(
         id=app.id or 0,
         job_id=app.job_id,
         candidate_id=app.candidate_id,
-        status=str(app.status),
+        status=app.status.value,
         created_at=app.created_at,
         updated_at=app.updated_at,
         match_score=score,

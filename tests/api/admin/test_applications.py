@@ -44,7 +44,7 @@ async def test_list_applications_paginates_through_all(
                 Application(
                     job_id=published_job.id,
                     candidate_id=candidate.id,
-                    status=ApplicationStatus.NEW,
+                    status=ApplicationStatus.PENDING_ADMIN_REVIEW,
                 )
             )
         await session.commit()
@@ -83,7 +83,7 @@ async def test_list_applications_success(
     items = data["items"]
     assert len(items) == 1
     assert items[0]["id"] == application.id
-    assert items[0]["status"] == ApplicationStatus.NEW
+    assert items[0]["status"] == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert items[0]["job"] is not None
     assert items[0]["candidate"] is not None
 
@@ -111,13 +111,15 @@ async def test_list_applications_filter_by_status(
         session.add(app2)
         await session.commit()
 
-    new_resp = await admin_client.get("/api/admin/applications?status=NEW")
+    new_resp = await admin_client.get(
+        "/api/admin/applications?status=PENDING_ADMIN_REVIEW"
+    )
     approved_resp = await admin_client.get(
         "/api/admin/applications?status=APPROVED_BY_ADMIN"
     )
 
     assert new_resp.status_code == 200
-    assert all(a["status"] == "NEW" for a in new_resp.json()["items"])
+    assert all(a["status"] == "PENDING_ADMIN_REVIEW" for a in new_resp.json()["items"])
     assert approved_resp.status_code == 200
     assert all(
         a["status"] == "APPROVED_BY_ADMIN" for a in approved_resp.json()["items"]
@@ -165,7 +167,7 @@ async def test_list_applications_sort_by_name(
                 Application(
                     job_id=published_job.id,
                     candidate_id=candidate.id,
-                    status=ApplicationStatus.NEW,
+                    status=ApplicationStatus.PENDING_ADMIN_REVIEW,
                 )
             )
         await session.commit()
@@ -195,7 +197,7 @@ async def test_list_applications_sort_by_status(
     async with TestSessionLocal() as session:
         for name, status in [
             ("Closed App", ApplicationStatus.JOB_CLOSED),
-            ("New App", ApplicationStatus.NEW),
+            ("New App", ApplicationStatus.PENDING_ADMIN_REVIEW),
         ]:
             candidate = CandidateProfile(
                 full_name=name, email=f"{name.lower()}@test.com", phone="050-0000000"
@@ -214,7 +216,7 @@ async def test_list_applications_sort_by_status(
     )
     assert response.status_code == 200
     statuses = [item["status"] for item in response.json()["items"]]
-    assert statuses == ["NEW", "JOB_CLOSED"]
+    assert statuses == ["PENDING_ADMIN_REVIEW", "JOB_CLOSED"]
 
 
 @pytest.mark.asyncio
@@ -225,8 +227,8 @@ async def test_list_applications_cross_sort_status_then_date(
     within each group."""
     async with TestSessionLocal() as session:
         for name, status in [
-            ("Older New", ApplicationStatus.NEW),
-            ("Newer New", ApplicationStatus.NEW),
+            ("Older New", ApplicationStatus.PENDING_ADMIN_REVIEW),
+            ("Newer New", ApplicationStatus.PENDING_ADMIN_REVIEW),
             ("Closed", ApplicationStatus.JOB_CLOSED),
         ]:
             slug = name.lower().replace(" ", "")
@@ -271,7 +273,7 @@ async def test_get_application_success(
 
     data = response.json()
     assert data["id"] == application.id
-    assert data["status"] == ApplicationStatus.NEW
+    assert data["status"] == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert data["job"]["id"] == application.job_id
     assert data["candidate"]["email"] == candidate_profile.email
 
@@ -325,7 +327,7 @@ async def test_get_application_activity_returns_status_changes(
     ]
     assert [item["detail"] for item in items] == [
         "APPROVED_BY_ADMIN->HIRED",
-        "NEW->APPROVED_BY_ADMIN",
+        "PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
         None,
     ]
     assert all(item["target_type"] == "Application" for item in items)
@@ -379,11 +381,11 @@ async def test_update_application_status_with_notes(
     """Admin notes are stored alongside the status update."""
     response = await admin_client.put(
         f"/api/admin/applications/{application.id}/status",
-        json={"status": "REJECTED", "admin_notes": "Not a fit for this role"},
+        json={"status": "REJECTED_BY_ADMIN", "admin_notes": "Not a fit for this role"},
     )
     assert response.status_code == 200
     assert response.json()["admin_notes"] == "Not a fit for this role"
-    assert response.json()["status"] == "REJECTED"
+    assert response.json()["status"] == "REJECTED_BY_ADMIN"
 
 
 @pytest.mark.asyncio
@@ -444,7 +446,7 @@ async def test_admin_can_revert_terminal_status(
     """Admin can revert from REJECTED back to APPROVED_BY_ADMIN — mis-click recovery."""
     await admin_client.put(
         f"/api/admin/applications/{application.id}/status",
-        json={"status": "REJECTED"},
+        json={"status": "REJECTED_BY_ADMIN"},
     )
 
     response = await admin_client.put(
@@ -471,7 +473,7 @@ async def test_update_application_notes_persists_text(
     assert response.status_code == 200
     data = response.json()
     assert data["admin_notes"] == "good interview"
-    assert data["status"] == "NEW"  # untouched
+    assert data["status"] == "PENDING_ADMIN_REVIEW"  # untouched
 
 
 @pytest.mark.asyncio
@@ -594,7 +596,7 @@ async def test_update_status_on_withdrawn_does_not_change_db(
 
     await admin_client.put(
         f"/api/admin/applications/{withdrawn_app.id}/status",
-        json={"status": "NEW"},
+        json={"status": "PENDING_ADMIN_REVIEW"},
     )
 
     async with TestSessionLocal() as session:

@@ -135,7 +135,7 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     app = Application(
         job_id=job.id,
         candidate_id=profile.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         service_concept="my service concept",
         salary_expectations="10-15k",
         resume_path="resumes/foo.pdf",
@@ -223,7 +223,7 @@ async def test_build_export_continues_when_a_resume_fetch_fails(
     app1 = Application(
         job_id=job.id,
         candidate_id=profile.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         resume_path="resumes/missing.pdf",
     )
     session.add(app1)

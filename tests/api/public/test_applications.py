@@ -139,7 +139,7 @@ async def test_apply_endpoint_creates_application_with_interview_fields(
         )
         application = result.scalar_one_or_none()
         assert application is not None
-        assert application.status == ApplicationStatus.NEW
+        assert application.status == ApplicationStatus.PENDING_ADMIN_REVIEW
         assert application.service_concept == "I want to work on exciting projects"
         assert application.salary_expectations == "100k-120k"
         assert application.strength == "Problem solving"
@@ -327,7 +327,7 @@ async def test_apply_endpoint_creates_application_record(
         )
         application = result.scalar_one_or_none()
         assert application is not None
-        assert application.status == ApplicationStatus.NEW
+        assert application.status == ApplicationStatus.PENDING_ADMIN_REVIEW
 
 
 @pytest.mark.asyncio
