@@ -49,7 +49,7 @@ export function useTriageQueue() {
       // We need the full list, so iterate cursor pages serially.
       // Companies can be fetched in parallel with the first apps page.
       const [firstAppsPage, companiesPage] = await Promise.all([
-        getApplications({ status: ApplicationStatus.NEW, limit: PAGE_SIZE }, signal),
+        getApplications({ status: ApplicationStatus.PENDING_ADMIN_REVIEW, limit: PAGE_SIZE }, signal),
         getActiveCompanies({ limit: PAGE_SIZE }, signal),
       ]);
 
@@ -65,7 +65,7 @@ export function useTriageQueue() {
       let cursor = firstAppsPage.next_cursor;
       for (let i = 1; i < MAX_PAGES && cursor; i++) {
         const page = await getApplications(
-          { status: ApplicationStatus.NEW, limit: PAGE_SIZE, cursor },
+          { status: ApplicationStatus.PENDING_ADMIN_REVIEW, limit: PAGE_SIZE, cursor },
           signal,
         );
         apps.push(...page.items.map(toTriageItem));

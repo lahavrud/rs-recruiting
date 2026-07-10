@@ -9,28 +9,37 @@ import type { CompanyStats } from "@/types/companies";
 import { ApplicationStatus } from "@/types/enums";
 
 const STATUS_LABEL: Record<string, string> = {
-  [ApplicationStatus.NEW]: "חדש",
+  [ApplicationStatus.PENDING_ADMIN_REVIEW]: "ממתין לאישור",
   [ApplicationStatus.APPROVED_BY_ADMIN]: "מאושר",
+  [ApplicationStatus.INTERVIEWING]: "בראיונות",
+  [ApplicationStatus.OFFER]: "הצעה",
   [ApplicationStatus.HIRED]: "גויס",
-  [ApplicationStatus.REJECTED]: "נדחה",
+  [ApplicationStatus.REJECTED_BY_COMPANY]: "נדחה",
+  [ApplicationStatus.REJECTED_BY_ADMIN]: "נדחה",
   [ApplicationStatus.WITHDRAWN]: "נסוג",
   [ApplicationStatus.JOB_CLOSED]: "משרה סגורה",
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  [ApplicationStatus.NEW]: "bg-info/15 text-info",
+  [ApplicationStatus.PENDING_ADMIN_REVIEW]: "bg-info/15 text-info",
   [ApplicationStatus.APPROVED_BY_ADMIN]: "bg-copper/15 text-copper",
+  [ApplicationStatus.INTERVIEWING]: "bg-info/15 text-info",
+  [ApplicationStatus.OFFER]: "bg-warning/15 text-warning",
   [ApplicationStatus.HIRED]: "bg-hired/15 text-hired",
-  [ApplicationStatus.REJECTED]: "bg-danger/15 text-danger",
+  [ApplicationStatus.REJECTED_BY_COMPANY]: "bg-danger/15 text-danger",
+  [ApplicationStatus.REJECTED_BY_ADMIN]: "bg-danger/15 text-danger",
   [ApplicationStatus.WITHDRAWN]: "bg-white/8 text-white/40",
   [ApplicationStatus.JOB_CLOSED]: "bg-white/8 text-white/30",
 };
 
 const STATUS_BAR_COLOR: Record<string, string> = {
-  [ApplicationStatus.NEW]: "bg-info",
+  [ApplicationStatus.PENDING_ADMIN_REVIEW]: "bg-info",
   [ApplicationStatus.APPROVED_BY_ADMIN]: "bg-copper",
+  [ApplicationStatus.INTERVIEWING]: "bg-info",
+  [ApplicationStatus.OFFER]: "bg-warning",
   [ApplicationStatus.HIRED]: "bg-hired",
-  [ApplicationStatus.REJECTED]: "bg-danger",
+  [ApplicationStatus.REJECTED_BY_COMPANY]: "bg-danger",
+  [ApplicationStatus.REJECTED_BY_ADMIN]: "bg-danger",
   [ApplicationStatus.WITHDRAWN]: "bg-white/20",
   [ApplicationStatus.JOB_CLOSED]: "bg-white/15",
 };
@@ -63,10 +72,7 @@ function StatCard({ label, value, hint, to, accent = "copper" }: StatCardProps) 
   );
   if (to) {
     return (
-      <Link
-        to={to}
-        className="block transition duration-200 hover:opacity-90"
-      >
+      <Link to={to} className="block transition duration-200 hover:opacity-90">
         {inner}
       </Link>
     );
@@ -140,7 +146,9 @@ export default function CompanyDashboard() {
       {/* Applications breakdown */}
       {totalByStatus.length > 0 && (
         <div className="rounded-xl border border-white/8 bg-card p-6">
-          <Eyebrow className="mb-5">{t("company:dashboard.applicationsBreakdown")}</Eyebrow>
+          <Eyebrow className="mb-5">
+            {t("company:dashboard.applicationsBreakdown")}
+          </Eyebrow>
           <div className="space-y-3">
             {totalByStatus.map(([status, count]) => (
               <div key={status} className="flex items-center gap-3">

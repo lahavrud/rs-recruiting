@@ -365,7 +365,7 @@ export function SummaryScreen({
     {} as Record<Decision, number>,
   );
   // Order matters for visual layout: approvals first, rejections second.
-  const decisionsInOrder: Decision[] = ["APPROVED_BY_ADMIN", "REJECTED"];
+  const decisionsInOrder: Decision[] = ["APPROVED_BY_ADMIN", "REJECTED_BY_ADMIN"];
 
   return (
     <div

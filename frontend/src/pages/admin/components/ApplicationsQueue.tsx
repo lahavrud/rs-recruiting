@@ -76,7 +76,7 @@ export default function ApplicationsQueue() {
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> =>
       getApplications({
         cursor,
-        status: ApplicationStatus.NEW,
+        status: ApplicationStatus.PENDING_ADMIN_REVIEW,
         sort: "created_at",
         order: "asc",
       }),
@@ -99,7 +99,7 @@ export default function ApplicationsQueue() {
   const decide = useCallback(
     async (
       appId: number,
-      status: typeof ApplicationStatus.APPROVED_BY_ADMIN | typeof ApplicationStatus.REJECTED,
+      status: typeof ApplicationStatus.APPROVED_BY_ADMIN | typeof ApplicationStatus.REJECTED_BY_ADMIN,
     ) => {
       const current = itemsRef.current;
       const idx = current.findIndex((a) => a.id === appId);
@@ -143,7 +143,7 @@ export default function ApplicationsQueue() {
     window.clearTimeout(undo.timeoutId);
     setPendingUndo(null);
     try {
-      await updateApplicationStatus(undo.appId, { status: ApplicationStatus.NEW });
+      await updateApplicationStatus(undo.appId, { status: ApplicationStatus.PENDING_ADMIN_REVIEW });
       reload();
     } catch {
       toast.error(t("admin:reviewQueue.errors.undoFailed"));
@@ -162,7 +162,7 @@ export default function ApplicationsQueue() {
         void decide(id, ApplicationStatus.APPROVED_BY_ADMIN);
       } else if (e.key === "r" || e.key === "R") {
         e.preventDefault();
-        void decide(id, ApplicationStatus.REJECTED);
+        void decide(id, ApplicationStatus.REJECTED_BY_ADMIN);
       }
     }
     document.addEventListener("keydown", onKey);
@@ -215,7 +215,7 @@ export default function ApplicationsQueue() {
       applicationId={selectedId}
       application={selectedItem}
       onUpdated={(patch) => {
-        if (patch.status != null && patch.status !== ApplicationStatus.NEW) {
+        if (patch.status != null && patch.status !== ApplicationStatus.PENDING_ADMIN_REVIEW) {
           const idx = items.findIndex((a) => a.id === patch.id);
           const next = items[idx + 1] ?? items[idx - 1] ?? null;
           removeItem((a) => a.id === patch.id);

@@ -170,7 +170,7 @@ export function useTriageSession({
       setPendingUndo((p) => (p?.appId === appId ? null : p));
       if (jumpBack != null) setIndex(jumpBack);
 
-      updateApplicationStatus(appId, { status: ApplicationStatus.NEW }).catch(() => {
+      updateApplicationStatus(appId, { status: ApplicationStatus.PENDING_ADMIN_REVIEW }).catch(() => {
         if (snapshot) {
           setDecisions((prev) => ({ ...prev, [appId]: snapshot }));
         }
@@ -335,7 +335,7 @@ export function useTriageSession({
         decide("APPROVED_BY_ADMIN");
       } else if (k === "r") {
         e.preventDefault();
-        decide("REJECTED");
+        decide("REJECTED_BY_ADMIN");
       } else if (k === "z" && pendingUndo) {
         e.preventDefault();
         undo();

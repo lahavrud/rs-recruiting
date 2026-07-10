@@ -3,9 +3,12 @@ import { useTranslation } from "react-i18next";
 import StatusBadge from "@/components/ui/StatusBadge";
 
 const STATUS_COLORS: Record<string, string> = {
-  NEW: "bg-copper/10 text-copper",
+  PENDING_ADMIN_REVIEW: "bg-copper/10 text-copper",
   APPROVED_BY_ADMIN: "bg-success/10 text-success",
-  REJECTED: "bg-danger/10 text-danger",
+  INTERVIEWING: "bg-info/10 text-info",
+  OFFER: "bg-warning/10 text-warning",
+  REJECTED_BY_COMPANY: "bg-danger/10 text-danger",
+  REJECTED_BY_ADMIN: "bg-danger/10 text-danger",
   HIRED: "bg-hired/10 text-hired",
   JOB_CLOSED: "bg-white/8 text-white/45",
   WITHDRAWN: "bg-white/3 text-white/25",

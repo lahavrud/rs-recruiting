@@ -35,7 +35,6 @@ import ApplicationsRailList from "./components/ApplicationsRailList";
 import ApplicationsTable from "./components/ApplicationsTable";
 import ClosedApplicationsSection from "./components/ClosedApplicationsSection";
 
-
 const CLOSED_STATUSES = new Set<ApplicationStatus>([
   ApplicationStatus.JOB_CLOSED,
   ApplicationStatus.WITHDRAWN,
@@ -60,10 +59,13 @@ export default function AdminApplicationsPage() {
   const [filter, setFilter] = useState<FilterValue>(() => {
     const s = new URLSearchParams(window.location.search).get("status");
     if (
-      s === ApplicationStatus.NEW ||
+      s === ApplicationStatus.PENDING_ADMIN_REVIEW ||
       s === ApplicationStatus.APPROVED_BY_ADMIN ||
-      s === ApplicationStatus.REJECTED ||
+      s === ApplicationStatus.INTERVIEWING ||
+      s === ApplicationStatus.OFFER ||
       s === ApplicationStatus.HIRED ||
+      s === ApplicationStatus.REJECTED_BY_COMPANY ||
+      s === ApplicationStatus.REJECTED_BY_ADMIN ||
       s === ApplicationStatus.WITHDRAWN
     ) {
       return s;
@@ -191,10 +193,13 @@ export default function AdminApplicationsPage() {
     companyFilter.length;
 
   const STATUS_LABELS: Record<string, string> = {
-    NEW: t("admin:applications.statusLabels.NEW"),
+    PENDING_ADMIN_REVIEW: t("admin:applications.statusLabels.PENDING_ADMIN_REVIEW"),
     APPROVED_BY_ADMIN: t("admin:applications.statusLabels.APPROVED_BY_ADMIN"),
-    REJECTED: t("admin:applications.statusLabels.REJECTED"),
+    INTERVIEWING: t("admin:applications.statusLabels.INTERVIEWING"),
+    OFFER: t("admin:applications.statusLabels.OFFER"),
     HIRED: t("admin:applications.statusLabels.HIRED"),
+    REJECTED_BY_COMPANY: t("admin:applications.statusLabels.REJECTED_BY_COMPANY"),
+    REJECTED_BY_ADMIN: t("admin:applications.statusLabels.REJECTED_BY_ADMIN"),
     JOB_CLOSED: t("admin:applications.statusLabels.JOB_CLOSED"),
     WITHDRAWN: t("admin:applications.statusLabels.WITHDRAWN"),
   };
