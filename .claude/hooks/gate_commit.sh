@@ -4,14 +4,21 @@
 # stderr to Claude (exit 1 would NOT block — see the hooks contract).
 set -uo pipefail
 
-cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+input=$(cat)
+cmd=$(jq -r '.tool_input.command // empty' <<<"$input" 2>/dev/null) || exit 0
 # Match `git commit` anywhere in the command (covers `cd x && git commit`).
 grep -qE '(^|[^[:alnum:]_./-])git[[:space:]]+commit([[:space:]]|$)' <<<"$cmd" || exit 0
 
 # Used by scripts/test_claude_hooks.sh to verify matching without running linters.
 [ "${RS_HOOK_DRY_RUN:-}" = "1" ] && exit 2
 
-cd "${CLAUDE_PROJECT_DIR:?}"
+# Lint the tree the commit actually runs in (repo root of the hook-input
+# `cwd`), not the launch checkout — otherwise a commit from a
+# .claude/worktrees/ worktree is blocked by unrelated dirty files in the main
+# tree. Falls back to CLAUDE_PROJECT_DIR.
+dir=$(jq -r '.cwd // empty' <<<"$input" 2>/dev/null)
+root=$(git -C "${dir:-.}" rev-parse --show-toplevel 2>/dev/null)
+cd "${root:-${CLAUDE_PROJECT_DIR:?}}"
 {
   uv run ruff check . &&
   uv run ruff format --check . &&
