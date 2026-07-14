@@ -18,13 +18,8 @@ from pydantic import field_validator
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlmodel import Column, Field, Relationship, SQLModel
 
-from rs_shared.core.infrastructure.config import settings
 from rs_shared.enums import UserRole
-
-# Embedding vector width for the resume-matching engine. Fixed at the DB-column
-# level by the migration — keep in lockstep with ``settings.embedding_dim`` and
-# the embedding model's output dimension (see core/services/embeddings.py).
-_EMBEDDING_DIM = settings.embedding_dim
+from rs_shared.models._embedding import EMBEDDING_DIM
 
 
 class User(SQLModel, table=True):
@@ -196,7 +191,7 @@ class CandidateProfile(SQLModel, table=True):
     )
     embedding: list[float] | None = Field(
         default=None,
-        sa_column=Column(Vector(_EMBEDDING_DIM), nullable=True),
+        sa_column=Column(Vector(EMBEDDING_DIM), nullable=True),
     )
     linkedin_url: str | None = None
 

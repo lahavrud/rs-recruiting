@@ -9,12 +9,9 @@ from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Column, Field, Relationship, SQLModel
 
-from rs_shared.core.infrastructure.config import settings
 from rs_shared.enums import JobStatus
+from rs_shared.models._embedding import EMBEDDING_DIM
 from rs_shared.models.identity import CompanyProfile
-
-# See identity.py for the embedding-width invariant.
-_EMBEDDING_DIM = settings.embedding_dim
 
 
 class Job(SQLModel, table=True):
@@ -55,7 +52,7 @@ class Job(SQLModel, table=True):
     # publish/edit. NULL until first embedded. See core/services/embeddings.py.
     embedding: list[float] | None = Field(
         default=None,
-        sa_column=Column(Vector(_EMBEDDING_DIM), nullable=True),
+        sa_column=Column(Vector(EMBEDDING_DIM), nullable=True),
     )
     is_featured: bool = Field(default=False, index=True)
     location: str
