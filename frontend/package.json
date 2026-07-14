@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "gen:types": "openapi-typescript openapi.json -o src/types/generated.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -53,11 +54,18 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "jsdom": "^29.1.1",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.4",
     "tailwindcss": "^4.2.4",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.62.1",
     "vite": "^8.1.3",
     "vitest": "^4.1.9"
+  },
+  "comment:overrides": "openapi-typescript's peer range stops at typescript@5 but it works with our TS6 for JSON->TS codegen; pin it to the root typescript so npm resolves cleanly (plain npm ci) instead of relaxing peer checks project-wide.",
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }

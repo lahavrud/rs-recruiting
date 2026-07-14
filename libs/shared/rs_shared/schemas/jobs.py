@@ -7,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from rs_shared.enums import JobStatus
 
+JOB_TITLE_MAX = 100
+JOB_LOCATION_MAX = 100
+JOB_DESC_MAX = 5000
 JOB_SHORT_DESC_MAX = 140
 JOB_TAG_MAX_LEN = 30
 JOB_TAG_MAX_COUNT = 6
@@ -62,12 +65,12 @@ def _validate_tags(v: list[str]) -> list[str]:
 class JobCreate(BaseModel):
     """Schema for creating a job posting."""
 
-    title: str = Field(..., max_length=100)
+    title: str = Field(..., max_length=JOB_TITLE_MAX)
     short_description: str = Field(..., min_length=1, max_length=JOB_SHORT_DESC_MAX)
-    description: str = Field(..., max_length=5000)
+    description: str = Field(..., max_length=JOB_DESC_MAX)
     requirements: list[JobRequirementItem]
     tags: list[str] = Field(default_factory=list)
-    location: str = Field(..., max_length=100)
+    location: str = Field(..., max_length=JOB_LOCATION_MAX)
     salary_min: int = Field(..., ge=0)
     salary_max: int = Field(..., ge=0)
 
@@ -89,14 +92,14 @@ class JobUpdate(BaseModel):
     omitted — only admins toggle that flag (see ``JobAdminUpdate``).
     """
 
-    title: str | None = Field(None, max_length=100)
+    title: str | None = Field(None, max_length=JOB_TITLE_MAX)
     short_description: str | None = Field(
         None, min_length=1, max_length=JOB_SHORT_DESC_MAX
     )
-    description: str | None = Field(None, max_length=5000)
+    description: str | None = Field(None, max_length=JOB_DESC_MAX)
     requirements: list[JobRequirementItem] | None = None
     tags: list[str] | None = None
-    location: str | None = Field(None, max_length=100)
+    location: str | None = Field(None, max_length=JOB_LOCATION_MAX)
     salary_min: int | None = Field(None, ge=0)
     salary_max: int | None = Field(None, ge=0)
     status: JobStatus | None = None
@@ -147,13 +150,13 @@ class JobAdminCreate(BaseModel):
     """Schema for an admin creating a job posting against a specific company."""
 
     company_id: int
-    title: str = Field(..., max_length=100)
+    title: str = Field(..., max_length=JOB_TITLE_MAX)
     short_description: str = Field(..., min_length=1, max_length=JOB_SHORT_DESC_MAX)
-    description: str = Field(..., max_length=5000)
+    description: str = Field(..., max_length=JOB_DESC_MAX)
     requirements: list[JobRequirementItem]
     tags: list[str] = Field(default_factory=list)
     is_featured: bool = False
-    location: str = Field(..., max_length=100)
+    location: str = Field(..., max_length=JOB_LOCATION_MAX)
     salary_min: int = Field(..., ge=0)
     salary_max: int = Field(..., ge=0)
     status: JobStatus = JobStatus.PUBLISHED
