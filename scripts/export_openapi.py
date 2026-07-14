@@ -46,7 +46,10 @@ def render_spec() -> str:
 
 
 def main() -> None:
-    SPEC_PATH.write_text(render_spec())
+    # newline="\n" so the file is byte-identical on every platform (write_text's
+    # default translates \n -> \r\n on Windows, which would diff against the
+    # committed LF spec and defeat the drift gate for Windows contributors).
+    SPEC_PATH.write_text(render_spec(), newline="\n")
     print(f"Wrote {SPEC_PATH.relative_to(REPO_ROOT)}")
 
 
