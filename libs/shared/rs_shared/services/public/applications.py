@@ -28,13 +28,14 @@ from rs_shared.services.public._application_helpers import (
     CandidateApplicationPayload,
     send_application_emails,
     upsert_candidate_and_application,
-    validate_and_upload_resume,
 )
 from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.candidate_provisioning import CandidateProvisioner
 from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
+from rs_shared.services.utils.resume_upload import validate_and_upload_resume
 
 
 async def _get_published_job(session: AsyncSession, job_id: int) -> Job:
@@ -131,23 +132,22 @@ async def _apply_as_claim(
     job_id: int,
     payload: CandidateApplicationPayload,
     claim_password: str,
+    provisioner: CandidateProvisioner,
 ) -> CandidateProfile:
     """Anonymous claim (no user, password supplied).
 
-    Same consent write/audit as the anonymous flow, plus minting a
-    candidate User + activation token via the shared registration helper.
-    The User starts ``is_active=False``; the candidate's
-    ``CandidateProfile.user_id`` stays NULL until activation links them. If
-    the email belongs to an already-pending user the helper updates the
-    password + replaces the token (re-registration semantics).
+    Same consent write/audit as the anonymous flow, plus minting a candidate
+    User + activation token via the injected ``provisioner`` (the ``auth``
+    domain's ``register_candidate``, wired in at the composition root so this
+    flow doesn't import ``auth``). The User starts ``is_active=False``; the
+    candidate's ``CandidateProfile.user_id`` stays NULL until activation links
+    them. If the email belongs to an already-pending user the provisioner
+    updates the password + replaces the token (re-registration semantics).
     """
     candidate = await _apply_as_anonymous(session, candidate_data, job_id, payload)
 
-    # Lazy import to avoid a circular dep at module load (auth → public → auth).
-    from rs_shared.services.auth.candidate_registration import register_candidate
-
     try:
-        await register_candidate(
+        await provisioner(
             candidate_data.email,
             claim_password,
             candidate_data.full_name,
@@ -215,6 +215,7 @@ async def create_candidate_profile(
     *,
     candidate_user: User | None = None,
     claim_password: str | None = None,
+    provisioner: CandidateProvisioner | None = None,
 ) -> CandidateProfileRead:
     """Create a candidate profile and application for a job.
 
@@ -283,8 +284,10 @@ async def create_candidate_profile(
             session, candidate_data, job_id, payload, candidate_user
         )
     elif claim_password is not None:
+        if provisioner is None:
+            raise ValueError("A candidate provisioner is required for the claim flow")
         candidate = await _apply_as_claim(
-            session, candidate_data, job_id, payload, claim_password
+            session, candidate_data, job_id, payload, claim_password, provisioner
         )
     else:
         candidate = await _apply_as_anonymous(session, candidate_data, job_id, payload)

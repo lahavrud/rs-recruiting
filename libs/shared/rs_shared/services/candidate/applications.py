@@ -37,8 +37,8 @@ from rs_shared.services.exceptions import (
     ApplicationNotEditableError,
     ApplicationNotFoundError,
 )
-from rs_shared.services.public._application_helpers import validate_and_upload_resume
 from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.resume_upload import validate_and_upload_resume
 
 logger = logging.getLogger(__name__)
 

@@ -22,6 +22,7 @@ from rs_shared.enums import UserRole
 from rs_shared.models import User
 from rs_shared.schemas import CandidateProfileCreate, CandidateProfileRead
 from rs_shared.schemas.auth import _validate_password_complexity
+from rs_shared.services.auth.candidate_registration import register_candidate
 from rs_shared.services.exceptions import (
     ApplicationAlreadyEditableError,
     ApplicationAlreadyExistsError,
@@ -163,6 +164,7 @@ async def apply_to_job(
                 growth_area=growth_area,
                 candidate_user=current_user,
                 claim_password=effective_password,
+                provisioner=register_candidate,
             )
         return candidate
     except ApplicationAlreadyEditableError as e:

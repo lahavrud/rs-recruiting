@@ -37,7 +37,6 @@ from rs_shared.templates.email import build_rejection_html
 __all__ = [
     "approve_company",
     "delete_active_company",
-    "get_all_admin_emails",
     "list_active_companies",
     "list_pending_companies",
     "reject_company",
@@ -56,17 +55,6 @@ async def _delete_company_files(company_profile: CompanyProfile) -> None:
     ]:
         if key:
             await delete_file_best_effort(storage, key, _logger)
-
-
-async def get_all_admin_emails(session: AsyncSession) -> list[str]:
-    """Get email addresses of all active admin users."""
-    result = await session.execute(
-        select(User.email).where(  # pyright: ignore[reportArgumentType]
-            User.role == UserRole.ADMIN,
-            User.is_active == True,  # noqa: E712
-        )
-    )
-    return list(result.scalars().all())
 
 
 async def list_pending_companies(

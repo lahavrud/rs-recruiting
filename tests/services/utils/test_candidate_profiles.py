@@ -1,11 +1,11 @@
-"""Unit tests for src/services/candidates.py — lookup + update primitives."""
+"""Unit tests for services/utils/candidate_profiles.py — lookup + update primitives."""
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.models import CandidateProfile
 from rs_shared.schemas import CandidateProfileCreate
-from rs_shared.services.company.candidates import (
+from rs_shared.services.utils.candidate_profiles import (
     find_candidate_by_email,
     update_candidate_profile,
 )
