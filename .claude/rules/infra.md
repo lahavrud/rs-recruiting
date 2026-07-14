@@ -17,11 +17,11 @@ Never hardcode a value that should be in SSM. Never commit `.env` files that con
 
 ## CI/CD workflows (`.github/workflows/`)
 
-Trunk-based **continuous delivery**: merge to `main` → CI green → build (by SHA) → staging → ⏸ manual approval → prod → tag `vX.Y.Z` + Release. `main` is the only long-lived branch (no `develop`).
+Trunk-based **continuous delivery**: merge to `main` → CI green → build (by SHA) → ⏸ manual approval → prod → tag `vX.Y.Z` + Release. `main` is the only long-lived branch (no `develop`). (Staging was retired for cost — the build promotes straight to the prod gate; see `deliver.yml` below.)
 
 - `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend). A green run on a `push` to `main` is what triggers delivery.
-- `deliver.yml` — triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success`. Builds base + api + worker + alloy (tagged by SHA, pushed to ops ECR), deploys staging, gates prod behind the approval, then tags + creates the GitHub Release. Triggering off CI completion (not raw push) means a commit only ships after its own tests pass.
-- `_deploy.yml` — reusable (`workflow_call`), called by `deliver.yml` once per environment. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
+- `deliver.yml` — triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success`. Builds base + api + worker + alloy (tagged by SHA, pushed to ops ECR), gates prod behind the approval, then tags + creates the GitHub Release. Triggering off CI completion (not raw push) means a commit only ships after its own tests pass. **Staging is retired for cost** — the `deploy-staging` job is commented out (kept in-file for later re-enable); the build promotes straight to `deploy-prod`.
+- `_deploy.yml` — reusable (`workflow_call`), environment-agnostic. Currently called by `deliver.yml` once (the production deploy); it was designed to be called once per environment, so re-enabling staging is just uncommenting `deploy-staging` and adding it to `deploy-prod`'s `needs`. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
 - `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild.
 - `security-audit.yml` — weekly pip-audit for CVEs.
 - `stale.yml` — weekly stale-issue sweep (60d stale → 14d close; `P1`/`security`/`icebox` labels exempt).
@@ -38,7 +38,9 @@ When editing workflows:
 ## Infrastructure repo
 Terraform/OpenTofu lives in a separate repo (`rs-recruiting-infra`). Do not modify infrastructure from this repo.
 
-The **persistent staging** cluster + RDS + OIDC deploy role live in the infra repo. Images are built once into the **ops account** ECR and pulled cross-account by both staging and prod. App-repo secrets the pipeline needs: `AWS_OPS_ECR_PUSH_ROLE_ARN` + `OPS_ECR_REGISTRY` (build), `AWS_STAGING_ECS_DEPLOY_ROLE_ARN` + `S3_FRONTEND_BUCKET_STAGING` + `CLOUDFRONT_DISTRIBUTION_ID_STAGING` (staging), `AWS_ECS_DEPLOY_ROLE_ARN` (var) + `AWS_ROLE_ARN` + `S3_FRONTEND_BUCKET` + `CLOUDFRONT_DISTRIBUTION_ID` + `VITE_SENTRY_DSN` (prod).
+Images are built once into the **ops account** ECR and pulled cross-account by prod. App-repo secrets the pipeline needs today: `AWS_OPS_ECR_PUSH_ROLE_ARN` + `OPS_ECR_REGISTRY` (build), and `AWS_ECS_DEPLOY_ROLE_ARN` (var) + `AWS_ROLE_ARN` + `S3_FRONTEND_BUCKET` + `CLOUDFRONT_DISTRIBUTION_ID` + `VITE_SENTRY_DSN` (prod).
+
+**Staging is retired** (cost): its cluster/RDS were on-demand scale-to-zero and didn't justify the moving parts. The dormant staging secrets (`AWS_STAGING_ECS_DEPLOY_ROLE_ARN`, `S3_FRONTEND_BUCKET_STAGING`, `CLOUDFRONT_DISTRIBUTION_ID_STAGING`) and infra are only needed if it's re-enabled. **Commenting out the `deploy-staging` job does NOT stop AWS charges** — to actually save cost the staging tofu units in `rs-recruiting-infra` must be destroyed.
 
 ## Observability
 - Sentry: backend DSN in SSM, frontend DSN in build args
