@@ -177,6 +177,17 @@ jobs:
         if: needs.detect-changes.outputs.backend == 'true'
         run: uv run python scripts/validate_test_files.py
 
+      # Contract gate (backend side): the committed OpenAPI spec must match what
+      # the app currently serves. Regenerate and fail if it drifted — the FE types
+      # are generated from this file, so a stale spec would silently break the
+      # frontend/backend contract. Regenerate locally with
+      # `uv run python scripts/export_openapi.py` and commit frontend/openapi.json.
+      - name: OpenAPI spec up to date
+        if: needs.detect-changes.outputs.backend == 'true'
+        run: |
+          uv run python scripts/export_openapi.py
+          git diff --exit-code frontend/openapi.json
+
       - name: Run Tests
         if: needs.detect-changes.outputs.backend == 'true'
         # -n auto: pytest-xdist creates one worker per CPU. tests/conftest.py
@@ -211,6 +222,15 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      # Contract gate (frontend side): the generated TS types must match the
+      # committed OpenAPI spec. Regenerate and fail if they drifted. Regenerate
+      # locally with `npm run gen:types` and commit src/types/generated.ts.
+      - name: OpenAPI types up to date
+        working-directory: frontend
+        run: |
+          npm run gen:types
+          git diff --exit-code src/types/generated.ts
 
       - name: TypeScript type check
         working-directory: frontend
