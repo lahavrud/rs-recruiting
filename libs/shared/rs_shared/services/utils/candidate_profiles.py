@@ -1,9 +1,11 @@
-"""Candidate profile primitives: lookup + partial update.
+"""Candidate-profile primitives: lookup + partial update.
 
-The heavy apply-flow (file validation, storage upload, dup detection,
-email side effects) lives in `src/services/applications.py`. This
-module only owns the small pieces that operate on a single
-`CandidateProfile` row.
+These operate on a single ``CandidateProfile`` row and are shared by the apply
+flow (public + candidate) — nothing here is company-specific. They live in the
+kernel so no actor domain has to import another to reach them (see the
+``independence`` import-linter contract). The heavy apply-flow logic (file
+validation, upload, dup detection, email side effects) stays in the public/
+candidate services.
 """
 
 from sqlalchemy import select

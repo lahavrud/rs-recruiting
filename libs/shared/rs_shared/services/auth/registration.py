@@ -29,13 +29,13 @@ from rs_shared.schemas import (
     UserRead,
     UserWithCompanyRead,
 )
-from rs_shared.services.admin.companies import get_all_admin_emails
 from rs_shared.services.exceptions import EmailAlreadyExistsError
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
+from rs_shared.services.utils.recipients import get_all_admin_emails
 from rs_shared.templates.email import build_new_registration_html
 
 logger = logging.getLogger(__name__)

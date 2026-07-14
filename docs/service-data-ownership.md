@@ -49,6 +49,19 @@ calling each other's code. The message wire format is defined once in
 `send_email`, `build_data_export`, `purge_expired_candidates`, `embed_job`,
 `match_candidate`.
 
+## Service-domain independence (within the api)
+
+The five actor domains under `rs_shared/services/` (`auth`, `admin`, `company`,
+`candidate`, `public`) are **modules of the modular monolith: none imports
+another**. This is enforced by an `independence` import-linter contract (root
+`pyproject.toml`). Shared logic lives in the kernel (`services/utils`), or — when
+a domain genuinely needs another's behavior — is inverted behind a `Protocol`
+injected at the composition root (`rs_api`). The public apply flow's candidate
+account creation uses this pattern: `services/utils/candidate_provisioning.py`
+defines the `CandidateProvisioner` boundary; `rs_api` injects auth's
+`register_candidate`, so `public` never imports `auth`. A companion `forbidden`
+contract keeps the kernel from importing back into any domain.
+
 ## When splitting the database later
 
 - `email_quota` is already worker-owned and self-contained — the cleanest first

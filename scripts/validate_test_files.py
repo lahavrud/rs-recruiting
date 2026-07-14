@@ -40,6 +40,10 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     "services/api/rs_api/api/seo/_sitemap.py",
     # Two version-string constants (no logic to test).
     "libs/shared/rs_shared/services/utils/legal.py",
+    # A single typing.Protocol (the candidate-provisioning DI boundary) — no
+    # runtime logic. Its concrete implementation (auth.register_candidate) and
+    # the injection are exercised end-to-end by tests/api/public/test_applications.py.
+    "libs/shared/rs_shared/services/utils/candidate_provisioning.py",
     # Sprint 11 / #606 — helper modules split out of applications.py to
     # satisfy file-size caps. Exercised end-to-end via
     # tests/services/public/test_applications.py and
