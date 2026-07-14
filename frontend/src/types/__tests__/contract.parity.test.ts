@@ -14,8 +14,9 @@ import {
   JOB_TITLE_MAX,
 } from "@/types/jobs";
 
-import { readFileSync } from "fs";
-import { resolve } from "path";
+// Imported statically so the path resolves relative to this file (via vite), not
+// to the process cwd — the test then works no matter where the runner is invoked.
+import specJson from "../../../openapi.json";
 
 /**
  * Parity guard for the runtime mirrors that `openapi-typescript` can't generate.
@@ -27,12 +28,7 @@ import { resolve } from "path";
  * (the spec itself is kept honest by the backend `export_openapi.py` diff gate).
  */
 
-// vitest runs with cwd = frontend/ (both locally and in the CI frontend-checks
-// job), where the committed spec lives. jsdom's `import.meta.url` is an http URL,
-// so resolve from cwd rather than the module URL.
-const spec = JSON.parse(
-  readFileSync(resolve(process.cwd(), "openapi.json"), "utf-8"),
-) as {
+const spec = specJson as {
   components: {
     schemas: Record<
       string,
@@ -44,8 +40,12 @@ const spec = JSON.parse(
 const schemas = spec.components.schemas;
 
 describe("enum parity with OpenAPI spec", () => {
-  // FE const-object → backend schema name. All four are part of the API surface,
-  // so each must exist as a named schema with an `enum` in the spec.
+  // FE const-object → backend schema name. Only enums that surface as a named
+  // schema in the spec can be guarded here. `MatchSuggestionStatus` is
+  // deliberately absent: it never appears on the OpenAPI surface (the match
+  // endpoints take/return it inline as an action, not as a named schema), so
+  // there is nothing in the spec to compare against — its backend↔FE parity is
+  // the concern of the backend enum tests, not this contract gate.
   const cases: Array<[string, Record<string, string>]> = [
     ["ApplicationStatus", ApplicationStatus],
     ["JobStatus", JobStatus],
@@ -70,9 +70,15 @@ describe("validation limit parity with OpenAPI spec", () => {
     ["JOB_REQ_TEXT_MAX", JOB_REQ_TEXT_MAX, "JobRequirementItem", "text"],
   ];
 
-  it.each(cases)("%s matches %s.%s maxLength", (_name, feValue, schemaName, field) => {
-    const specMax = schemas[schemaName]?.properties?.[field]?.maxLength;
-    expect(specMax, `${schemaName}.${field}.maxLength missing from spec`).toBeDefined();
-    expect(feValue).toBe(specMax);
-  });
+  it.each(cases)(
+    "%s (=%s) matches %s.%s maxLength",
+    (_name, feValue, schemaName, field) => {
+      const specMax = schemas[schemaName]?.properties?.[field]?.maxLength;
+      expect(
+        specMax,
+        `${schemaName}.${field}.maxLength missing from spec`,
+      ).toBeDefined();
+      expect(feValue).toBe(specMax);
+    },
+  );
 });
