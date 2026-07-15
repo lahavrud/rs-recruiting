@@ -63,9 +63,9 @@ export function JobDetailBody({
   // the list route validates `limit <= MAX_LIMIT` (100), so passing 200 yields
   // a 422. SCORE_SORT_LIMIT is kept only to detect the capped state below.
   const SCORE_SORT_LIMIT = 200;
-  const [jobApplications, setJobApplications] = useState<ApplicationWithDetails[] | null>(
-    null,
-  );
+  const [jobApplications, setJobApplications] = useState<
+    ApplicationWithDetails[] | null
+  >(null);
   const [hasApplicationsError, setHasApplicationsError] = useState(false);
   useEffect(() => {
     const ctrl = new AbortController();
@@ -85,21 +85,24 @@ export function JobDetailBody({
   const applicationCount =
     jobApplications == null
       ? null
-      : { n: jobApplications.length, isCapped: jobApplications.length === SCORE_SORT_LIMIT };
+      : {
+          n: jobApplications.length,
+          isCapped: jobApplications.length === SCORE_SORT_LIMIT,
+        };
 
   const applicationEntries: MatchEntry[] | null =
     jobApplications == null
       ? null
       : jobApplications.map((app) => ({
-            key: app.id,
-            name: app.candidate.full_name,
-            meta: app.candidate.email,
-            score: app.ai_score ?? 0,
-            onClick: () => {
-              onLeavePage?.();
-              navigate(`/admin/applications/${app.id}`);
-            },
-          }));
+          key: app.id,
+          name: app.candidate.full_name,
+          meta: app.candidate.email,
+          score: app.ai_score ?? 0,
+          onClick: () => {
+            onLeavePage?.();
+            navigate(`/admin/applications/${app.id}`);
+          },
+        }));
 
   const [matches, setMatches] = useState<JobCandidateMatchRead[] | null>(null);
   const [hasMatchesError, setHasMatchesError] = useState(false);
@@ -247,7 +250,9 @@ export function JobDetailBody({
         <div className="mt-1 grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <Eyebrow>{t("admin:jobs.applicationsColumn")}</Eyebrow>
-            <p className="mb-1 text-[10px] text-white/30">{t("admin:jobs.applicationsAiOnlyNote")}</p>
+            <p className="mb-1 text-[10px] text-white/30">
+              {t("admin:jobs.applicationsAiOnlyNote")}
+            </p>
             <MatchList
               entries={applicationEntries}
               hasError={hasApplicationsError}
@@ -294,6 +299,18 @@ export function MobileJobCard({
 }) {
   const { t } = useTranslation(["admin", "common", "http", "publicJobs"]);
   const [isOpen, setIsOpen] = useState(false);
+  // Defer mounting JobDetailBody — and therefore its applications/matches
+  // fetches — until the card is first expanded. JobsList renders one card per
+  // job with no isOpen gating, so mounting the body eagerly fired both fetches
+  // for every job on page load (#1022). Once opened we keep it mounted, so the
+  // collapse animation still plays and re-opening doesn't refetch.
+  const [hasBeenOpened, setHasBeenOpened] = useState(false);
+  const toggleOpen = () => {
+    // One-way latch (safe to set from a possibly-stale read — it only ever
+    // goes true); the toggle itself uses a functional updater.
+    if (!isOpen) setHasBeenOpened(true);
+    setIsOpen((o) => !o);
+  };
   return (
     <div
       className={`relative overflow-hidden rounded-xl border bg-card transition-colors duration-200 ${
@@ -304,9 +321,11 @@ export function MobileJobCard({
     >
       <button
         type="button"
-        onClick={() => setIsOpen((o) => !o)}
+        onClick={toggleOpen}
         aria-expanded={isOpen}
-        aria-label={isOpen ? t("admin:jobs.collapseLabel") : t("admin:jobs.expandLabel")}
+        aria-label={
+          isOpen ? t("admin:jobs.collapseLabel") : t("admin:jobs.expandLabel")
+        }
         className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 pe-12 text-start active:scale-[0.99]"
       >
         <span
@@ -352,32 +371,39 @@ export function MobileJobCard({
               isOpen ? "opacity-100 delay-100" : "opacity-0"
             }`}
           >
-            <JobDetailBody
-              job={job}
-              statusLabels={statusLabels}
-              statusColors={statusColors}
-              companyName={companyName}
-            />
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/15 px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-copper/50 hover:text-copper active:scale-[0.99]"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-                className="size-3.5"
-                aria-hidden="true"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M11.78 10.28a.75.75 0 0 1-1.06 0L8 7.56l-2.72 2.72a.75.75 0 1 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z"
-                  clipRule="evenodd"
+            {/* Gate both the body and the close button so a never-opened card
+                keeps nothing focusable in the tab order (the collapsed card is
+                only hidden via opacity/grid-rows, which don't untab elements). */}
+            {hasBeenOpened && (
+              <>
+                <JobDetailBody
+                  job={job}
+                  statusLabels={statusLabels}
+                  statusColors={statusColors}
+                  companyName={companyName}
                 />
-              </svg>
-              {t("admin:jobs.collapseLabel")}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-sm border border-white/15 px-3 py-2 text-xs font-medium text-white/65 transition-colors hover:border-copper/50 hover:text-copper active:scale-[0.99]"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    className="size-3.5"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M11.78 10.28a.75.75 0 0 1-1.06 0L8 7.56l-2.72 2.72a.75.75 0 1 1-1.06-1.06l3.25-3.25a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  {t("admin:jobs.collapseLabel")}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
