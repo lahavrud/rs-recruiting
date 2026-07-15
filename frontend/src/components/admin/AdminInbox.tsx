@@ -1,10 +1,10 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
-import { getAdminOverview, type AdminInboxCounts } from "@/services/adminOverview";
+import { useAdminOverview } from "@/hooks/useAdminOverview";
 
 interface ItemConfig {
   key: string;
@@ -19,15 +19,8 @@ interface ItemConfig {
 
 export default function AdminInbox() {
   const { t } = useTranslation("dashboard");
-  const [counts, setCounts] = useState<AdminInboxCounts | null>(null);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getAdminOverview(ctrl.signal)
-      .then((data) => setCounts(data.inbox))
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
+  const { data: overview } = useAdminOverview();
+  const counts = overview?.inbox ?? null;
 
   const items: ItemConfig[] = [
     {
@@ -99,7 +92,10 @@ export default function AdminInbox() {
   );
 }
 
-function urgencyLabel(t: ReturnType<typeof useTranslation<"dashboard">>["t"], days: number): string {
+function urgencyLabel(
+  t: ReturnType<typeof useTranslation<"dashboard">>["t"],
+  days: number,
+): string {
   if (days === 0) return t("dashboard:inbox.urgency.today");
   return t("dashboard:inbox.urgency.days", { count: days });
 }
@@ -123,9 +119,7 @@ function InboxCard({ item }: { item: ItemConfig }) {
       }`}
     >
       {/* Urgency accent stripe */}
-      {isUrgent && (
-        <div className="absolute inset-x-0 top-0 h-0.5 bg-warning/60" />
-      )}
+      {isUrgent && <div className="absolute inset-x-0 top-0 h-0.5 bg-warning/60" />}
 
       {/* Top row: icon + chevron only — keeps the row from overflowing on narrow cards */}
       <div className="flex items-center justify-between">

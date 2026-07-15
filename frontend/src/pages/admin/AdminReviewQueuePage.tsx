@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
-
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
 import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { getAdminOverview, type AdminInboxCounts } from "@/services/adminOverview";
+import { type AdminInboxCounts } from "@/services/adminOverview";
 
 import ApplicationsQueue from "./components/ApplicationsQueue";
 import CompaniesQueue from "./components/CompaniesQueue";
@@ -45,15 +44,8 @@ export default function AdminReviewQueuePage() {
   const tab: QueueTab =
     rawTab === "jobs" || rawTab === "companies" ? rawTab : "applications";
 
-  const [counts, setCounts] = useState<AdminInboxCounts | null>(null);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getAdminOverview(ctrl.signal)
-      .then((data) => setCounts(data.inbox))
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
+  const { data: overview } = useAdminOverview();
+  const counts = overview?.inbox ?? null;
 
   function setTab(next: QueueTab) {
     setParams(next === "applications" ? {} : { tab: next }, { replace: true });

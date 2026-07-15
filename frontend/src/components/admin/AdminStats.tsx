@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
@@ -17,11 +15,8 @@ import {
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import { APPLICATION_STATUS_META } from "@/constants/statusColors";
-import {
-  getAdminOverview,
-  type AdminOverviewRead,
-  type TrendPoint,
-} from "@/services/adminOverview";
+import { useAdminOverview } from "@/hooks/useAdminOverview";
+import { type TrendPoint } from "@/services/adminOverview";
 import { ApplicationStatus } from "@/types/enums";
 import { formatDateShort } from "@/utils/formatDate";
 
@@ -53,16 +48,7 @@ const PIPELINE_FILL: Record<string, string> = {
 
 export default function AdminStats() {
   const { t } = useTranslation(["common", "dashboard", "admin"]);
-  const [overview, setOverview] = useState<AdminOverviewRead | null>(null);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getAdminOverview(ctrl.signal)
-      .then(setOverview)
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
-
+  const { data: overview } = useAdminOverview();
   const stats = overview?.stats ?? null;
   const pulse = overview?.pulse ?? null;
 

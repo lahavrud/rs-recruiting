@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation } from "react-router-dom";
 
+import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useAuth } from "@/hooks/useAuth";
-import { getAdminOverview } from "@/services/adminOverview";
 import { UserRole } from "@/types/enums";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,18 +64,10 @@ function NavRow({
 
 // ─── Collapsible group ────────────────────────────────────────────────────────
 
-function NavGroup({
-  group,
-  onClose,
-}: {
-  group: NavGroupDef;
-  onClose: () => void;
-}) {
+function NavGroup({ group, onClose }: { group: NavGroupDef; onClose: () => void }) {
   const { t } = useTranslation("nav");
   const location = useLocation();
-  const isAnyChildActive = group.items.some((i) =>
-    location.pathname.startsWith(i.to),
-  );
+  const isAnyChildActive = group.items.some((i) => location.pathname.startsWith(i.to));
 
   const [userOpen, setUserOpen] = useState(true);
   const open = userOpen || isAnyChildActive;
@@ -130,22 +122,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { t } = useTranslation("nav");
   const { user } = useAuth();
 
-  const [pendingCompanies, setPendingCompanies] = useState<number | null>(null);
-  const [pendingJobs, setPendingJobs] = useState<number | null>(null);
-  const [newApplications, setNewApplications] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (user?.role !== UserRole.ADMIN) return;
-    const ctrl = new AbortController();
-    getAdminOverview(ctrl.signal)
-      .then((data) => {
-        setPendingCompanies(data.inbox.pending_companies);
-        setPendingJobs(data.inbox.pending_jobs);
-        setNewApplications(data.inbox.new_applications);
-      })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, [user?.role]);
+  const { data: overview } = useAdminOverview(user?.role === UserRole.ADMIN);
+  const pendingCompanies = overview?.inbox.pending_companies ?? null;
+  const pendingJobs = overview?.inbox.pending_jobs ?? null;
+  const newApplications = overview?.inbox.new_applications ?? null;
 
   const adminGroups: NavGroupDef[] = [
     {
