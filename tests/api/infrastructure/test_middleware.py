@@ -6,12 +6,13 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from rs_api.infrastructure.middleware import (
     OriginVerifyMiddleware,
     RequestMiddleware,
+    SecurityHeadersMiddleware,
     request_id_var,
 )
 
@@ -204,3 +205,109 @@ async def test_origin_verify_failure_logs_path_not_secret(caplog):
     assert len(records) == 1
     assert records[0].__dict__["path"] == "/ok"
     assert "sniffed-value" not in str(records[0].__dict__)
+
+
+# --- SecurityHeadersMiddleware (defensive response headers) ---
+
+
+def _make_security_app(*, hsts=False, extra_routes=None):
+    """Minimal Starlette app with SecurityHeadersMiddleware for testing."""
+
+    async def _default(request: Request) -> Response:
+        return JSONResponse({"path": request.url.path})
+
+    async def _html(request: Request) -> Response:
+        return HTMLResponse("<!doctype html><title>hi</title>")
+
+    routes = [Route("/ok", _default), Route("/html", _html)]
+    for path, handler in (extra_routes or {}).items():
+        routes.append(Route(path, handler))
+
+    app = Starlette(routes=routes)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=hsts)
+    return app
+
+
+@pytest.mark.asyncio
+async def test_security_headers_present():
+    """Every response carries the static defensive headers + the strict CSP."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_security_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/ok")
+
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert response.headers["permissions-policy"] == (
+        "geolocation=(), camera=(), microphone=()"
+    )
+    csp = response.headers["content-security-policy"]
+    assert "default-src 'none'" in csp
+    assert "frame-ancestors 'none'" in csp
+
+
+@pytest.mark.asyncio
+async def test_hsts_omitted_when_disabled():
+    """HSTS is absent unless explicitly enabled (plaintext dev http)."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_security_app(hsts=False)),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/ok")
+    assert "strict-transport-security" not in response.headers
+
+
+@pytest.mark.asyncio
+async def test_hsts_present_when_enabled():
+    """HSTS is emitted in deployed HTTPS environments."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_security_app(hsts=True)),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/ok")
+    hsts = response.headers["strict-transport-security"]
+    assert "max-age=31536000" in hsts
+    assert "includeSubDomains" in hsts
+
+
+@pytest.mark.asyncio
+async def test_csp_skipped_on_html_response():
+    """The strict `default-src 'none'` CSP would blank any HTML the app serves
+    (Swagger UI, `/api/og/*` prerender), so it's gated on a JSON content-type.
+    The other defensive headers still apply to HTML responses."""
+    async with AsyncClient(
+        transport=ASGITransport(app=_make_security_app()), base_url="http://test"
+    ) as client:
+        response = await client.get("/html")
+    assert "content-security-policy" not in response.headers
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+@pytest.mark.asyncio
+async def test_security_headers_do_not_clobber_handler_values():
+    """setdefault semantics: a handler that sets its own header wins."""
+
+    async def _custom_csp(request: Request) -> Response:
+        resp = JSONResponse({})
+        resp.headers["Content-Security-Policy"] = "default-src 'self'"
+        return resp
+
+    app = _make_security_app(extra_routes={"/custom": _custom_csp})
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        response = await client.get("/custom")
+    assert response.headers["content-security-policy"] == "default-src 'self'"
+
+
+@pytest.mark.asyncio
+async def test_security_headers_wired_into_real_app(public_client):
+    """Guards the main.py registration + ordering, not just an isolated app:
+    the middleware must actually stamp a real response from rs_api.main.app."""
+    response = await public_client.get("/health")
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "default-src 'none'" in response.headers["content-security-policy"]

@@ -63,6 +63,7 @@ from rs_api.infrastructure.middleware import (
     OriginVerifyMiddleware,
     RequestIdFilter,
     RequestMiddleware,
+    SecurityHeadersMiddleware,
 )
 from rs_shared.core.infrastructure.config import settings, validate_settings
 from rs_shared.core.infrastructure.database import engine, init_db, warm_up_pool
@@ -194,6 +195,14 @@ app.add_middleware(
 # origin probes are 403'd before CORS, instrumentation, or APM logging see
 # them. No-op unless ORIGIN_VERIFY_SECRET is set (prod web task only).
 app.add_middleware(OriginVerifyMiddleware, secret=settings.origin_verify_secret)
+
+# Defensive response headers — registered last so it runs OUTERMOST and rides
+# out on every response, including the OriginVerify 403 and CORS preflight. HSTS
+# is emitted only in deployed HTTPS environments (never over plaintext dev http).
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    hsts=settings.environment in ("prod", "staging"),
+)
 
 # Include routers
 app.include_router(auth.router)
