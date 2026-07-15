@@ -9,11 +9,11 @@ import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
+import { useAdminOverview } from "@/hooks/useAdminOverview";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useToast } from "@/hooks/useToast";
 import { deleteCompany, deleteOrphanCompany } from "@/services/adminCompanies";
-import { getAdminOverview } from "@/services/adminOverview";
 import type { CompanyProfileRead } from "@/types/auth";
 
 import CompanyActiveTab from "./components/CompanyActiveTab";
@@ -33,7 +33,8 @@ export default function AdminCompaniesPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const { id: rawId } = useParams<{ id?: string }>();
-  const selectedId = rawId != null && !Number.isNaN(Number(rawId)) ? Number(rawId) : null;
+  const selectedId =
+    rawId != null && !Number.isNaN(Number(rawId)) ? Number(rawId) : null;
 
   const [view, setView] = useState<Tab>(() => {
     const v = new URLSearchParams(window.location.search).get("view");
@@ -64,20 +65,10 @@ export default function AdminCompaniesPage() {
   }, []);
 
   // Tab counts from the overview endpoint (exact counts, no capping).
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
-  const [activeCount, setActiveCount] = useState<number | null>(null);
-  const [invitesCount, setInvitesCount] = useState<number | null>(null);
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getAdminOverview(ctrl.signal)
-      .then((data) => {
-        setPendingCount(data.inbox.pending_companies);
-        setActiveCount(data.stats.active_companies);
-        setInvitesCount(data.inbox.pending_invites);
-      })
-      .catch(() => {});
-    return () => ctrl.abort();
-  }, []);
+  const { data: overview } = useAdminOverview();
+  const pendingCount = overview?.inbox.pending_companies ?? null;
+  const activeCount = overview?.stats.active_companies ?? null;
+  const invitesCount = overview?.inbox.pending_invites ?? null;
 
   function handleInvite() {
     setView("invites");
@@ -121,17 +112,10 @@ export default function AdminCompaniesPage() {
       subtitle={t("admin:companies.subtitle")}
       action={
         <div className="flex w-full gap-2 sm:w-auto sm:items-center">
-          <Button
-            size="sm"
-            onClick={() => setIsCreating(true)}
-          >
+          <Button size="sm" onClick={() => setIsCreating(true)}>
             {t("admin:companies.newCompany")}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleInvite}
-          >
+          <Button variant="ghost" size="sm" onClick={handleInvite}>
             {t("admin:companies.inviteForm.newInviteButton")}
           </Button>
         </div>
