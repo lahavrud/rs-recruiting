@@ -204,6 +204,14 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
     )
     session.add(job)
     await session.flush()
+
+    # Admin-created jobs skip the approval flow, so nothing else will embed
+    # them — without this they stay unmatchable forever (empty applications /
+    # AI-recommendation panels on the job card).
+    if job.status == JobStatus.PUBLISHED:
+        embed_job_id = job.id
+        defer_after_commit(lambda: enqueue_embed_job_task(embed_job_id))
+
     await session.refresh(job, attribute_names=["company"])
     return JobRead.model_validate(job)
 
@@ -270,9 +278,16 @@ async def update_job(
             job_id, job.title, session, actor_user_id=actor_user_id
         )
 
-    # Re-embed when a published job's matchable text changed, so candidate
-    # matches rank against the current content (after commit).
-    if job.status == JobStatus.PUBLISHED and _EMBEDDABLE_FIELDS & payload.keys():
+    # Embed when a published job's matchable text changed, so candidate matches
+    # rank against the current content — and when a job reaches PUBLISHED by an
+    # admin edit rather than the approval flow, since that transition alone
+    # leaves the text unchanged but makes the job matchable for the first time.
+    became_published = (
+        old_status != JobStatus.PUBLISHED and job.status == JobStatus.PUBLISHED
+    )
+    if job.status == JobStatus.PUBLISHED and (
+        became_published or _EMBEDDABLE_FIELDS & payload.keys()
+    ):
         embed_job_id = job.id
         defer_after_commit(lambda: enqueue_embed_job_task(embed_job_id))
 

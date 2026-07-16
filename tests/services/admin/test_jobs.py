@@ -57,6 +57,62 @@ async def test_admin_create_job_unknown_company(session: AsyncSession):
         await admin_create_job(_payload(company_id=99999), session)
 
 
+_PATCH_EMBED = "rs_shared.services.admin.jobs.enqueue_embed_job_task"
+_PATCH_EMBED_DEFER = "rs_shared.services.admin.jobs.defer_after_commit"
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_embeds_published_job(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Admin-created jobs skip approval, so creation is the only embed trigger."""
+    with patch(_PATCH_EMBED) as mock_embed:
+        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
+            job = await admin_create_job(_payload(company_with_user.id), session)
+            await session.commit()
+
+    mock_embed.assert_called_once_with(job.id)
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_skips_embed_when_not_published(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    payload = _payload(company_with_user.id)
+    payload.status = JobStatus.PENDING_APPROVAL
+
+    with patch(_PATCH_EMBED) as mock_embed:
+        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
+            await admin_create_job(payload, session)
+            await session.commit()
+
+    mock_embed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_job_embeds_on_transition_to_published(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Publishing via an admin edit makes the job matchable for the first time,
+    even though no embeddable text changed."""
+    payload = _payload(company_with_user.id)
+    payload.status = JobStatus.PENDING_APPROVAL
+    created = await admin_create_job(payload, session)
+    await session.commit()
+
+    with patch(_PATCH_EMBED) as mock_embed:
+        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
+            with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda _fn: None):
+                await update_job(
+                    created.id,
+                    JobAdminUpdate(status=JobStatus.PUBLISHED),
+                    session,
+                )
+                await session.commit()
+
+    mock_embed.assert_called_once_with(created.id)
+
+
 # ── update_job ────────────────────────────────────────────────────────────────
 
 
