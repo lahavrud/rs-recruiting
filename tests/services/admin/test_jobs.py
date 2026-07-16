@@ -100,15 +100,20 @@ async def test_update_job_embeds_on_transition_to_published(
     created = await admin_create_job(payload, session)
     await session.commit()
 
-    with patch(_PATCH_EMBED) as mock_embed:
-        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
-            with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda _fn: None):
-                await update_job(
-                    created.id,
-                    JobAdminUpdate(status=JobStatus.PUBLISHED),
-                    session,
-                )
-                await session.commit()
+    with (
+        patch(_PATCH_EMBED) as mock_embed,
+        patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()),
+        # Silence the company notification this edit also triggers. It used to
+        # be a defer_after_commit hook; it is now a queue_email call, so the
+        # email itself is what gets patched out (see _PATCH_NOTIFY_EMAIL).
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+    ):
+        await update_job(
+            created.id,
+            JobAdminUpdate(status=JobStatus.PUBLISHED),
+            session,
+        )
+        await session.commit()
 
     mock_embed.assert_called_once_with(created.id)
 
