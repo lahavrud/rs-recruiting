@@ -7,19 +7,20 @@ Flow:
    per user in the last 24 hours — enforced by counting DB rows rather
    than touching Redis (the row IS the rate limit; one less moving
    piece).
-2. The Arq task assembles a ZIP containing ``data.json`` (profile +
-   applications + non-PII audit slice) and per-application resume
-   binaries fetched from storage. Uploads the ZIP to storage with a
-   ``exports/{user_id}/{uuid}.zip`` key, mints a ``DataExportRequest``
-   carrying a hashed download token, and emails the candidate a signed
-   download link.
+2. ``build_data_export_task`` (SQS) assembles a ZIP containing
+   ``data.json`` (profile + applications + non-PII audit slice) and
+   per-application resume binaries fetched from storage. Uploads the ZIP
+   to storage with a ``exports/{user_id}/{uuid}.zip`` key, mints a
+   ``DataExportRequest`` carrying a hashed download token, and emails the
+   candidate a signed download link. If that email can't be enqueued the
+   export is discarded again (``discard_export``) — the row would
+   otherwise block its own redelivery. See the task for why.
 3. ``GET /api/candidate/me/export/{token}`` looks the token up by hash,
    verifies it's unused + unexpired, streams the ZIP, and marks
    ``used=True``.
 
-Cleanup of expired / used rows + the underlying ZIP objects is left for a
-future scheduled job. Until then, the rows pile up; storage costs
-are bounded by the per-user 24h rate limit.
+Expired / used rows and their ZIP objects are swept by
+``admin.maintenance.purge_expired_data_export_zips`` in the nightly cleanup.
 """
 
 from __future__ import annotations
@@ -275,6 +276,38 @@ async def get_export_request_by_token_hash(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def discard_export(
+    raw_token: str, session: AsyncSession, storage: StorageProvider
+) -> None:
+    """Drop a persisted export whose download link never reached the candidate.
+
+    The unused row is both the at-least-once idempotency guard for
+    ``build_data_export_task`` and the API's per-user 429 rate limit. Left
+    behind after a failed notification it would make redelivery a no-op and
+    lock the candidate out for the full TTL holding a link they never got, so
+    the retry must find a clean slate.
+
+    The row goes first because it is the part that strands the candidate; the
+    ZIP is only storage cost, and ``purge_expired_data_export_zips`` sweeps it
+    regardless — so a delete failure there must not keep the row alive.
+    """
+    record = await get_export_request_by_token_hash(hash_token(raw_token), session)
+    if record is None:
+        return
+
+    storage_key = record.download_path
+    await session.delete(record)
+    await session.flush()
+
+    try:
+        await storage.delete_file(storage_key)
+    except Exception:
+        logger.exception(
+            "data_export_discard_storage_delete_failed",
+            extra={"storage_key": storage_key},
+        )
 
 
 async def has_pending_export(user_id: int, session: AsyncSession) -> bool:
