@@ -366,6 +366,11 @@ function ShellContent({ children }: Props) {
     pathname === "/register-candidate" ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
+    // Reached from an emailed link like /reset-password, and renders its own
+    // AuthShell. Without this it inherits whatever shell the auth state implies,
+    // so a signed-in candidate confirms deletion inside the dashboard chrome —
+    // sidebar, and a "log out" button, wrapped around a full-screen auth card.
+    pathname === "/candidate/delete-account" ||
     pathname === "/admin/applications/triage"
   ) {
     return <>{children}</>;

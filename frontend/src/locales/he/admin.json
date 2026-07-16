@@ -502,11 +502,14 @@
     "deleteConfirmYes": "כן, מחק",
     "deletedToast": "המועמד נמחק",
     "showDeletedToggle": "הצג מועמדים שנמחקו",
-    "statusAccount": "בעל חשבון",
+    "statusAccount": "בעל/ת חשבון",
     "statusDeleted": "נמחק",
+    "deletedSubtitle": "הפרטים האישיים נמחקו לבקשת המועמד/ת",
+    "resumePurged": "קורות חיים: נמחקו",
+    "emptyDeletedHint": "מועמדים שנמחקו מוסתרים כברירת מחדל. סמנו \"הצג מועמדים שנמחקו\" כדי לכלול אותם.",
     "userEmailLabel": "דוא\"ל חשבון",
     "errors": {
-      "deleteFailed": "מחיקת המועמד נכשלה. נסה שוב.",
+      "deleteFailed": "מחיקת המועמד נכשלה. נסו שוב.",
       "alreadyDeleted": "מועמד זה כבר נמחק.",
       "applicationsLoadFailed": "טעינת המועמדויות של המועמד נכשלה.",
       "activityLoadFailed": "טעינת היסטוריית הפעילות נכשלה."
@@ -530,7 +533,6 @@
       "emptyDescription": "בחר מועמד מהרשימה כדי לצפות בפרטיו.",
       "notFound": "המועמד לא נמצא."
     },
-    "statusRegistered": "רשום",
     "statusLead": "ליד"
   },
   "reviewQueue": {

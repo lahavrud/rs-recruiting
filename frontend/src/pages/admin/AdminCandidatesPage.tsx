@@ -9,7 +9,9 @@ import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SearchableSelect from "@/components/admin/SearchableSelect";
 import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
+import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import FilterPill from "@/components/ui/FilterPill";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import TableSkeleton from "@/components/ui/TableSkeleton";
@@ -173,6 +175,16 @@ export default function AdminCandidatesPage() {
     hasQuery: Boolean(debouncedQuery.trim()),
     emptyEyebrow: t("admin:candidates.title"),
     emptyHeadline: t("admin:candidates.empty"),
+    // Searching for someone who deleted their account otherwise looks identical to
+    // "no such candidate" — the row is there, just filtered out by default.
+    emptyDescription: includeDeleted
+      ? undefined
+      : t("admin:candidates.emptyDeletedHint"),
+    emptyAction: includeDeleted ? undefined : (
+      <Button variant="ghost" size="sm" onClick={() => setIncludeDeleted(true)}>
+        {t("admin:candidates.showDeletedToggle")}
+      </Button>
+    ),
   };
 
   function withListState(loading: ReactNode, children: ReactNode) {
@@ -231,19 +243,16 @@ export default function AdminCandidatesPage() {
         />
       )}
 
-      <button
-        type="button"
+      {/* `danger` here read as an error state rather than "filter on"; copper-when-active
+          matches every other admin filter. */}
+      <FilterPill
+        className="ms-auto"
+        isActive={includeDeleted}
         onClick={() => setIncludeDeleted((v) => !v)}
-        className={[
-          "ms-auto inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
-          includeDeleted
-            ? "border-danger/40 bg-danger/10 text-danger/80"
-            : "border-white/12 bg-card-raised/40 text-white/40 hover:border-white/20 hover:text-white/60",
-        ].join(" ")}
         aria-pressed={includeDeleted}
       >
         {t("admin:candidates.showDeletedToggle")}
-      </button>
+      </FilterPill>
     </div>
   );
 

@@ -125,7 +125,7 @@ async def request_account_deletion(
     defer_after_commit(
         lambda: enqueue_email_task(
             to=recipient,
-            subject="אישור מחיקת חשבון — RS Recruiting",
+            subject="בקשה למחיקת החשבון שלכם — יש לאשר",
             body=plain,
             html_body=html,
         )

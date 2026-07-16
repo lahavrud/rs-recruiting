@@ -8,6 +8,7 @@ import DropdownMenu, {
 } from "@/components/ui/DropdownMenu";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
+import StatusBadge from "@/components/ui/StatusBadge";
 import { useScrollSelectedIntoView } from "@/hooks/useScrollSelectedIntoView";
 import type { CandidateAdminRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
@@ -81,13 +82,22 @@ export default function CandidatesRailList({
               <div className="flex items-center gap-2">
                 <p className="truncate font-medium text-white/85">{c.full_name}</p>
                 {c.is_deleted && (
-                  <span className="shrink-0 rounded bg-danger/15 px-1 py-0.5 text-[9px] font-medium text-danger/70">
-                    {t("admin:candidates.statusDeleted")}
+                  <span className="shrink-0">
+                    <StatusBadge
+                      label={t("admin:candidates.statusDeleted")}
+                      variant="danger"
+                    />
                   </span>
                 )}
                 {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
               </div>
-              {c.resume_summary ? (
+              {/* A tombstone has no summary, so the fallback would otherwise always
+                  surface the synthetic deleted-<id>@deleted as the row's only line. */}
+              {c.is_deleted ? (
+                <p className="truncate text-xs text-white/40">
+                  {t("admin:candidates.deletedSubtitle")}
+                </p>
+              ) : c.resume_summary ? (
                 <p className="truncate text-xs text-white/45">{c.resume_summary}</p>
               ) : (
                 <p className="truncate text-xs text-white/40">{c.email}</p>
