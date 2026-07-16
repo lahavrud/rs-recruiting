@@ -184,23 +184,14 @@ async def send_outbox_email_task(outbox_id: int) -> bool:
         async with transactional(session):
             row = await session.get(EmailOutbox, outbox_id)
             if row is not None:
-                await email_outbox.mark_sent(
-                    session, row, _provider_message_id(success)
-                )
+                # provider_message_id stays NULL until EmailProvider.send_email
+                # returns the provider's id instead of a bool — it is typed
+                # `-> bool`, so there is nothing to record yet.
+                await email_outbox.mark_sent(session, row, None)
     logger.info(
         "email_sent", extra={"outbox_id": outbox_id, "to": mask_email(to_addrs)}
     )
     return True
-
-
-def _provider_message_id(send_result: bool | str) -> str | None:
-    """Providers return bool today; tolerate a message-id when they don't.
-
-    ``EmailProvider.send_email`` is typed ``-> bool``, so there is no id to
-    record yet. Returning the id is part of the typed-provider follow-up; this
-    keeps the column wired so that change is a one-liner.
-    """
-    return send_result if isinstance(send_result, str) else None
 
 
 async def sweep_email_outbox_task() -> dict:
