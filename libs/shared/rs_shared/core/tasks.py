@@ -8,9 +8,16 @@ The wire format of every message (the ``{"task": ..., ...kwargs}`` envelope and
 its attachment encoding) is defined once in ``rs_shared.core.task_contract`` and
 shared with the worker so the two sides cannot drift.
 
-Public API (unchanged from Arq era — all 10+ call sites still work):
-  enqueue_email_task(to, subject, body, ...)  → MessageId | "inline"
-  enqueue_data_export_task(user_id)           → MessageId | "inline"
+Public API:
+  queue_email(session, to, subject, body, ...)  → outbox_id | None (deduped)
+  enqueue_data_export_task(user_id)             → MessageId | "inline"
+
+``queue_email`` is the producer for email: it writes an ``email_outbox`` row in
+the caller's transaction and defers only the SQS nudge, so a committed domain
+change can never be left without its email. It must be called from inside a
+``transactional()`` block. ``enqueue_email_task`` / ``send_email_task`` are the
+legacy pre-outbox path, retained for one release to drain in-flight
+``send_email`` messages — do not call them from new code.
 """
 
 import json
