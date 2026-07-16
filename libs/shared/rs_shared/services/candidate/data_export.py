@@ -13,7 +13,7 @@ Flow:
    to storage with a ``exports/{user_id}/{uuid}.zip`` key, mints a
    ``DataExportRequest`` carrying a hashed download token, and emails the
    candidate a signed download link. If that email can't be enqueued the
-   export is discarded again (``discard_export``) — the row would
+   export is expired on the spot (``discard_export``) — the row would
    otherwise block its own redelivery. See the task for why.
 3. ``GET /api/candidate/me/export/{token}`` looks the token up by hash,
    verifies it's unused + unexpired, streams the ZIP, and marks
@@ -278,36 +278,30 @@ async def get_export_request_by_token_hash(
     return result.scalar_one_or_none()
 
 
-async def discard_export(
-    raw_token: str, session: AsyncSession, storage: StorageProvider
-) -> None:
-    """Drop a persisted export whose download link never reached the candidate.
+async def discard_export(raw_token: str, session: AsyncSession) -> None:
+    """Retire an export whose download link never reached the candidate.
 
-    The unused row is both the at-least-once idempotency guard for
+    The unused, unexpired row is both the at-least-once idempotency guard for
     ``build_data_export_task`` and the API's per-user 429 rate limit. Left
-    behind after a failed notification it would make redelivery a no-op and
+    intact after a failed notification it would make redelivery a no-op and
     lock the candidate out for the full TTL holding a link they never got, so
     the retry must find a clean slate.
 
-    The row goes first because it is the part that strands the candidate; the
-    ZIP is only storage cost, and ``purge_expired_data_export_zips`` sweeps it
-    regardless — so a delete failure there must not keep the row alive.
+    Expiring beats deleting. Both clear ``has_pending_export`` (it matches on
+    ``used == False AND expires_at > now``), so either one frees the candidate
+    — but the ZIP still has to go, and ``purge_expired_data_export_zips`` finds
+    ZIPs only by walking their rows. Deleting the row here would strand the
+    ZIP, holding a bundle of the candidate's profile, applications and resumes
+    that no sweeper can ever reach. Back-dating instead leaves the row for the
+    nightly sweep, which deletes ZIP-then-row and keeps the row on a storage
+    failure so the next run retries.
     """
     record = await get_export_request_by_token_hash(hash_token(raw_token), session)
     if record is None:
         return
 
-    storage_key = record.download_path
-    await session.delete(record)
+    record.expires_at = datetime.now(timezone.utc)
     await session.flush()
-
-    try:
-        await storage.delete_file(storage_key)
-    except Exception:
-        logger.exception(
-            "data_export_discard_storage_delete_failed",
-            extra={"storage_key": storage_key},
-        )
 
 
 async def has_pending_export(user_id: int, session: AsyncSession) -> bool:

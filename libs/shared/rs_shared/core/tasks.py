@@ -183,12 +183,12 @@ async def build_data_export_task(user_id: int) -> None:
         # The export row is the idempotency guard above *and* the API's 429
         # rate limit. Acking here would strand the candidate: the ZIP exists,
         # the link never arrives, redelivery no-ops on the guard, and they get
-        # a 429 for the full TTL. Drop the export so redelivery rebuilds, then
-        # let the failure propagate to the worker (and eventually the DLQ).
+        # a 429 for the full TTL. Expire the export so redelivery rebuilds,
+        # then let the failure propagate to the worker (and eventually the DLQ).
         try:
             async with async_session() as session:
                 async with transactional(session):
-                    await discard_export(raw_token, session, get_storage_provider())
+                    await discard_export(raw_token, session)
         except Exception:
             logger.exception("data_export_discard_failed", extra={"user_id": user_id})
         raise
