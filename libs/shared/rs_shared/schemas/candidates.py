@@ -149,6 +149,40 @@ class CandidateProfileRead(BaseModel):
         return self.user_id is not None
 
 
+class CandidateAdminRead(BaseModel):
+    """Admin-only candidate profile read.
+
+    Superset of ``CandidateProfileRead``: adds tombstone state, account-link
+    status, and linked-user metadata for the admin candidates page.
+    All fields are populated explicitly by the service layer (not via
+    ``from_attributes``), since ``user_email`` / ``user_is_active`` come from
+    the related ``User`` row rather than directly from ``CandidateProfile``.
+    """
+
+    id: int
+    full_name: str
+    email: str
+    phone: str | None
+    resume_path: str | None
+    resume_summary: str | None = None
+    linkedin_url: str | None
+    consent_given_at: datetime | None
+    consent_policy_version: str | None
+    tos_accepted_at: datetime | None
+    tos_version: str | None
+    created_at: datetime
+    deleted_at: datetime | None = None
+    ai_score: float | None = None
+
+    # Derived flags
+    has_account: bool
+    is_deleted: bool
+
+    # Present when ``has_account=True``; None for anonymous leads
+    user_email: str | None = None
+    user_is_active: bool | None = None
+
+
 class CandidateMeRead(BaseModel):
     """Self-service candidate profile read.
 

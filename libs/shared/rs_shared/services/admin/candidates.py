@@ -3,7 +3,7 @@
 import logging
 from typing import Literal
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,13 +16,13 @@ from rs_shared.core.infrastructure.pagination import (
     clamp_limit,
 )
 from rs_shared.core.matching import cosine_similarity_score
-from rs_shared.core.services.storage import get_storage_provider
+from rs_shared.core.services.storage import StorageProvider, get_storage_provider
 from rs_shared.enums import JobStatus
 from rs_shared.models import Application, AuditLog, CandidateProfile, Job, User
 from rs_shared.schemas import (
     CandidateActivityEvent,
+    CandidateAdminRead,
     CandidateJobMatchRead,
-    CandidateProfileRead,
     JobRead,
 )
 from rs_shared.services.admin._candidates_purge import (
@@ -31,13 +31,48 @@ from rs_shared.services.admin._candidates_purge import (
 from rs_shared.services.admin._candidates_purge import (
     purge_expired_candidates as purge_expired_candidates,
 )
-from rs_shared.services.exceptions import CandidateNotFoundError
+from rs_shared.services.exceptions import (
+    CandidateAlreadyDeletedError,
+    CandidateNotFoundError,
+)
 from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
 
 _logger = logging.getLogger(__name__)
 
 
 _SCORE_SORT_LIMIT = 200
+_SELECTIN_USER = selectinload(CandidateProfile.user)  # type: ignore[arg-type]
+
+
+def _to_admin_read(
+    profile: CandidateProfile, *, ai_score: float | None = None
+) -> CandidateAdminRead:
+    """Build a ``CandidateAdminRead`` from an eagerly-loaded profile.
+
+    Requires ``CandidateProfile.user`` to have been loaded via selectinload.
+    """
+    user = getattr(profile, "user", None)
+    return CandidateAdminRead(
+        id=profile.id,
+        full_name=profile.full_name,
+        email=profile.email,
+        phone=profile.phone,
+        resume_path=profile.resume_path,
+        resume_summary=profile.resume_summary,
+        linkedin_url=profile.linkedin_url,
+        consent_given_at=profile.consent_given_at,
+        consent_policy_version=profile.consent_policy_version,
+        tos_accepted_at=profile.tos_accepted_at,
+        tos_version=profile.tos_version,
+        created_at=profile.created_at,
+        deleted_at=profile.deleted_at,
+        ai_score=ai_score,
+        has_account=profile.user_id is not None,
+        is_deleted=profile.deleted_at is not None,
+        user_email=user.email if user else None,
+        user_is_active=user.is_active if user else None,
+    )
 
 
 async def list_candidates(
@@ -49,20 +84,42 @@ async def list_candidates(
     sort: Literal["name", "created_at", "score"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
     job_id: int | None = None,
-) -> CursorPage[CandidateProfileRead]:
+    has_account: bool | None = None,
+    include_deleted: bool = False,
+) -> CursorPage[CandidateAdminRead]:
     """Return one page of candidate profiles, sorted by `sort`/`order`.
 
     `q`, when given, case-insensitively substring-matches name/email/phone.
     `sort="score"` requires `job_id` — ranks candidates by cosine similarity
     to the specified job's embedding; returns a single non-paginated page.
+    `has_account`, when set, filters by account presence (user_id NOT NULL).
+    `include_deleted`, when False (default), excludes tombstoned profiles.
     """
     if sort == "score":
         return await _list_candidates_by_score(
-            session, q=q, job_id=job_id, limit=limit, cursor=cursor
+            session,
+            q=q,
+            job_id=job_id,
+            limit=limit,
+            cursor=cursor,
+            has_account=has_account,
+            include_deleted=include_deleted,
         )
 
     page_size = clamp_limit(limit)
-    base = select(CandidateProfile)
+    base = select(CandidateProfile).options(_SELECTIN_USER)
+    if not include_deleted:
+        base = base.where(
+            CandidateProfile.deleted_at.is_(None)  # pyright: ignore[reportArgumentType]
+        )
+    if has_account is True:
+        base = base.where(
+            CandidateProfile.user_id.is_not(None)  # pyright: ignore[reportArgumentType]
+        )
+    elif has_account is False:
+        base = base.where(
+            CandidateProfile.user_id.is_(None)  # pyright: ignore[reportArgumentType]
+        )
     if q and q.strip():
         term = f"%{q.strip()}%"
         base = base.where(
@@ -84,10 +141,10 @@ async def list_candidates(
         sort_key=sort,
         direction=order,
     )
-    rows = (await session.execute(query)).scalars().all()
+    rows = list((await session.execute(query)).scalars().all())
     return build_cursor_page(
-        list(rows),
-        serializer=CandidateProfileRead.model_validate,
+        rows,
+        serializer=_to_admin_read,
         cursor_key=lambda c: (c.full_name if sort == "name" else c.created_at, c.id),
         limit=page_size,
         sort_key=sort,
@@ -101,7 +158,9 @@ async def _list_candidates_by_score(
     job_id: int | None = None,
     limit: int | None = None,
     cursor: str | None = None,
-) -> CursorPage[CandidateProfileRead]:
+    has_account: bool | None = None,
+    include_deleted: bool = False,
+) -> CursorPage[CandidateAdminRead]:
     """Return candidates ranked by cosine similarity to a job, best first.
 
     Only includes candidates with embeddings. Falls back to recency sort when
@@ -111,15 +170,33 @@ async def _list_candidates_by_score(
     job = await session.get(Job, job_id) if job_id is not None else None
     if job is None or job.embedding is None:
         return await list_candidates(
-            session, sort="created_at", order="desc", q=q, limit=limit, cursor=cursor
+            session,
+            sort="created_at",
+            order="desc",
+            q=q,
+            limit=limit,
+            cursor=cursor,
+            has_account=has_account,
+            include_deleted=include_deleted,
         )
 
     distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
-    stmt = (
-        select(CandidateProfile, distance_expr.label("dist")).where(
-            CandidateProfile.embedding.is_not(None)
-        )  # pyright: ignore[reportArgumentType]
+    stmt = select(CandidateProfile, distance_expr.label("dist")).options(_SELECTIN_USER)
+    stmt = stmt.where(
+        CandidateProfile.embedding.is_not(None)  # pyright: ignore[reportArgumentType]
     )
+    if not include_deleted:
+        stmt = stmt.where(
+            CandidateProfile.deleted_at.is_(None)  # pyright: ignore[reportArgumentType]
+        )
+    if has_account is True:
+        stmt = stmt.where(
+            CandidateProfile.user_id.is_not(None)  # pyright: ignore[reportArgumentType]
+        )
+    elif has_account is False:
+        stmt = stmt.where(
+            CandidateProfile.user_id.is_(None)  # pyright: ignore[reportArgumentType]
+        )
     if q and q.strip():
         term = f"%{q.strip()}%"
         stmt = stmt.where(
@@ -132,24 +209,22 @@ async def _list_candidates_by_score(
     stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
 
     rows = (await session.execute(stmt)).all()
-    items: list[CandidateProfileRead] = []
-    for candidate, dist in rows:
-        schema = CandidateProfileRead.model_validate(candidate)
-        schema.ai_score = cosine_similarity_score(dist)
-        items.append(schema)
+    items = [
+        _to_admin_read(candidate, ai_score=cosine_similarity_score(dist))
+        for candidate, dist in rows
+    ]
     return CursorPage(items=items, next_cursor=None)
 
 
-async def get_candidate(
-    candidate_id: int, session: AsyncSession
-) -> CandidateProfileRead:
+async def get_candidate(candidate_id: int, session: AsyncSession) -> CandidateAdminRead:
     candidate = await get_by_id_or_raise(
         session,
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
+        options=[_SELECTIN_USER],
     )
-    return CandidateProfileRead.model_validate(candidate)
+    return _to_admin_read(candidate)
 
 
 async def get_candidate_job_matches(
@@ -268,61 +343,74 @@ async def list_candidate_activity(
     )
 
 
-async def delete_candidate(
+async def admin_tombstone_candidate(
     candidate_id: int,
     session: AsyncSession,
     *,
+    storage: StorageProvider | None = None,
     actor_user_id: int | None = None,
     ip_address: str | None = None,
 ) -> None:
-    """Hard-delete a candidate, cascading through their applications and User.
+    """Admin-initiated GDPR tombstone of a candidate profile.
 
-    Removes the CandidateProfile, its Application rows, and — for a registered
-    candidate — the backing User account (which DB-cascades its auth/token rows).
-    Deleting the User rather than leaving it behind avoids an orphaned
-    candidate-role account with no profile: one that can still authenticate but
-    404s on every candidate endpoint, and whose email stays "taken" so the
-    person can't cleanly re-register. Anonymous leads (``user_id is None``) have
-    no User to remove.
+    Atomically:
+    1. Validates the candidate exists and is not already tombstoned.
+    2. NULLs ``Application.resume_path`` for all the candidate's applications.
+    3. Best-effort: deletes the candidate's resume file from storage.
+    4. Scrubs all PII fields on ``CandidateProfile``; sets ``deleted_at``.
+    5. Hard-deletes the linked ``User`` row if one exists (FK CASCADE sweeps
+       sessions/tokens; FK SET NULL clears ``CandidateProfile.user_id``).
+    6. Writes a ``candidate.delete`` audit event.
 
-    Best-effort delete of the latest resume snapshot from storage. Failures
-    on the storage delete are logged and ignored — DB state stays consistent.
+    Unlike the self-service flow, no email confirmation is sent.
 
     Raises:
         CandidateNotFoundError: If no candidate with that id exists.
+        CandidateAlreadyDeletedError: If the profile is already tombstoned.
     """
     candidate = await get_by_id_or_raise(
         session,
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
+        options=[_SELECTIN_USER],
     )
 
+    if candidate.deleted_at is not None:
+        raise CandidateAlreadyDeletedError(
+            f"Candidate {candidate_id} is already tombstoned"
+        )
+
+    # NULL application resume snapshots (preserve application rows).
     await session.execute(
-        delete(Application).where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
+        update(Application)
+        .where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
+        .values(resume_path=None, resume_filename=None, resume_hash=None)
     )
 
+    # Best-effort resume storage delete.
+    _storage = storage or get_storage_provider()
     if candidate.resume_path:
         try:
-            deleted = await get_storage_provider().delete_file(candidate.resume_path)
-            if not deleted:
-                _logger.warning(
-                    "Storage delete returned False for resume %s — "
-                    "file may remain in bucket; check IAM permissions",
-                    candidate.resume_path,
-                )
+            await _storage.delete_file(candidate.resume_path)
         except Exception:
-            _logger.exception(
-                "Failed to delete candidate resume file %s", candidate.resume_path
+            _logger.warning(
+                "admin_tombstone: storage delete failed for resume %s",
+                candidate.resume_path,
             )
 
-    user_id = candidate.user_id
-    await session.delete(candidate)
-    if user_id is not None:
-        user = await session.get(User, user_id)
+    linked_user_id = candidate.user_id
+
+    # Tombstone: scrub all PII, mark deleted.
+    scrub_candidate_pii(candidate)
+
+    # Hard-delete linked User.  FK SET NULL cascade updates profile.user_id;
+    # FK CASCADE cleans up RefreshToken, PasswordResetToken, etc.
+    if linked_user_id is not None:
+        user = await session.get(User, linked_user_id)
         if user is not None:
             await session.delete(user)
-    await session.flush()
+            await session.flush()
 
     await record_audit_event(
         session,
@@ -332,3 +420,5 @@ async def delete_candidate(
         target_id=candidate_id,
         ip_address=ip_address,
     )
+
+    _logger.info("admin_tombstone_candidate", extra={"candidate_id": candidate_id})

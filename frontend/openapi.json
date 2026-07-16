@@ -1133,6 +1133,188 @@
         "title": "CandidateActivityEvent",
         "type": "object"
       },
+      "CandidateAdminRead": {
+        "description": "Admin-only candidate profile read.\n\nSuperset of ``CandidateProfileRead``: adds tombstone state, account-link\nstatus, and linked-user metadata for the admin candidates page.\nAll fields are populated explicitly by the service layer (not via\n``from_attributes``), since ``user_email`` / ``user_is_active`` come from\nthe related ``User`` row rather than directly from ``CandidateProfile``.",
+        "properties": {
+          "ai_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Score"
+          },
+          "consent_given_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Given At"
+          },
+          "consent_policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Policy Version"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "has_account": {
+            "title": "Has Account",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_deleted": {
+            "title": "Is Deleted",
+            "type": "boolean"
+          },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "resume_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume Path"
+          },
+          "resume_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume Summary"
+          },
+          "tos_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tos Accepted At"
+          },
+          "tos_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tos Version"
+          },
+          "user_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Email"
+          },
+          "user_is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Is Active"
+          }
+        },
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "phone",
+          "resume_path",
+          "linkedin_url",
+          "consent_given_at",
+          "consent_policy_version",
+          "tos_accepted_at",
+          "tos_version",
+          "created_at",
+          "has_account",
+          "is_deleted"
+        ],
+        "title": "CandidateAdminRead",
+        "type": "object"
+      },
       "CandidateApplicationDetail": {
         "description": "Response for ``GET /api/candidate/me/applications/:id``.\n\nDeliberately has no company field \u2014 the hiring company's identity must\nnever be visible to a candidate (blind recruiting model).",
         "properties": {
@@ -2423,6 +2605,33 @@
         "title": "CursorPage[CandidateActivityEvent]",
         "type": "object"
       },
+      "CursorPage_CandidateAdminRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateAdminRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CursorPage[CandidateAdminRead]",
+        "type": "object"
+      },
       "CursorPage_CandidateApplicationListItem_": {
         "properties": {
           "items": {
@@ -2448,33 +2657,6 @@
           "items"
         ],
         "title": "CursorPage[CandidateApplicationListItem]",
-        "type": "object"
-      },
-      "CursorPage_CandidateProfileRead_": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/CandidateProfileRead"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "next_cursor": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next Cursor"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "CursorPage[CandidateProfileRead]",
         "type": "object"
       },
       "CursorPage_InviteTokenRead_": {
@@ -3741,6 +3923,33 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "_DeletionConfirmBody": {
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "_DeletionConfirmBody",
+        "type": "object"
+      },
+      "_DeletionRequestBody": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "_DeletionRequestBody",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -4367,7 +4576,7 @@
     },
     "/api/admin/candidates": {
       "get": {
-        "description": "List candidate profiles, sorted by `sort`/`order`, cursor-paginated.\n\n`q`, when given, filters by name/email/phone (case-insensitive substring).\n`sort=score` ranks candidates by cosine similarity to `job_id`'s embedding.",
+        "description": "List candidate profiles, sorted by `sort`/`order`, cursor-paginated.\n\n`q` filters by name/email/phone (case-insensitive substring).\n`sort=score` ranks candidates by cosine similarity to `job_id`'s embedding.\n`has_account` filters by account presence (`user_id NOT NULL`).\n`include_deleted` (default false) controls whether tombstoned rows appear.",
         "operationId": "get_candidates_api_admin_candidates_get",
         "parameters": [
           {
@@ -4459,6 +4668,32 @@
               ],
               "title": "Job Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "has_account",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Account"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Deleted",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -4466,7 +4701,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CursorPage_CandidateProfileRead_"
+                  "$ref": "#/components/schemas/CursorPage_CandidateAdminRead_"
                 }
               }
             },
@@ -4496,7 +4731,7 @@
     },
     "/api/admin/candidates/{candidate_id}": {
       "delete": {
-        "description": "Hard-delete a candidate and cascade through their applications.",
+        "description": "Tombstone a candidate: scrub PII, delete linked User, preserve applications.\n\nReturns 409 if the candidate is already tombstoned.",
         "operationId": "delete_candidate_endpoint_api_admin_candidates__candidate_id__delete",
         "parameters": [
           {
@@ -4553,7 +4788,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CandidateProfileRead"
+                  "$ref": "#/components/schemas/CandidateAdminRead"
                 }
               }
             },
@@ -6416,6 +6651,128 @@
         ]
       }
     },
+    "/api/candidate/deletion-confirm": {
+      "get": {
+        "description": "Validate an account deletion token without consuming it.\n\n200 if the token is valid; 400 if invalid / expired / already used.",
+        "operationId": "validate_deletion_token_api_candidate_deletion_confirm_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Validate Deletion Token Api Candidate Deletion Confirm Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Deletion Token",
+        "tags": [
+          "candidate"
+        ]
+      },
+      "post": {
+        "description": "Execute the account deletion identified by the token.\n\nAtomically tombstones the candidate profile, scrubs application resume\nsnapshots, and deletes the linked user account.  204 on success; 400 if\nthe token is invalid / expired / already used.",
+        "operationId": "confirm_deletion_endpoint_api_candidate_deletion_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_DeletionConfirmBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Deletion Endpoint",
+        "tags": [
+          "candidate"
+        ]
+      }
+    },
+    "/api/candidate/deletion-request": {
+      "post": {
+        "description": "Initiate account deletion by email (anonymous path).\n\nFor candidates who applied via the public form without registering.\nAlways 202 regardless of whether the email matches a profile.",
+        "operationId": "request_deletion_anonymous_api_candidate_deletion_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_DeletionRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Deletion Anonymous Api Candidate Deletion Request Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Deletion Anonymous",
+        "tags": [
+          "candidate"
+        ]
+      }
+    },
     "/api/candidate/me": {
       "get": {
         "description": "Return the authenticated candidate's own profile (identity + consent).",
@@ -6742,6 +7099,35 @@
           }
         ],
         "summary": "Withdraw Application",
+        "tags": [
+          "candidate"
+        ]
+      }
+    },
+    "/api/candidate/me/deletion-request": {
+      "post": {
+        "description": "Initiate account deletion for the authenticated candidate.\n\nSends a confirmation email with a 24-hour link. Always 202.",
+        "operationId": "request_deletion_authenticated_api_candidate_me_deletion_request_post",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Deletion Authenticated Api Candidate Me Deletion Request Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Request Deletion Authenticated",
         "tags": [
           "candidate"
         ]

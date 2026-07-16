@@ -1,174 +1,129 @@
-# Candidate Data Retention — Runbook
+# Nightly Data-Hygiene — Runbook
 
-The 12-month candidate retention purge: what it does, how to verify it ran, how to investigate when it didn't, and how to extend it.
-
----
-
-## What it is
-
-A nightly background job that deletes candidate data past the 12-month retention window mandated by our privacy policy.
-
-- **Schedule:** 03:00 UTC nightly (off-peak for our user base)
-- **Runs in:** the `worker` ECS Fargate service
-- **Defined in:** `libs/shared/rs_shared/core/tasks.py::purge_expired_candidate_data_task`
-- **Eligibility logic:** `libs/shared/rs_shared/services/admin/_candidates_purge.py::purge_expired_candidates`
+The nightly cleanup task runs five independent data-hygiene jobs, including the 12-month candidate retention purge required by our privacy policy. Each sub-task is separately transacted; a failure in one does not abort the others.
 
 ---
 
-## Eligibility rule
+## Schedule & location
 
-A candidate is purged **only if every one of their applications** satisfies all three conditions:
+- **Schedule:** 03:00 UTC nightly (EventBridge Scheduler → SQS → worker)
+- **Runs in:** the `rs_worker` container on the EC2 host
+- **Dispatcher:** `rs_shared.core.tasks::nightly_cleanup_task`
+- **Wire-format task key:** `purge_expired_candidates` (backward-compat with existing EventBridge rule)
+
+---
+
+## Sub-tasks
+
+### 1. `purge_expired_candidates` (12-month retention purge)
+
+**Eligibility** — a candidate is purged only when *every* one of their applications satisfies all three conditions:
 
 1. Linked `Job.status == CLOSED`
-2. `Job.updated_at < now - 365 days`
+2. `Job.updated_at < now − 365 days`
 3. `Application.status != HIRED`
 
-If even one application fails any condition, the candidate is preserved — companies may still need that data for payroll or dispute resolution. New candidates with zero applications are also preserved (no expiry has started).
+Candidates with any active application, recently-closed job, or HIRED status are preserved. New candidates with zero applications are also preserved (no expiry clock has started).
 
-The query is in `purge_expired_candidates`; it is the **single source of truth** for who gets deleted. Any change to retention policy goes there.
+For each eligible candidate:
+1. Resume file in S3 deleted (best-effort; failures are logged, deletion continues).
+2. All `Application` rows deleted.
+3. `CandidateProfile` row deleted.
+4. Audit log entry: `INFO retention.purge candidate_id=<id>` (ID only, no PII).
+
+**Service:** `rs_shared.services.admin._candidates_purge::purge_expired_candidates`
 
 ---
 
-## What gets deleted, in order
+### 2. `purge_unactivated_candidate_users` (7-day stale-registration sweep)
 
-For each eligible candidate:
+Deletes CANDIDATE `User` rows that were registered but never activated within the 7-day window.
 
-1. The resume file in S3 — **permanently** (all object versions and delete markers are removed via `list_object_versions` + `delete_objects`; no version lingers after this call). Best-effort: failures are logged and ignored so a partial S3 outage cannot block compliance deletions.
-2. All `Application` rows where `candidate_id` matches.
-3. The `CandidateProfile` row itself.
-4. An audit log line: `INFO retention.purge candidate_id=<id>`.
+**Eligibility:**
+- `User.role == CANDIDATE`
+- `User.is_active == False`
+- `User.created_at < now − 7 days`
+- No valid (unused + unexpired) `ActivationToken` still pending
 
-All DB writes happen inside one transaction (`transactional(session)`); a failure mid-batch rolls back cleanly.
+The `User` hard-delete cascades to `RefreshToken`, `PasswordResetToken`, `ActivationToken`, `DataExportRequest`, `AccountDeletionToken`. The FK on `CandidateProfile.user_id` is SET NULL, preserving the profile as an anonymous lead.
+
+---
+
+### 3. `purge_expired_data_export_zips` (GDPR export cleanup)
+
+Deletes `DataExportRequest` rows and their S3 ZIP files.
+
+**Eligibility:**
+- `expires_at < now` (24h TTL elapsed), OR
+- `used = true AND created_at < now − 24h` (downloaded + grace period elapsed)
+
+Storage deletion is best-effort: if the file cannot be deleted the row is **preserved** (not deleted) to avoid orphaning data. A warning is logged.
+
+---
+
+### 4. `purge_expired_account_deletion_tokens`
+
+Deletes stale `AccountDeletionToken` rows.
+
+**Eligibility:**
+- `expires_at < now`, OR
+- `used = true`
+
+---
+
+### 5. `purge_expired_activation_tokens` (30-day traceability window)
+
+Deletes `ActivationToken` rows past the 30-day traceability window. Tokens are retained for 30 days after `expires_at` so that stale-link activation attempts can still be attributed.
+
+**Eligibility:** `expires_at < now − 30 days`
 
 ---
 
 ## Observability
 
-### Audit log
-
-Every deletion emits one structured log line — ID only, no PII:
+### Structured log lines (no PII)
 
 ```
 INFO  retention.purge candidate_id=42
+INFO  cleanup.unactivated_user user_id=17
+INFO  nightly_cleanup_complete purge_expired_candidates=3 purge_unactivated_users=1 ...
 ```
 
-This is the auditor evidence trail. Lives wherever the worker service's stdout goes (today: CloudWatch Logs, `/ecs/rs-recruiting-prod-worker`).
+### OTel metrics (→ Alloy → Mimir)
 
-### CloudWatch metric
-
-| Field | Value |
+| Metric name | Sub-task |
 |---|---|
-| Namespace | `RsRecruiting/Retention` |
-| Metric | `PurgedCandidatesCount` |
-| Unit | `Count` |
-| Cadence | Once per cron run (nightly) |
-| Production-only | Gated on `settings.environment == "production"` |
-| On failure | Swallowed — DB delete is the source of truth |
+| `purged_candidates` | 12-month retention purge |
+| `purged_unactivated_users` | Stale-registration sweep |
+| `purged_export_zips` | GDPR export cleanup |
+| `purged_deletion_tokens` | Deletion token sweep |
+| `purged_activation_tokens` | Activation token sweep |
+| `last_purge_ran_at` | Unix timestamp of last successful run |
 
-The task **always emits a datapoint, even when count=0.** That is what makes the missing-data alarm meaningful.
-
-### Alarm: `retention-purge-stale`
-
-| Field | Value |
-|---|---|
-| Period | 86400s (24h) |
-| Evaluation periods | 1 |
-| Threshold | `Sum < 0` (effectively never breached by data — only by absence) |
-| `treatMissingData` | `breaching` |
-| Alarm + OK actions | `arn:aws:sns:us-east-1:<ACCOUNT_ID>:ops-alerts` |
-
-The alarm fires when **no datapoint arrived in the last 26h**. Since the cron emits one datapoint nightly, missing data means the worker isn't running.
-
-### Notification channel
-
-SNS topic `ops-alerts`. Subscriptions: `<OPS_EMAIL>` (email).
-
-To add another responder:
-
-```bash
-aws sns subscribe \
-  --topic-arn arn:aws:sns:us-east-1:<ACCOUNT_ID>:ops-alerts \
-  --protocol email \
-  --notification-endpoint <new-email>
-```
-
-The endpoint must confirm by clicking the AWS link before they start receiving notifications.
+All metrics carry an `environment` attribute. Query in Grafana Mimir.
 
 ---
 
 ## Verifying it ran
 
 ```bash
-# 1. Was a datapoint emitted in the last 24h?
-aws cloudwatch get-metric-statistics \
-  --namespace RsRecruiting/Retention \
-  --metric-name PurgedCandidatesCount \
-  --statistics Sum \
-  --start-time $(date -u -d '1 day ago' +%FT%TZ) \
-  --end-time   $(date -u +%FT%TZ) \
-  --period 86400
+# 1. Last cleanup timestamp (Grafana Mimir)
+#    Query: last_purge_ran_at{environment="production"}
 
-# 2. Alarm state — should be OK after first run
-aws cloudwatch describe-alarms --alarm-names retention-purge-stale \
-  --query 'MetricAlarms[0].{State:StateValue,Reason:StateReason}'
+# 2. Worker logs for the summary line
+docker logs --since 24h rs-recruiting-worker-1 2>&1 | grep nightly_cleanup_complete
 
-# 3. What was deleted last night?
-ssh ec2 'docker logs --since 24h rs-recruiting-worker-1 2>&1 | grep retention.purge'
+# 3. Retention audit trail
+docker logs --since 24h rs-recruiting-worker-1 2>&1 | grep "retention.purge"
 ```
-
----
-
-## Investigating when it didn't run
-
-Decision tree when the alarm fires:
-
-```
-retention-purge-stale fires
-│
-├── Worker service running? (ECS service running-task count ≥ 1)
-│   ├── No  → check the ECS service events / stopped-task reason
-│   └── Yes ↓
-│
-├── Worker logs show cron firing? (`docker logs worker | grep purge_expired`)
-│   ├── No  → Arq cron config broken (check WorkerSettings.cron_jobs)
-│   └── Yes ↓
-│
-├── Logs show metric emission failure? (`grep "Failed to emit"`)
-│   ├── Yes → IAM regression on cloudwatch:PutMetricData (see IAM section below)
-│   └── No  ↓
-│
-└── Settings.environment correctly set to "production"?
-    ├── No  → env config drift (the metric is production-gated)
-    └── Yes → unknown; escalate, run a manual purge to capture state
-```
-
----
-
-## IAM
-
-The worker task role has `cloudwatch:PutMetricData` scoped to the `RsRecruiting/Retention` namespace via an IAM condition:
-
-```json
-{
-  "Effect": "Allow",
-  "Action": "cloudwatch:PutMetricData",
-  "Resource": "*",
-  "Condition": {
-    "StringEquals": { "cloudwatch:namespace": "RsRecruiting/Retention" }
-  }
-}
-```
-
-`PutMetricData` does not support resource-level ARNs, so `Resource: "*"` is the only option — but the namespace condition keeps it least-privilege.
 
 ---
 
 ## Manual one-off purge
 
-If you need to run the purge outside the cron schedule (e.g. compliance request to expedite a deletion):
+If you need to run the retention sub-task outside the cron schedule:
 
 ```bash
-ssh ec2
 docker exec -it rs-recruiting-worker-1 python -c "
 import asyncio
 from rs_shared.core.infrastructure.database import async_session
@@ -185,23 +140,11 @@ asyncio.run(run())
 "
 ```
 
-The metric will not be emitted by a manual run — that's only the cron task wrapper. Add manual runs to the audit trail by capturing the `purged` count and the `retention.purge candidate_id=` log lines.
-
----
-
-## What's intentionally not here
-
-- **No dry-run mode.** Eligibility is a pure query; the audit log already proves what would have been deleted.
-- **No batch limit.** The eligible set is small (it's the long tail of inactive candidates). If volume ever grows past tens of thousands per night, add `LIMIT` + repeat-until-empty.
-- **No staging-only metric.** Outside production the task runs but skips the AWS call — no IAM noise, no CloudWatch pollution. If you want to test the metric path, set `environment=production` in a non-prod env and accept the namespace pollution.
-- **No alarm for "the cron ran but deleted zero rows when it shouldn't have."** That's a correctness bug in `purge_expired_candidates`, not a runtime failure — covered by tests, not metrics.
-
 ---
 
 ## Related
 
-- Service logic: `libs/shared/rs_shared/services/admin/_candidates_purge.py`
-- Task wrapper: `libs/shared/rs_shared/core/tasks.py`
-- Tests: `tests/core/test_tasks.py` (look for `purge_task_*`)
-- Original implementation: PR #295
-- Observability + alarm: PR #298
+- Dispatcher: `libs/shared/rs_shared/core/tasks.py::nightly_cleanup_task`
+- Sub-task helpers: `libs/shared/rs_shared/services/admin/maintenance.py`
+- Retention logic: `libs/shared/rs_shared/services/admin/_candidates_purge.py`
+- Tests: `tests/services/admin/test_maintenance.py`, `tests/core/test_tasks.py`

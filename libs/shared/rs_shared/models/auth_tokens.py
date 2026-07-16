@@ -214,3 +214,37 @@ class PasswordResetToken(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+
+
+class AccountDeletionToken(SQLModel, table=True):
+    """Single-use token for the two-step GDPR account deletion flow.
+
+    Keyed to ``CandidateProfile`` (not ``User``) so the same token model
+    serves both authenticated candidates and anonymous leads who applied
+    via the public form with no account. On ``CandidateProfile`` deletion
+    the CASCADE removes this row automatically.
+
+    The raw token lives only in the confirmation email URL; the DB stores
+    the SHA-256 hash so a database leak cannot be replayed.
+    """
+
+    __tablename__ = "account_deletion_token"
+
+    id: int | None = Field(default=None, primary_key=True)
+    token_hash: str = Field(unique=True, index=True)
+    candidate_profile_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("candidateprofile.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    expires_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    used: bool = Field(default=False)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )

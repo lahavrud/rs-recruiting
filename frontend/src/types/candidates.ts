@@ -18,6 +18,24 @@ export interface ApplicationStatusUpdate {
   admin_notes?: string | null;
 }
 
+/** Mirrors backend CandidateAdminRead — richer admin view with account + tombstone fields. */
+export interface CandidateAdminRead {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  resume_path: string | null;
+  resume_summary: string | null;
+  linkedin_url: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  ai_score: number | null;
+  has_account: boolean;
+  is_deleted: boolean;
+  user_email: string | null;
+  user_is_active: boolean | null;
+}
+
 /**
  * Form input shape for the application form — client-only. Submitted as
  * multipart/form-data to POST /api/candidates/apply (the file is handled

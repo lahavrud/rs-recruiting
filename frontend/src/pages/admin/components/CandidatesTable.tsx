@@ -10,18 +10,18 @@ import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import ResumeButton from "@/components/ui/ResumeViewer";
 import type { SortOrder } from "@/hooks/useColumnSort";
-import type { CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 interface CandidatesTableProps {
-  candidates: CandidateProfileRead[];
+  candidates: CandidateAdminRead[];
   sort: "name" | "created_at";
   order: SortOrder;
   showScore?: boolean;
   onSort: (column: "name" | "created_at") => void;
-  onView: (c: CandidateProfileRead) => void;
-  onDelete: (c: CandidateProfileRead) => void;
+  onView: (c: CandidateAdminRead) => void;
+  onDelete: (c: CandidateAdminRead) => void;
   sentinelRef: (node: HTMLElement | null) => void;
   isFetchingMore: boolean;
 }
@@ -92,11 +92,26 @@ export default function CandidatesTable({
               <tr
                 key={c.id}
                 onClick={() => onView(c)}
-                className="cursor-pointer transition-[background-color] hover:bg-white/3"
+                className={[
+                  "cursor-pointer transition-[background-color]",
+                  c.is_deleted
+                    ? "opacity-45 hover:bg-white/2"
+                    : "hover:bg-white/3",
+                ].join(" ")}
               >
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-white/85">{c.full_name}</p>
+                    {c.is_deleted && (
+                      <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[10px] font-medium text-danger/70">
+                        {t("admin:candidates.statusDeleted")}
+                      </span>
+                    )}
+                    {!c.is_deleted && c.has_account && (
+                      <span className="rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success/70">
+                        {t("admin:candidates.statusAccount")}
+                      </span>
+                    )}
                     {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
                   </div>
                   <p className="text-xs text-white/40">{c.email}</p>
@@ -140,10 +155,14 @@ export default function CandidatesTable({
                     <DropdownMenuItem onSelect={() => onView(c)}>
                       {t("admin:candidates.viewAction")}
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
-                      {t("admin:candidates.deleteAction")}
-                    </DropdownMenuItem>
+                    {!c.is_deleted && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="danger" onSelect={() => onDelete(c)}>
+                          {t("admin:candidates.deleteAction")}
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenu>
                 </td>
               </tr>

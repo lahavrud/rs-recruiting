@@ -39,6 +39,7 @@ from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
 from rs_shared.models import (
+    AccountDeletionToken,  # noqa: F401 -- force SQLModel registration before create_all
     ActivationToken,  # noqa: F401  -- force SQLModel registration before create_all
     Application,
     AuditLog,  # noqa: F401
@@ -456,6 +457,16 @@ async def session(test_db) -> AsyncGenerator[AsyncSession, None]:
     """
     async with TestSessionLocal() as session:
         yield session
+
+
+@pytest.fixture
+def session_local_factory():
+    """Provides the async session factory for tests that need direct session control.
+
+    Use this instead of importing TestSessionLocal directly from conftest — a
+    direct import violates the no-cross-test-import rule.
+    """
+    return TestSessionLocal
 
 
 @pytest.fixture
