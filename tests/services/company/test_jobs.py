@@ -69,7 +69,7 @@ async def job(session: AsyncSession, company_with_user: CompanyProfile) -> Job:
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_success(
     mock_get_admin_emails: AsyncMock,
@@ -187,7 +187,7 @@ async def test_list_company_jobs(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_success(
     mock_get_admin_emails: AsyncMock,

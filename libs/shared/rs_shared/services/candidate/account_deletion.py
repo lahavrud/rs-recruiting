@@ -25,9 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.security import hash_token
-from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import StorageProvider
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.models import AccountDeletionToken, Application, CandidateProfile, User
 from rs_shared.services.exceptions import InvalidAccountDeletionTokenError
 from rs_shared.services.utils.audit import record_audit_event
@@ -115,20 +114,17 @@ async def request_account_deletion(
     confirm_url = (
         f"{settings.frontend_base_url}/candidate/delete-account?token={raw_token}"
     )
-    recipient = profile.email
-    html = build_account_deletion_confirmation_html(confirm_url=confirm_url)
     plain = (
         "קיבלנו בקשה למחיקת חשבונכם ב-RS Recruiting.\n"
         f"לאישור המחיקה לחצו על הקישור (תקף ל-24 שעות):\n{confirm_url}\n\n"
         "אם לא ביקשתם למחוק את החשבון — התעלמו מהמייל הזה."
     )
-    defer_after_commit(
-        lambda: enqueue_email_task(
-            to=recipient,
-            subject="אישור מחיקת חשבון — RS Recruiting",
-            body=plain,
-            html_body=html,
-        )
+    await queue_email(
+        session,
+        to=profile.email,
+        subject="אישור מחיקת חשבון — RS Recruiting",
+        body=plain,
+        html_body=build_account_deletion_confirmation_html(confirm_url=confirm_url),
     )
 
 

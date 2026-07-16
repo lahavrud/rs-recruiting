@@ -13,8 +13,7 @@ from rs_shared.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
-from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import InviteTokenStatus
 from rs_shared.models import InviteToken, User
 from rs_shared.schemas import InviteTokenCreate, InviteTokenRead
@@ -28,18 +27,20 @@ from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_invite_html
 
 
-async def _send_invite_email(email: str, registration_url: str) -> None:
+async def _send_invite_email(
+    session: AsyncSession, email: str, registration_url: str
+) -> None:
     plain = (
         f"הוזמנת להירשם לפלטפורמת RS Recruiting.\n\n"
         f"לחצו על הקישור הבא להשלמת תהליך ההרשמה:\n{registration_url}\n\n"
         "שימו לב: הקישור תקף לשעתיים בלבד.\n\nבברכה,\nצוות RS Recruiting"
     )
-    html = build_invite_html(registration_url)
-    await enqueue_email_task(
+    await queue_email(
+        session,
         to=email,
         subject="הזמנה להרשמה ל-RS Recruiting",
         body=plain,
-        html_body=html,
+        html_body=build_invite_html(registration_url),
     )
 
 
@@ -86,9 +87,8 @@ async def create_invite(
         detail=data.email,
     )
 
-    _email = data.email
     registration_url = f"{settings.frontend_base_url}/register?token={raw_token}"
-    defer_after_commit(lambda: _send_invite_email(_email, registration_url))
+    await _send_invite_email(session, data.email, registration_url)
 
     return InviteTokenRead.model_validate(record)
 
@@ -189,4 +189,4 @@ async def resend_invite(token_id: int, session: AsyncSession) -> None:
     await session.flush()
 
     registration_url = f"{settings.frontend_base_url}/register?token={new_raw}"
-    await _send_invite_email(record.email, registration_url)
+    await _send_invite_email(session, record.email, registration_url)

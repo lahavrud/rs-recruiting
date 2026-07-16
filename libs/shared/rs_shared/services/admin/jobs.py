@@ -254,7 +254,8 @@ async def update_job(
 
     is_closing = old_status == JobStatus.PUBLISHED and job.status == JobStatus.CLOSED
 
-    notify_company_of_update(
+    await notify_company_of_update(
+        session,
         job,
         old_title=old_title,
         title_changed=title_changed,

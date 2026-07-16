@@ -54,7 +54,7 @@ async def _register(data: UserCreate, session: AsyncSession) -> User:
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 @patch("rs_shared.services.admin.company_approval.generate_signed_contract")
 @patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_uploads_contract(
@@ -77,7 +77,7 @@ async def test_approve_company_uploads_contract(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 @patch("rs_shared.services.admin.company_approval.generate_signed_contract")
 @patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_does_not_auto_activate_user(
@@ -104,7 +104,7 @@ async def test_approve_company_does_not_auto_activate_user(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 @patch("rs_shared.services.admin.company_approval.generate_signed_contract")
 @patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_updates_contract_pdf_url(
@@ -138,7 +138,7 @@ async def test_approve_company_not_found(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_approve_company_already_approved(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(
@@ -170,7 +170,7 @@ async def test_approve_company_wrong_role(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 @patch("rs_shared.services.admin.company_approval.generate_signed_contract")
 @patch("rs_shared.services.admin.company_approval.get_storage_provider")
 async def test_approve_company_writes_audit_row(

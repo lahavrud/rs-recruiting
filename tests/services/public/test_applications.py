@@ -76,7 +76,7 @@ def _default_candidate(**overrides) -> CandidateProfileCreate:
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_success(
     mock_storage_provider,
@@ -117,7 +117,7 @@ async def test_create_candidate_profile_success(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_with_resume(
     mock_storage_provider,
@@ -153,7 +153,7 @@ async def test_create_candidate_profile_with_resume(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_invalid_file(
     mock_storage_provider,
@@ -176,7 +176,7 @@ async def test_create_candidate_profile_invalid_file(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_forged_magic_bytes_rejected(
     mock_storage_provider,
@@ -200,7 +200,7 @@ async def test_create_candidate_profile_forged_magic_bytes_rejected(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_file_size_limit(
     mock_storage_provider,
@@ -226,7 +226,7 @@ async def test_create_candidate_profile_file_size_limit(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_sends_candidate_confirmation_email(
     mock_enqueue_email,
     session: AsyncSession,
@@ -253,7 +253,7 @@ async def test_create_candidate_profile_sends_candidate_confirmation_email(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
     mock_enqueue_email,
     session: AsyncSession,
@@ -296,7 +296,7 @@ async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_admin_email_uses_env_var_when_set(
     mock_enqueue_email,
     session: AsyncSession,
@@ -373,7 +373,7 @@ async def test_create_candidate_profile_session_required():
     ],
     ids=["same-data", "name-overwrites", "linkedin-fills"],
 )
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_reapply_updates_profile(
     mock_enqueue_email,
     first_overrides,
@@ -417,7 +417,7 @@ async def test_create_candidate_profile_reapply_updates_profile(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_create_candidate_profile_does_not_overwrite_resume(
     mock_storage_provider,
@@ -460,7 +460,7 @@ async def test_create_candidate_profile_does_not_overwrite_resume(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_duplicate_application_raises_error(
     mock_enqueue_email,
     session: AsyncSession,
@@ -489,7 +489,7 @@ async def test_create_candidate_profile_duplicate_application_raises_error(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_one_profile_can_have_many_applications(
     mock_enqueue_email,
     session: AsyncSession,
@@ -528,7 +528,7 @@ async def test_one_profile_can_have_many_applications(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_resume_snapshot_is_written_to_application(
     mock_enqueue_email,
     session: AsyncSession,
@@ -564,7 +564,7 @@ async def test_resume_snapshot_is_written_to_application(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_active_candidate_email_blocks_anonymous_apply(
     mock_enqueue_email,
     session: AsyncSession,
@@ -594,7 +594,7 @@ async def test_active_candidate_email_blocks_anonymous_apply(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_withdrawn_does_not_block_reapply(
     mock_enqueue_email,
     session: AsyncSession,
@@ -645,7 +645,7 @@ async def test_withdrawn_does_not_block_reapply(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_non_new_blocking_application_raises_locked(
     mock_enqueue_email,
     session: AsyncSession,
@@ -681,7 +681,7 @@ async def test_non_new_blocking_application_raises_locked(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_logged_in_candidate_apply_uses_session_email(
     mock_enqueue_email,
     session: AsyncSession,

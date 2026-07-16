@@ -16,9 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.security import hash_token
-from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import get_storage_provider
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.models import ActivationToken
 from rs_shared.schemas import CompanyProfileRead, UserRead
 from rs_shared.services.admin._helpers import validate_company_user_pending
@@ -111,31 +110,23 @@ async def approve_company(
             "Failed to generate/store signed contract for company %s", company_user_id
         )
 
-    _user_email = user.email
-    _company_name = company_profile.name or ""
-    _activation_url = activation_url
-    _pdf_bytes = pdf_bytes
-
-    async def _send_approval_email() -> None:
-        plain = (
-            f"שלום,\n\n"
-            f"בקשת ההרשמה של {_company_name} אושרה.\n\n"
-            f"לחצו על הקישור להפעלת החשבון:\n{_activation_url}\n\n"
-            "בברכה,\nצוות RS Recruiting"
-        )
-        html = build_approval_html(_company_name, _activation_url)
-        attachments = (
-            [("חוזה-RS.pdf", _pdf_bytes, "application/pdf")] if _pdf_bytes else None
-        )
-        await enqueue_email_task(
-            to=_user_email,
-            subject="בקשת ההרשמה שלכם אושרה – RS Recruiting",
-            body=plain,
-            html_body=html,
-            attachments=attachments,
-        )
-
-    defer_after_commit(_send_approval_email)
+    company_name = company_profile.name or ""
+    plain = (
+        f"שלום,\n\n"
+        f"בקשת ההרשמה של {company_name} אושרה.\n\n"
+        f"לחצו על הקישור להפעלת החשבון:\n{activation_url}\n\n"
+        "בברכה,\nצוות RS Recruiting"
+    )
+    await queue_email(
+        session,
+        to=user.email,
+        subject="בקשת ההרשמה שלכם אושרה – RS Recruiting",
+        body=plain,
+        html_body=build_approval_html(company_name, activation_url),
+        attachments=(
+            [("חוזה-RS.pdf", pdf_bytes, "application/pdf")] if pdf_bytes else None
+        ),
+    )
 
     await record_audit_event(
         session,

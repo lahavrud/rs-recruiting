@@ -13,8 +13,8 @@ from rs_shared.core.infrastructure.pagination import (
     MAX_LIMIT,
     CursorPage,
 )
-from rs_shared.core.infrastructure.transactions import defer_after_commit, transactional
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus
 from rs_shared.models import User
 from rs_shared.schemas import (
@@ -128,7 +128,7 @@ async def update_application_status_endpoint(
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> ApplicationRead:
-    """Update application status. Emails (if any) enqueued after commit."""
+    """Update application status. Emails (if any) queued in the same transaction."""
     try:
         async with transactional(session):
             result, email_payloads = await update_application_status(
@@ -140,7 +140,7 @@ async def update_application_status_endpoint(
                 ip_address=client_ip(request),
             )
             for payload in email_payloads:
-                defer_after_commit(lambda p=payload: enqueue_email_task(**p))
+                await queue_email(session, **payload)
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e
     except ApplicationNotEditableError as e:

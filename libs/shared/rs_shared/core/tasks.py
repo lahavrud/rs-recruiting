@@ -292,31 +292,32 @@ async def build_data_export_task(user_id: int) -> None:
             )
             return
 
+    # The export row and the email announcing it commit together — the ZIP is
+    # useless to the candidate if the link never reaches them, and this used to
+    # enqueue afterwards behind a try/except that swallowed the failure.
     async with async_session() as session:
         async with transactional(session):
             raw_token, candidate_email = await build_and_persist_export(
                 user_id, session, get_storage_provider()
             )
-
-    download_url = f"{settings.frontend_base_url}/api/candidate/me/export/{raw_token}"
-    html = build_data_export_ready_html(
-        download_url=download_url, ttl_hours=DATA_EXPORT_TTL_HOURS
-    )
-    try:
-        await enqueue_email_task(
-            to=candidate_email,
-            subject="ייצוא הנתונים שלכם מוכן – RS Recruiting",
-            body=(
-                "שלום,\n\n"
-                "ייצוא הנתונים שביקשתם מוכן להורדה.\n\n"
-                f"קישור להורדה (תקף ל-{DATA_EXPORT_TTL_HOURS} שעות):\n"
-                f"{download_url}\n\n"
-                "בברכה,\nצוות RS Recruiting"
-            ),
-            html_body=html,
-        )
-    except Exception:
-        logger.exception("Failed to enqueue data export notification email")
+            download_url = (
+                f"{settings.frontend_base_url}/api/candidate/me/export/{raw_token}"
+            )
+            await queue_email(
+                session,
+                to=candidate_email,
+                subject="ייצוא הנתונים שלכם מוכן – RS Recruiting",
+                body=(
+                    "שלום,\n\n"
+                    "ייצוא הנתונים שביקשתם מוכן להורדה.\n\n"
+                    f"קישור להורדה (תקף ל-{DATA_EXPORT_TTL_HOURS} שעות):\n"
+                    f"{download_url}\n\n"
+                    "בברכה,\nצוות RS Recruiting"
+                ),
+                html_body=build_data_export_ready_html(
+                    download_url=download_url, ttl_hours=DATA_EXPORT_TTL_HOURS
+                ),
+            )
 
 
 async def nightly_cleanup_task() -> dict:

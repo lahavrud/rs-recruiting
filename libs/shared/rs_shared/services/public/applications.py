@@ -14,11 +14,11 @@ from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import get_storage_provider
 
 # Re-export so existing tests that `@patch("rs_shared.services.public.applications.
-# enqueue_email_task")` continue to work even though the email enqueue happens
+# queue_email")` continue to work even though the email queueing happens
 # in `_application_helpers`. See `tests/conftest.py::_EMAIL_TASK_TARGETS`.
 from rs_shared.core.tasks import (
-    enqueue_email_task,  # noqa: F401
     enqueue_match_candidate_task,
+    queue_email,  # noqa: F401
 )
 from rs_shared.enums import JobStatus
 from rs_shared.models import CandidateProfile, Job, User

@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus, UserRole
 from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.schemas import CandidateProfileCreate
@@ -190,7 +190,8 @@ async def send_application_emails(
     session: AsyncSession,
 ) -> None:
     """Enqueue confirmation email to the candidate and notification to admins."""
-    await enqueue_email_task(
+    await queue_email(
+        session,
         to=candidate.email,
         subject=f"מועמדותך למשרת '{job.title}' התקבלה",
         body=(
@@ -211,7 +212,8 @@ async def send_application_emails(
 
     if admin_recipients:
         admin_url = f"{settings.frontend_base_url}/login?redirect=/admin/applications"
-        await enqueue_email_task(
+        await queue_email(
+            session,
             to=admin_recipients,
             subject=f"מועמדות חדשה למשרת '{job.title}' — {candidate.full_name}",
             body=(

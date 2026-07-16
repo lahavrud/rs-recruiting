@@ -10,8 +10,8 @@ from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_api.infrastructure.limiter import get_limiter
 from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
-from rs_shared.core.infrastructure.transactions import defer_after_commit, transactional
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import UserRole
 from rs_shared.services.auth.activation import activate_user
 from rs_shared.services.exceptions import InvalidActivationTokenError
@@ -45,18 +45,15 @@ async def activate(
                 user_agent=request.headers.get("user-agent"),
             )
 
-            # Candidate-only: schedule the post-activation explainer email
-            # after the transaction commits. MUST register the hook from
-            # *inside* the transactional() block — once the context exits
-            # the post-commit hooks contextvar is reset to None, and a
-            # late call to defer_after_commit() raises RuntimeError. That
-            # turns a successful activation (token already used,
-            # is_active=True) into a 500 to the client, which then sees a
-            # "token invalid" toast and retries registration, hitting 409
-            # because the user is actually active. Company welcomes are
-            # handled by the existing approval-email flow.
+            # Candidate-only: queue the post-activation explainer email inside
+            # the same transaction, so it either lands with the activation or
+            # not at all. (It used to be a post-commit hook wrapped in a
+            # best-effort try/except, because a hook raising *after* a
+            # committed activation returned a 500 for work that had actually
+            # succeeded — the client then showed "token invalid" and retried
+            # into a 409. Writing the row transactionally removes that split
+            # outcome.) Company welcomes go through the approval-email flow.
             if user.role == UserRole.CANDIDATE:
-                candidate_email = user.email
                 # The candidate's session isn't authenticated when they
                 # open the welcome email; route every CTA through
                 # /login?redirect=... so the next click lands on a sign-in
@@ -66,27 +63,20 @@ async def activate(
                 profile_url = (
                     f"{settings.frontend_base_url}/login?redirect=/candidate/profile"
                 )
-
-                async def _send_welcome() -> None:
-                    html = build_candidate_welcome_html(
+                await queue_email(
+                    session,
+                    to=user.email,
+                    subject="ברוכים הבאים ל-RS Recruiting",
+                    body=(
+                        "החשבון שלכם הופעל. כעת תוכלו להתחבר ולנהל"
+                        " את ההגשות שלכם.\n"
+                        f"מועדי משרות פתוחים: {jobs_url}\n"
+                        f"פרופיל אישי: {profile_url}\n"
+                    ),
+                    html_body=build_candidate_welcome_html(
                         jobs_url=jobs_url, profile_url=profile_url
-                    )
-                    try:
-                        await enqueue_email_task(
-                            to=candidate_email,
-                            subject="ברוכים הבאים ל-RS Recruiting",
-                            body=(
-                                "החשבון שלכם הופעל. כעת תוכלו להתחבר ולנהל"
-                                " את ההגשות שלכם.\n"
-                                f"מועדי משרות פתוחים: {jobs_url}\n"
-                                f"פרופיל אישי: {profile_url}\n"
-                            ),
-                            html_body=html,
-                        )
-                    except Exception:  # pragma: no cover — best-effort
-                        logger.exception("Failed to enqueue candidate welcome email")
-
-                defer_after_commit(_send_welcome)
+                    ),
+                )
     except InvalidActivationTokenError as e:
         raise service_exception_to_http(e) from e
 
