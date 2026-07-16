@@ -11,34 +11,36 @@ aws ssm get-parameter --name "/rs-recruiting/<param>" --with-decryption
 Never hardcode a value that should be in SSM. Never commit `.env` files that contain real credentials.
 
 ## Production safety
-- Never run `alembic upgrade head` directly against the production database
-- Never SSH into the EC2 instance and run commands manually — use SSM Run Command
-- Production deploys only happen via a pushed `vX.Y.Z` tag (`release.yml`, including the expedited `hotfix.yml` path), or a manual re-run of `deploy.yml`/`rollback.yml` for rollback. See `docs/release-process.md` for the full release ritual.
+- Never run `alembic upgrade head` directly against the production database — the `_deploy.yml` migrate gate runs it as a one-off ECS task on the released image
+- Production deploys only happen through `deliver.yml`'s **manual approval gate** (the `production` GitHub Environment's required reviewer), or a manual `rollback.yml` run. See `docs/release-process.md` for the full flow.
+- An ECS rollback restores previous **app code only** — it does not undo a migration. Migrations must stay backward-compatible (expand now, contract a release later).
 
 ## CI/CD workflows (`.github/workflows/`)
-- `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend)
-- `deploy-staging.yml` — manual. The only way an `-rc.N` tag gets created; computes the next RC version from commits since the last final tag and pushes it
-- `cut-release.yml` — manual. Promotes an existing `-rc.N` tag to its final `vX.Y.Z` on the same commit — no rebuild, no bump arithmetic
-- `hotfix.yml` — manual. Expedited prod hotfix: patch-bumps off the latest final tag and pushes `vX.Y.(Z+1)` straight to prod via `release.yml` — skips the RC + ephemeral-staging gate (incident-response path)
-- `release.yml` — triggered by tag push (`v*.*.*`). RC tag: builds & pushes the image (prod ECR + mirrored to the staging-account ECR) and triggers the infra repo's `staging-apply.yml`. Final tag: re-tags the existing image (no rebuild), deploys frontend + backend, creates the GitHub Release, then triggers `staging-destroy.yml`
-- `staging-deploy.yml` — `repository_dispatch` (`staging-provisioned`) from the infra repo's `staging-apply.yml`. Builds the frontend and SSM-deploys the RC to the ephemeral staging box (migrate + seed mock data; nginx serves the bundle). Staging is HTTP-only with no observability — it reuses `ssm-deploy` with `environment: staging` + a separate `deploy_ec2_staging.sh`/`docker-compose.staging.yml`/`nginx.staging.conf`
-- `deploy.yml` — manual only. Redeploys an already-built tag/SHA — rollback / escape hatch, not the normal release path
-- `rollback.yml` — manual. Redeploys `PREV_SHA`
-- `security-audit.yml` — weekly pip-audit for CVEs
 
-Merging to `main` never deploys anything by itself — `main` is the only long-lived branch (trunk-based, no `develop`), and every deploy is gated behind an explicit tag push from one of the manual "button" workflows above.
+Trunk-based **continuous delivery**: merge to `main` → CI green → build (by SHA) → ⏸ manual approval → prod → tag `vX.Y.Z` + Release. `main` is the only long-lived branch (no `develop`). (Staging was retired for cost — the build promotes straight to the prod gate; see `deliver.yml` below.)
+
+- `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend). A green run on a `push` to `main` is what triggers delivery.
+- `deliver.yml` — triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success`. Builds base + api + worker + alloy (tagged by SHA, pushed to ops ECR), gates prod behind the approval, then tags + creates the GitHub Release. Triggering off CI completion (not raw push) means a commit only ships after its own tests pass. **Staging is retired for cost** — the `deploy-staging` job is commented out (kept in-file for later re-enable); the build promotes straight to `deploy-prod`.
+- `_deploy.yml` — reusable (`workflow_call`), environment-agnostic. Currently called by `deliver.yml` once (the production deploy); it was designed to be called once per environment, so re-enabling staging is just uncommenting `deploy-staging` and adding it to `deploy-prod`'s `needs`. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
+- `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild.
+- `security-audit.yml` — weekly pip-audit for CVEs.
+- `stale.yml` — weekly stale-issue sweep (60d stale → 14d close; `P1`/`security`/`icebox` labels exempt).
+
+Composite actions: `build-images` (base + api + worker + alloy → ops ECR), `ecs-roll` (render live task-def with new image + deploy via `aws-actions/amazon-ecs-*`, circuit breaker armed), `deploy-frontend` (build + S3 sync + CloudFront invalidation), `notify-failure` (open a GitHub issue).
 
 When editing workflows:
 - Preserve the `detect-changes` job in `ci.yml` — it prevents unnecessary rebuilds
 - OIDC permissions block must stay on any job that calls AWS (`id-token: write`, `contents: read`)
-- Poll SSM run-command status after dispatch — never fire-and-forget
-- `contents: write` is only granted to `deploy-staging.yml`, `cut-release.yml`, and `hotfix.yml` — the only workflows that push to the repo
-- `deploy-staging.yml`/`cut-release.yml`/`hotfix.yml` explicitly run `gh workflow run release.yml --ref <tag>` after pushing a tag, instead of relying on `release.yml`'s push trigger — a tag pushed with the default `GITHUB_TOKEN` doesn't fire push-based workflow runs (GitHub's recursion-prevention rule). Don't remove the dispatch step as "redundant" with the push trigger.
+- The production approval is a **GitHub Environment required reviewer** (`production` env, `main`-only), configured in repo settings — not in YAML. Don't try to encode it as a workflow step.
+- Reusable-workflow secret names must be alphanumeric + underscore (no hyphens) — `_deploy.yml`'s `secrets:` use `ecs_role_arn`, `ops_ecr_registry`, etc.
+- Keep the prod approval on a **single** job in `_deploy.yml` — multiple jobs referencing a protected environment each prompt for approval.
 
 ## Infrastructure repo
 Terraform/OpenTofu lives in a separate repo (`rs-recruiting-infra`). Do not modify infrastructure from this repo.
 
-The **ephemeral staging** tofu lifecycle lives in the infra repo: `staging-apply.yml` / `staging-destroy.yml` / `staging-ttl-check.yml` (apply/destroy `tofu/staging-app` as a CI `tofu-provisioner` OIDC role; idle-expiry after 3 days). Cross-repo triggers (app↔infra) use a shared GitHub App (`CI_APP_ID` / `CI_APP_PRIVATE_KEY` secrets in both repos), because the default `GITHUB_TOKEN` can't dispatch workflows in another repo. App-repo secrets: `AWS_STAGING_DEPLOY_ROLE_ARN`, `STAGING_ECR_REGISTRY`.
+Images are built once into the **ops account** ECR and pulled cross-account by prod. App-repo secrets the pipeline needs today: `AWS_OPS_ECR_PUSH_ROLE_ARN` + `OPS_ECR_REGISTRY` (build), and `AWS_ECS_DEPLOY_ROLE_ARN` (var) + `AWS_ROLE_ARN` + `S3_FRONTEND_BUCKET` + `CLOUDFRONT_DISTRIBUTION_ID` + `VITE_SENTRY_DSN` (prod).
+
+**Staging is retired** (cost): its cluster/RDS were on-demand scale-to-zero and didn't justify the moving parts. The dormant staging secrets (`AWS_STAGING_ECS_DEPLOY_ROLE_ARN`, `S3_FRONTEND_BUCKET_STAGING`, `CLOUDFRONT_DISTRIBUTION_ID_STAGING`) and infra are only needed if it's re-enabled. **Commenting out the `deploy-staging` job does NOT stop AWS charges** — to actually save cost the staging tofu units in `rs-recruiting-infra` must be destroyed.
 
 ## Observability
 - Sentry: backend DSN in SSM, frontend DSN in build args

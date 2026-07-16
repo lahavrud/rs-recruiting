@@ -335,9 +335,12 @@
       "date": "תאריך"
     },
     "statusLabels": {
-      "NEW": "חדש",
+      "PENDING_ADMIN_REVIEW": "ממתין לבדיקה",
       "APPROVED_BY_ADMIN": "אושר",
-      "REJECTED": "נדחה",
+      "INTERVIEWING": "בראיונות",
+      "OFFER": "הצעה",
+      "REJECTED_BY_COMPANY": "נדחה ע״י החברה",
+      "REJECTED_BY_ADMIN": "נדחה",
       "HIRED": "גויס",
       "JOB_CLOSED": "משרה נסגרה",
       "WITHDRAWN": "בוטלה מועמדות"

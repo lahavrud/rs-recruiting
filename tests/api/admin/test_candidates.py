@@ -231,7 +231,7 @@ async def test_get_candidate_activity_merges_application_events(
             action="application.status_change",
             target_type="Application",
             target_id=application.id,
-            detail="NEW->APPROVED_BY_ADMIN",
+            detail="PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
         )
     )
     await session.commit()

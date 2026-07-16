@@ -18,7 +18,6 @@ from rs_shared.core.tasks import enqueue_email_task
 from rs_shared.enums import JobStatus
 from rs_shared.models import CompanyProfile, Job
 from rs_shared.schemas import JobCreate, JobRead, JobUpdate
-from rs_shared.services.admin.companies import get_all_admin_emails
 from rs_shared.services.company._jobs_applications import (
     list_job_applications,
     update_application_status,
@@ -31,6 +30,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
+from rs_shared.services.utils.recipients import get_all_admin_emails
 from rs_shared.templates.email import build_job_updated_html, build_new_job_html
 
 __all__ = [

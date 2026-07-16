@@ -1,6 +1,7 @@
 """Tests for the Sentry tunnel relay endpoint."""
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -10,6 +11,7 @@ from httpx import AsyncClient
 from rs_shared.core.infrastructure.config import settings
 
 VALID_DSN = "https://abc123@o12345.ingest.sentry.io/4567890"
+INGEST_URL = "https://o12345.ingest.sentry.io/api/4567890/envelope/"
 
 
 def _envelope(dsn: str | None) -> bytes:
@@ -17,6 +19,15 @@ def _envelope(dsn: str | None) -> bytes:
     if dsn is not None:
         header["dsn"] = dsn
     return json.dumps(header).encode() + b'\n{"type":"event","length":2}\n{}\n'
+
+
+def _mock_async_client(*, post: AsyncMock) -> AsyncMock:
+    """Build an AsyncMock standing in for httpx.AsyncClient() as a context manager."""
+    client = AsyncMock()
+    client.post = post
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = None
+    return client
 
 
 @pytest.fixture
@@ -86,65 +97,87 @@ async def test_rejects_dsn_with_non_numeric_project(
 
 
 @pytest.mark.asyncio
-async def test_forwards_envelope_to_sentry(public_client: AsyncClient, _configure_dsn):
-    """Successful path: body is POSTed to derived ingest URL, response relayed."""
+async def test_accepts_and_forwards_envelope(
+    public_client: AsyncClient, _configure_dsn
+):
+    """Happy path: returns 202 and the background task POSTs to the ingest URL.
+
+    Starlette runs background tasks within the ASGI call, so the forward has
+    completed by the time the client request returns.
+    """
     body = _envelope(VALID_DSN)
 
     upstream_response = MagicMock()
     upstream_response.status_code = 200
-    upstream_response.content = b'{"id":"abc"}'
 
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=upstream_response)
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = None
-
-    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    post = AsyncMock(return_value=upstream_response)
+    with patch(
+        "rs_api.api.sentry_tunnel.httpx.AsyncClient",
+        return_value=_mock_async_client(post=post),
+    ):
         resp = await public_client.post("/api/sentry-tunnel", content=body)
 
-    assert resp.status_code == 200
-    assert resp.content == b'{"id":"abc"}'
+    # Browser is unblocked immediately, independent of Sentry's response.
+    assert resp.status_code == 202
+    assert resp.content == b""
 
-    mock_client.post.assert_awaited_once()
-    args, kwargs = mock_client.post.call_args
-    assert args[0] == "https://o12345.ingest.sentry.io/api/4567890/envelope/"
+    post.assert_awaited_once()
+    args, kwargs = post.call_args
+    assert args[0] == INGEST_URL
     assert kwargs["content"] == body
     assert kwargs["headers"]["Content-Type"] == "application/x-sentry-envelope"
 
 
 @pytest.mark.asyncio
-async def test_returns_502_when_upstream_unreachable(
-    public_client: AsyncClient, _configure_dsn
+async def test_upstream_timeout_does_not_error(
+    public_client: AsyncClient, _configure_dsn, caplog
 ):
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(side_effect=httpx.ConnectError("boom"))
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = None
+    """Regression (#1005): an upstream ReadTimeout must NOT become a 5xx.
 
-    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    Raising a 5xx here gets captured by the backend Sentry SDK, creating a
+    feedback loop during a Sentry outage. The failure is swallowed in the
+    background task and only logged out-of-band.
+    """
+    post = AsyncMock(side_effect=httpx.ReadTimeout("timed out"))
+    with (
+        patch(
+            "rs_api.api.sentry_tunnel.httpx.AsyncClient",
+            return_value=_mock_async_client(post=post),
+        ),
+        caplog.at_level(logging.WARNING, logger="rs_api.api.sentry_tunnel"),
+    ):
         resp = await public_client.post(
             "/api/sentry-tunnel", content=_envelope(VALID_DSN)
         )
 
-    assert resp.status_code == 502
+    assert resp.status_code == 202
+    post.assert_awaited_once()
+    assert any("upstream request failed" in r.message for r in caplog.records)
 
 
 @pytest.mark.asyncio
-async def test_relays_upstream_error_status(public_client: AsyncClient, _configure_dsn):
-    """Non-2xx responses from Sentry are passed through unchanged."""
+async def test_upstream_error_status_is_logged_not_relayed(
+    public_client: AsyncClient, _configure_dsn, caplog
+):
+    """A non-2xx from Sentry (e.g. 429) is logged but not relayed to the browser.
+
+    The browser already received 202; fire-and-forget means we no longer pass
+    Sentry's status/headers back (documented trade-off).
+    """
     upstream_response = MagicMock()
     upstream_response.status_code = 429
-    upstream_response.content = b'{"error":"rate limited"}'
 
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=upstream_response)
-    mock_client.__aenter__.return_value = mock_client
-    mock_client.__aexit__.return_value = None
-
-    with patch("rs_api.api.sentry_tunnel.httpx.AsyncClient", return_value=mock_client):
+    post = AsyncMock(return_value=upstream_response)
+    with (
+        patch(
+            "rs_api.api.sentry_tunnel.httpx.AsyncClient",
+            return_value=_mock_async_client(post=post),
+        ),
+        caplog.at_level(logging.WARNING, logger="rs_api.api.sentry_tunnel"),
+    ):
         resp = await public_client.post(
             "/api/sentry-tunnel", content=_envelope(VALID_DSN)
         )
 
-    assert resp.status_code == 429
-    assert resp.content == b'{"error":"rate limited"}'
+    assert resp.status_code == 202
+    assert any("ingest returned 429" in r.message for r in caplog.records)

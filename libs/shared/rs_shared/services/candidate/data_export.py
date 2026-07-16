@@ -241,12 +241,13 @@ async def build_and_persist_export(
     zip_bytes = await _build_zip_bytes(payload, applications, storage)
 
     # `exports/<user_id>/<uuid>.zip` — namespaced by user so a future
-    # cleanup job can prefix-list. UUID keeps multiple retained exports
-    # from colliding.
-    storage_key = f"exports/{user_id}/{secrets.token_urlsafe(16)}.zip"
-    await storage.upload_file(
+    # cleanup job can prefix-list. `upload_file` ignores the basename we pass
+    # in `file_name` and mints its own uuid4 key, so `download_path` MUST be
+    # the key it actually returns — persisting our requested name instead
+    # (as before) points the DB row at an object that was never written.
+    storage_key = await storage.upload_file(
         file_content=zip_bytes,
-        file_name=storage_key,
+        file_name=f"exports/{user_id}/{secrets.token_urlsafe(16)}.zip",
         content_type="application/zip",
     )
 

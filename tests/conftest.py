@@ -726,7 +726,7 @@ async def application(
         app_obj = Application(
             job_id=published_job.id,
             candidate_id=candidate_profile.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
         session.add(app_obj)
         await session.commit()

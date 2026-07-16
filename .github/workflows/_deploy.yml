@@ -1,0 +1,200 @@
+name: _deploy
+
+# Reusable "deploy one environment" workflow, called by deliver.yml once per
+# environment (staging, then production). It does the full backend+frontend roll
+# for an ECS/Fargate environment against an image already built and pushed to the
+# ops-account ECR (tagged by commit SHA):
+#
+#   1. (optional) DB migrate gate — `alembic upgrade head` as a one-off ECS task
+#      on the released image, BEFORE any service rolls. If it fails the services
+#      never roll and the old image keeps serving (no half-deployed schema).
+#   2. Roll the web + worker services to the released image (register a new task
+#      def with only the app + alloy image tags swapped; Terraform still owns the
+#      task-def *shape* via ignore_changes).
+#   3. Build + ship the frontend bundle to that environment's S3 + CloudFront.
+#   4. (optional) Smoke-check the public /health URL.
+#
+# The whole job runs under `environment: <env>`, so production's required-reviewer
+# rule pauses the deploy here for manual approval. Keeping it ONE job means ONE
+# approval prompt (multiple jobs referencing a protected environment would each
+# prompt). Auth is GitHub OIDC into per-environment deploy roles — no stored keys.
+#
+# Migrations must stay backward-compatible with the running version (expand now,
+# contract a release later): an ECS image rollback restores old app code but does
+# NOT undo a schema change.
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "GitHub environment name (staging | production) — drives the approval gate + deployment history"
+        required: true
+        type: string
+      cluster:
+        description: "ECS cluster name, e.g. rs-recruiting-staging"
+        required: true
+        type: string
+      web-service:
+        description: "Web ECS service name (also its task-def family), e.g. rs-recruiting-staging-web"
+        required: true
+        type: string
+      worker-service:
+        description: "Worker ECS service name (also its task-def family)"
+        required: true
+        type: string
+      image-tag:
+        description: "Image tag to deploy — the commit SHA built by deliver.yml"
+        required: true
+        type: string
+      run-migrations:
+        description: "Run the alembic migrate gate before rolling services"
+        required: false
+        default: true
+        type: boolean
+      smoke-url:
+        description: "Public health URL to curl after the roll (blank to skip — staging has no stable hostname)"
+        required: false
+        default: ""
+        type: string
+      deploy-frontend:
+        description: "Build + ship the frontend to S3/CloudFront. Off for backend-only envs (staging has no edge)."
+        required: false
+        default: true
+        type: boolean
+      aws-region:
+        required: false
+        default: us-east-1
+        type: string
+    secrets:
+      ecs_role_arn:
+        description: "OIDC role to assume for ECS migrate + deploy in this environment's account"
+        required: true
+      ops_ecr_registry:
+        description: "Ops-account ECR registry host (build-once registry both accounts pull from)"
+        required: true
+      # Frontend secrets are only required when deploy-frontend is true.
+      frontend_role_arn:
+        description: "OIDC role for the frontend S3 sync + CloudFront invalidation (frontend envs only)"
+        required: false
+      frontend_bucket:
+        required: false
+      frontend_distribution_id:
+        required: false
+      sentry_dsn:
+        required: false
+
+# Serialize per environment. Staging takes latest-wins (newest main on staging
+# fast); production never cancels an in-flight deploy.
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: ${{ inputs.environment == 'staging' }}
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.image-tag }} to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      CLUSTER: ${{ inputs.cluster }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.image-tag }}
+          fetch-depth: 1
+
+      - name: Configure AWS credentials (ECS deploy role)
+        uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6
+        with:
+          role-to-assume: ${{ secrets.ecs_role_arn }}
+          aws-region: ${{ inputs.aws-region }}
+
+      # ── DB migration gate ───────────────────────────────────────────────────
+      # Derive a one-off migrate task-def from the live web definition (same
+      # roles/env/secrets/SG, so it reaches RDS and pulls DATABASE_URL from SSM —
+      # no secrets in CI), minus the sidecar/ports, with the alembic command.
+      - name: DB migrate (alembic upgrade head)
+        if: ${{ inputs.run-migrations }}
+        env:
+          IMAGE: ${{ secrets.ops_ecr_registry }}/rs-recruiting/api:${{ inputs.image-tag }}
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition --task-definition "${{ inputs.web-service }}" \
+            --query 'taskDefinition' --output json \
+            | jq --arg img "$IMAGE" --arg fam "${CLUSTER}-migrate" '
+                del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
+                | .family = $fam
+                | .containerDefinitions = [ .containerDefinitions[] | select(.name=="web")
+                    | .image = $img | .command = ["alembic","upgrade","head"] | del(.portMappings) ]
+              ' > migrate-td.json
+          TD=$(aws ecs register-task-definition --cli-input-json file://migrate-td.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "registered $TD"
+          NET=$(aws ecs describe-services --cluster "$CLUSTER" --services "${{ inputs.web-service }}" \
+            --query 'services[0].networkConfiguration' --output json)
+          TASK=$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$TD" \
+            --launch-type FARGATE --network-configuration "$NET" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "migrate task: $TASK"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK"
+          EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          echo "--- migration logs ---"
+          aws logs get-log-events --log-group-name "/ecs/${{ inputs.web-service }}" \
+            --log-stream-name "web/web/${TASK##*/}" --query 'events[].message' --output text || true
+          echo "migrate exit code: $EXIT"
+          [ "$EXIT" = "0" ] || { echo "::error::DB migration failed (exit $EXIT) — services NOT rolled"; exit 1; }
+
+      # ── Roll web + worker ───────────────────────────────────────────────────
+      # One ecs-roll per service (web first so it's healthy before the worker
+      # rolls). Each call waits for stability with the deployment circuit breaker
+      # armed, so a bad image rolls itself back.
+      - name: Roll web
+        uses: ./.github/actions/ecs-roll
+        with:
+          cluster: ${{ inputs.cluster }}
+          service: ${{ inputs.web-service }}
+          container: web
+          app-image: ${{ secrets.ops_ecr_registry }}/rs-recruiting/api:${{ inputs.image-tag }}
+          alloy-image: ${{ secrets.ops_ecr_registry }}/rs-recruiting/alloy:${{ inputs.image-tag }}
+
+      - name: Roll worker
+        uses: ./.github/actions/ecs-roll
+        with:
+          cluster: ${{ inputs.cluster }}
+          service: ${{ inputs.worker-service }}
+          container: worker
+          app-image: ${{ secrets.ops_ecr_registry }}/rs-recruiting/worker:${{ inputs.image-tag }}
+          alloy-image: ${{ secrets.ops_ecr_registry }}/rs-recruiting/alloy:${{ inputs.image-tag }}
+
+      # ── Frontend ────────────────────────────────────────────────────────────
+      # Backend-only envs (staging: no edge/S3-frontend/CloudFront) skip this.
+      - name: Build & deploy frontend
+        if: ${{ inputs.deploy-frontend }}
+        uses: ./.github/actions/deploy-frontend
+        with:
+          ref: ${{ inputs.image-tag }}
+          release-version: ${{ inputs.image-tag }}
+          sentry-dsn: ${{ secrets.sentry_dsn }}
+          aws-role-arn: ${{ secrets.frontend_role_arn }}
+          s3-bucket: ${{ secrets.frontend_bucket }}
+          cloudfront-distribution-id: ${{ secrets.frontend_distribution_id }}
+
+      # ── Smoke check ─────────────────────────────────────────────────────────
+      - name: Smoke check
+        if: ${{ inputs.smoke-url != '' }}
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "${{ inputs.smoke-url }}" | grep -q '"status":"ok"'; then
+              echo "✅ ${{ inputs.smoke-url }} healthy"
+              exit 0
+            fi
+            echo "[$i/10] not healthy yet…"; sleep 6
+          done
+          echo "::error::Smoke check failed for ${{ inputs.smoke-url }}"
+          exit 1

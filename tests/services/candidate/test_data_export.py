@@ -135,7 +135,7 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     app = Application(
         job_id=job.id,
         candidate_id=profile.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         service_concept="my service concept",
         salary_expectations="10-15k",
         resume_path="resumes/foo.pdf",
@@ -154,8 +154,13 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     )
     await session.commit()
 
+    # Real S3StorageProvider.upload_file ignores the requested basename and
+    # mints its own uuid4 key, returning that actual key — the mock reflects
+    # that by returning something other than the requested `file_name`, so
+    # this test catches a regression back to persisting the requested name.
+    actual_uploaded_key = f"exports/{user.id}/actually-written-key.zip"
     storage = AsyncMock()
-    storage.upload_file = AsyncMock(return_value=None)
+    storage.upload_file = AsyncMock(return_value=actual_uploaded_key)
     storage.download_file = AsyncMock(return_value=b"%PDF-1.4 fake")
 
     raw_token, candidate_email = await build_and_persist_export(
@@ -200,6 +205,12 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     delta = record.expires_at.replace(tzinfo=timezone.utc) - datetime.now(timezone.utc)
     assert abs(delta.total_seconds() - DATA_EXPORT_TTL_HOURS * 3600) < 60
 
+    # Regression guard: download_path must be the key upload_file actually
+    # wrote to, NOT the name we requested — they legitimately differ because
+    # upload_file mints its own uuid4 basename.
+    assert record.download_path == actual_uploaded_key
+    assert record.download_path != upload_kwargs["file_name"]
+
 
 @pytest.mark.asyncio
 async def test_build_export_continues_when_a_resume_fetch_fails(
@@ -212,14 +223,16 @@ async def test_build_export_continues_when_a_resume_fetch_fails(
     app1 = Application(
         job_id=job.id,
         candidate_id=profile.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         resume_path="resumes/missing.pdf",
     )
     session.add(app1)
     await session.commit()
 
     storage = AsyncMock()
-    storage.upload_file = AsyncMock(return_value=None)
+    storage.upload_file = AsyncMock(
+        return_value=f"exports/{user.id}/actually-written-key.zip"
+    )
     storage.download_file = AsyncMock(side_effect=RuntimeError("S3 timeout"))
 
     raw_token, _ = await build_and_persist_export(user.id, session, storage)

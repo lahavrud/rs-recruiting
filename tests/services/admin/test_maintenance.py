@@ -250,6 +250,10 @@ async def test_purge_unactivated_sets_profile_user_id_to_null(session):
     await purge_unactivated_candidate_users(session)
     await session.flush()
 
+    # The FK SET NULL cascade fires in the database, so the identity-mapped
+    # object still holds the stale user_id until it is expired.
+    session.expire(profile)
+
     # Profile survives; user_id is NULLed by the FK SET NULL cascade.
     refreshed = await session.get(CandidateProfile, profile_id)
     assert refreshed is not None

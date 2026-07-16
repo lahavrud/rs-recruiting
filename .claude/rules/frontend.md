@@ -27,6 +27,8 @@ Status tokens: `success`, `warning`, `danger`, `info`, `hired`.
 
 ### UI primitives — always import, never redefine locally
 
+`components/ui/` holds ~35 primitives (dialogs, empty/error states, search input, skeletons, toasts, …) — **check there before writing any new primitive**; if something close exists, extend it instead. The most rule-laden ones:
+
 - **`<Button variant="primary|ghost|danger|success" size="sm|md|lg">`** — never write button classes inline
 - **`<Eyebrow>`** — `text-[10px] font-semibold uppercase tracking-widest text-copper` — never write class string inline
 - **`<Field>`** — `id` prop → explicit `htmlFor` mode (public/auth); omit → `<label>`-wrap mode (admin dialogs). Never define locally.
@@ -53,7 +55,7 @@ Never surface raw backend `detail` strings — may be English. Map to Hebrew `t(
 
 ## Translations
 
-All strings in `frontend/src/locales/he/<namespace>.json` (namespace = filename: auth, admin, publicJobs, candidate, company, dashboard, landing, nav, cookies, resume, ui, common).
+All strings in `frontend/src/locales/he/<namespace>.json` (namespace = filename: about, admin, auth, candidate, common, company, cookies, dashboard, landing, legal, nav, publicJobs, resume, ui).
 
 - Always pass namespace: `useTranslation('admin')` + `t("admin:key")`
 - Multiple namespaces: `useTranslation(['admin', 'common'])` + explicit prefix at every call site

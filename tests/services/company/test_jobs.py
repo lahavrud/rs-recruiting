@@ -6,18 +6,20 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.enums import JobStatus, UserRole
-from rs_shared.models import CompanyProfile, Job, User
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job, User
 from rs_shared.schemas import JobCreate, JobUpdate
 from rs_shared.services.company.jobs import (
     create_job,
     delete_job,
     get_job,
     list_company_jobs,
+    update_application_status,
     update_job,
 )
 from rs_shared.services.exceptions import (
     CompanyNotFoundError,
+    InvalidApplicationStatusTransitionError,
     JobCannotBeDeletedError,
     JobCannotBeUpdatedError,
     JobNotFoundError,
@@ -421,3 +423,87 @@ async def test_delete_job_cannot_be_deleted_closed(
         match="cannot be deleted. Only jobs with PENDING_APPROVAL status",
     ):
         await delete_job(job.id, company_with_user.id, session)
+
+
+# ==================== company application-status transitions ====================
+
+
+async def _make_approved_application(session: AsyncSession, job: Job) -> Application:
+    """A candidate + APPROVED_BY_ADMIN application (i.e. pushed to the employer)."""
+    candidate = CandidateProfile(
+        full_name="Dana Applicant",
+        email="dana@applicant.com",
+        phone="0501234567",
+    )
+    session.add(candidate)
+    await session.flush()
+    app = Application(
+        job_id=job.id,
+        candidate_id=candidate.id,
+        status=ApplicationStatus.APPROVED_BY_ADMIN,
+    )
+    session.add(app)
+    await session.commit()
+    await session.refresh(app)
+    return app
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target",
+    [
+        ApplicationStatus.INTERVIEWING,
+        ApplicationStatus.OFFER,
+        ApplicationStatus.HIRED,
+        ApplicationStatus.REJECTED_BY_COMPANY,
+    ],
+)
+async def test_company_can_set_pipeline_status(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile, target
+):
+    """Employers may advance/decide across their own pipeline statuses."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+
+    result = await update_application_status(
+        job.id, app.id, target.value, company_with_user.id, session
+    )
+
+    assert result.status == target.value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target",
+    [
+        ApplicationStatus.APPROVED_BY_ADMIN,
+        ApplicationStatus.REJECTED_BY_ADMIN,
+        ApplicationStatus.PENDING_ADMIN_REVIEW,
+        ApplicationStatus.JOB_CLOSED,
+    ],
+)
+async def test_company_cannot_set_non_settable_status(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile, target
+):
+    """Admin-owned / intake statuses are not employer-settable."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+
+    with pytest.raises(InvalidApplicationStatusTransitionError):
+        await update_application_status(
+            job.id, app.id, target.value, company_with_user.id, session
+        )
+
+
+@pytest.mark.asyncio
+async def test_company_rejects_unknown_status(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile
+):
+    """A garbage status string is rejected, not coerced."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+
+    with pytest.raises(InvalidApplicationStatusTransitionError):
+        await update_application_status(
+            job.id, app.id, "NONSENSE", company_with_user.id, session
+        )

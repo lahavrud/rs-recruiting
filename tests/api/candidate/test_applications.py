@@ -124,7 +124,7 @@ async def _make_app(
     *,
     candidate_id: int,
     job_id: int,
-    status: ApplicationStatus = ApplicationStatus.NEW,
+    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
     resume_path: str | None = None,
     service_concept: str | None = "concept",
     salary_expectations: str | None = "30k",
@@ -169,7 +169,7 @@ async def test_list_returns_only_this_candidates_applications(test_db):
     assert resp.status_code == 200
     items = resp.json()["items"]
     assert len(items) == 1
-    assert items[0]["company"]["name"] == "Mine"
+    assert items[0]["job"]["id"] == j1.id
 
 
 @pytest.mark.asyncio
@@ -192,7 +192,7 @@ async def test_list_excludes_withdrawn_rows(test_db):
         resp = await client.get("/api/candidate/me/applications")
     items = resp.json()["items"]
     assert len(items) == 1
-    assert items[0]["company"]["name"] == "Active"
+    assert items[0]["job"]["id"] == j_active.id
 
 
 @pytest.mark.asyncio
@@ -207,18 +207,43 @@ async def test_list_row_shape_excludes_status_and_admin_notes(test_db):
     async with await _client() as client:
         resp = await client.get("/api/candidate/me/applications")
     row = resp.json()["items"][0]
-    assert set(row.keys()) == {"id", "submitted_at", "editable", "job", "company"}
+    assert set(row.keys()) == {"id", "submitted_at", "editable", "job"}
     assert set(row["job"].keys()) == {"id", "title", "closed"}
-    assert set(row["company"].keys()) == {"id", "name"}
+
+
+@pytest.mark.asyncio
+async def test_list_never_exposes_company_identity(test_db):
+    """Regression guard for the candidate/company-name leak (blind recruiting).
+
+    Asserts against the raw response body, not just the schema shape — a
+    well-typed but wrongly-scoped field (like the old `company.name`) would
+    pass a shape-only check.
+    """
+    async with TestSessionLocal() as session:
+        _, job = await _seed_company_and_job(session, company_name="Acme Rocket Corp")
+        await session.commit()
+        user, profile = await _seed_candidate(session, "noleak@test.com")
+        await _make_app(session, candidate_id=profile.id, job_id=job.id)
+    _override_user(user.id, user.email)
+
+    async with await _client() as client:
+        list_resp = await client.get("/api/candidate/me/applications")
+        detail_resp = await client.get(
+            f"/api/candidate/me/applications/{list_resp.json()['items'][0]['id']}"
+        )
+
+    for resp in (list_resp, detail_resp):
+        assert "company" not in resp.text
+        assert "Acme Rocket Corp" not in resp.text
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "status,expected",
     [
-        (ApplicationStatus.NEW, True),
+        (ApplicationStatus.PENDING_ADMIN_REVIEW, True),
         (ApplicationStatus.APPROVED_BY_ADMIN, False),
-        (ApplicationStatus.REJECTED, False),
+        (ApplicationStatus.REJECTED_BY_ADMIN, False),
         (ApplicationStatus.HIRED, False),
     ],
 )
@@ -555,7 +580,7 @@ async def test_patch_with_resume_replaces_snapshot(test_db):
     "status",
     [
         ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.REJECTED,
+        ApplicationStatus.REJECTED_BY_ADMIN,
         ApplicationStatus.HIRED,
     ],
 )
@@ -755,7 +780,7 @@ async def test_withdraw_on_new_sets_status_and_hides_from_list(test_db):
     "status",
     [
         ApplicationStatus.APPROVED_BY_ADMIN,
-        ApplicationStatus.REJECTED,
+        ApplicationStatus.REJECTED_BY_ADMIN,
         ApplicationStatus.HIRED,
     ],
 )
@@ -833,7 +858,7 @@ async def test_withdraw_allows_reapply_via_partial_unique_index(test_db):
         second = Application(
             job_id=job.id,
             candidate_id=profile.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
         session.add(second)
         await session.commit()

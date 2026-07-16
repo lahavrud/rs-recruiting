@@ -60,9 +60,14 @@ from rs_api.api.company import resumes
 from rs_api.api.public import applications as candidates
 from rs_api.api.public import jobs as public
 from rs_api.infrastructure.dependencies import client_ip
-from rs_api.infrastructure.middleware import RequestIdFilter, RequestMiddleware
+from rs_api.infrastructure.middleware import (
+    OriginVerifyMiddleware,
+    RequestIdFilter,
+    RequestMiddleware,
+    SecurityHeadersMiddleware,
+)
 from rs_shared.core.infrastructure.config import settings, validate_settings
-from rs_shared.core.infrastructure.database import engine, init_db
+from rs_shared.core.infrastructure.database import engine, init_db, warm_up_pool
 from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
@@ -91,6 +96,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
     validate_settings()
     await init_db()
+    # Fill the connection pool up front so early requests don't each pay a
+    # cold TCP+TLS connect to RDS on the request path.
+    await warm_up_pool()
     yield
     shutdown_telemetry()
 
@@ -181,6 +189,20 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
+)
+
+# CloudFront origin verification — registered last so it runs OUTERMOST
+# (Starlette middleware executes in reverse registration order): direct-to-
+# origin probes are 403'd before CORS, instrumentation, or APM logging see
+# them. No-op unless ORIGIN_VERIFY_SECRET is set (prod web task only).
+app.add_middleware(OriginVerifyMiddleware, secret=settings.origin_verify_secret)
+
+# Defensive response headers — registered last so it runs OUTERMOST and rides
+# out on every response, including the OriginVerify 403 and CORS preflight. HSTS
+# is emitted only in deployed HTTPS environments (never over plaintext dev http).
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    hsts=settings.environment in ("prod", "staging"),
 )
 
 # Include routers

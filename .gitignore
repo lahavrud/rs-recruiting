@@ -246,8 +246,9 @@ frontend/dist/
 .claude/settings.local.json
 .claude/worktrees/
 
-# sigmap — local context-engine config/output
-gen-context.config.json
+# sigmap — generated context output stays local; the config IS committed
+# (gen-context.config.json pins srcDirs to the uv-workspace layout and keeps
+# the 'claude' adapter out of outputs so it can never overwrite CLAUDE.md)
 .contextignore
 .context/
 .github/context-*.md

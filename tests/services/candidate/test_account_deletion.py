@@ -71,16 +71,20 @@ async def _make_profile(
 
 
 async def _make_job(session: AsyncSession, company_with_user) -> Job:
-    company, _ = company_with_user
+    company = company_with_user
     from rs_shared.enums import JobStatus
 
     job = Job(
         title="Dev",
         company_id=company.id,
-        status=JobStatus.OPEN,
+        status=JobStatus.PUBLISHED,
         location="TLV",
-        description="x",
-        requirements="y",
+        short_description="Dev role on a small backend team.",
+        description="A development role.",
+        requirements=[{"text": "Python"}],
+        tags=[],
+        salary_min=15000,
+        salary_max=25000,
     )
     session.add(job)
     await session.flush()
@@ -97,7 +101,7 @@ async def _make_application(
     app = Application(
         candidate_id=profile.id,
         job_id=job.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         resume_path=resume_path,
     )
     session.add(app)
@@ -226,7 +230,7 @@ async def test_request_deletion_writes_audit_event(session):
         .all()
     )
     assert len(audit_rows) == 1
-    assert audit_rows[0].target_type == "candidateprofile"
+    assert audit_rows[0].target_type == "CandidateProfile"
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +418,7 @@ async def test_confirm_deletion_writes_audit_event(session):
         .all()
     )
     assert len(audit_rows) == 1
-    assert audit_rows[0].target_type == "candidateprofile"
+    assert audit_rows[0].target_type == "CandidateProfile"
 
 
 @pytest.mark.asyncio

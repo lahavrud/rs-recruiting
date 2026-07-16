@@ -56,10 +56,9 @@ class SsmSettingsSource(PydanticBaseSettingsSource):
 
 
 def _ssm_path_prefix() -> str:
-    # Map ENVIRONMENT value to the SSM path segment (production → prod)
-    env = os.environ.get("ENVIRONMENT", "development")
-    segment = {"production": "prod"}.get(env, env)
-    return f"/rs-recruiting/{segment}/"
+    # ENVIRONMENT is the SSM path segment directly (dev / staging / prod).
+    env = os.environ.get("ENVIRONMENT", "dev")
+    return f"/rs-recruiting/{env}/"
 
 
 class Settings(BaseSettings):
@@ -76,6 +75,11 @@ class Settings(BaseSettings):
     # Example: ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
     allowed_origins: str = Field(default="http://localhost:3000")
 
+    # CloudFront origin verification — when set (prod task definition, from
+    # SSM), requests must carry a matching x-origin-verify header or get 403'd
+    # (OriginVerifyMiddleware). None = no enforcement (local dev, worker).
+    origin_verify_secret: Optional[str] = None
+
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/rs_recruitment"  # pragma: allowlist secret  # noqa: E501
     database_echo: bool = False  # Enable SQL query logging (for debugging only)
@@ -88,8 +92,18 @@ class Settings(BaseSettings):
     # pool sizing before scaling to multiple workers on the same RDS instance.
     db_pool_size: int = 15
     db_max_overflow: int = 20
-    db_pool_recycle: int = 1800  # 30 min — keepalives handle NAT; recycle last resort
+    # Recycle is a last resort, not the liveness mechanism — keepalives hold the
+    # NAT mapping and pool_pre_ping catches any conn that dies anyway. At 30 min
+    # this forced a full reconnect storm (~3 s each, on the request path) on the
+    # first burst after every idle half hour; prod traces showed it dominating
+    # admin page latency. 12 h keeps a safety bound without request-path churn.
+    db_pool_recycle: int = 43200
     db_pool_pre_ping: bool = True  # SELECT 1 before checkout — catches any dead conn
+    # Seconds a request waits for a free pooled connection before giving up.
+    # SQLAlchemy defaults to 30 s — long enough that a burst that exhausts the
+    # pool stalls silently. Fail fast (and loud) instead so exhaustion shows up
+    # as a 500 we can alarm on rather than a 30 s hang. See _log_pool_pressure.
+    db_pool_timeout: int = 10
 
     # SQS task queue — empty string means tasks run inline (local dev)
     sqs_queue_url: str = ""
@@ -173,7 +187,7 @@ class Settings(BaseSettings):
     # account, HTTP-only). It behaves like production — loads config from SSM,
     # enforces rate limiting and the FRONTEND_BASE_URL check — except where its
     # plain-HTTP ingress forces a difference (see _is_refresh_cookie_secure).
-    environment: Literal["development", "staging", "production"] = "development"
+    environment: Literal["dev", "staging", "prod"] = "dev"
 
     # Trusted reverse-proxy IPs/CIDRs.
     # Comma-separated list of IP addresses or CIDR ranges whose X-Forwarded-For
@@ -209,7 +223,7 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        if os.environ.get("ENVIRONMENT") in ("production", "staging"):
+        if os.environ.get("ENVIRONMENT") in ("prod", "staging"):
             return (
                 init_settings,
                 SsmSettingsSource(settings_cls, _ssm_path_prefix()),
@@ -260,7 +274,7 @@ def validate_settings() -> None:
         raise ValueError("AWS_SES_FROM_EMAIL must be set when EMAIL_PROVIDER=ses")
 
     # Validate frontend base URL in deployed environments
-    if settings.environment in ("production", "staging") and (
+    if settings.environment in ("prod", "staging") and (
         "localhost" in settings.frontend_base_url
         or "127.0.0.1" in settings.frontend_base_url
     ):

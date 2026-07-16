@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rs_shared.core.services.storage import get_storage_provider
 from rs_shared.enums import UserRole
 from rs_shared.models import (
     AccountDeletionToken,
@@ -107,8 +108,6 @@ async def purge_expired_data_export_zips(session: AsyncSession) -> int:
 
     Returns count of rows deleted.
     """
-    from rs_shared.core.services.storage import get_storage_provider
-
     now = datetime.now(timezone.utc)
     used_cutoff = now - timedelta(hours=_USED_EXPORT_GRACE_HOURS)
 

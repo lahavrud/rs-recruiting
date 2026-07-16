@@ -1,5 +1,9 @@
 [project]
 name = "rs-recruiting"
+# NOT the release version. What shipped lives in git tags / GitHub Releases
+# (scripts/compute_next_release_tag.sh computes vX.Y.Z after each prod deploy);
+# nothing reads this field. It is a static placeholder to satisfy PEP 621 — do
+# not bump it per release, it will only drift from the real version.
 version = "0.1.0"
 description = "RS Recruitment backend — uv workspace root (api + worker + shared)"
 requires-python = ">=3.12"
@@ -31,10 +35,10 @@ test = [
     "moto[s3,ses]>=5.2.2,<6",
 ]
 dev = [
-    "ruff>=0.15.18",
+    "ruff>=0.15.21",
     "pre-commit>=4.0.0",
     "aiosmtpd>=1.4.6,<2",
-    "import-linter>=2.0",
+    "import-linter>=2.13",
     {include-group = "test"},
 ]
 
@@ -94,3 +98,48 @@ name = "Shared domain does not depend on the services"
 type = "forbidden"
 source_modules = ["rs_shared"]
 forbidden_modules = ["rs_api", "rs_worker"]
+
+# The five actor domains are modules of the modular monolith: none may import
+# another. Shared logic lives in the kernel (rs_shared.services.utils) or is
+# inverted behind a Protocol injected at the composition root (rs_api) — see
+# utils/candidate_provisioning.py. utils is deliberately absent here so domains
+# may depend on the kernel.
+[[tool.importlinter.contracts]]
+name = "Service domains are independent"
+type = "independence"
+modules = [
+    "rs_shared.services.auth",
+    "rs_shared.services.admin",
+    "rs_shared.services.company",
+    "rs_shared.services.candidate",
+    "rs_shared.services.public",
+]
+# These ignored edges are lazy (function-scoped) imports from *shared* modules
+# down into a domain — infrastructure glue, not domain-to-domain calls. Domains
+# only import the shared module (core.tasks / templates.email), never each
+# other, so ignoring them keeps this contract testing direct domain coupling
+# rather than laundering a false violation. (The shared-layer-imports-domain
+# smell is a separate, pre-existing layering concern, out of scope here.)
+#   - core.tasks lazily dispatches to the task functions that implement each
+#     job, which live in their owning domain.
+#   - templates.email reads one password-reset TTL constant to render the email.
+ignore_imports = [
+    "rs_shared.core.tasks -> rs_shared.services.candidate.data_export",
+    "rs_shared.core.tasks -> rs_shared.services.admin._candidates_purge",
+    "rs_shared.core.tasks -> rs_shared.services.admin.maintenance",
+    "rs_shared.templates.email -> rs_shared.services.auth.password_reset",
+]
+
+# Kernel purity: shared helpers must not reach back up into any actor domain,
+# or the independence above could be laundered through utils.
+[[tool.importlinter.contracts]]
+name = "Kernel (services/utils) does not import the actor domains"
+type = "forbidden"
+source_modules = ["rs_shared.services.utils"]
+forbidden_modules = [
+    "rs_shared.services.auth",
+    "rs_shared.services.admin",
+    "rs_shared.services.company",
+    "rs_shared.services.candidate",
+    "rs_shared.services.public",
+]

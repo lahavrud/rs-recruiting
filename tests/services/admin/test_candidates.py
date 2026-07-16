@@ -301,7 +301,7 @@ async def test_list_candidate_activity_merges_candidate_and_application_events(
             action="application.status_change",
             target_type="Application",
             target_id=application.id,
-            detail="NEW->APPROVED_BY_ADMIN",
+            detail="PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
             created_at=base + timedelta(minutes=1),
         )
     )
@@ -476,7 +476,7 @@ async def test_admin_tombstone_preserves_applications(
     app = Application(
         job_id=job.id,
         candidate_id=candidate_profile.id,
-        status=ApplicationStatus.NEW,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         resume_path="resumes/cv.pdf",
     )
     session.add(app)
@@ -540,6 +540,90 @@ async def test_admin_tombstone_already_deleted_raises(session: AsyncSession):
     storage.delete_file = AsyncMock()
     with pytest.raises(CandidateAlreadyDeletedError):
         await admin_tombstone_candidate(candidate.id, session, storage=storage)
+
+
+async def _make_registered_candidate(
+    session: AsyncSession, *, email: str
+) -> tuple[User, CandidateProfile]:
+    """Create a User(role=CANDIDATE) linked 1:1 to a CandidateProfile."""
+    user = User(
+        email=email,
+        hashed_password="hashed",
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    candidate = CandidateProfile(
+        user_id=user.id, full_name="Reg Candidate", email=email, phone="050-9999999"
+    )
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(candidate)
+    return user, candidate
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_removes_backing_user(session: AsyncSession):
+    user, candidate = await _make_registered_candidate(
+        session, email="registered@test.com"
+    )
+    user_id = user.id
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await admin_tombstone_candidate(candidate.id, session)
+        await session.commit()
+
+    user_row = await session.execute(
+        select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
+    )
+    assert user_row.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_frees_email_for_reregistration(session: AsyncSession):
+    _, candidate = await _make_registered_candidate(session, email="reuse@test.com")
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await admin_tombstone_candidate(candidate.id, session)
+        await session.commit()
+
+    # No orphaned User / CandidateProfile holds the unique email hostage.
+    session.add(
+        User(
+            email="reuse@test.com",
+            hashed_password="hashed",
+            role=UserRole.CANDIDATE,
+            is_active=True,
+        )
+    )
+    await session.commit()  # would raise IntegrityError if the email were taken
+
+
+@pytest.mark.asyncio
+async def test_admin_tombstone_anonymous_lead_tombstoned(session: AsyncSession):
+    """A lead with user_id=None tombstones cleanly (no backing User to remove)."""
+    candidate = await _make_candidate(session, email="lead@test.com")
+
+    with patch(
+        "rs_shared.services.admin.candidates.get_storage_provider"
+    ) as storage_factory:
+        storage_factory.return_value.delete_file = AsyncMock()
+        await admin_tombstone_candidate(candidate.id, session)
+        await session.commit()
+
+    # The profile row is retained (tombstoned), not hard-deleted.
+    row = await session.get(CandidateProfile, candidate.id)
+    assert row is not None
+    assert row.deleted_at is not None
+    assert row.full_name == "[מחוק]"
 
 
 # ── purge_expired_candidates ──────────────────────────────────────────────────
@@ -609,7 +693,12 @@ async def test_purge_removes_old_closed_non_hired(
     candidate = await _make_candidate(
         session, email="purge@test.com", resume_path="uploads/resumes/x.pdf"
     )
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
@@ -655,7 +744,12 @@ async def test_purge_preserves_recently_closed_jobs(
         session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS - 30
     )
     candidate = await _make_candidate(session, email="recent@test.com")
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
@@ -689,10 +783,16 @@ async def test_purge_preserves_candidate_with_any_active_application(
 
     candidate = await _make_candidate(session, email="mixed@test.com")
     await _make_app(
-        session, job=old_closed, candidate=candidate, status=ApplicationStatus.NEW
+        session,
+        job=old_closed,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
     await _make_app(
-        session, job=active, candidate=candidate, status=ApplicationStatus.NEW
+        session,
+        job=active,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
     )
 
     with patch(
@@ -709,7 +809,12 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
     )
     candidate = await _make_candidate(session, email="idem@test.com")
-    await _make_app(session, job=job, candidate=candidate, status=ApplicationStatus.NEW)
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
 
     with patch(
         "rs_shared.services.admin._candidates_purge.get_storage_provider"
@@ -718,6 +823,38 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         assert await purge_expired_candidates(session) == 1
         await session.commit()
         assert await purge_expired_candidates(session) == 0
+
+
+@pytest.mark.asyncio
+async def test_purge_removes_backing_user(
+    session: AsyncSession, company_profile: CompanyProfile
+):
+    """A purged registered candidate leaves no orphaned User behind."""
+    job = await _make_closed_job(
+        session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
+    )
+    user, candidate = await _make_registered_candidate(
+        session, email="purge-user@test.com"
+    )
+    user_id = user.id
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
+
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
+        factory.return_value.delete_file = AsyncMock()
+        assert await purge_expired_candidates(session) == 1
+        await session.commit()
+
+    user_row = await session.execute(
+        select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
+    )
+    assert user_row.scalar_one_or_none() is None
 
 
 # ---------------------------------------------------------------------------

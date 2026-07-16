@@ -44,7 +44,7 @@ function makeApp(id: number, name: string): ApplicationWithDetails {
     id,
     job_id: 100,
     candidate_id: 200 + id,
-    status: ApplicationStatus.NEW,
+    status: ApplicationStatus.PENDING_ADMIN_REVIEW,
     admin_notes: null,
     service_concept: "תפיסה",
     salary_expectations: null,
@@ -166,7 +166,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     expect(await screen.findByRole("button", { name: /^בטל$/ })).toBeInTheDocument();
   });
 
-  it("reject button calls updateApplicationStatus with REJECTED", async () => {
+  it("reject button calls updateApplicationStatus with REJECTED_BY_ADMIN", async () => {
     mockGetApplications.mockResolvedValueOnce({
       items: [makeApp(1, "מיכל"), makeApp(2, "יואב")],
       next_cursor: null,
@@ -180,7 +180,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /^דחייה$/ }));
 
     expect(mockUpdateApplicationStatus).toHaveBeenCalledWith(1, {
-      status: ApplicationStatus.REJECTED,
+      status: ApplicationStatus.REJECTED_BY_ADMIN,
     });
     expect(await screen.findByRole("button", { name: /^בטל$/ })).toBeInTheDocument();
   });
@@ -227,7 +227,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     fireEvent.click(undoBtn);
 
     expect(mockUpdateApplicationStatus).toHaveBeenLastCalledWith(1, {
-      status: ApplicationStatus.NEW,
+      status: ApplicationStatus.PENDING_ADMIN_REVIEW,
     });
   });
 
@@ -263,7 +263,7 @@ describe("AdminApplicationsTriagePage — decision flow", () => {
     fireEvent.keyDown(window, { key: "r" });
 
     expect(mockUpdateApplicationStatus).toHaveBeenCalledWith(1, {
-      status: ApplicationStatus.REJECTED,
+      status: ApplicationStatus.REJECTED_BY_ADMIN,
     });
   });
 });

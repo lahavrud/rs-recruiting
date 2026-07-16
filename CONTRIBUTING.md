@@ -3,15 +3,18 @@
 ## Setup
 
 ```bash
-# Backend
+# Backend — install the workspace, start backing services, run the API
 uv sync
-uv run uvicorn src.main:app --reload
+make services                                # Postgres + Mailpit + LocalStack
+uv run uvicorn rs_api.main:app --reload      # tasks run inline while SQS is unset
 
 # Frontend
 cd frontend && npm install && npm run dev
 ```
 
-Requires: Python 3.12+, Node 22+, PostgreSQL 16.
+Requires: Python 3.12+, Node 22+, Docker + Compose. The schema is created from
+SQLModel metadata on startup — don't run `alembic upgrade` against a local DB
+(the migration chain assumes an existing prod schema).
 
 ---
 
@@ -131,9 +134,9 @@ Changes to these paths have non-obvious invariants. Read carefully before touchi
 
 | Path | Risk |
 |---|---|
-| `src/services/auth/` | JWT lifecycle, token rotation, lockout logic |
+| `libs/shared/rs_shared/services/auth/` | JWT lifecycle, token rotation, lockout logic |
 | `alembic/` | Irreversible DB migrations. Never squash or delete applied migrations. |
-| `src/models.py` | Schema changes ripple everywhere |
+| `libs/shared/rs_shared/models.py` | Schema changes ripple everywhere |
 | `.github/workflows/` | CI/CD — bad changes reach production |
 
 When in doubt, open a draft PR and ask for early review.

@@ -75,15 +75,15 @@ These principles guide all architectural decisions:
 - **Local Volume Mount** – Only for development, not production
 
 **Chosen Solution:** Storage abstraction layer with provider abstraction interface
-- **Local Storage** – For development and tests (`src/core/services/storage.py::LocalStorageProvider`)
-- **S3/MinIO Storage** – For production (`src/core/services/storage.py::S3StorageProvider`)
+- **Local Storage** – For development and tests (`libs/shared/rs_shared/core/services/storage.py::LocalStorageProvider`)
+- **S3/MinIO Storage** – For production (`libs/shared/rs_shared/core/services/storage.py::S3StorageProvider`)
 - Provider selection via `STORAGE_PROVIDER` environment variable (`local` or `s3`)
 
 **Implementation:**
-- Abstract base class: `StorageProvider` in `src/core/services/storage.py`
+- Abstract base class: `StorageProvider` in `libs/shared/rs_shared/core/services/storage.py`
 - Methods: `upload_file()`, `get_file_url()`, `delete_file()`
 - File validation: Size limits and file type checking
-- Configuration: `src/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py` with `storage_provider`, `aws_s3_bucket_name`, `local_storage_path`
 
 **Related Issues:**
 - [#43](https://github.com/lahavrud/rs-recruiting/issues/43) - feat(infra): Implement storage abstraction layer for file uploads (S3/MinIO/Local) ✅ CLOSED
@@ -108,17 +108,17 @@ These principles guide all architectural decisions:
 **Chosen Solution:** Email abstraction layer with SQS-based async task queue
 - **Development:** SMTP to Mailpit (`docker-compose` service on port 1025; web UI at http://localhost:8025) — no provider account needed
 - **Production:** Resend via SMTP relay (`EMAIL_PROVIDER=smtp`; `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD` loaded from SSM). AWS SES was considered but sandbox migration to production was blocked.
-- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `src/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
-- **Task Queue:** AWS SQS → `src/worker.py` worker process (`src/core/tasks.py`)
+- **Code abstractions:** `SESEmailProvider` and `SMTPEmailProvider` in `libs/shared/rs_shared/core/services/email.py`; selection via `EMAIL_PROVIDER` env var
+- **Task Queue:** AWS SQS → `services/worker/rs_worker/worker.py` worker process (`libs/shared/rs_shared/core/tasks.py`)
 - **Retry Logic:** SQS at-least-once delivery; tasks are idempotent; DLQ captures failures
 - Local dev: tasks run inline when `SQS_QUEUE_URL` is not set (no queue needed)
 
 **Implementation:**
-- Abstract base class: `EmailProvider` in `src/core/services/email.py`
+- Abstract base class: `EmailProvider` in `libs/shared/rs_shared/core/services/email.py`
 - Implementations: `SESEmailProvider`, `SMTPEmailProvider`
-- Task producer: `enqueue_email_task()` in `src/core/tasks.py` — call sites unchanged from Arq era
-- Worker: `src/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
-- Configuration: `src/core/infrastructure/config.py`
+- Task producer: `enqueue_email_task()` in `libs/shared/rs_shared/core/tasks.py` — call sites unchanged from Arq era
+- Worker: `services/worker/rs_worker/worker.py` — polls SQS, dispatches to `TASK_REGISTRY`
+- Configuration: `libs/shared/rs_shared/core/infrastructure/config.py`
 
 **Notification Triggers (all implemented):**
 - Candidate applies → email admin + confirmation email to candidate
@@ -170,9 +170,9 @@ These principles guide all architectural decisions:
 3. If multiple worker instances are ever needed, the sleep-based throttle no longer gives a global rate limit — replace it with a Redis token bucket shared across workers (each worker acquires a token before sending, with a refill rate of `1 / EMAIL_SEND_DELAY_SECONDS` tokens/s). The `email_quota` counter logic is already multi-instance safe because it uses a Postgres upsert (`ON CONFLICT DO UPDATE`) — no change needed there.
 
 **Implementation:**
-- `src/core/services/email_quota.py` — `increment_and_alert(session)`
-- `src/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
-- `src/worker.py` — sleep after `delete_message` for `send_email` tasks only
+- `libs/shared/rs_shared/core/services/email_quota.py` — `increment_and_alert(session)`
+- `libs/shared/rs_shared/core/tasks.py` — `send_email_task` calls `increment_and_alert` after each successful send
+- `services/worker/rs_worker/worker.py` — sleep after `delete_message` for `send_email` tasks only
 - `alembic/versions/e03b8aa073a3_add_email_quota_table.py` — creates `email_quota`
 
 **Status:** ✅ Implemented
@@ -187,12 +187,12 @@ These principles guide all architectural decisions:
 
 **Chosen Solution:**
 - **Broker:** AWS SQS (managed, durable, at-least-once delivery; visibility timeout = 300 s)
-- **Worker:** `src/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
+- **Worker:** `services/worker/rs_worker/worker.py` — asyncio long-poll loop; SIGTERM-graceful; dispatches by `TASK_REGISTRY` key
 - **Cron:** Nightly purge triggered by EventBridge Scheduler → SQS (not a cron inside the worker process)
 
 **Implementation:**
-- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `src/core/tasks.py`.
-- **Worker Process:** Separate Docker container (`worker`) runs `python -m src.worker` to consume from SQS.
+- **Task Definition:** Async Python functions registered in `TASK_REGISTRY` in `libs/shared/rs_shared/core/tasks.py`.
+- **Worker Process:** Separate Docker container (`worker`) runs the `rs-worker` console script (`rs_worker.worker`) to consume from SQS.
 - **API Integration:** Service layer calls `enqueue_*_task()` via `defer_after_commit()` — tasks enqueue after the DB transaction commits, preventing phantom messages on rollback. Endpoints return their normal status codes immediately.
 - **Local Dev:** `SQS_QUEUE_URL` unset → tasks run inline (no queue needed).
 - **Resilience:** SQS at-least-once delivery; tasks are written to be idempotent. Dead-letter queue captures repeated failures.
@@ -222,21 +222,19 @@ These principles guide all architectural decisions:
 
 ### 5. CI/CD Pipeline
 
-**Problem:** Need automated quality checks, testing against production-identical database, and zero-touch deployment on every push to main.
+**Problem:** Need automated quality checks, testing against a production-identical database, and safe deployment on every merge to main.
 
-**Decision:** GitHub Actions CI/CD with OIDC-based AWS authentication, PostgreSQL service container for tests, and SSM Run Command for keyless deployment.
+**Decision:** GitHub Actions with OIDC-based AWS authentication, a PostgreSQL service container for tests, and **continuous delivery to ECS** with a manual production gate. See [`release-process.md`](./release-process.md).
 
 **Implementation:**
-- **Workflow:** `.github/workflows/ci.yml`
+- **Workflows:** `.github/workflows/ci.yml` (checks) + `deliver.yml` / `_deploy.yml` / `rollback.yml` (delivery)
 - **On pull_request to main:**
   - `lint`: Ruff linter + formatter + 5 custom validation scripts
   - `test`: Pytest against a PostgreSQL 16 service container (dialect parity with production)
   - `docker-build`: Build image and verify `/health` endpoint
-- **On push to main (after lint + test pass):**
-  - `lint` + `test`: (same as above)
-  - `deploy`: OIDC auth → ECR push (`:latest` + `:<sha>`) → frontend build → S3 upload → SSM Run Command → poll until complete
-- **Authentication:** GitHub Actions OIDC — role `github-actions-rs-recruiting` (no stored AWS credentials)
-- **Deploy Script:** `scripts/deploy_ec2.sh` runs on EC2 via SSM; derives ECR registry and S3 bucket from the EC2 IAM role at runtime (nothing hardcoded)
+- **On merge to main (after CI passes):** `deliver.yml` fires off CI completion → builds base+api+worker+alloy by SHA into the ops-account ECR → **pauses for manual approval** → deploys prod (`_deploy.yml`: gated migrate → roll web+worker → frontend) → auto-tags `vX.Y.Z` + creates the GitHub Release. _(Staging is retired for cost; the staging stage is preserved commented in `deliver.yml`.)_
+- **Authentication:** GitHub Actions OIDC — per-environment deploy roles (no stored AWS credentials)
+- **Deploy mechanism:** `_deploy.yml` rolls each ECS service via the `ecs-roll` action (render the live task-def with the new image → `aws-actions/amazon-ecs-deploy-task-definition` → wait for stability, circuit breaker armed). Terraform owns the task-def shape; CI owns only the image tag.
 - **Validation Scripts:**
   - `validate_imports.py` - SOC enforcement (separation of concerns)
   - `check_file_sizes.py` - File size limits
@@ -371,7 +369,7 @@ frontend/
 **Decision:** Configure CORS middleware in FastAPI with environment-based origin whitelisting.
 
 **Implementation:**
-- **Middleware:** FastAPI `CORSMiddleware` in `src/main.py`
+- **Middleware:** FastAPI `CORSMiddleware` in `services/api/rs_api/main.py`
 - **Configuration:** `ALLOWED_ORIGINS` environment variable (comma-separated list)
 - **Default:** `http://localhost:3000` (development)
 - **Security:** Never use wildcard (`*`) in production
@@ -382,7 +380,7 @@ frontend/
 - **Allowed Headers:** `Content-Type`, `Authorization` (for JWT tokens)
 - **Credentials:** `True` (to allow cookies/auth headers)
 
-**Code Location:** `src/main.py` lines 27-34
+**Code Location:** `services/api/rs_api/main.py`
 
 **Related Issues:**
 - Architecture decision documented in this file (no specific issue, part of frontend architecture)
@@ -400,25 +398,25 @@ frontend/
 **Decision:** Extract business logic into a dedicated service layer, keeping routers thin.
 
 **Implementation:**
-- **Structure:** `src/services/` directory with domain-specific services
+- **Structure:** business logic lives in `libs/shared/rs_shared/services/`, one package per domain; the FastAPI routers in `services/api/rs_api/api/` delegate to it
 - **Pattern:** Routers delegate to services, services contain business logic
-- **Benefits:** Better testability, separation of concerns, reusable business logic
+- **Benefits:** Better testability, separation of concerns, reusable business logic — and, since `rs_shared` is framework-free, the same services run in the worker without a web stack
 
 **Example Structure:**
 
 ```
-src/
-├── api/              # Thin routers (FastAPI endpoints) — one package per domain
-│   ├── auth/         # login, registration, activation, password_reset, candidate_registration
-│   ├── admin/        # companies, jobs, applications, candidates, invites, audit
-│   ├── candidate/    # me, applications, data_export
-│   ├── company/      # jobs, profile, resumes
-│   └── public/       # job board, apply flow
-└── services/         # Business logic — mirrors api/ layout
-    ├── auth/
-    ├── admin/
-    ├── candidate/
-    └── public/
+services/api/rs_api/api/     # Thin routers (FastAPI endpoints) — one package per domain
+├── auth/         # login, registration, activation, password_reset, candidate_registration
+├── admin/        # companies, jobs, applications, candidates, invites, audit
+├── candidate/    # me, applications, data_export
+├── company/      # jobs, profile, resumes
+└── public/       # job board, apply flow
+
+libs/shared/rs_shared/services/   # Business logic — mirrors the router layout
+├── auth/
+├── admin/
+├── candidate/
+└── public/
 ```
 
 **Related Issues:**
@@ -435,9 +433,9 @@ src/
 **Decision:** Use SQLModel (SQLAlchemy + Pydantic) for database models with Alembic for migrations.
 
 **Implementation:**
-- **Models:** `src/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
-- **Enums:** `src/enums.py` with UserRole, JobStatus, ApplicationStatus
-- **Schemas:** `src/schemas.py` with Pydantic schemas for API validation
+- **Models:** `libs/shared/rs_shared/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
+- **Enums:** `libs/shared/rs_shared/enums.py` with UserRole, JobStatus, ApplicationStatus
+- **Schemas:** the `libs/shared/rs_shared/schemas/` package (split by domain) with Pydantic schemas for API validation
 - **Migrations:** Alembic for database schema versioning
 - **Async:** Async SQLModel engine for async/await support
 
@@ -458,7 +456,7 @@ src/
 **Implementation:**
 - **Transaction Rollback:** Explicit `session.rollback()` on all error paths
 - **IntegrityError Handling:** Catch database constraint violations and convert to domain exceptions
-- **Error Types:** Custom exceptions in `src/services/exceptions.py`
+- **Error Types:** Custom exceptions in `libs/shared/rs_shared/services/exceptions.py`
 
 **Related Issues:**
 - [#47](https://github.com/lahavrud/rs-recruiting/issues/47) - fix(auth): Handle race condition in user registration (TOCTOU) ✅ CLOSED
@@ -608,7 +606,7 @@ erDiagram
 
 ### 2. Production Infrastructure
 
-**Decision:** Single EC2 instance running Docker Compose behind CloudFront, with managed RDS PostgreSQL. Simple and cost-effective for MVP scale; migrating to ECS/ALB when load requires it.
+**Decision:** ECS Fargate services (web + worker) behind CloudFront, with managed RDS PostgreSQL. _(Originally a single EC2 host running Docker Compose; migrated to ECS Fargate on 2026-06-30 — see the INFRASTRUCTURE.md decisions log. Exact resource IDs for the ECS layer live in the infra repo / live AWS; this section is the higher-level shape.)_
 
 **Architecture:**
 
@@ -620,35 +618,35 @@ Cloudflare (DNS only, grey-cloud — no proxy)
 CloudFront distribution (d2ghcom3efd3zg.cloudfront.net)
   ├── Lambda@Edge viewer-request  ← bot/crawler detection → FastAPI OG prerender
   ├── Default behavior            ← S3 origin (frontend SPA bundle, 3-day lifecycle)
-  └── /api/* /auth/* /health      ← EC2 origin (Host header forwarded)
-        │ HTTP :80 (CloudFront prefix list only)
-EC2 t3.micro (Amazon Linux 2023, us-east-1)
-  ├── api container      ← FastAPI (pulled from ECR on each deploy)
-  └── worker container   ← SQS worker (same ECR image, different CMD: python -m src.worker)
+  └── /api/* /auth/* /health      ← ECS web service origin
+        │
+ECS Fargate (cluster rs-recruiting-prod, us-east-1)
+  ├── web service     ← FastAPI + alloy sidecar (image from ops-account ECR)
+  └── worker service  ← SQS worker, same image family (python -m rs_worker.worker)
         │
 RDS PostgreSQL db.t3.micro  ← private subnets, encrypted at rest
-S3 rs-recruiting-app       ← file uploads + CI deploy artifacts + frontend bundle
-ECR rs-recruiting/api      ← Docker image registry
+S3 rs-recruiting-app       ← file uploads
+S3 rs-recruiting-frontend  ← SPA bundle (CloudFront default origin)
+ECR (ops account)          ← Docker image registry, pulled cross-account
 AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, retention purge)
 ```
 
-**AWS Resources:**
+**AWS Resources:** (conceptual — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative inventory, which is pending its post-ECS audit pass)
 
 | Resource | Identifier | Purpose |
 |---|---|---|
-| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + EC2 origins |
+| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + ECS origins |
 | ACM | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-…` | TLS cert for rs-recruiting.com + www |
-| EC2 | `<EC2_INSTANCE_ID>` | API + worker server (port 80, CloudFront-only) |
+| ECS Fargate | cluster `rs-recruiting-prod` (`-web` / `-worker` services) | API + worker, behind CloudFront |
 | RDS | `rs-recruiting-prod-db` | PostgreSQL 16, private subnets |
-| S3 | `<APP_BUCKET>` | Uploads + deploy artifacts + frontend bundle |
-| ECR | `rs-recruiting/api` | Docker images |
+| S3 | `<APP_BUCKET>` + `rs-recruiting-frontend` | Uploads + frontend bundle |
+| ECR (ops account) | `rs-recruiting/{api,worker,alloy}` | Docker images, pulled cross-account |
 | SQS | `rs-recruiting-tasks` | Async task queue for worker |
-| IAM Role (EC2) | `rs-recruiting-app-role` | SSM, ECR pull, S3, SQS receive/delete, CloudWatch metrics |
-| IAM Role (CI) | `github-actions-rs-recruiting` | OIDC, ECR push, S3 deploy, SSM send |
+| IAM Role (CI) | per-environment OIDC deploy roles | ECR push (ops), ECS deploy, S3/CloudFront |
 
 **Domain:** `rs-recruiting.com` — DNS in Cloudflare (grey-cloud, DNS only). TLS terminates at CloudFront via ACM certificate (`us-east-1`). Cloudflare proxying intentionally disabled — CloudFront handles CDN and certificate.
 
-**Configuration:** Runtime secrets stored in a `.env` file on EC2 (`/home/ec2-user/app/.env`). Non-secret config stored in AWS SSM Parameter Store under `/rs-recruiting/prod/`.
+**Configuration:** Runtime secrets in AWS SSM Parameter Store under `/rs-recruiting/prod/`, read by the ECS task at startup (no `.env` materialized on a host). Non-secret config rides the task definition.
 
 **Related Issues:**
 
@@ -660,21 +658,18 @@ AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, ret
 
 ### 3. Environment Deployment Strategy
 
-**Decision:** Trunk-based deployment. CI validates everything (lint → test → docker-build), then merge to `main` auto-deploys to production. No separate dev/staging environments — overkill for current scale ($30/mo infra budget, small team).
+**Decision:** Trunk-based **continuous delivery** (since 2026-06-30). CI validates everything (lint → test → docker-build); a green merge to `main` builds the image and promotes it to **production** behind a single manual approval (`production` GitHub Environment required reviewer). See [`release-process.md`](./release-process.md).
 
 **Environments:**
 
 1. **Development** – Local Docker Compose (`docker-compose.yml`) with PostgreSQL
-2. **Production** – Live at `https://rs-recruiting.com` (see Production Infrastructure above)
+2. **Production** – Live at `https://rs-recruiting.com`, deployed from the SHA-tagged image after manual approval (see Production Infrastructure above)
 
-**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before deploy.
+**Staging:** retired for cost (was an on-demand scale-to-zero ECS env). The staging stage is preserved (commented) in `deliver.yml` and `_deploy.yml` is environment-agnostic, so it can be re-enabled later; pre-prod risk is covered by CI + the prod approval gate + fast `rollback.yml`.
 
-**Related Issues (icebox):**
+**CI Gate:** lint + test (PostgreSQL) + docker-build smoke test — catch prod-specific issues before the build/deliver pipeline runs.
 
-* [#95](https://github.com/lahavrud/rs-recruiting/issues/95) - devops2: Dev Environment Deployment 🧊 ICEBOX
-* [#96](https://github.com/lahavrud/rs-recruiting/issues/96) - devops3: Staging Environment Deployment 🧊 ICEBOX
-
-**Status:** ✅ Production live, 🧊 Dev/staging deferred
+**Status:** ✅ Production live · 🧊 Staging deferred (infra + workflow preserved)
 
 ---
 

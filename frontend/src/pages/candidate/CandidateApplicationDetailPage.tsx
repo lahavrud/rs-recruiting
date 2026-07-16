@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
-import CompanyName from "@/components/ui/CompanyName";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Eyebrow from "@/components/ui/Eyebrow";
 import PageHeader from "@/components/ui/PageHeader";
@@ -22,7 +21,7 @@ import {
 import { TEXTAREA_CLS } from "@/styles/forms";
 
 export default function CandidateApplicationDetailPage() {
-  const { t } = useTranslation('candidate');
+  const { t } = useTranslation("candidate");
   const { id } = useParams();
   const navigate = useNavigate();
   const appId = Number(id);
@@ -42,7 +41,11 @@ export default function CandidateApplicationDetailPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
-  const { data: fetchedDetail, loading, error: fetchError } = useFetch(() => {
+  const {
+    data: fetchedDetail,
+    loading,
+    error: fetchError,
+  } = useFetch(() => {
     if (!Number.isFinite(appId) || appId <= 0) {
       return Promise.reject(new Error("invalid_application_id"));
     }
@@ -52,7 +55,10 @@ export default function CandidateApplicationDetailPage() {
   useResetOnTrigger(fetchError, () => {
     if (axios.isAxiosError(fetchError) && fetchError.response?.status === 404) {
       setError(t("candidate:applications.errors.notFound"));
-    } else if (fetchError instanceof Error && fetchError.message === "invalid_application_id") {
+    } else if (
+      fetchError instanceof Error &&
+      fetchError.message === "invalid_application_id"
+    ) {
       setError(t("candidate:applications.errors.notFound"));
     } else {
       setError(t("candidate:applications.errors.loadFailed"));
@@ -216,7 +222,6 @@ export default function CandidateApplicationDetailPage() {
         <Eyebrow>{t("candidate:applications.detail.jobSection")}</Eyebrow>
         <div className="mt-3 flex flex-wrap items-baseline gap-3">
           <h3 className="text-xl text-white/90">{data.job.title}</h3>
-          <CompanyName name={data.company.name} />
           {data.job.closed && (
             <span className="rounded-sm border border-white/15 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/50">
               {t("candidate:applications.closedPill")}
@@ -379,7 +384,11 @@ function AnswerRow({
     <div>
       <dt className="text-xs uppercase tracking-wide text-white/50">{label}</dt>
       <dd className="mt-1 whitespace-pre-wrap text-sm text-white/85">
-        {value && value.trim() ? value : <span className="text-white/40">{emptyLabel}</span>}
+        {value && value.trim() ? (
+          value
+        ) : (
+          <span className="text-white/40">{emptyLabel}</span>
+        )}
       </dd>
     </div>
   );
@@ -396,7 +405,9 @@ function EditField({
 }) {
   return (
     <div>
-      <label className="block text-xs uppercase tracking-wide text-white/50">{label}</label>
+      <label className="block text-xs uppercase tracking-wide text-white/50">
+        {label}
+      </label>
       <textarea
         className={`${TEXTAREA_CLS} mt-1`}
         rows={3}

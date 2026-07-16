@@ -243,7 +243,7 @@ async def test_get_public_job_my_application_for_candidate_with_new_app(
         app = Application(
             job_id=published_job.id,
             candidate_id=profile.id,
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
         )
         session.add(app)
         await session.commit()

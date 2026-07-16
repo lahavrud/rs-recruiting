@@ -115,10 +115,13 @@
       "empty": "אין הגשות למשרה זו.",
       "loadError": "טעינת המועמדים נכשלה.",
       "columns": {
-        "NEW": "חדש",
+        "PENDING_ADMIN_REVIEW": "ממתין לאישור",
         "APPROVED_BY_ADMIN": "מאושר",
+        "INTERVIEWING": "בראיונות",
+        "OFFER": "הצעה",
         "HIRED": "גויס",
-        "REJECTED": "נדחה",
+        "REJECTED_BY_COMPANY": "נדחה",
+        "REJECTED_BY_ADMIN": "נדחה",
         "WITHDRAWN": "נסוג",
         "JOB_CLOSED": "משרה סגורה"
       },

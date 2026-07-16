@@ -1,19 +1,20 @@
 """Helpers for the public apply-to-job flow.
 
 Carved out of ``applications.py`` to keep the main module under the
-``src/services`` 300-line cap. Four responsibilities live here:
+``src/services`` 300-line cap. Three responsibilities live here:
 
-* ``validate_and_upload_resume`` — magic-byte + size + extension checks
-  followed by a storage upload, returning the storage key.
 * ``check_no_blocking_application`` — duplicate-apply pre-check, raising
   the editable / locked variants.
 * ``upsert_candidate_and_application`` — the find-or-create profile +
   Application row pair, with consent-write and resume-snapshot semantics.
 * ``send_application_emails`` — the candidate-confirmation + admin-
   notification fan-out, normally invoked via ``defer_after_commit``.
+
+Resume validation/upload (``validate_and_upload_resume``) and the candidate-
+profile lookup/update primitives live in the kernel (``services/utils``) so both
+the public and candidate apply flows share them without a cross-domain import.
 """
 
-import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -21,67 +22,28 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
-from rs_shared.core.services.file_validation import is_valid_document_magic_bytes
-from rs_shared.core.services.storage import StorageProvider
 from rs_shared.core.tasks import enqueue_email_task
 from rs_shared.enums import ApplicationStatus, UserRole
 from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.schemas import CandidateProfileCreate
-from rs_shared.services.admin.companies import get_all_admin_emails
-from rs_shared.services.company.candidates import (
-    find_candidate_by_email,
-    update_candidate_profile,
-)
 from rs_shared.services.exceptions import (
     ApplicationAlreadyEditableError,
     ApplicationAlreadyLockedError,
     EmailAlreadyExistsError,
 )
+from rs_shared.services.utils.candidate_profiles import (
+    find_candidate_by_email,
+    update_candidate_profile,
+)
 from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
+from rs_shared.services.utils.recipients import get_all_admin_emails
 from rs_shared.templates.email import (
     build_application_received_html,
     build_new_application_admin_html,
 )
-
-_ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx"}
-_MAX_RESUME_BYTES = 10 * 1024 * 1024  # 10 MB
-_MIME_BY_EXT = {
-    "pdf": "application/pdf",
-    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "doc": "application/msword",
-}
-
-
-async def validate_and_upload_resume(
-    resume_file: bytes,
-    resume_filename: str,
-    storage: StorageProvider,
-) -> tuple[str, str]:
-    """Validate resume file (type, size, magic bytes) and upload it.
-
-    Returns ``(storage_key, sha256_hex)``. Raises ``ValueError`` on any
-    validation failure so callers can map the error consistently.
-    """
-    ext = resume_filename.lower().rsplit(".", 1)[-1] if "." in resume_filename else ""
-    if f".{ext}" not in _ALLOWED_EXTENSIONS:
-        raise ValueError(f"Invalid file type. Allowed: PDF, DOC, DOCX. Got: {ext}")
-    if len(resume_file) > _MAX_RESUME_BYTES:
-        raise ValueError(
-            f"File size exceeds maximum of 10MB. Got: {len(resume_file)} bytes"
-        )
-    if not is_valid_document_magic_bytes(resume_file, ext):
-        raise ValueError("Resume file content does not match the declared file type")
-
-    content_type = _MIME_BY_EXT.get(ext, "application/octet-stream")
-    storage_key = await storage.upload_file(
-        file_content=resume_file,
-        file_name=f"resumes/{resume_filename}",
-        content_type=content_type,
-    )
-    return storage_key, hashlib.sha256(resume_file).hexdigest()
 
 
 async def check_no_blocking_application(
@@ -98,7 +60,7 @@ async def check_no_blocking_application(
     existing = result.scalar_one_or_none()
     if existing is None:
         return
-    if existing.status == ApplicationStatus.NEW:
+    if existing.status == ApplicationStatus.PENDING_ADMIN_REVIEW:
         assert existing.id is not None
         raise ApplicationAlreadyEditableError(application_id=existing.id)
     raise ApplicationAlreadyLockedError(
@@ -208,7 +170,7 @@ async def upsert_candidate_and_application(
         Application(
             job_id=job_id,
             candidate_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
-            status=ApplicationStatus.NEW,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
             service_concept=payload.service_concept,
             salary_expectations=payload.salary_expectations,
             strength=payload.strength,

@@ -10,6 +10,14 @@ For higher-level architectural decisions (auth model, framework choices, etc.) s
 
 ## 1. Topology
 
+> ⚠️ **Superseded — pending audit.** Prod compute migrated from a single EC2 host
+> to **ECS Fargate** (see the 2026-06-30 decisions-log entry). The EC2 host box,
+> Elastic IP, security groups, and `GHA → SSM Run Command → EC2` deploy edges
+> below describe the **pre-migration** state. The real ECS topology (cluster,
+> services, task/execution roles, any ALB, log groups) lives in the infra repo /
+> live AWS and has not yet been reconciled here. Section 2 (deploy pipeline) is
+> current; this diagram is not.
+
 ```mermaid
 flowchart LR
   User((User))
@@ -127,31 +135,41 @@ Loose end: App-SG egress on `5432` is `0.0.0.0/0`; could be tightened to `RDS-SG
 
 ## 2. Deploy pipeline
 
+Trunk-based **continuous delivery** to ECS — see [`release-process.md`](./release-process.md) for the full flow and `.github/workflows/`.
+
+Staging is retired for cost (the staging stage is preserved commented in
+`deliver.yml`), so the build is promoted straight to the prod approval gate.
+
 ```mermaid
 flowchart LR
-  PR["PR merge to main"] --> CI["GitHub Actions"]
-  CI -->|assume OIDC| AWS["github-actions-rs-recruiting role"]
-  CI --> B1["Build api at SHA"] --> ECR1["ECR api at SHA"]
-  CI --> B2["Build frontend at SHA"] --> ECR2["ECR frontend at SHA"]
-  CI -->|"s3 cp"| S3["s3 deploy prefix per SHA<br/>compose + deploy_ec2.sh"]
-  CI -->|"SSM Run Command"| EC2["EC2"]
-  EC2 -->|"fetch deploy_ec2.sh"| S3
-  EC2 -->|"pull images by SHA"| ECR1
-  EC2 -->|"pull images by SHA"| ECR2
-  EC2 -->|"docker compose up<br/>migrate"| running["Running stack"]
-  CI -->|"on success"| SHA_PARAM["SSM CURRENT_SHA set to SHA"]
+  PR["merge to main"] --> CI["CI Pipeline (ci.yml)"]
+  CI -->|"on success (workflow_run)"| DEL["deliver.yml"]
+  DEL --> BUILD["build base+api+worker+alloy<br/>tagged by SHA"] --> ECR["ECR (ops account)<br/>IMMUTABLE · scanOnPush"]
+  BUILD --> GATE{{"manual approval<br/>production environment"}}
+  GATE -->|approve| PROD["deploy prod (_deploy.yml)<br/>migrate → roll web+worker → frontend"]
+  PROD --> TAG["tag vX.Y.Z + GitHub Release"]
+  ECR -->|"pull cross-account"| PROD
 ```
 
 ### Properties
 
-- **Atomic artifact:** every deploy = 2 ECR images + 1 S3 prefix + 1 SSM pointer, all keyed by the same git SHA.
-- **Per-SHA immutability:** S3 prefix `deploy/${SHA}/` is written once, never overwritten. ECR repos are `IMMUTABLE`. Together: no last-writer-wins overwrite of a previous deploy's artifacts.
-- **Rollback:** `scripts/rollback.sh <SHA>` flips `CURRENT_SHA` and re-runs the SSM command against the older prefix.
-- **Validation gate:** `scripts/validate_deploy_artifacts.sh` runs in CI and asserts the HTTPS contract (`listen 443 ssl`, `IMAGE_TAG` referenced, no `:latest` in compose, etc.) — see `validate_deploy_artifacts.sh` for the full list.
+- **Build once, by SHA:** base + api + worker + alloy images build a single time into the **ops-account** ECR (`IMMUTABLE`, `scanOnPush`), tagged by commit SHA, pulled cross-account by prod.
+- **Gated migrations:** the prod deploy runs `alembic upgrade head` as a one-off ECS task derived from the live web task-def *before* rolling services; a failed migration aborts the roll and the old image keeps serving.
+- **Manual prod gate:** the prod deploy runs under the `production` GitHub Environment (required reviewer, `main`-only).
+- **Rollback:** `rollback.yml` re-points an ECS service to its previous (or a pinned) task-definition revision — **app code only**; migrations must be backward-compatible.
+- **Ownership split:** Terraform/OpenTofu (infra repo) owns the ECS task-def *shape* (`ignore_changes = [task_definition]`); CI owns only the image tags.
 
 ---
 
 ## 3. Resource inventory
+
+> ⚠️ **Superseded — pending audit.** The Compute, IAM, and SSM (`CURRENT_SHA`/
+> `PREV_SHA`) rows below, and the Observability section's "Alloy on EC2" details,
+> reflect the **pre-ECS** state. They were deliberately left rather than rewritten
+> with invented ECS resource IDs (cluster ARNs, task/execution roles, log groups)
+> that live in the infra repo and can't be verified from this repo. Audit against
+> `rs-recruiting-infra` / live AWS and update in a follow-up. See the 2026-06-30
+> decisions-log entry.
 
 ### Compute & data
 | Resource | Identifier | Notes |
@@ -267,6 +285,12 @@ As of 2026-06-10, the workload account (`rs-recruiting` prod) has **zero CloudWa
 ## 4. Decisions log (append-only)
 
 Newest first. Each entry: date, what, why, links. When updating, append; don't rewrite history.
+
+### 2026-06-30 — Migrate prod compute EC2 → ECS Fargate; CI/CD → continuous delivery
+**Decision:** Rebuilt the app repo's CI/CD for ECS (see [`release-process.md`](./release-process.md)): `deliver.yml` (build-by-SHA → manual approval → prod → auto-tag) + a reusable `_deploy.yml` + an `ecs-roll` composite action, replacing the tag-gated EC2/SSM flow. Deleted `release.yml`, `deploy.yml`, `deploy-staging.yml`, `cut-release.yml`, `hotfix.yml`, `staging-deploy.yml`, the `ssm-deploy` action, the `compute_next_{rc,patch}_tag.sh` scripts, and the EC2 `deploy_ec2*.sh` / `rollback.sh` / `validate_deploy_artifacts.sh` scripts + `docker-compose.{deploy,staging}.yml` + `nginx.staging.conf`. Prod runs on ECS Fargate (`rs-recruiting-prod` cluster, `-web` / `-worker` services, alloy sidecar, behind an ALB; CloudFront → ALB; Route53 zone for `rs-recruiting.com` in the prod account); images build once into the **ops-account** ECR and are pulled cross-account. The production gate is a GitHub Environment required reviewer; `rollback.yml` re-points a service to its previous task-def revision. **Staging was built (separate account `788572612917`, Fargate-Postgres / no-ALB / all-Spot scale-to-zero) but retired from the pipeline for cost** — the staging stage is preserved commented in `deliver.yml` for later re-enable; its tofu units should be destroyed in `rs-recruiting-infra` to actually stop charges.
+**Why:** Continuous delivery on merge with a single manual prod gate — no hand-cut RC/version tags, no SSH/SSM deploy machinery, no ephemeral-staging tofu dance. The `vX.Y.Z` tag becomes a *record* of what shipped (auto-created after a prod deploy), not a deploy trigger. Staging's value (UI/real-env validation) didn't justify the standing cost for a solo/trunk-based repo with a manual prod gate + fast rollback.
+**Names verified against `rs-recruiting-infra`:** cluster `rs-recruiting-prod`, services/families `rs-recruiting-prod-{web,worker}`, containers `web`/`worker` + `alloy` sidecar, log group `/ecs/rs-recruiting-prod-<suffix>`, deploy role `rs-recruiting-prod-ecs-deploy` (trusts `repo:lahavrud/rs-recruiting:*`), frontend role `rs-recruiting-prod-frontend-deploy`, ops ECR push role. Prod accounts: prod `892512306022`, ops (ECR), mgmt `510144817435`.
+**⚠️ Doc debt — NOT yet reconciled:** Sections 1 (Topology) and 3 (Resource inventory — Compute/IAM/SSM) and the Observability section still describe the **pre-migration EC2 state** (EC2 instance + EIP, `Web-SG`/`App-SG`, `rs-recruiting-prod-ec2-role`, `CURRENT_SHA`/`PREV_SHA` SSM params, Alloy-on-EC2). The ECS/ALB/Route53 resource IDs live in `rs-recruiting-infra` (now the source of truth, mid `feat/retire-legacy-prod`) and should be folded into the inventory tables in a follow-up.
 
 ### 2026-06-10 — Audit: doc vs. reality reconciliation post-#686 reorg + Grafana migration
 **Decision:** No infra changes — this is a documentation correction. Audited the prod account (`rs-prod-admin`) plus the management (`rs-admin`), security (`rs-security-admin`), and logs (`rs-logs-admin`) accounts via CLI and found the "CloudWatch — retained for compliance and alarms only" section (last touched 2026-06-05) no longer matched reality. The 9 documented alarms, the `rs-recruiting-ops` dashboard, and all 5 metric filters do not exist anywhere in the org — `describe-alarms`/`list-dashboards`/`describe-metric-filters` all return empty in the prod account. `ops-alerts` SNS and the `monthly-40` budget exist, but in the management account, not the workload account. The `rs-recruiting-app-role`/`github-actions-rs-recruiting` IAM principals were renamed to `rs-recruiting-prod-ec2-role`/`rs-recruiting-prod-github-actions` (with `rs-recruiting-prod-lambda-edge` and `rs-recruiting-prod-scheduler` added) and the `lahav-admin` IAM user is gone (Identity Center now). CloudTrail is now an org trail delivering to a bucket in the separate logs account. GuardDuty's finding frequency is 6h (not 15min). Grafana Cloud Synthetic Monitoring credentials exist in SSM under `/rs-recruiting/prod/GRAFANA_SM_*`, replacing the orphaned Route 53 health check + `rs-recruiting-uptime` alarm. Updated the topology diagram, resource inventory, IAM table, SSM table, and observability section to match.

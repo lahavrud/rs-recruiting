@@ -1,5 +1,5 @@
 from diagrams import Cluster, Diagram, Edge
-from diagrams.aws.compute import EC2, ECR, Lambda
+from diagrams.aws.compute import ECR, ECS, Lambda
 from diagrams.aws.database import RDS
 from diagrams.aws.integration import SNS, SQS
 from diagrams.aws.management import SSM, Cloudwatch
@@ -44,18 +44,18 @@ with Diagram(
 
         # Serving layer
         s3_fe = S3("S3 Frontend\nSPA bundle")
-        ec2 = EC2("EC2  t3.micro\nFastAPI · worker")
+        ecs = ECS("ECS Fargate\nweb · worker")
 
         # Data layer
         rds = RDS("RDS\nPostgreSQL 16")
         sqs = SQS("SQS\ntask queue")
-        s3_app = S3("S3\nuploads · deploy")
+        s3_app = S3("S3\nuploads")
+        ssm = SSM("SSM\nParameter Store")
 
         # CI / CD
         with Cluster("CI / CD"):
             github = GithubActions("GitHub Actions")
-            ecr = ECR("ECR")
-            ssm = SSM("SSM")
+            ecr = ECR("ECR (ops acct)")
 
         # Observability
         with Cluster("Observability"):
@@ -66,17 +66,18 @@ with Diagram(
     users >> cloudflare >> cf
     cf >> le
     cf >> Edge(label="SPA") >> s3_fe
-    cf >> Edge(label="/api /auth") >> ec2
-    ec2 >> rds
-    ec2 >> sqs
-    ec2 >> s3_app
+    cf >> Edge(label="/api /auth") >> ecs
+    ecs >> rds
+    ecs >> sqs
+    ecs >> s3_app
+    ecs >> Edge(style="dashed", label="secrets") >> ssm
 
     # ── CI / CD ───────────────────────────────────────────────
-    github >> ecr >> Edge(label="pull") >> ec2
+    github >> ecr >> Edge(label="pull") >> ecs
     github >> Edge(label="bundle") >> s3_fe
-    github >> ssm >> ec2
+    github >> Edge(label="deploy") >> ecs
 
     # ── Observability ─────────────────────────────────────────
-    ec2 >> Edge(style="dashed", color="lightgray") >> cw
+    ecs >> Edge(style="dashed", color="lightgray") >> cw
     rds >> Edge(style="dashed", color="lightgray") >> cw
     cw >> sns

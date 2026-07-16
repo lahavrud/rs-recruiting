@@ -4,7 +4,7 @@
  * the reviewer can act on — everything else (NEW, HIRED) is unreachable here.
  */
 
-export type Decision = "APPROVED_BY_ADMIN" | "REJECTED";
+export type Decision = "APPROVED_BY_ADMIN" | "REJECTED_BY_ADMIN";
 
 /**
  * Single source of truth for everything per-decision: labels, colors,
@@ -43,8 +43,8 @@ export const DECISION_META: Record<
     chip: "border border-success/40 bg-success/15 hover:bg-success/25",
     icon: "check",
   },
-  REJECTED: {
-    shortLabelKey: "admin:applications.statusLabels.REJECTED",
+  REJECTED_BY_ADMIN: {
+    shortLabelKey: "admin:applications.statusLabels.REJECTED_BY_ADMIN",
     bannerLabelKey: "admin:applications.triage.bannerRejected",
     summaryLabelKey: "admin:applications.triage.summaryRejectedLabel",
     text: "text-danger",

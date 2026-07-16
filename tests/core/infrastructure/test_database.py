@@ -4,7 +4,7 @@ import logging
 import os
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import event, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 import rs_shared.core.infrastructure.database as database_module
@@ -159,6 +159,7 @@ class TestEngineConfiguration:
         assert getattr(engine.pool, "_max_overflow") == settings.db_max_overflow
         assert getattr(engine.pool, "_recycle") == settings.db_pool_recycle
         assert getattr(engine.pool, "_pre_ping") == settings.db_pool_pre_ping
+        assert getattr(engine.pool, "_timeout") == settings.db_pool_timeout
 
     def test_pool_settings_have_sensible_defaults(self):
         """Defaults must beat SQLAlchemy's 5+10 to handle modest production load."""
@@ -169,6 +170,89 @@ class TestEngineConfiguration:
         assert defaults["db_max_overflow"].default >= 10
         assert defaults["db_pool_recycle"].default > 0
         assert defaults["db_pool_pre_ping"].default is True
+        # Fail fast, well under SQLAlchemy's 30 s default, so pool exhaustion
+        # surfaces as an alarmable error rather than a silent long stall.
+        assert 0 < defaults["db_pool_timeout"].default < 30
+
+
+class TestWarmUpPool:
+    """warm_up_pool() fills the pool up front and never crashes startup."""
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_opens_connections(self, monkeypatch, caplog):
+        """Happy path: pre-warm succeeds against a live DB and logs the count."""
+        from rs_shared.core.infrastructure.config import settings
+
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        monkeypatch.setattr(database_module, "engine", test_engine)
+        monkeypatch.setattr(settings, "db_pool_size", 3)
+
+        with caplog.at_level(logging.INFO, logger=database_module.logger.name):
+            await database_module.warm_up_pool()
+
+        assert any("pre-warmed with 3" in r.message for r in caplog.records)
+        await test_engine.dispose()
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_no_op_when_size_zero(self, monkeypatch):
+        """size <= 0 returns immediately without touching the engine."""
+        from rs_shared.core.infrastructure.config import settings
+
+        # A sentinel engine whose use would raise — proves we never connect.
+        monkeypatch.setattr(settings, "db_pool_size", 0)
+        monkeypatch.setattr(database_module, "engine", object())
+
+        await database_module.warm_up_pool()  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_warm_up_pool_swallows_connect_failure(self, monkeypatch, caplog):
+        """A DB that's unreachable at boot logs a warning, never crashes startup.
+
+        No network: a fake engine whose ``connect()`` raises stands in for an
+        unreachable DB, so the except branch runs without touching a socket.
+        """
+        from rs_shared.core.infrastructure.config import settings
+
+        class _BrokenEngine:
+            def connect(self):
+                raise ConnectionError("simulated DB unreachable at boot")
+
+        monkeypatch.setattr(database_module, "engine", _BrokenEngine())
+        monkeypatch.setattr(settings, "db_pool_size", 2)
+
+        with caplog.at_level(logging.WARNING, logger=database_module.logger.name):
+            await database_module.warm_up_pool()  # must not raise
+
+        assert any("pre-warm failed" in r.message for r in caplog.records)
+
+
+class TestTcpKeepalive:
+    """_set_tcp_keepalive must work against the real asyncpg driver.
+
+    The listener reaches into asyncpg internals, so its failure mode is an
+    AttributeError caught and logged as a WARNING on every physical connect —
+    silently leaving connections without client-side keepalives (this happened
+    in prod when the attribute path went stale). Connecting through a real
+    asyncpg engine and asserting the warning never fires is the regression
+    guard; it breaks the moment a driver bump changes the internals again.
+    """
+
+    @pytest.mark.asyncio
+    async def test_no_keepalive_warning_on_real_asyncpg_connect(self, caplog):
+        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+        event.listen(
+            test_engine.sync_engine, "connect", database_module._set_tcp_keepalive
+        )
+
+        with caplog.at_level(logging.WARNING, logger=database_module.logger.name):
+            async with test_engine.connect() as conn:
+                await conn.execute(select(1))
+
+        keepalive_warnings = [
+            r for r in caplog.records if "keepalive" in r.message.lower()
+        ]
+        assert not keepalive_warnings, keepalive_warnings[0].message
+        await test_engine.dispose()
 
 
 class TestSessionFactory:

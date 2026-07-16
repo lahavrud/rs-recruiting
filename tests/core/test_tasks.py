@@ -342,8 +342,9 @@ async def test_nightly_cleanup_continues_after_subtask_failure():
         mock_settings.environment = "test"
         result = await nightly_cleanup_task()
 
-    # Failed sub-task returns 0; succeeding sub-task returns its count.
-    assert result["purge_expired_candidates"] == 0
+    # A failed sub-task records None — distinct from 0, which means "ran and
+    # purged nothing". Succeeding sub-tasks still return their count.
+    assert result["purge_expired_candidates"] is None
     assert result["purge_unactivated_users"] == 7
 
 

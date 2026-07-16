@@ -310,7 +310,7 @@ export default function AdminApplicationsTriagePage() {
           {/* Mobile: swipe navigates. Desktop: side arrows + keyboard. No
               dedicated nav buttons in the footer — decisions get all the room. */}
           <DecisionButtons
-            onReject={() => decide("REJECTED")}
+            onReject={() => decide("REJECTED_BY_ADMIN")}
             onApprove={() => decide("APPROVED_BY_ADMIN")}
           />
         </div>

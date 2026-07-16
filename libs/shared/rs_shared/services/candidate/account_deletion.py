@@ -31,32 +31,12 @@ from rs_shared.core.tasks import enqueue_email_task
 from rs_shared.models import AccountDeletionToken, Application, CandidateProfile, User
 from rs_shared.services.exceptions import InvalidAccountDeletionTokenError
 from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
 from rs_shared.templates.email import build_account_deletion_confirmation_html
 
 logger = logging.getLogger(__name__)
 
 _TOKEN_TTL = timedelta(hours=24)
-
-
-def _scrub_candidate_pii(profile: CandidateProfile) -> None:
-    """NULL all PII fields on a CandidateProfile and set deleted_at.
-
-    Called by both the self-service and admin tombstone paths so that
-    adding a new PII field only requires a single-location change here.
-    """
-    profile.deleted_at = datetime.now(timezone.utc)
-    profile.full_name = "[מחוק]"
-    profile.email = f"deleted-{profile.id}@deleted"
-    profile.phone = None
-    profile.resume_path = None
-    profile.resume_filename = None
-    profile.resume_hash = None
-    profile.parsed_text = None
-    profile.resume_summary = None
-    profile.embedding = None
-    profile.linkedin_url = None
-    profile.consent_ip = None
-    profile.consent_user_agent = None
 
 
 _RATE_LIMIT_WINDOW = timedelta(hours=24)
@@ -127,7 +107,7 @@ async def request_account_deletion(
         session,
         actor_user_id=profile.user_id,
         action="account_deletion_requested",
-        target_type="candidateprofile",
+        target_type="CandidateProfile",
         target_id=profile.id,
         ip_address=ip_address,
     )
@@ -241,7 +221,7 @@ async def confirm_deletion(
     actor_user_id = profile.user_id
 
     # Tombstone: scrub all PII, mark the row as deleted.
-    _scrub_candidate_pii(profile)
+    scrub_candidate_pii(profile)
 
     # Hard-delete the linked User.  FK SET NULL cascade sets profile.user_id to
     # NULL automatically; FK CASCADE cleans up RefreshToken, PasswordResetToken,
@@ -256,7 +236,7 @@ async def confirm_deletion(
         session,
         actor_user_id=None,  # user row is gone at this point
         action="account_deleted",
-        target_type="candidateprofile",
+        target_type="CandidateProfile",
         target_id=profile.id,
         ip_address=ip_address,
     )

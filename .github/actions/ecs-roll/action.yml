@@ -1,0 +1,61 @@
+name: ECS roll
+description: >-
+  Roll one ECS service to a released image. Downloads the live (tofu-owned) task
+  definition, swaps ONLY the app + alloy sidecar image tags, registers the new
+  revision, updates the service, and waits for stability (ECS deployment circuit
+  breaker rolls back on a failed deploy). Terraform still owns the task-def shape
+  via ignore_changes = [task_definition]; this action owns only the image tags.
+  Assumes the caller has already configured AWS credentials for the target
+  account.
+
+inputs:
+  cluster:
+    description: "ECS cluster name, e.g. rs-recruiting-prod"
+    required: true
+  service:
+    description: "ECS service name (also its task-def family), e.g. rs-recruiting-prod-web"
+    required: true
+  container:
+    description: "App container name inside the task def (web | worker)"
+    required: true
+  app-image:
+    description: "Fully-qualified app image, e.g. <ops-ecr>/rs-recruiting/api:<sha>"
+    required: true
+  alloy-image:
+    description: "Fully-qualified Alloy sidecar image"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download live task definition
+      shell: bash
+      run: |
+        aws ecs describe-task-definition --task-definition ${{ inputs.service }} \
+          --query 'taskDefinition' --output json \
+          | jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)' \
+          > ecs-roll-task-definition.json
+
+    - name: Render app image
+      id: render-app
+      uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
+      with:
+        task-definition: ecs-roll-task-definition.json
+        container-name: ${{ inputs.container }}
+        image: ${{ inputs.app-image }}
+
+    - name: Render alloy sidecar image
+      id: render-alloy
+      uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1.8.5
+      with:
+        task-definition: ${{ steps.render-app.outputs.task-definition }}
+        container-name: alloy
+        image: ${{ inputs.alloy-image }}
+
+    - name: Deploy
+      uses: aws-actions/amazon-ecs-deploy-task-definition@a310a830f5c14e583e35d84e4e1ec7dd177c3c9c # v2.6.2
+      with:
+        task-definition: ${{ steps.render-alloy.outputs.task-definition }}
+        service: ${{ inputs.service }}
+        cluster: ${{ inputs.cluster }}
+        wait-for-service-stability: true

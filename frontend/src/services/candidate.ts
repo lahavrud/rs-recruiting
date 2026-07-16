@@ -44,9 +44,7 @@ export async function getMe(): Promise<CandidateMeRead> {
   return res.data;
 }
 
-export async function patchMe(
-  patch: CandidateMeUpdate,
-): Promise<CandidateMeRead> {
+export async function patchMe(patch: CandidateMeUpdate): Promise<CandidateMeRead> {
   const res = await api.patch<CandidateMeRead>("/api/candidate/me", patch);
   return res.data;
 }
@@ -155,17 +153,11 @@ export interface CandidateApplicationJobDetail {
   closed: boolean;
 }
 
-export interface CandidateApplicationCompany {
-  id: number;
-  name: string;
-}
-
 export interface CandidateApplicationListItem {
   id: number;
   submitted_at: string;
   editable: boolean;
   job: CandidateApplicationJobSummary;
-  company: CandidateApplicationCompany;
 }
 
 export interface CandidateApplicationMyAnswers {
@@ -185,7 +177,6 @@ export interface CandidateApplicationDetail {
   submitted_at: string;
   editable: boolean;
   job: CandidateApplicationJobDetail;
-  company: CandidateApplicationCompany;
   my_answers: CandidateApplicationMyAnswers;
   resume: CandidateApplicationResumeMeta | null;
 }
@@ -217,9 +208,7 @@ export async function getMyApplication(
   return res.data;
 }
 
-export async function fetchApplicationResumeBlob(
-  applicationId: number,
-): Promise<Blob> {
+export async function fetchApplicationResumeBlob(applicationId: number): Promise<Blob> {
   const res = await api.get<Blob>(
     `/api/candidate/me/applications/${applicationId}/resume`,
     { responseType: "blob" },

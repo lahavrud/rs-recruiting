@@ -126,6 +126,15 @@ export default function ApplicationPage() {
 
     if (target === 1) {
       for (const name of STEP_1_FIELDS) {
+        // A logged-in candidate's email is read-only here and the backend
+        // overrides the form value with their session email, so never gate the
+        // wizard on it — local form state can be momentarily empty (the email
+        // resolves async), which would trap the user behind a field they can't
+        // edit.
+        if (name === "email" && isLoggedInCandidate) {
+          delete errors.email;
+          continue;
+        }
         const err = validateField(t, name, form[name] ?? "");
         if (err) {
           errors[name] = err;
@@ -243,7 +252,7 @@ export default function ApplicationPage() {
     setForm((prev) => ({
       ...prev,
       full_name: candidateMe!.full_name || prev.full_name,
-      email: candidateMe!.email,
+      email: candidateMe!.email || prev.email,
       phone: candidateMe!.phone ?? prev.phone,
       linkedin_url: candidateMe!.linkedin_url ?? prev.linkedin_url,
     }));
@@ -251,6 +260,19 @@ export default function ApplicationPage() {
       setSavedResumeFilename(candidateMe!.resume_path.split("/").pop() ?? "resume");
     }
     setIsProfilePrefilled(true);
+  });
+
+  // A logged-in candidate's email is owned by their session (read-only in the
+  // form, authoritative on the backend). Mirror it into form state as soon as
+  // it resolves so the field never renders empty: when the page mounts with an
+  // expired access token, `user` — and its email — only becomes available after
+  // the refresh probe, which is after `form`'s initial state was seeded.
+  useResetOnTrigger(loggedInCandidateEmail, () => {
+    setForm((prev) =>
+      prev.email === loggedInCandidateEmail
+        ? prev
+        : { ...prev, email: loggedInCandidateEmail! },
+    );
   });
 
   useEffect(() => {

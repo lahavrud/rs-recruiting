@@ -27,10 +27,22 @@ function initialState<T>(): State<T> {
  * 404`) to pick a Hebrew error message — this hook only owns the
  * loading/unmount bookkeeping, not error-message mapping.
  *
+ * Pass `enabled=false` to skip the fetch entirely (e.g. a component that
+ * renders for every role but may only call an endpoint for some of them); the
+ * result stays idle (`data: null, loading: false`) until it flips true.
+ *
  * Not for paginated/list fetching — use `useInfiniteList` for that.
  */
-export function useFetch<T>(fn: () => Promise<T>, deps: unknown[]): UseFetchResult<T> {
-  const [state, setState] = useState<State<T>>(initialState);
+export function useFetch<T>(
+  fn: () => Promise<T>,
+  deps: unknown[],
+  enabled = true,
+): UseFetchResult<T> {
+  const [state, setState] = useState<State<T>>(() => ({
+    data: null,
+    loading: enabled,
+    error: null,
+  }));
   const fnRef = useRef(fn);
 
   useEffect(() => {
@@ -38,8 +50,12 @@ export function useFetch<T>(fn: () => Promise<T>, deps: unknown[]): UseFetchResu
   }, [fn]);
 
   useEffect(() => {
+    if (!enabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setState({ data: null, loading: false, error: null });
+      return;
+    }
     let alive = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(initialState<T>());
     (async () => {
       try {
@@ -53,7 +69,7 @@ export function useFetch<T>(fn: () => Promise<T>, deps: unknown[]): UseFetchResu
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [...deps, enabled]);
 
   return state;
 }

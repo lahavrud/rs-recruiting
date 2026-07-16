@@ -31,12 +31,12 @@ from rs_shared.services.admin._candidates_purge import (
 from rs_shared.services.admin._candidates_purge import (
     purge_expired_candidates as purge_expired_candidates,
 )
-from rs_shared.services.candidate.account_deletion import _scrub_candidate_pii
 from rs_shared.services.exceptions import (
     CandidateAlreadyDeletedError,
     CandidateNotFoundError,
 )
 from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
 
 _logger = logging.getLogger(__name__)
 
@@ -360,7 +360,7 @@ async def admin_tombstone_candidate(
     4. Scrubs all PII fields on ``CandidateProfile``; sets ``deleted_at``.
     5. Hard-deletes the linked ``User`` row if one exists (FK CASCADE sweeps
        sessions/tokens; FK SET NULL clears ``CandidateProfile.user_id``).
-    6. Writes an ``admin_deleted_candidate`` audit event.
+    6. Writes a ``candidate.delete`` audit event.
 
     Unlike the self-service flow, no email confirmation is sent.
 
@@ -402,7 +402,7 @@ async def admin_tombstone_candidate(
     linked_user_id = candidate.user_id
 
     # Tombstone: scrub all PII, mark deleted.
-    _scrub_candidate_pii(candidate)
+    scrub_candidate_pii(candidate)
 
     # Hard-delete linked User.  FK SET NULL cascade updates profile.user_id;
     # FK CASCADE cleans up RefreshToken, PasswordResetToken, etc.
@@ -415,8 +415,8 @@ async def admin_tombstone_candidate(
     await record_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="admin_deleted_candidate",
-        target_type="candidateprofile",
+        action="candidate.delete",
+        target_type="CandidateProfile",
         target_id=candidate_id,
         ip_address=ip_address,
     )

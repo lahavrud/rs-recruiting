@@ -31,7 +31,7 @@ export default function ApplicationStatusDialog({
 }: StatusDialogProps) {
   const { t } = useTranslation(["admin", "common"]);
   const [newStatus, setNewStatus] = useState<string>(
-    app?.status ?? ApplicationStatus.NEW,
+    app?.status ?? ApplicationStatus.PENDING_ADMIN_REVIEW,
   );
   const [notes, setNotes] = useState<string>(app?.admin_notes ?? "");
   const [isSaving, setIsSaving] = useState(false);

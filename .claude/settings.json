@@ -1,12 +1,53 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx -y sigmap >/dev/null 2>&1 || true",
+            "async": true,
+            "timeout": 120,
+            "statusMessage": "Refreshing sigmap index"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/prune_worktrees.sh",
+            "async": true,
+            "timeout": 60,
+            "statusMessage": "Pruning stale agent worktrees"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -c \"import json,sys; d=json.load(sys.stdin); cmd=d.get('command',''); exit(2) if 'alembic upgrade' in cmd and '--sql' not in cmd else exit(0)\""
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pre_bash_guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/inject_rules.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format_on_edit.sh",
+            "timeout": 60
           }
         ]
       }
@@ -46,15 +87,31 @@
       "Bash(aws iam get-account-summary *)",
       "Bash(aws iam list-mfa-devices *)",
       "Bash(uv run ruff check .)",
+      "Bash(uv run ruff format --check .)",
+      "Bash(uv run pytest)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run lint-imports)",
+      "Bash(make check)",
+      "Bash(npx eslint *)",
       "Bash(npm run lint *)",
       "Bash(uv run alembic current *)",
       "Bash(uv run alembic heads *)",
+      "Bash(aws configure list-profiles)",
+      "Bash(aws s3 ls *)",
+      "Bash(aws ecs describe-*)",
+      "Bash(aws ecr list-images *)",
       "Bash(aws sts get-caller-identity *)",
       "Bash(aws organizations list-*)",
       "Bash(aws organizations describe-*)",
       "Bash(aws ce get-cost-and-usage *)",
       "Bash(aws rds describe-db-snapshots *)",
       "Bash(aws sso-admin list-*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
     ]
   }
 }
