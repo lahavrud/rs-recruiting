@@ -15,17 +15,16 @@ from rs_shared.core.services import email_outbox
 from rs_shared.core.tasks import send_outbox_email_task, sweep_email_outbox_task
 from rs_shared.enums import EmailStatus
 from rs_shared.models import EmailOutbox
-from tests.conftest import TestSessionLocal
 
 
 @pytest.fixture
-def outbox_db():
+def outbox_db(session_local_factory):
     """Point the task's own async_session at the test database.
 
     send_outbox_email_task opens its own sessions (it runs in the worker, not a
     request), so the test DB has to be injected at that seam.
     """
-    with patch("rs_shared.core.tasks.async_session", TestSessionLocal):
+    with patch("rs_shared.core.tasks.async_session", session_local_factory):
         yield
 
 

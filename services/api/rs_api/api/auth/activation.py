@@ -1,7 +1,5 @@
 """Account activation endpoint (company + candidate)."""
 
-import logging
-
 from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +15,6 @@ from rs_shared.services.auth.activation import activate_user
 from rs_shared.services.exceptions import InvalidActivationTokenError
 from rs_shared.templates.email import build_candidate_welcome_html
 
-logger = logging.getLogger(__name__)
 limiter = get_limiter()
 router = APIRouter(prefix="/auth", tags=["auth"])
 

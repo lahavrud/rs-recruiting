@@ -48,7 +48,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("dedup_key"),
     )
-    op.create_index("ix_email_outbox_status", "email_outbox", ["status"])
+    # Serves both the sweeper's (status, created_at) scan and any status-only
+    # lookup via its leftmost prefix — no separate index on status alone.
     op.create_index(
         "ix_email_outbox_status_created_at", "email_outbox", ["status", "created_at"]
     )
@@ -56,5 +57,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_email_outbox_status_created_at", table_name="email_outbox")
-    op.drop_index("ix_email_outbox_status", table_name="email_outbox")
     op.drop_table("email_outbox")

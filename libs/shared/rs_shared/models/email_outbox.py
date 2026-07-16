@@ -35,7 +35,10 @@ class EmailOutbox(SQLModel, table=True):
     __tablename__ = "email_outbox"
     __table_args__ = (
         # The sweeper's access path: rows stuck PENDING (SQS nudge never
-        # landed) or SENDING (crashed mid-send) past a threshold.
+        # landed) or SENDING (crashed mid-send) past a threshold. This is the
+        # only index on status — a status-only lookup rides its leftmost
+        # prefix, so a separate single-column index would just add write cost
+        # on a table that takes 2 UPDATEs per email.
         Index("ix_email_outbox_status_created_at", "status", "created_at"),
     )
 
@@ -68,7 +71,7 @@ class EmailOutbox(SQLModel, table=True):
     status: EmailStatus = Field(
         default=EmailStatus.PENDING,
         sa_column=Column(
-            Text, nullable=False, server_default=EmailStatus.PENDING.value, index=True
+            Text, nullable=False, server_default=EmailStatus.PENDING.value
         ),
     )
     attempts: int = Field(
