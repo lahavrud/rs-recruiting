@@ -9,7 +9,7 @@ import Eyebrow from "@/components/ui/Eyebrow";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useToast } from "@/hooks/useToast";
 import { deleteCandidate, getCandidate } from "@/services/adminCandidates";
-import type { CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead } from "@/types/candidates";
 
 import CandidateActivityPanel from "./CandidateActivityPanel";
 import CandidateApplicationsPanel from "./CandidateApplicationsPanel";
@@ -18,13 +18,13 @@ import CandidateMatchesPanel from "./CandidateMatchesPanel";
 
 interface Props {
   candidateId: number | null;
-  candidate?: CandidateProfileRead;
+  candidate?: CandidateAdminRead;
   onDeleted: (id: number) => void;
 }
 
 /** Right-hand record pane: identity header with primary actions. Composes the shared `RecordPane` shell. */
 export default function CandidateRecordPane({ candidateId, candidate, onDeleted }: Props) {
-  const { t } = useTranslation(['admin', 'common']);
+  const { t } = useTranslation(["admin", "common"]);
   const navigate = useNavigate();
   const toast = useToast();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -62,7 +62,14 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
         <>
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 flex-1 items-start gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-copper/10 text-lg font-semibold text-copper @sm:size-14 @sm:text-xl">
+              <div
+                className={[
+                  "flex size-12 shrink-0 items-center justify-center rounded-full text-lg font-semibold @sm:size-14 @sm:text-xl",
+                  c.is_deleted
+                    ? "bg-white/5 text-white/30"
+                    : "bg-copper/10 text-copper",
+                ].join(" ")}
+              >
                 {c.full_name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -71,11 +78,29 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
                   <h2 className="text-xl font-semibold text-white/95 @sm:text-2xl @lg:text-3xl">
                     {c.full_name}
                   </h2>
-                  <StatusBadge
-                    label={c.is_registered ? t("admin:candidates.statusRegistered") : t("admin:candidates.statusLead")}
-                    colorCls={c.is_registered ? "bg-success/10 text-success" : "bg-white/8 text-white/45"}
-                  />
+                  {c.is_deleted ? (
+                    <StatusBadge
+                      label={t("admin:candidates.statusDeleted")}
+                      colorCls="bg-danger/10 text-danger/70"
+                    />
+                  ) : c.has_account ? (
+                    <StatusBadge
+                      label={t("admin:candidates.statusAccount")}
+                      colorCls="bg-success/10 text-success"
+                    />
+                  ) : (
+                    <StatusBadge
+                      label={t("admin:candidates.statusLead")}
+                      colorCls="bg-white/8 text-white/45"
+                    />
+                  )}
                 </div>
+                {c.has_account && c.user_email && !c.is_deleted && (
+                  <p className="mt-1 text-xs text-white/40">
+                    <span className="text-white/25">{t("admin:candidates.userEmailLabel")}:</span>{" "}
+                    {c.user_email}
+                  </p>
+                )}
                 {c.resume_summary && (
                   <p className="mt-1.5 text-sm leading-relaxed text-white/50">
                     {c.resume_summary}
@@ -87,17 +112,19 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
               </div>
             </div>
 
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteOpen(true)}
-                aria-label={t("admin:candidates.deleteAction")}
-                title={t("admin:candidates.deleteAction")}
-                className="group inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-danger/30 text-danger/70 transition hover:border-danger/50 hover:bg-danger/10 hover:text-danger"
-              >
-                <TrashIcon className="size-4" />
-              </button>
-            </div>
+            {!c.is_deleted && (
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteOpen(true)}
+                  aria-label={t("admin:candidates.deleteAction")}
+                  title={t("admin:candidates.deleteAction")}
+                  className="group inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-danger/30 text-danger/70 transition hover:border-danger/50 hover:bg-danger/10 hover:text-danger"
+                >
+                  <TrashIcon className="size-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="mt-6 border-t border-white/8 pt-6">

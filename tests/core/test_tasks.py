@@ -13,7 +13,7 @@ from rs_shared.core.tasks import (
     enqueue_data_export_task,
     enqueue_email_task,
     match_candidate_task,
-    purge_expired_candidate_data_task,
+    nightly_cleanup_task,
     send_email_task,
 )
 from rs_shared.enums import JobStatus
@@ -200,19 +200,41 @@ async def test_enqueue_data_export_task_sends_to_sqs():
 def test_task_registry_contains_expected_tasks():
     assert "send_email" in TASK_REGISTRY
     assert "build_data_export" in TASK_REGISTRY
+    # Still registered under the old key for EventBridge backward compat.
     assert "purge_expired_candidates" in TASK_REGISTRY
+    assert TASK_REGISTRY["purge_expired_candidates"] is nightly_cleanup_task
 
 
 # ---------------------------------------------------------------------------
-# purge_expired_candidate_data_task — OTel observability
+# nightly_cleanup_task — OTel observability + dispatcher behaviour
 # ---------------------------------------------------------------------------
 
 
-def _patch_purge_returning(count: int):
-    return patch(
-        "rs_shared.services.admin.candidates.purge_expired_candidates",
-        new=AsyncMock(return_value=count),
-    )
+def _patch_all_subtasks_returning(counts: dict[str, int]):
+    """Patch all five sub-task coroutines to return the given counts."""
+    base = "rs_shared.services.admin"
+    return [
+        patch(
+            f"{base}._candidates_purge.purge_expired_candidates",
+            new=AsyncMock(return_value=counts.get("purge_expired_candidates", 0)),
+        ),
+        patch(
+            f"{base}.maintenance.purge_unactivated_candidate_users",
+            new=AsyncMock(return_value=counts.get("purge_unactivated_users", 0)),
+        ),
+        patch(
+            f"{base}.maintenance.purge_expired_data_export_zips",
+            new=AsyncMock(return_value=counts.get("purge_export_zips", 0)),
+        ),
+        patch(
+            f"{base}.maintenance.purge_expired_account_deletion_tokens",
+            new=AsyncMock(return_value=counts.get("purge_deletion_tokens", 0)),
+        ),
+        patch(
+            f"{base}.maintenance.purge_expired_activation_tokens",
+            new=AsyncMock(return_value=counts.get("purge_activation_tokens", 0)),
+        ),
+    ]
 
 
 def _patch_session_noop():
@@ -231,64 +253,99 @@ def _patch_session_noop():
 
 
 @pytest.mark.asyncio
-async def test_purge_task_records_otel_metrics():
-    counter = MagicMock()
+async def test_nightly_cleanup_records_otel_metrics():
+    purged_counter = MagicMock()
+    unactivated_counter = MagicMock()
+    export_counter = MagicMock()
+    deletion_counter = MagicMock()
+    activation_counter = MagicMock()
     gauge = MagicMock()
+
+    counts = {
+        "purge_expired_candidates": 3,
+        "purge_unactivated_users": 2,
+        "purge_export_zips": 5,
+        "purge_deletion_tokens": 1,
+        "purge_activation_tokens": 4,
+    }
     s_patch, t_patch = _patch_session_noop()
+    p0, p1, p2, p3, p4 = _patch_all_subtasks_returning(counts)
     with (
-        _patch_purge_returning(7),
+        p0,
+        p1,
+        p2,
+        p3,
+        p4,
         s_patch,
         t_patch,
-        patch("rs_shared.core.tasks._purged_counter", counter),
+        patch("rs_shared.core.tasks._purged_counter", purged_counter),
+        patch("rs_shared.core.tasks._unactivated_users_counter", unactivated_counter),
+        patch("rs_shared.core.tasks._export_zips_counter", export_counter),
+        patch("rs_shared.core.tasks._deletion_tokens_counter", deletion_counter),
+        patch("rs_shared.core.tasks._activation_tokens_counter", activation_counter),
         patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
         patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
-        mock_settings.environment = "prod"
-        result = await purge_expired_candidate_data_task()
+        mock_settings.environment = "production"
+        result = await nightly_cleanup_task()
 
-    assert result == 7
-    counter.add.assert_called_once_with(7, {"environment": "prod"})
-    gauge.set.assert_called_once()
-    _, attrs = gauge.set.call_args[0]
-    assert attrs == {"environment": "prod"}
-
-
-@pytest.mark.asyncio
-async def test_purge_task_records_zero_count():
-    counter = MagicMock()
-    gauge = MagicMock()
-    s_patch, t_patch = _patch_session_noop()
-    with (
-        _patch_purge_returning(0),
-        s_patch,
-        t_patch,
-        patch("rs_shared.core.tasks._purged_counter", counter),
-        patch("rs_shared.core.tasks._last_purge_ran_gauge", gauge),
-        patch("rs_shared.core.tasks.settings") as mock_settings,
-    ):
-        mock_settings.environment = "prod"
-        result = await purge_expired_candidate_data_task()
-
-    assert result == 0
-    counter.add.assert_called_once_with(0, {"environment": "prod"})
+    attrs = {"environment": "production"}
+    assert result["purge_expired_candidates"] == 3
+    assert result["purge_unactivated_users"] == 2
+    purged_counter.add.assert_called_once_with(3, attrs)
+    unactivated_counter.add.assert_called_once_with(2, attrs)
+    export_counter.add.assert_called_once_with(5, attrs)
+    deletion_counter.add.assert_called_once_with(1, attrs)
+    activation_counter.add.assert_called_once_with(4, attrs)
     gauge.set.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_purge_task_returns_count_in_all_environments():
+async def test_nightly_cleanup_continues_after_subtask_failure():
+    """A failing sub-task is logged and skipped; others still run."""
     s_patch, t_patch = _patch_session_noop()
+
+    failing = AsyncMock(side_effect=RuntimeError("DB error"))
+    succeeding = AsyncMock(return_value=7)
+
     with (
-        _patch_purge_returning(3),
+        patch(
+            "rs_shared.services.admin._candidates_purge.purge_expired_candidates",
+            new=failing,
+        ),
+        patch(
+            "rs_shared.services.admin.maintenance.purge_unactivated_candidate_users",
+            new=succeeding,
+        ),
+        patch(
+            "rs_shared.services.admin.maintenance.purge_expired_data_export_zips",
+            new=AsyncMock(return_value=0),
+        ),
+        patch(
+            "rs_shared.services.admin.maintenance.purge_expired_account_deletion_tokens",
+            new=AsyncMock(return_value=0),
+        ),
+        patch(
+            "rs_shared.services.admin.maintenance.purge_expired_activation_tokens",
+            new=AsyncMock(return_value=0),
+        ),
         s_patch,
         t_patch,
         patch("rs_shared.core.tasks._purged_counter"),
+        patch("rs_shared.core.tasks._unactivated_users_counter"),
+        patch("rs_shared.core.tasks._export_zips_counter"),
+        patch("rs_shared.core.tasks._deletion_tokens_counter"),
+        patch("rs_shared.core.tasks._activation_tokens_counter"),
         patch("rs_shared.core.tasks._last_purge_ran_gauge"),
         patch("rs_shared.core.tasks.settings") as mock_settings,
     ):
-        mock_settings.environment = "dev"
-        result = await purge_expired_candidate_data_task()
+        mock_settings.environment = "test"
+        result = await nightly_cleanup_task()
 
-    assert result == 3
+    # A failed sub-task records None — distinct from 0, which means "ran and
+    # purged nothing". Succeeding sub-tasks still return their count.
+    assert result["purge_expired_candidates"] is None
+    assert result["purge_unactivated_users"] == 7
 
 
 # ---------------------------------------------------------------------------

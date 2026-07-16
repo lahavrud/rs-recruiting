@@ -8,11 +8,36 @@ validation, upload, dup detection, email side effects) stays in the public/
 candidate services.
 """
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.models import CandidateProfile
 from rs_shared.schemas import CandidateProfileCreate
+
+
+def scrub_candidate_pii(profile: CandidateProfile) -> None:
+    """NULL all PII fields on a CandidateProfile and set deleted_at.
+
+    Called by both the self-service (``candidate``) and admin-tombstone
+    (``admin``) deletion paths, so that adding a new PII field only requires
+    a single-location change here. Lives in the kernel so neither domain has
+    to import the other to reach it (see the ``independence`` contract).
+    """
+    profile.deleted_at = datetime.now(timezone.utc)
+    profile.full_name = "[מחוק]"
+    profile.email = f"deleted-{profile.id}@deleted"
+    profile.phone = None
+    profile.resume_path = None
+    profile.resume_filename = None
+    profile.resume_hash = None
+    profile.parsed_text = None
+    profile.resume_summary = None
+    profile.embedding = None
+    profile.linkedin_url = None
+    profile.consent_ip = None
+    profile.consent_user_agent = None
 
 
 async def find_candidate_by_email(

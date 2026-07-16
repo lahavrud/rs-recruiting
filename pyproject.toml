@@ -125,7 +125,8 @@ modules = [
 #   - templates.email reads one password-reset TTL constant to render the email.
 ignore_imports = [
     "rs_shared.core.tasks -> rs_shared.services.candidate.data_export",
-    "rs_shared.core.tasks -> rs_shared.services.admin.candidates",
+    "rs_shared.core.tasks -> rs_shared.services.admin._candidates_purge",
+    "rs_shared.core.tasks -> rs_shared.services.admin.maintenance",
     "rs_shared.templates.email -> rs_shared.services.auth.password_reset",
 ]
 

@@ -9,6 +9,7 @@ import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";
 import { getMe, type CandidateMeRead } from "@/services/candidate";
 import { errorAlertClsLg } from "@/styles/forms";
 
+import AccountDeletionSection from "./components/AccountDeletionSection";
 import ApplyAutofillSection from "./components/ApplyAutofillSection";
 import DataExportSection from "./components/DataExportSection";
 import IdentitySection from "./components/IdentitySection";
@@ -122,6 +123,7 @@ export default function CandidateProfilePage() {
             <div className="grid gap-3 pt-3 grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <SecuritySection />
               <DataExportSection />
+              <AccountDeletionSection />
             </div>
             <div className="mt-3">
               <SessionsSection />

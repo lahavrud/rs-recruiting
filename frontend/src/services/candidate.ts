@@ -78,6 +78,36 @@ export async function requestDataExport(): Promise<void> {
 }
 
 /* -------------------------------------------------------------------------
+ * Account deletion (#611) — two-step GDPR self-service flow
+ * ----------------------------------------------------------------------- */
+
+/** Authenticated request: initiates deletion for the logged-in candidate. */
+export async function requestAccountDeletion(): Promise<void> {
+  await api.post("/api/candidate/me/deletion-request");
+}
+
+/** Anonymous request by email — used if the candidate no longer has access to their account. */
+export async function requestAccountDeletionByEmail(email: string): Promise<void> {
+  await api.post("/api/candidate/deletion-request", { email });
+}
+
+export interface DeletionTokenCheck {
+  valid: boolean;
+  email?: string;
+}
+
+export async function checkDeletionToken(token: string): Promise<DeletionTokenCheck> {
+  const res = await api.get<DeletionTokenCheck>("/api/candidate/deletion-confirm", {
+    params: { token },
+  });
+  return res.data;
+}
+
+export async function confirmAccountDeletion(token: string): Promise<void> {
+  await api.post("/api/candidate/deletion-confirm", { token });
+}
+
+/* -------------------------------------------------------------------------
  * Session listing and revocation (#645)
  * ----------------------------------------------------------------------- */
 

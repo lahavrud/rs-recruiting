@@ -144,8 +144,10 @@ export interface paths {
          * Get Candidates
          * @description List candidate profiles, sorted by `sort`/`order`, cursor-paginated.
          *
-         *     `q`, when given, filters by name/email/phone (case-insensitive substring).
+         *     `q` filters by name/email/phone (case-insensitive substring).
          *     `sort=score` ranks candidates by cosine similarity to `job_id`'s embedding.
+         *     `has_account` filters by account presence (`user_id NOT NULL`).
+         *     `include_deleted` (default false) controls whether tombstoned rows appear.
          */
         get: operations["get_candidates_api_admin_candidates_get"];
         put?: never;
@@ -172,7 +174,9 @@ export interface paths {
         post?: never;
         /**
          * Delete Candidate Endpoint
-         * @description Hard-delete a candidate and cascade through their applications.
+         * @description Tombstone a candidate: scrub PII, delete linked User, preserve applications.
+         *
+         *     Returns 409 if the candidate is already tombstoned.
          */
         delete: operations["delete_candidate_endpoint_api_admin_candidates__candidate_id__delete"];
         options?: never;
@@ -779,6 +783,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/candidate/deletion-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Validate Deletion Token
+         * @description Validate an account deletion token without consuming it.
+         *
+         *     200 if the token is valid; 400 if invalid / expired / already used.
+         */
+        get: operations["validate_deletion_token_api_candidate_deletion_confirm_get"];
+        put?: never;
+        /**
+         * Confirm Deletion Endpoint
+         * @description Execute the account deletion identified by the token.
+         *
+         *     Atomically tombstones the candidate profile, scrubs application resume
+         *     snapshots, and deletes the linked user account.  204 on success; 400 if
+         *     the token is invalid / expired / already used.
+         */
+        post: operations["confirm_deletion_endpoint_api_candidate_deletion_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/candidate/deletion-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Deletion Anonymous
+         * @description Initiate account deletion by email (anonymous path).
+         *
+         *     For candidates who applied via the public form without registering.
+         *     Always 202 regardless of whether the email matches a profile.
+         */
+        post: operations["request_deletion_anonymous_api_candidate_deletion_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/candidate/me": {
         parameters: {
             query?: never;
@@ -892,6 +949,28 @@ export interface paths {
          * @description Withdraw the application — only allowed when ``status == NEW``.
          */
         post: operations["withdraw_application_api_candidate_me_applications__application_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/candidate/me/deletion-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Deletion Authenticated
+         * @description Initiate account deletion for the authenticated candidate.
+         *
+         *     Sends a confirmation email with a 24-hour link. Always 202.
+         */
+        post: operations["request_deletion_authenticated_api_candidate_me_deletion_request_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1923,6 +2002,57 @@ export interface components {
             target_type: string;
         };
         /**
+         * CandidateAdminRead
+         * @description Admin-only candidate profile read.
+         *
+         *     Superset of ``CandidateProfileRead``: adds tombstone state, account-link
+         *     status, and linked-user metadata for the admin candidates page.
+         *     All fields are populated explicitly by the service layer (not via
+         *     ``from_attributes``), since ``user_email`` / ``user_is_active`` come from
+         *     the related ``User`` row rather than directly from ``CandidateProfile``.
+         */
+        CandidateAdminRead: {
+            /** Ai Score */
+            ai_score?: number | null;
+            /** Consent Given At */
+            consent_given_at: string | null;
+            /** Consent Policy Version */
+            consent_policy_version: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at?: string | null;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Has Account */
+            has_account: boolean;
+            /** Id */
+            id: number;
+            /** Is Deleted */
+            is_deleted: boolean;
+            /** Linkedin Url */
+            linkedin_url: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Resume Path */
+            resume_path: string | null;
+            /** Resume Summary */
+            resume_summary?: string | null;
+            /** Tos Accepted At */
+            tos_accepted_at: string | null;
+            /** Tos Version */
+            tos_version: string | null;
+            /** User Email */
+            user_email?: string | null;
+            /** User Is Active */
+            user_is_active?: boolean | null;
+        };
+        /**
          * CandidateApplicationDetail
          * @description Response for ``GET /api/candidate/me/applications/:id``.
          *
@@ -2391,17 +2521,17 @@ export interface components {
             /** Next Cursor */
             next_cursor?: string | null;
         };
+        /** CursorPage[CandidateAdminRead] */
+        CursorPage_CandidateAdminRead_: {
+            /** Items */
+            items: components["schemas"]["CandidateAdminRead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** CursorPage[CandidateApplicationListItem] */
         CursorPage_CandidateApplicationListItem_: {
             /** Items */
             items: components["schemas"]["CandidateApplicationListItem"][];
-            /** Next Cursor */
-            next_cursor?: string | null;
-        };
-        /** CursorPage[CandidateProfileRead] */
-        CursorPage_CandidateProfileRead_: {
-            /** Items */
-            items: components["schemas"]["CandidateProfileRead"][];
             /** Next Cursor */
             next_cursor?: string | null;
         };
@@ -2934,6 +3064,19 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** _DeletionConfirmBody */
+        _DeletionConfirmBody: {
+            /** Token */
+            token: string;
+        };
+        /** _DeletionRequestBody */
+        _DeletionRequestBody: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -3192,6 +3335,8 @@ export interface operations {
                 sort?: "name" | "created_at" | "score";
                 order?: "asc" | "desc";
                 job_id?: number | null;
+                has_account?: boolean | null;
+                include_deleted?: boolean;
             };
             header?: never;
             path?: never;
@@ -3205,7 +3350,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CursorPage_CandidateProfileRead_"];
+                    "application/json": components["schemas"]["CursorPage_CandidateAdminRead_"];
                 };
             };
             /** @description Validation Error */
@@ -3236,7 +3381,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CandidateProfileRead"];
+                    "application/json": components["schemas"]["CandidateAdminRead"];
                 };
             };
             /** @description Validation Error */
@@ -4347,6 +4492,105 @@ export interface operations {
             };
         };
     };
+    validate_deletion_token_api_candidate_deletion_confirm_get: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_deletion_endpoint_api_candidate_deletion_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["_DeletionConfirmBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_deletion_anonymous_api_candidate_deletion_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["_DeletionRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_me_api_candidate_me_get: {
         parameters: {
             query?: never;
@@ -4556,6 +4800,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_deletion_authenticated_api_candidate_me_deletion_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

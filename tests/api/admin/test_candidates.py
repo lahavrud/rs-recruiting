@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.models import AuditLog, CandidateProfile
+from rs_shared.models import AuditLog, CandidateProfile, User
 
 
 @pytest.mark.asyncio
@@ -277,15 +277,17 @@ async def test_delete_candidate_succeeds(
     )
     assert response.status_code == 204
 
+    # Profile is tombstoned — still exists, not 404.
     follow_up = await admin_client.get(f"/api/admin/candidates/{candidate_profile.id}")
-    assert follow_up.status_code == 404
+    assert follow_up.status_code == 200
+    assert follow_up.json()["is_deleted"] is True
 
 
 @pytest.mark.asyncio
 async def test_delete_candidate_removes_resume_from_storage(
     admin_client: AsyncClient, session: AsyncSession
 ):
-    """Deleting a candidate via the API triggers storage cleanup for their resume."""
+    """Tombstoning a candidate via the API triggers storage cleanup for their resume."""
     candidate = CandidateProfile(
         full_name="Resume Owner",
         email="resowner@test.com",
@@ -296,9 +298,7 @@ async def test_delete_candidate_removes_resume_from_storage(
     await session.commit()
     await session.refresh(candidate)
 
-    with patch(
-        "rs_shared.services.admin.candidates.get_storage_provider"
-    ) as storage_factory:
+    with patch("rs_api.api.admin.candidates.get_storage_provider") as storage_factory:
         delete_mock = AsyncMock(return_value=True)
         storage_factory.return_value.delete_file = delete_mock
 
@@ -306,6 +306,125 @@ async def test_delete_candidate_removes_resume_from_storage(
 
     assert response.status_code == 204
     delete_mock.assert_awaited_once_with("resumes/abc-uuid.pdf")
+
+
+@pytest.mark.asyncio
+async def test_delete_candidate_already_deleted_returns_409(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """Second DELETE on an already-tombstoned candidate returns 409."""
+    from datetime import datetime, timezone
+
+    candidate = CandidateProfile(
+        full_name="[מחוק]",
+        email="already-gone@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add(candidate)
+    await session.commit()
+    await session.refresh(candidate)
+
+    response = await admin_client.delete(f"/api/admin/candidates/{candidate.id}")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "candidate_already_deleted"
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_response_includes_admin_fields(
+    admin_client: AsyncClient, candidate_profile: CandidateProfile
+):
+    """Response items include the derived admin fields."""
+    response = await admin_client.get("/api/admin/candidates")
+    assert response.status_code == 200
+    item = response.json()["items"][0]
+    assert "has_account" in item
+    assert "is_deleted" in item
+    assert "user_email" in item
+    assert "user_is_active" in item
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_excludes_deleted_by_default(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """Tombstoned profiles are hidden unless ``include_deleted=true``."""
+    from datetime import datetime, timezone
+
+    tombstone = CandidateProfile(
+        full_name="[מחוק]",
+        email="tombstone@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add(tombstone)
+    await session.commit()
+
+    response = await admin_client.get("/api/admin/candidates")
+    assert response.status_code == 200
+    emails = [item["email"] for item in response.json()["items"]]
+    assert "tombstone@deleted" not in emails
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_include_deleted(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """``include_deleted=true`` surfaces tombstoned profiles."""
+    from datetime import datetime, timezone
+
+    tombstone = CandidateProfile(
+        full_name="[מחוק]",
+        email="shown-deleted@deleted",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    session.add(tombstone)
+    await session.commit()
+
+    response = await admin_client.get(
+        "/api/admin/candidates", params={"include_deleted": "true"}
+    )
+    assert response.status_code == 200
+    emails = [item["email"] for item in response.json()["items"]]
+    assert "shown-deleted@deleted" in emails
+
+
+@pytest.mark.asyncio
+async def test_list_candidates_has_account_filter(
+    admin_client: AsyncClient, session: AsyncSession
+):
+    """``has_account=false`` returns only anonymous leads."""
+    from rs_shared.core.infrastructure.security import get_password_hash
+    from rs_shared.enums import UserRole
+
+    user = User(
+        email="linked@test.com",
+        hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    linked = CandidateProfile(
+        user_id=user.id, full_name="Linked", email="linked@test.com"
+    )
+    anon = CandidateProfile(full_name="Anon", email="anon@test.com")
+    session.add_all([linked, anon])
+    await session.commit()
+
+    anon_resp = await admin_client.get(
+        "/api/admin/candidates", params={"has_account": "false"}
+    )
+    assert anon_resp.status_code == 200
+    anon_emails = [item["email"] for item in anon_resp.json()["items"]]
+    assert "anon@test.com" in anon_emails
+    assert "linked@test.com" not in anon_emails
+
+    linked_resp = await admin_client.get(
+        "/api/admin/candidates", params={"has_account": "true"}
+    )
+    assert linked_resp.status_code == 200
+    linked_emails = [item["email"] for item in linked_resp.json()["items"]]
+    assert "linked@test.com" in linked_emails
+    assert "anon@test.com" not in linked_emails
 
 
 @pytest.mark.asyncio

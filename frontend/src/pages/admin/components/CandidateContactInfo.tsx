@@ -1,14 +1,14 @@
 import { useTranslation } from "react-i18next";
 
 import ResumeButton from "@/components/ui/ResumeViewer";
-import type { CandidateProfileRead } from "@/types/candidates";
+import type { CandidateAdminRead } from "@/types/candidates";
 import { sanitizeLinkedInUrl } from "@/utils/validators";
 
 /** Contact/identity row: email, phone, LinkedIn, resume. */
 export default function CandidateContactInfo({
   candidate: c,
 }: {
-  candidate: CandidateProfileRead;
+  candidate: Pick<CandidateAdminRead, "email" | "full_name" | "phone" | "linkedin_url" | "resume_path">;
 }) {
   const { t } = useTranslation('admin');
 

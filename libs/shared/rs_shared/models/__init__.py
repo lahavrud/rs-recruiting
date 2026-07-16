@@ -18,6 +18,7 @@ from sqlmodel import SQLModel
 from rs_shared.models.applications import Application
 from rs_shared.models.audit import AuditLog
 from rs_shared.models.auth_tokens import (
+    AccountDeletionToken,
     ActivationToken,
     DataExportRequest,
     InviteToken,
@@ -47,6 +48,7 @@ __all__ = [
     "UsedRefreshToken",
     "PasswordResetToken",
     "DataExportRequest",
+    "AccountDeletionToken",
     # audit / quota
     "AuditLog",
     "EmailQuota",

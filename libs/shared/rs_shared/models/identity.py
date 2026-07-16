@@ -213,6 +213,13 @@ class CandidateProfile(SQLModel, table=True):
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
+    # Set by the deletion service when a GDPR right-to-erasure request is
+    # confirmed. PII fields are NULLed in the same transaction; the row is
+    # retained so Application history survives with an anonymised candidate.
+    deleted_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True, index=True),
+    )
 
     # 1:1 back-relationship to User. Effectively nullable at runtime: anonymous
     # leads have `user_id=None` and this resolves to None after

@@ -18,11 +18,13 @@ from rs_shared.services.exceptions import (
     ApplicationAlreadyLockedError,
     ApplicationNotEditableError,
     ApplicationNotFoundError,
+    CandidateAlreadyDeletedError,
     CandidateNotFoundError,
     CompanyNotFoundError,
     CompanyNotPendingError,
     EmailAlreadyExistsError,
     InactiveUserError,
+    InvalidAccountDeletionTokenError,
     InvalidActivationTokenError,
     InvalidApplicationStatusTransitionError,
     InvalidCredentialsError,
@@ -48,6 +50,8 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     CompanyNotFoundError: status.HTTP_404_NOT_FOUND,
     ApplicationNotFoundError: status.HTTP_404_NOT_FOUND,
     CandidateNotFoundError: status.HTTP_404_NOT_FOUND,
+    # Conflict (409)
+    CandidateAlreadyDeletedError: status.HTTP_409_CONFLICT,
     # Conflict errors (409)
     ApplicationAlreadyExistsError: status.HTTP_409_CONFLICT,
     ApplicationAlreadyEditableError: status.HTTP_409_CONFLICT,
@@ -57,9 +61,10 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     EmailAlreadyExistsError: status.HTTP_409_CONFLICT,
     # Forbidden errors (403)
     JobNotOwnedByCompanyError: status.HTTP_403_FORBIDDEN,
-    # Bad request — invalid activation token
+    # Bad request — invalid tokens
     InvalidActivationTokenError: status.HTTP_400_BAD_REQUEST,
     InvalidPasswordResetTokenError: status.HTTP_400_BAD_REQUEST,
+    InvalidAccountDeletionTokenError: status.HTTP_400_BAD_REQUEST,
     # Unauthorized errors (401) — all login failures return 401 regardless of
     # account state, so HTTP status code alone cannot confirm registration.
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
@@ -94,6 +99,8 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     CandidateNotFoundError: "candidate_not_found",
     InviteNotFoundError: "invite_not_found",
     # Conflict
+    CandidateAlreadyDeletedError: "candidate_already_deleted",
+    # Conflict
     ApplicationAlreadyExistsError: "already_applied",
     ApplicationAlreadyEditableError: "already_applied_editable",
     ApplicationAlreadyLockedError: "already_applied_locked",
@@ -107,6 +114,7 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     InvalidPasswordResetTokenError: (
         "invalid_password_reset_token"  # pragma: allowlist secret
     ),
+    InvalidAccountDeletionTokenError: "invalid_deletion_token",
     InvalidCredentialsError: "invalid_credentials",
     InactiveUserError: "inactive_user",
     PendingApprovalError: "pending_approval",
