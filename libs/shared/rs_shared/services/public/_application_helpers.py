@@ -8,7 +8,11 @@ Carved out of ``applications.py`` to keep the main module under the
 * ``upsert_candidate_and_application`` — the find-or-create profile +
   Application row pair, with consent-write and resume-snapshot semantics.
 * ``send_application_emails`` — the candidate-confirmation + admin-
-  notification fan-out, normally invoked via ``defer_after_commit``.
+  notification fan-out. Call it **inside** the apply transaction, never from a
+  ``defer_after_commit`` hook: it queues via ``queue_email``, which writes an
+  outbox row on the caller's session, and a hook runs after that session has
+  already committed — the row would land in a transaction nobody commits and
+  the email would be silently dropped.
 
 Resume validation/upload (``validate_and_upload_resume``) and the candidate-
 profile lookup/update primitives live in the kernel (``services/utils``) so both

@@ -769,3 +769,59 @@ async def test_get_candidate_profile_returns_none_when_unlinked(
     result = await get_candidate_profile(user.id, session)
 
     assert result is None
+
+
+# ── Outbox durability ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_apply_commits_its_outbox_rows(
+    session: AsyncSession,
+    company_with_user,
+    session_local_factory,
+):
+    """Regression: the apply emails must be queued INSIDE the apply transaction.
+
+    They were briefly queued from a ``defer_after_commit`` hook. A hook runs
+    after the commit, so ``queue_email``'s outbox insert autobegan a fresh
+    transaction that nobody committed — the row was discarded when the request
+    session closed and both emails were silently dropped.
+
+    Two things make this test able to catch that, where the rest of this file
+    cannot: it runs the REAL ``queue_email`` (the autouse ``mock_enqueue_email``
+    fixture patches it out everywhere else), and it asserts from a SEPARATE
+    session. The apply session can see its own uncommitted insert, so checking
+    through it would pass even while production loses the mail.
+    """
+    from rs_shared.core.tasks import queue_email as real_queue_email
+    from rs_shared.models import EmailOutbox
+
+    job = await _make_published_job(session, company_with_user)
+
+    with (
+        patch(
+            "rs_shared.services.public._application_helpers.queue_email",
+            real_queue_email,
+        ),
+        # Stop the post-commit nudge from running the send inline (SQS is unset
+        # in tests) — this test is about the row being committed, not delivery.
+        patch(
+            "rs_shared.core.tasks.enqueue_send_outbox_email_task",
+            new_callable=AsyncMock,
+        ),
+        patch("rs_shared.services.public.applications.get_storage_provider"),
+    ):
+        async with transactional(session):
+            await create_candidate_profile(
+                candidate_data=_default_candidate(email="outbox@example.com"),
+                job_id=job.id,
+                session=session,
+            )
+
+    async with session_local_factory() as fresh:
+        rows = list((await fresh.execute(select(EmailOutbox))).scalars().all())
+
+    recipients = {addr for row in rows for addr in row.to_addrs}
+    assert "outbox@example.com" in recipients, (
+        "the candidate's confirmation email was never committed to the outbox"
+    )

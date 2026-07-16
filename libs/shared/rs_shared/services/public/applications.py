@@ -292,17 +292,17 @@ async def create_candidate_profile(
     else:
         candidate = await _apply_as_anonymous(session, candidate_data, job_id, payload)
 
-    _candidate_snapshot = candidate
-    _job_snapshot = job
-    _company_name_snapshot = company_name
-    defer_after_commit(
-        lambda: send_application_emails(
-            _candidate_snapshot, _job_snapshot, _company_name_snapshot, session
-        )
-    )
+    # Queued inside the transaction, NOT via defer_after_commit: queue_email
+    # writes an outbox row on this session, and a post-commit hook runs after
+    # the commit — the insert would land in a transaction nobody commits and
+    # the email would vanish, which is the exact loss this outbox exists to
+    # stop. Only the SQS nudge is deferred, from inside queue_email.
+    await send_application_emails(candidate, job, company_name, session)
+
     # Score this candidate against all jobs off the resume they applied with
     # (only if one is on file; the task no-ops otherwise). After commit so the
-    # worker reads the persisted profile.
+    # worker reads the persisted profile. This one is a pure SQS enqueue with
+    # no session write, so deferring it is still correct.
     if candidate.resume_path and candidate.id is not None:
         _match_candidate_id = candidate.id
         defer_after_commit(lambda: enqueue_match_candidate_task(_match_candidate_id))
