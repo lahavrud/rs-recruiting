@@ -18,6 +18,9 @@ export interface paths {
          *     `q` case-insensitively substring-matches candidate name/email/phone and
          *     job title. `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
          *     `sort=status&sort2=created_at` groups by status, then by date.
+         *     `include_deleted` (default false) controls whether applications from
+         *     tombstoned candidates appear — the applications themselves are retained
+         *     either way.
          *     Cursor-paginated.
          */
         get: operations["get_applications_api_admin_applications_get"];
@@ -3109,6 +3112,7 @@ export interface operations {
                 order?: "asc" | "desc";
                 sort2?: ("name" | "created_at" | "status") | null;
                 order2?: "asc" | "desc";
+                include_deleted?: boolean;
             };
             header?: never;
             path?: never;

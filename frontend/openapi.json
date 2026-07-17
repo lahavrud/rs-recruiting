@@ -3974,7 +3974,7 @@
   "paths": {
     "/api/admin/applications": {
       "get": {
-        "description": "List applications with optional filters, sorted by `sort`/`order`.\n\n`q` case-insensitively substring-matches candidate name/email/phone and\njob title. `sort2`/`order2` add a second sort column as a tiebreaker \u2014 e.g.\n`sort=status&sort2=created_at` groups by status, then by date.\nCursor-paginated.",
+        "description": "List applications with optional filters, sorted by `sort`/`order`.\n\n`q` case-insensitively substring-matches candidate name/email/phone and\njob title. `sort2`/`order2` add a second sort column as a tiebreaker \u2014 e.g.\n`sort=status&sort2=created_at` groups by status, then by date.\n`include_deleted` (default false) controls whether applications from\ntombstoned candidates appear \u2014 the applications themselves are retained\neither way.\nCursor-paginated.",
         "operationId": "get_applications_api_admin_applications_get",
         "parameters": [
           {
@@ -4133,6 +4133,16 @@
               ],
               "title": "Order2",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Deleted",
+              "type": "boolean"
             }
           }
         ],

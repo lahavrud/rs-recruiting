@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
+import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SearchableSelect from "@/components/admin/SearchableSelect";
@@ -25,6 +26,7 @@ import type { CandidateAdminRead } from "@/types/candidates";
 import type { JobRead } from "@/types/jobs";
 
 import CandidateRecordPane from "./components/CandidateRecordPane";
+import CandidatesFilterPanel from "./components/CandidatesFilterPanel";
 import CandidatesRailList from "./components/CandidatesRailList";
 import CandidatesTable from "./components/CandidatesTable";
 
@@ -50,6 +52,7 @@ export default function AdminCandidatesPage() {
   const [scoreSort, setScoreSort] = useState(false);
   const [scoreSortJobId, setScoreSortJobId] = useState<number | null>(null);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [jobs, setJobs] = useState<Pick<JobRead, "id" | "title">[]>([]);
 
   useEffect(() => {
@@ -145,6 +148,8 @@ export default function AdminCandidatesPage() {
     />
   );
 
+  const activeFilterCount = (debouncedQuery.trim() ? 1 : 0) + (includeDeleted ? 1 : 0);
+
   const header = (
     <>
       <h1 data-page-heading className="sr-only">
@@ -154,14 +159,8 @@ export default function AdminCandidatesPage() {
         eyebrow={t("admin:candidates.title")}
         subtitle={t("admin:candidates.subtitle")}
       />
-      {/* Sits with the search, not the sort row: both narrow which rows exist,
-          while the sort row only orders them. A checkbox rather than a
-          FilterPill — this is a rarely-flipped option, not a CTA, and it
-          matches the `featuredOnly` filter on the jobs page. */}
-      <div className="mb-3 flex flex-wrap items-center gap-3">
-        {/* Full width on mobile so the checkbox wraps below instead of
-            squeezing the search placeholder to a truncated stub. */}
-        <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+      <div className="mb-3 flex items-stretch gap-2">
+        <div className="flex-1">
           <SearchInput
             value={query}
             onChange={setQuery}
@@ -169,16 +168,35 @@ export default function AdminCandidatesPage() {
             isClearable
           />
         </div>
-        <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-white/40 transition-colors hover:text-white/70">
-          <input
-            type="checkbox"
-            checked={includeDeleted}
-            onChange={(e) => setIncludeDeleted(e.target.checked)}
-            className="size-3 rounded-xs border-white/15 bg-well text-copper focus:ring-1 focus:ring-copper"
-          />
-          {t("admin:candidates.showDeletedToggle")}
-        </label>
+        <button
+          type="button"
+          onClick={() => setIsFilterOpen((o) => !o)}
+          aria-expanded={isFilterOpen}
+          aria-label={t("admin:candidates.openFilters")}
+          className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-200 active:scale-95 ${
+            isFilterOpen
+              ? "border-copper/50 bg-copper/10 text-white"
+              : "border-white/15 bg-card-raised/40 text-white/75 hover:border-copper/40 hover:text-white"
+          }`}
+        >
+          <FunnelIcon />
+          <span className="hidden sm:inline">{t("admin:candidates.filters")}</span>
+          {activeFilterCount > 0 && (
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-copper text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
+
+      <CandidatesFilterPanel
+        isFilterOpen={isFilterOpen}
+        activeFilterCount={activeFilterCount}
+        query={query}
+        setQuery={setQuery}
+        includeDeleted={includeDeleted}
+        setIncludeDeleted={setIncludeDeleted}
+      />
     </>
   );
 
@@ -368,4 +386,3 @@ function SparkleIcon({ active }: { active: boolean }) {
     </svg>
   );
 }
-

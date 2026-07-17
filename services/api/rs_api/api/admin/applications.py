@@ -55,6 +55,7 @@ async def get_applications(
     order: Literal["asc", "desc"] = Query(default="desc"),
     sort2: Literal["name", "created_at", "status"] | None = Query(default=None),
     order2: Literal["asc", "desc"] = Query(default="desc"),
+    include_deleted: bool = Query(default=False),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[ApplicationWithDetails]:
@@ -63,6 +64,9 @@ async def get_applications(
     `q` case-insensitively substring-matches candidate name/email/phone and
     job title. `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
     `sort=status&sort2=created_at` groups by status, then by date.
+    `include_deleted` (default false) controls whether applications from
+    tombstoned candidates appear — the applications themselves are retained
+    either way.
     Cursor-paginated.
     """
     try:
@@ -78,6 +82,7 @@ async def get_applications(
             order=order,
             sort2=sort2,
             order2=order2,
+            include_deleted=include_deleted,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
