@@ -214,7 +214,11 @@ export default function AdminCandidatesPage() {
 
   const jobOptions = jobs.map((j) => ({ value: j.id, label: j.title }));
 
-  const aiSortPanel = (
+  // `sortWrapperCls` lets the full-list view drop the sort dropdown on desktop,
+  // where CandidatesTable's own sortable column headers already cover it (the
+  // jobs and applications pages gate it the same way). The rail keeps it at
+  // every width — it has no column headers to fall back on.
+  const renderAiSortPanel = (sortWrapperCls: string) => (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <button
         type="button"
@@ -247,17 +251,19 @@ export default function AdminCandidatesPage() {
       )}
 
       {!scoreSort && (
-        <SortControl
-          ariaLabel={t("admin:candidates.sort.label")}
-          value={`${sort}:${order}`}
-          onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
-          options={[
-            { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
-            { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },
-            { value: "name:asc", label: t("admin:candidates.sort.nameAsc") },
-            { value: "name:desc", label: t("admin:candidates.sort.nameDesc") },
-          ]}
-        />
+        <div className={sortWrapperCls}>
+          <SortControl
+            ariaLabel={t("admin:candidates.sort.label")}
+            value={`${sort}:${order}`}
+            onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+            options={[
+              { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
+              { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },
+              { value: "name:asc", label: t("admin:candidates.sort.nameAsc") },
+              { value: "name:desc", label: t("admin:candidates.sort.nameDesc") },
+            ]}
+          />
+        </div>
       )}
     </div>
   );
@@ -268,7 +274,7 @@ export default function AdminCandidatesPage() {
     return (
       <div>
         {header}
-        {aiSortPanel}
+        {renderAiSortPanel("w-full md:hidden")}
         {withListState(
           <>
             <div className="md:hidden">
@@ -316,7 +322,7 @@ export default function AdminCandidatesPage() {
       rail={
         <>
           {header}
-          {aiSortPanel}
+          {renderAiSortPanel("w-full")}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {withListState(
               <MobileListSkeleton rows={6} />,
