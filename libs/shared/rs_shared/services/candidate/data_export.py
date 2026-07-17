@@ -7,19 +7,20 @@ Flow:
    per user in the last 24 hours — enforced by counting DB rows rather
    than touching Redis (the row IS the rate limit; one less moving
    piece).
-2. The Arq task assembles a ZIP containing ``data.json`` (profile +
-   applications + non-PII audit slice) and per-application resume
-   binaries fetched from storage. Uploads the ZIP to storage with a
-   ``exports/{user_id}/{uuid}.zip`` key, mints a ``DataExportRequest``
-   carrying a hashed download token, and emails the candidate a signed
-   download link.
+2. ``build_data_export_task`` (SQS) assembles a ZIP containing
+   ``data.json`` (profile + applications + non-PII audit slice) and
+   per-application resume binaries fetched from storage. Uploads the ZIP
+   to storage with a ``exports/{user_id}/{uuid}.zip`` key, mints a
+   ``DataExportRequest`` carrying a hashed download token, and queues the
+   candidate's download link in the same transaction — the row and the
+   email that makes it useful commit together, so the guard can never
+   outlive the link.
 3. ``GET /api/candidate/me/export/{token}`` looks the token up by hash,
    verifies it's unused + unexpired, streams the ZIP, and marks
    ``used=True``.
 
-Cleanup of expired / used rows + the underlying ZIP objects is left for a
-future scheduled job. Until then, the rows pile up; storage costs
-are bounded by the per-user 24h rate limit.
+Expired / used rows and their ZIP objects are swept by
+``admin.maintenance.purge_expired_data_export_zips`` in the nightly cleanup.
 """
 
 from __future__ import annotations

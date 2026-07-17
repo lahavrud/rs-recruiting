@@ -272,7 +272,8 @@ async def build_data_export_task(user_id: int) -> None:
     """Assemble a candidate GDPR export ZIP and email the download link.
 
     Idempotent guard: if a pending export already exists the task is a no-op
-    so SQS redelivery is safe.
+    so SQS redelivery is safe. The export row and the email that carries its
+    download link commit together, so that guard can never outlive the link.
     """
     from rs_shared.core.services.storage import get_storage_provider
     from rs_shared.services.candidate.data_export import (
