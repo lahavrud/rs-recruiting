@@ -104,6 +104,7 @@ export default function JobsQueue() {
         hasQuery={false}
         emptyEyebrow={t("admin:reviewQueue.tabs.jobs")}
         emptyHeadline={t("admin:reviewQueue.empty.jobs")}
+        noResultsMessage={t("admin:reviewQueue.empty.jobs")}
       >
         <div className="space-y-1.5">
           {items.map((job) => (

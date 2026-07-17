@@ -194,6 +194,7 @@ export default function ApplicationsQueue() {
         hasQuery={false}
         emptyEyebrow={t("admin:reviewQueue.tabs.applications")}
         emptyHeadline={t("admin:reviewQueue.empty.applications")}
+        noResultsMessage={t("admin:reviewQueue.empty.applications")}
       >
         <div className="space-y-1.5">
           {items.map((app) => (

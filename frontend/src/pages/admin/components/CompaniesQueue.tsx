@@ -112,6 +112,7 @@ export default function CompaniesQueue() {
         hasQuery={false}
         emptyEyebrow={t("admin:reviewQueue.tabs.companies")}
         emptyHeadline={t("admin:reviewQueue.empty.companies")}
+        noResultsMessage={t("admin:reviewQueue.empty.companies")}
       >
         <div className="space-y-1.5">
           {items.map((item) => (

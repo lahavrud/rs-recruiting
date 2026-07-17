@@ -1692,6 +1692,12 @@
             "title": "Id",
             "type": "integer"
           },
+          "is_deleted": {
+            "description": "Tombstone state, mirroring ``CandidateAdminRead.is_deleted``.\n\nApplications outlive the candidate who submitted them, so every\nconsumer of this schema can be handed a tombstoned row and needs to\ntell one apart without pattern-matching the scrubbed name or the\nsynthetic ``deleted-N@deleted`` address.",
+            "readOnly": true,
+            "title": "Is Deleted",
+            "type": "boolean"
+          },
           "is_registered": {
             "readOnly": true,
             "title": "Is Registered",
@@ -1777,7 +1783,8 @@
           "tos_accepted_at",
           "tos_version",
           "created_at",
-          "is_registered"
+          "is_registered",
+          "is_deleted"
         ],
         "title": "CandidateProfileRead",
         "type": "object"

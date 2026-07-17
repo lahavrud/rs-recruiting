@@ -11,7 +11,6 @@ import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import FilterPill from "@/components/ui/FilterPill";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
 import TableSkeleton from "@/components/ui/TableSkeleton";
@@ -155,13 +154,30 @@ export default function AdminCandidatesPage() {
         eyebrow={t("admin:candidates.title")}
         subtitle={t("admin:candidates.subtitle")}
       />
-      <div className="mb-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder={t("admin:candidates.searchPlaceholder")}
-          isClearable
-        />
+      {/* Sits with the search, not the sort row: both narrow which rows exist,
+          while the sort row only orders them. A checkbox rather than a
+          FilterPill — this is a rarely-flipped option, not a CTA, and it
+          matches the `featuredOnly` filter on the jobs page. */}
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        {/* Full width on mobile so the checkbox wraps below instead of
+            squeezing the search placeholder to a truncated stub. */}
+        <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder={t("admin:candidates.searchPlaceholder")}
+            isClearable
+          />
+        </div>
+        <label className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-white/40 transition-colors hover:text-white/70">
+          <input
+            type="checkbox"
+            checked={includeDeleted}
+            onChange={(e) => setIncludeDeleted(e.target.checked)}
+            className="size-3 rounded-xs border-white/15 bg-well text-copper focus:ring-1 focus:ring-copper"
+          />
+          {t("admin:candidates.showDeletedToggle")}
+        </label>
       </div>
     </>
   );
@@ -175,6 +191,7 @@ export default function AdminCandidatesPage() {
     hasQuery: Boolean(debouncedQuery.trim()),
     emptyEyebrow: t("admin:candidates.title"),
     emptyHeadline: t("admin:candidates.empty"),
+    noResultsMessage: t("admin:candidates.noResults"),
     // Searching for someone who deleted their account otherwise looks identical to
     // "no such candidate" — the row is there, just filtered out by default.
     emptyDescription: includeDeleted
@@ -242,17 +259,6 @@ export default function AdminCandidatesPage() {
           ]}
         />
       )}
-
-      {/* `danger` here read as an error state rather than "filter on"; copper-when-active
-          matches every other admin filter. */}
-      <FilterPill
-        className="ms-auto"
-        isActive={includeDeleted}
-        onClick={() => setIncludeDeleted((v) => !v)}
-        aria-pressed={includeDeleted}
-      >
-        {t("admin:candidates.showDeletedToggle")}
-      </FilterPill>
     </div>
   );
 

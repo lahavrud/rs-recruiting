@@ -365,6 +365,7 @@ export default function AdminApplicationsPage() {
           hasQuery={applications.length > 0}
           emptyEyebrow={t("admin:applications.title")}
           emptyHeadline={t("admin:applications.empty")}
+              noResultsMessage={t("admin:applications.noResults")}
         >
           <>
             {/* Mobile */}
@@ -445,6 +446,7 @@ export default function AdminApplicationsPage() {
               hasQuery={applications.length > 0}
               emptyEyebrow={t("admin:applications.title")}
               emptyHeadline={t("admin:applications.empty")}
+              noResultsMessage={t("admin:applications.noResults")}
             >
               <ApplicationsRailList
                 applications={filteredApplications}

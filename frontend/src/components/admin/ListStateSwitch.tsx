@@ -14,6 +14,12 @@ interface ListStateSwitchProps {
   hasQuery: boolean;
   emptyEyebrow: string;
   emptyHeadline: string;
+  /**
+   * Message for the searched-but-nothing-matched branch. Required because
+   * `NoResults` otherwise falls back to its jobs-board default, which told
+   * admins "no jobs found" on the candidates and applications lists.
+   */
+  noResultsMessage: string;
   /** Optional sub-line for the empty state — e.g. why rows might be filtered out. */
   emptyDescription?: string;
   /** Optional CTA rendered in both the empty and no-results branches. */
@@ -32,6 +38,7 @@ export default function ListStateSwitch({
   hasQuery,
   emptyEyebrow,
   emptyHeadline,
+  noResultsMessage,
   emptyDescription,
   emptyAction,
   children,
@@ -40,7 +47,7 @@ export default function ListStateSwitch({
   if (error) return <ErrorState message={errorMessage} onRetry={onRetry} />;
   if (isEmpty) {
     return hasQuery ? (
-      <NoResults>{emptyAction}</NoResults>
+      <NoResults message={noResultsMessage}>{emptyAction}</NoResults>
     ) : (
       <EmptyState
         eyebrow={emptyEyebrow}
