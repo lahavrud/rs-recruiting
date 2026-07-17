@@ -136,12 +136,14 @@ async def build_data_export_task(user_id: int) -> None:
     """Assemble a candidate GDPR export ZIP and email the download link.
 
     Idempotent guard: if a pending export already exists the task is a no-op
-    so SQS redelivery is safe.
+    so SQS redelivery is safe. That guard is also why a failed notification
+    has to discard the export it just built — see the except below.
     """
     from rs_shared.core.services.storage import get_storage_provider
     from rs_shared.services.candidate.data_export import (
         DATA_EXPORT_TTL_HOURS,
         build_and_persist_export,
+        discard_export,
         has_pending_export,
     )
     from rs_shared.templates.email import build_data_export_ready_html
@@ -178,7 +180,18 @@ async def build_data_export_task(user_id: int) -> None:
             html_body=html,
         )
     except Exception:
-        logger.exception("Failed to enqueue data export notification email")
+        # The export row is the idempotency guard above *and* the API's 429
+        # rate limit. Acking here would strand the candidate: the ZIP exists,
+        # the link never arrives, redelivery no-ops on the guard, and they get
+        # a 429 for the full TTL. Expire the export so redelivery rebuilds,
+        # then let the failure propagate to the worker (and eventually the DLQ).
+        try:
+            async with async_session() as session:
+                async with transactional(session):
+                    await discard_export(raw_token, session)
+        except Exception:
+            logger.exception("data_export_discard_failed", extra={"user_id": user_id})
+        raise
 
 
 async def nightly_cleanup_task() -> dict:

@@ -3,9 +3,9 @@
 Two endpoints:
 
 * ``POST /api/candidate/me/export`` — authenticated; enqueues the
-  Arq build task, returns 202. Per-user rate limit is enforced by
-  counting unused-and-unexpired ``DataExportRequest`` rows (one less
-  Redis dependency).
+  ``build_data_export`` SQS task, returns 202. Per-user rate limit is
+  enforced by counting unused-and-unexpired ``DataExportRequest`` rows
+  (one less Redis dependency).
 
 * ``GET /api/candidate/me/export/{token}`` — public (the token IS auth);
   streams the assembled ZIP and marks ``used=True``. Authenticated state
