@@ -217,6 +217,113 @@ async def test_closed_at_cleared_on_reopen(
 
 
 @pytest.mark.asyncio
+async def test_closed_at_stamped_by_bulk_update_bypassing_the_orm(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The database trigger, not the ORM hook, is the actual guarantee.
+
+    A Core-level UPDATE never populates ``session.dirty``, so the before_flush
+    hook cannot see it. This is the shape a mass-close would be written in —
+    the codebase already uses ``update(Application)`` this way — and getting a
+    NULL anchor here would mean those candidates were never purged.
+    """
+    from sqlalchemy import update
+
+    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    session.add(job)
+    await session.commit()
+    assert job.closed_at is None
+
+    await session.execute(
+        update(Job).where(Job.id == job.id).values(status=JobStatus.CLOSED)  # pyright: ignore[reportArgumentType]
+    )
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.status == JobStatus.CLOSED
+    assert job.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_bulk_reopen_clears_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The trigger clears on the way out too, not just on the way in."""
+    from sqlalchemy import update
+
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+    await session.execute(
+        update(Job).where(Job.id == job.id).values(status=JobStatus.PUBLISHED)  # pyright: ignore[reportArgumentType]
+    )
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is None
+
+
+@pytest.mark.asyncio
+async def test_bulk_edit_of_closed_job_does_not_move_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """`UPDATE OF status` means a title-only write never fires the trigger."""
+    from sqlalchemy import update
+
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    anchor = job.closed_at
+
+    await session.execute(
+        update(Job).where(Job.id == job.id).values(title="Bulk Renamed")  # pyright: ignore[reportArgumentType]
+    )
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at == anchor
+
+
+@pytest.mark.asyncio
+async def test_reclosing_does_not_move_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Re-setting CLOSED on an already-closed job must not restart retention.
+
+    This is the shape of an admin re-saving the edit form: the PATCH carries
+    ``status: CLOSED`` unchanged. It holds at two levels — SQLAlchemy reports no
+    attribute history when a value is re-set to itself, so the ORM hook skips;
+    and the trigger's ``OLD.status IS DISTINCT FROM 'CLOSED'`` guard makes the
+    write a no-op even when the ORM is bypassed. Pinned because a regression
+    here silently re-retains every candidate who applied to the job.
+    """
+    from sqlalchemy import update
+
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    anchor = job.closed_at
+
+    job.status = JobStatus.CLOSED  # re-set to the same value, via the ORM
+    job.title = "Re-saved"
+    await session.commit()
+    await session.refresh(job)
+    assert job.closed_at == anchor
+
+    await session.execute(  # and again, bypassing the ORM
+        update(Job).where(Job.id == job.id).values(status=JobStatus.CLOSED)  # pyright: ignore[reportArgumentType]
+    )
+    await session.commit()
+    await session.refresh(job)
+    assert job.closed_at == anchor
+
+
+@pytest.mark.asyncio
 async def test_explicit_closed_at_survives_when_status_unchanged(
     session: AsyncSession, company_with_user: CompanyProfile
 ):

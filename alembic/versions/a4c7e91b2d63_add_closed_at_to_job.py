@@ -62,7 +62,41 @@ def upgrade() -> None:
         """
     )
 
+    # The anchor's guarantee. Every writer goes through the database, so this is
+    # the one layer a bulk UPDATE, a psql session or a future service cannot go
+    # around — the ORM hook in models/jobs.py only keeps in-memory objects in
+    # step with it. Kept byte-identical to the DDL attached to the table's
+    # after_create there, which is how dev and test (built by create_all, not by
+    # migrations) get the same trigger.
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION job_stamp_closed_at() RETURNS trigger AS $$
+        BEGIN
+            IF NEW.status = 'CLOSED'
+               AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'CLOSED') THEN
+                IF NEW.closed_at IS NULL THEN
+                    NEW.closed_at := now();
+                END IF;
+            ELSIF NEW.status <> 'CLOSED' THEN
+                NEW.closed_at := NULL;
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+    op.execute("DROP TRIGGER IF EXISTS job_closed_at_stamp ON job")
+    op.execute(
+        """
+        CREATE TRIGGER job_closed_at_stamp
+        BEFORE INSERT OR UPDATE OF status ON job
+        FOR EACH ROW EXECUTE FUNCTION job_stamp_closed_at()
+        """
+    )
+
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.execute("DROP TRIGGER IF EXISTS job_closed_at_stamp ON job")
+    op.execute("DROP FUNCTION IF EXISTS job_stamp_closed_at()")
     op.drop_column("job", "closed_at")
