@@ -448,10 +448,15 @@ async def test_close_published_job_records_audit_events(
 
 
 @pytest.mark.asyncio
-async def test_non_published_to_closed_skips_cascade(
+async def test_non_published_to_closed_cascades(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
-    """Closing a PENDING_APPROVAL job does not cascade to applications."""
+    """Closing from PENDING_APPROVAL still sweeps active applications.
+
+    The cascade gates on *entering* CLOSED, not on leaving PUBLISHED — an
+    application can outlive the PUBLISHED status (see the round-trip test
+    below), and a skipped sweep has no second chance.
+    """
     job = Job(
         company_id=company_with_user.id,
         title="Pending Role",
@@ -477,9 +482,73 @@ async def test_non_published_to_closed_skips_cascade(
             await session.commit()
 
     await session.refresh(app)
-    assert (
-        app.status == ApplicationStatus.PENDING_ADMIN_REVIEW
-    )  # cascade only fires on PUBLISHED → CLOSED
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_published_to_pending_to_closed_cascades(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """PUBLISHED → PENDING_APPROVAL → CLOSED must not strand applications.
+
+    The application is created while the job is PUBLISHED and survives the hop
+    back to PENDING_APPROVAL; the close then has to sweep it even though the
+    immediately-preceding status was not PUBLISHED.
+    """
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+    app = await _make_application(session, job_id, "roundtrip@test.com")
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+        patch(_PATCH_EMBED),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(
+                job_id, JobAdminUpdate(status=JobStatus.PENDING_APPROVAL), session
+            )
+            await session.commit()
+
+            await session.refresh(app)
+            assert app.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # still active
+
+            await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+            await session.commit()
+
+    await session.refresh(app)
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_reclosing_closed_job_does_not_refire_cascade(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """CLOSED → CLOSED is a no-op — no duplicate emails, no duplicate audit rows."""
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+    await _make_application(session, job_id, "once@test.com")
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_EMAIL) as mock_email:
+            with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+                await update_job(
+                    job_id, JobAdminUpdate(status=JobStatus.CLOSED), session
+                )
+                await session.commit()
+                assert mock_email.call_count == 1
+
+                await update_job(
+                    job_id, JobAdminUpdate(status=JobStatus.CLOSED), session
+                )
+                await session.commit()
+
+    assert mock_email.call_count == 1  # unchanged by the second close
 
 
 # ── list_jobs ─────────────────────────────────────────────────────────────────
