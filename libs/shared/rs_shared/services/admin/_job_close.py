@@ -17,9 +17,6 @@ from rs_shared.models import Application, CandidateProfile
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_job_closed_candidate_html
 
-# In-flight applications are the ones swept into JOB_CLOSED when the parent job
-# closes — see ``ACTIVE_APPLICATION_STATUSES`` in enums.py.
-
 
 async def close_active_applications(
     job_id: int,
