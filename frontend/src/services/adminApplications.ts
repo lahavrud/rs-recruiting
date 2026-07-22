@@ -14,13 +14,14 @@ export interface ApplicationListParams {
   order?: "asc" | "desc";
   sort2?: "name" | "created_at" | "status";
   order2?: "asc" | "desc";
+  include_deleted?: boolean;
 }
 
 export async function getApplications(
   params?: ApplicationListParams,
   signal?: AbortSignal,
 ): Promise<CursorPage<ApplicationWithDetails>> {
-  const query: Record<string, string | number> = {};
+  const query: Record<string, string | number | boolean> = {};
   if (params?.status) query.status = params.status;
   if (params?.job_id != null) query.job_id = params.job_id;
   if (params?.candidate_id != null) query.candidate_id = params.candidate_id;
@@ -31,6 +32,7 @@ export async function getApplications(
   if (params?.order) query.order = params.order;
   if (params?.sort2) query.sort2 = params.sort2;
   if (params?.order2) query.order2 = params.order2;
+  if (params?.include_deleted) query.include_deleted = true;
   const res = await api.get<CursorPage<ApplicationWithDetails>>(
     "/api/admin/applications",
     { params: query, signal },

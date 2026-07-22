@@ -70,7 +70,8 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
                     : "bg-copper/10 text-copper",
                 ].join(" ")}
               >
-                {c.full_name.charAt(0)}
+                {/* charAt(0) of the "[מחוק]" tombstone marker is a bare "[". */}
+                {c.is_deleted ? "—" : c.full_name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
                 <Eyebrow>{t("admin:candidates.record.eyebrow")}</Eyebrow>
@@ -81,12 +82,12 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
                   {c.is_deleted ? (
                     <StatusBadge
                       label={t("admin:candidates.statusDeleted")}
-                      colorCls="bg-danger/10 text-danger/70"
+                      variant="danger"
                     />
                   ) : c.has_account ? (
                     <StatusBadge
                       label={t("admin:candidates.statusAccount")}
-                      colorCls="bg-success/10 text-success"
+                      variant="success"
                     />
                   ) : (
                     <StatusBadge
@@ -131,9 +132,14 @@ export default function CandidateRecordPane({ candidateId, candidate, onDeleted 
             <CandidateApplicationsPanel candidateId={c.id} />
           </div>
 
-          <div className="mt-6 border-t border-white/8 pt-6">
-            <CandidateMatchesPanel candidateId={c.id} />
-          </div>
+          {/* Deletion NULLs the embedding, so matches are structurally empty rather
+              than "none right now" — and MatchList offers a promote action, which must
+              never push an anonymised candidate into a job. */}
+          {!c.is_deleted && (
+            <div className="mt-6 border-t border-white/8 pt-6">
+              <CandidateMatchesPanel candidateId={c.id} />
+            </div>
+          )}
 
           <div className="mt-6 border-t border-white/8 pt-6">
             <CandidateActivityPanel candidateId={c.id} />

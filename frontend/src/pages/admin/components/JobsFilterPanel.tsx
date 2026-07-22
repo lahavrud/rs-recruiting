@@ -3,8 +3,10 @@ import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 
 import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
+import FilterPanelShell from "@/components/admin/FilterPanelShell";
 import FunnelIcon from "@/components/admin/FunnelIcon";
 import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
+import CheckboxField from "@/components/ui/CheckboxField";
 import Eyebrow from "@/components/ui/Eyebrow";
 import FilterPill from "@/components/ui/FilterPill";
 import RangeSlider from "@/components/ui/RangeSlider";
@@ -82,12 +84,10 @@ export default function JobsFilterPanel({
     isFeaturedOnly,
     setIsFeaturedOnly,
   } = filters;
-  const { salaryBounds, effectiveSalaryRange, isSalaryActive, setSalaryRange } =
-    salary;
-  const { uniqueCompanies, companyFilter, setCompanyFilter, companyNameById } =
-    company;
+  const { salaryBounds, effectiveSalaryRange, isSalaryActive, setSalaryRange } = salary;
+  const { uniqueCompanies, companyFilter, setCompanyFilter, companyNameById } = company;
   const { activeFilterCount, isFilterOpen, setIsFilterOpen } = ui;
-  const { t } = useTranslation(['admin', 'common', 'publicJobs']);
+  const { t } = useTranslation(["admin", "common", "publicJobs"]);
 
   return (
     <>
@@ -156,9 +156,7 @@ export default function JobsFilterPanel({
             <ActiveFilterChip
               key={`co-${id}`}
               label={`${t("admin:jobs.fields.company")}: ${companyNameById.get(id) ?? `#${id}`}`}
-              onRemove={() =>
-                setCompanyFilter((prev) => prev.filter((x) => x !== id))
-              }
+              onRemove={() => setCompanyFilter((prev) => prev.filter((x) => x !== id))}
             />
           ))}
           {isFeaturedOnly && (
@@ -171,124 +169,105 @@ export default function JobsFilterPanel({
       )}
 
       {/* Animated filter panel — grid-rows 0fr→1fr */}
-      <div
-        className={`mb-4 grid transition-[grid-template-rows] duration-300 ease-out ${
-          isFilterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div
-            className={`space-y-4 rounded-md border border-white/8 bg-card/40 p-4 transition-opacity duration-200 ${
-              isFilterOpen ? "opacity-100 delay-100" : "opacity-0"
-            }`}
-          >
-            <div>
-              <Eyebrow size="md" className="mb-2">
-                {t("admin:jobs.fields.status")}
-              </Eyebrow>
-              <div className="flex flex-wrap gap-1.5">
-                {filterTabs.map((tab) => (
-                  <FilterPill
-                    key={tab}
-                    isActive={filter === tab}
-                    onClick={() => setFilter(tab)}
-                  >
-                    {tab === ALL_FILTER
-                      ? t("admin:jobs.filterAll")
-                      : statusLabels[tab]}
-                  </FilterPill>
-                ))}
-              </div>
-            </div>
-            {uniqueLocations.length >= 2 && (
-              <div>
-                <Eyebrow size="md" className="mb-2">
-                  {t("publicJobs:board.locationLabel")}
-                </Eyebrow>
-                <div className="flex flex-wrap gap-1.5">
-                  <FilterPill
-                    compact
-                    isActive={selectedLocations.length === 0}
-                    onClick={() => setSelectedLocations([])}
-                  >
-                    {t("publicJobs:board.allLocations")}
-                  </FilterPill>
-                  {uniqueLocations.map((loc) => {
-                    const isActive = selectedLocations.includes(loc);
-                    return (
-                      <FilterPill
-                        key={loc}
-                        compact
-                        isActive={isActive}
-                        onClick={() =>
-                          setSelectedLocations((prev) =>
-                            isActive
-                              ? prev.filter((x) => x !== loc)
-                              : [...prev, loc],
-                          )
-                        }
-                      >
-                        {loc}
-                      </FilterPill>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <Eyebrow size="md">{t("publicJobs:board.salaryRange")}</Eyebrow>
-                {isSalaryActive && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSalaryRange([salaryBounds.min, salaryBounds.max])
-                    }
-                    className="text-[11px] text-copper/70 transition hover:text-copper"
-                  >
-                    {t("publicJobs:board.resetSalary")}
-                  </button>
-                )}
-              </div>
-              <RangeSlider
-                min={salaryBounds.min}
-                max={salaryBounds.max}
-                step={500}
-                value={effectiveSalaryRange}
-                onChange={(next) => setSalaryRange(next)}
-                formatValue={(n) => `${n.toLocaleString("he-IL")} ₪`}
-                ariaLabelMin={t("publicJobs:board.salaryMinAria")}
-                ariaLabelMax={t("publicJobs:board.salaryMaxAria")}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <Eyebrow size="md" className="mb-1.5">
-                  {t("admin:jobs.fields.company")}
-                </Eyebrow>
-                <SearchableMultiSelect<number>
-                  values={companyFilter}
-                  onChange={setCompanyFilter}
-                  options={uniqueCompanies.map((id) => ({
-                    value: id,
-                    label: companyNameById.get(id) ?? `#${id}`,
-                  }))}
-                  placeholder={t("admin:jobs.companyAll")}
-                />
-              </div>
-              <label className="mt-auto inline-flex items-center gap-2 text-sm text-white/80">
-                <input
-                  type="checkbox"
-                  checked={isFeaturedOnly}
-                  onChange={(e) => setIsFeaturedOnly(e.target.checked)}
-                  className="size-4 rounded border-white/20 bg-well text-copper focus:ring-copper"
-                />
-                {t("admin:jobs.featuredOnly")}
-              </label>
-            </div>
+      <FilterPanelShell isOpen={isFilterOpen}>
+        <div>
+          <Eyebrow size="md" className="mb-2">
+            {t("admin:jobs.fields.status")}
+          </Eyebrow>
+          <div className="flex flex-wrap gap-1.5">
+            {filterTabs.map((tab) => (
+              <FilterPill
+                key={tab}
+                isActive={filter === tab}
+                onClick={() => setFilter(tab)}
+              >
+                {tab === ALL_FILTER ? t("admin:jobs.filterAll") : statusLabels[tab]}
+              </FilterPill>
+            ))}
           </div>
         </div>
-      </div>
+        {uniqueLocations.length >= 2 && (
+          <div>
+            <Eyebrow size="md" className="mb-2">
+              {t("publicJobs:board.locationLabel")}
+            </Eyebrow>
+            <div className="flex flex-wrap gap-1.5">
+              <FilterPill
+                compact
+                isActive={selectedLocations.length === 0}
+                onClick={() => setSelectedLocations([])}
+              >
+                {t("publicJobs:board.allLocations")}
+              </FilterPill>
+              {uniqueLocations.map((loc) => {
+                const isActive = selectedLocations.includes(loc);
+                return (
+                  <FilterPill
+                    key={loc}
+                    compact
+                    isActive={isActive}
+                    onClick={() =>
+                      setSelectedLocations((prev) =>
+                        isActive ? prev.filter((x) => x !== loc) : [...prev, loc],
+                      )
+                    }
+                  >
+                    {loc}
+                  </FilterPill>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <Eyebrow size="md">{t("publicJobs:board.salaryRange")}</Eyebrow>
+            {isSalaryActive && (
+              <button
+                type="button"
+                onClick={() => setSalaryRange([salaryBounds.min, salaryBounds.max])}
+                className="text-[11px] text-copper/70 transition hover:text-copper"
+              >
+                {t("publicJobs:board.resetSalary")}
+              </button>
+            )}
+          </div>
+          <RangeSlider
+            min={salaryBounds.min}
+            max={salaryBounds.max}
+            step={500}
+            value={effectiveSalaryRange}
+            onChange={(next) => setSalaryRange(next)}
+            formatValue={(n) => `${n.toLocaleString("he-IL")} ₪`}
+            ariaLabelMin={t("publicJobs:board.salaryMinAria")}
+            ariaLabelMax={t("publicJobs:board.salaryMaxAria")}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <Eyebrow size="md" className="mb-1.5">
+              {t("admin:jobs.fields.company")}
+            </Eyebrow>
+            <SearchableMultiSelect<number>
+              values={companyFilter}
+              onChange={setCompanyFilter}
+              options={uniqueCompanies.map((id) => ({
+                value: id,
+                label: companyNameById.get(id) ?? `#${id}`,
+              }))}
+              placeholder={t("admin:jobs.companyAll")}
+            />
+          </div>
+          {/* Centred in its grid cell rather than `mt-auto`-stuck to the bottom
+              — unlike its sibling it has no Eyebrow to sit under. */}
+          <CheckboxField
+            className="self-center"
+            checked={isFeaturedOnly}
+            onChange={setIsFeaturedOnly}
+            label={t("admin:jobs.featuredOnly")}
+          />
+        </div>
+      </FilterPanelShell>
     </>
   );
 }

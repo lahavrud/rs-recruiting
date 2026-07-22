@@ -122,7 +122,7 @@ async def request_account_deletion(
     await queue_email(
         session,
         to=profile.email,
-        subject="אישור מחיקת חשבון — RS Recruiting",
+        subject="בקשה למחיקת החשבון שלכם — יש לאשר",
         body=plain,
         html_body=build_account_deletion_confirmation_html(confirm_url=confirm_url),
     )

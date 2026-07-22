@@ -120,10 +120,17 @@ export default function CandidateProfilePage() {
           }}
         >
           <div className="overflow-hidden">
-            <div className="grid gap-3 pt-3 grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            {/* Security is roughly as tall as the two data-rights cards
+                stacked, so pairing them in one column keeps both columns
+                filled. Three cards straight into the grid leaves an empty
+                cell beside the last one, and stretches the short export card
+                to the password card's height. */}
+            <div className="grid items-start gap-3 pt-3 grid-cols-[minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <SecuritySection />
-              <DataExportSection />
-              <AccountDeletionSection />
+              <div className="flex flex-col gap-3">
+                <DataExportSection />
+                <AccountDeletionSection />
+              </div>
             </div>
             <div className="mt-3">
               <SessionsSection />

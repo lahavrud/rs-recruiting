@@ -57,7 +57,7 @@ export default function AccountDeletionSection() {
           {t("candidate:profile.deletion.description")}
         </p>
         <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-[11px]">
+          <div className="text-[11px]" role="status" aria-live="polite">
             {state === "sent" && (
               <span className="text-copper">
                 {t("candidate:profile.deletion.sentMessage")}
