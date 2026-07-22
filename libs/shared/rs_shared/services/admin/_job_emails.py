@@ -1,8 +1,9 @@
 """Email notifications for admin-initiated job changes."""
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from rs_shared.core.infrastructure.config import settings
-from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.models import Job
 from rs_shared.templates.email import (
     build_job_admin_edited_html,
@@ -68,15 +69,16 @@ def _build_job_update_email(
     return subject, body, html_body
 
 
-def _dispatch_email(email: str, subject: str, body: str, html_body: str) -> None:
-    defer_after_commit(
-        lambda: enqueue_email_task(
-            to=email, subject=subject, body=body, html_body=html_body
-        )
+async def _dispatch_email(
+    session: AsyncSession, email: str, subject: str, body: str, html_body: str
+) -> None:
+    await queue_email(
+        session, to=email, subject=subject, body=body, html_body=html_body
     )
 
 
-def notify_company_of_update(
+async def notify_company_of_update(
+    session: AsyncSession,
     job: Job,
     *,
     old_title: str,
@@ -84,8 +86,10 @@ def notify_company_of_update(
     changed_labels: list[str],
     is_closing: bool,
 ) -> None:
-    """Capture notification data before session.refresh() — refresh re-fetches
-    the Job row and expires selectinloaded relationships, making company/user
+    """Queue the company's notification for an admin job edit.
+
+    Must still run before any session.refresh() of the Job — refresh re-fetches
+    the row and expires selectinloaded relationships, making company/user
     inaccessible via async lazy-load afterward.
     """
     if job.company.user is None:
@@ -97,7 +101,8 @@ def notify_company_of_update(
     dashboard_url = f"{settings.frontend_base_url}/login?redirect=/company/jobs"
 
     if is_closing:
-        _dispatch_email(
+        await _dispatch_email(
+            session,
             email,
             *_build_job_closure_email(
                 new_title=new_title,
@@ -111,7 +116,8 @@ def notify_company_of_update(
         lbl for lbl in changed_labels if not (is_closing and lbl == status_label)
     ]
     if notify_labels:
-        _dispatch_email(
+        await _dispatch_email(
+            session,
             email,
             *_build_job_update_email(
                 new_title=new_title,

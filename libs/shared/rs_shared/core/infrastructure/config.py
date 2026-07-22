@@ -142,6 +142,10 @@ class Settings(BaseSettings):
     # Minimum seconds between consecutive email sends in the worker.
     # 0.25 s ≈ 4/s — safely under Resend SMTP's implied 5 req/s ceiling.
     email_send_delay_seconds: float = 0.25
+    # How long an outbox row may sit in PENDING (SQS nudge never landed) or
+    # SENDING (worker crashed mid-send) before the sweeper acts on it. Well
+    # clear of a normal send, which resolves in seconds.
+    email_outbox_sweep_after_minutes: int = 15
 
     # Resume-matching embeddings.
     # A hosted multilingual model is required — CVs and jobs are Hebrew, English,

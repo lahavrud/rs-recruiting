@@ -37,6 +37,15 @@ _VISIBILITY_TIMEOUT = 300  # seconds — must match job_timeout in infra config
 _LONG_POLL_SECONDS = 20
 _MAX_MESSAGES = 10
 
+# Tasks that hit the email provider, and so must be paced by
+# settings.email_send_delay_seconds. Both entries are load-bearing: nothing
+# produces SEND_EMAIL any more, but in-flight messages still drain through it
+# for one release, and every new send arrives as SEND_OUTBOX_EMAIL. Missing the
+# latter would leave the provider's rate limit unguarded on 100% of email —
+# including the bursts from a job close (one row per application) and from a
+# sweeper pass (up to 100 re-enqueued rows).
+_EMAIL_TASKS = frozenset({TaskName.SEND_EMAIL, TaskName.SEND_OUTBOX_EMAIL})
+
 
 _tracer = otel_trace.get_tracer("rs_worker.worker")
 
@@ -107,7 +116,7 @@ async def run(stop_event: asyncio.Event) -> None:
                         ReceiptHandle=receipt,
                     )
                     delay = settings.email_send_delay_seconds
-                    if task_name == TaskName.SEND_EMAIL and delay > 0:
+                    if task_name in _EMAIL_TASKS and delay > 0:
                         await asyncio.sleep(delay)
                 except Exception:
                     logger.exception(

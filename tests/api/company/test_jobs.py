@@ -98,7 +98,7 @@ async def test_job_read_endpoints_require_auth(unauthenticated_client: AsyncClie
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_success(
     mock_get_admin_emails,
@@ -142,7 +142,7 @@ async def test_create_job_success(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_success(
     mock_get_admin_emails,
@@ -269,7 +269,7 @@ async def test_job_write_endpoints_require_auth(unauthenticated_client: AsyncCli
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_create_job_with_salary(
     mock_get_admin_emails,
@@ -303,7 +303,7 @@ async def test_create_job_with_salary(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.company.jobs.enqueue_email_task")
+@patch("rs_shared.services.company.jobs.queue_email")
 @patch("rs_shared.services.company.jobs.get_all_admin_emails")
 async def test_update_job_salary(
     mock_get_admin_emails,

@@ -33,8 +33,7 @@ from rs_shared.core.infrastructure.security import (
     get_password_hash,
     hash_token,
 )
-from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import UserRole
 from rs_shared.models import ActivationToken, User
 from rs_shared.services.exceptions import EmailAlreadyExistsError
@@ -136,8 +135,16 @@ async def _delete_stale_tokens(user_id: int, session: AsyncSession) -> None:
     await session.flush()
 
 
-def _send_activation_email_deferred(email: str, raw_token: str) -> None:
-    """Schedule the activation email to fire after commit."""
+async def _queue_activation_email(
+    session: AsyncSession, email: str, raw_token: str
+) -> None:
+    """Queue the activation email as part of the registration transaction.
+
+    No try/except here on purpose: the enqueue used to swallow its own
+    failures, which left a registered account with no way to activate it and
+    nothing but a log line to show for it. The row is now written in the same
+    transaction as the user, so either both land or neither does.
+    """
     activation_url = _build_activation_url(raw_token)
     plain = (
         "שלום,\n\n"
@@ -146,23 +153,16 @@ def _send_activation_email_deferred(email: str, raw_token: str) -> None:
         "אם לא התכוונתם להירשם, אפשר להתעלם מהמייל הזה.\n\n"
         "בברכה,\nצוות RS Recruiting"
     )
-    html = build_candidate_activation_html(
-        activation_url=activation_url,
-        ttl_hours=_CANDIDATE_ACTIVATION_TTL_HOURS,
+    await queue_email(
+        session,
+        to=email,
+        subject="הפעלת חשבון מועמד – RS Recruiting",
+        body=plain,
+        html_body=build_candidate_activation_html(
+            activation_url=activation_url,
+            ttl_hours=_CANDIDATE_ACTIVATION_TTL_HOURS,
+        ),
     )
-
-    async def _send() -> None:
-        try:
-            await enqueue_email_task(
-                to=email,
-                subject="הפעלת חשבון מועמד – RS Recruiting",
-                body=plain,
-                html_body=html,
-            )
-        except Exception:
-            logger.exception("Failed to enqueue candidate activation email")
-
-    defer_after_commit(_send)
 
 
 async def register_candidate(
@@ -252,7 +252,7 @@ async def register_candidate(
         ip_address=ip_address,
     )
 
-    _send_activation_email_deferred(normalized_email, raw_token)
+    await _queue_activation_email(session, normalized_email, raw_token)
 
 
 async def resend_candidate_activation(
@@ -307,4 +307,4 @@ async def resend_candidate_activation(
         ip_address=ip_address,
     )
 
-    _send_activation_email_deferred(normalized_email, raw_token)
+    await _queue_activation_email(session, normalized_email, raw_token)

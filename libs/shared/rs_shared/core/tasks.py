@@ -8,9 +8,16 @@ The wire format of every message (the ``{"task": ..., ...kwargs}`` envelope and
 its attachment encoding) is defined once in ``rs_shared.core.task_contract`` and
 shared with the worker so the two sides cannot drift.
 
-Public API (unchanged from Arq era — all 10+ call sites still work):
-  enqueue_email_task(to, subject, body, ...)  → MessageId | "inline"
-  enqueue_data_export_task(user_id)           → MessageId | "inline"
+Public API:
+  queue_email(session, to, subject, body, ...)  → outbox_id | None (deduped)
+  enqueue_data_export_task(user_id)             → MessageId | "inline"
+
+``queue_email`` is the producer for email: it writes an ``email_outbox`` row in
+the caller's transaction and defers only the SQS nudge, so a committed domain
+change can never be left without its email. It must be called from inside a
+``transactional()`` block. ``enqueue_email_task`` / ``send_email_task`` are the
+legacy pre-outbox path, retained for one release to drain in-flight
+``send_email`` messages — do not call them from new code.
 """
 
 import json
@@ -20,21 +27,30 @@ from typing import List, Optional
 
 import aioboto3
 from opentelemetry import metrics as otel_metrics
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import async_session
-from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.core.infrastructure.transactions import (
+    defer_after_commit,
+    transactional,
+)
 from rs_shared.core.matching import embed_job_task, match_candidate_task
+from rs_shared.core.services import email_outbox
 from rs_shared.core.services.email import get_email_provider
 from rs_shared.core.services.email_quota import increment_and_alert
 from rs_shared.core.task_contract import (
+    Attachment,
     TaskName,
     build_data_export_message,
     build_email_message,
     build_embed_job_message,
     build_match_candidate_message,
+    build_send_outbox_email_message,
+    decode_attachments,
 )
 from rs_shared.core.utils import mask_email
+from rs_shared.models import EmailOutbox
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +112,117 @@ async def _sqs_send(message: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def send_outbox_email_task(outbox_id: int) -> bool:
+    """Send one outbox row. The worker's entry point for email.
+
+    Three transactions, deliberately:
+
+    1. Claim the row (PENDING → SENDING) and commit, so a concurrent
+       redelivery can't claim it too.
+    2. Call the provider — outside any transaction, so a slow SMTP/SES round
+       trip never holds a row lock or a pooled connection.
+    3. Record the outcome. On success the quota bump shares this transaction
+       (see ``email_outbox.mark_sent`` for why).
+
+    Returns True when this call sent the email; False when there was nothing
+    to do (already sent, terminal, or claimed by someone else) — both mean the
+    SQS message should be deleted. Transient failures raise so SQS redelivers.
+    """
+    async with async_session() as session:
+        async with transactional(session):
+            row = await email_outbox.claim_for_send(session, outbox_id)
+            if row is None:
+                return False
+            # Snapshot what the send needs; the row is detached after commit.
+            to_addrs = list(row.to_addrs)
+            subject = row.subject
+            body = row.body
+            html_body = row.html_body
+            attachments = decode_attachments(row.attachments)
+            from_email = row.from_email
+            attempts = row.attempts
+
+    logger.info(
+        "sending_email",
+        extra={"outbox_id": outbox_id, "to": mask_email(to_addrs), "subject": subject},
+    )
+    try:
+        provider = get_email_provider()
+        success = await provider.send_email(
+            to=to_addrs,
+            subject=subject,
+            body=body,
+            html_body=html_body,
+            attachments=attachments,
+            from_email=from_email,
+        )
+        if not success:
+            raise RuntimeError(f"Email provider returned False for outbox {outbox_id}")
+    except Exception as exc:
+        # The provider collapses every error into False/an exception, so we
+        # can't yet tell "invalid address" (permanent) from "SES throttled"
+        # (transient) — everything is retried until MAX_SEND_ATTEMPTS. Typed
+        # provider errors are the follow-up that makes this distinction.
+        async with async_session() as session:
+            async with transactional(session):
+                row = await session.get(EmailOutbox, outbox_id)
+                if row is None:
+                    raise
+                if attempts >= email_outbox.MAX_SEND_ATTEMPTS:
+                    await email_outbox.mark_failed(session, row, str(exc))
+                    return False
+                await email_outbox.mark_for_retry(session, row, str(exc))
+        logger.error(
+            "email_error",
+            extra={"outbox_id": outbox_id, "to": mask_email(to_addrs)},
+            exc_info=True,
+        )
+        raise
+
+    async with async_session() as session:
+        async with transactional(session):
+            row = await session.get(EmailOutbox, outbox_id)
+            if row is not None:
+                # provider_message_id stays NULL until EmailProvider.send_email
+                # returns the provider's id instead of a bool — it is typed
+                # `-> bool`, so there is nothing to record yet.
+                await email_outbox.mark_sent(session, row, None)
+    logger.info(
+        "email_sent", extra={"outbox_id": outbox_id, "to": mask_email(to_addrs)}
+    )
+    return True
+
+
+async def sweep_email_outbox_task() -> dict:
+    """Backstop for rows that never got sent.
+
+    Two failure modes, two treatments:
+
+    * PENDING past the threshold — the post-commit SQS nudge never landed
+      (the exact silent-loss path this outbox exists to close). Re-enqueue.
+    * SENDING past the threshold — a worker claimed it and never resolved.
+      Ambiguous: it may already be in the recipient's inbox. Logged CRITICAL
+      for a human rather than resent.
+
+    Scheduled by EventBridge → SQS, which lives in the infra repo. Until that
+    rule exists this is still runnable as a one-off ECS task.
+    """
+    cutoff = email_outbox.sweep_cutoff()
+    async with async_session() as session:
+        pending = await email_outbox.stale_pending_ids(session, cutoff)
+        stuck = await email_outbox.stale_sending_ids(session, cutoff)
+
+    for outbox_id in pending:
+        await enqueue_send_outbox_email_task(outbox_id)
+
+    if stuck:
+        logger.critical("outbox_rows_stuck_sending", extra={"outbox_ids": stuck})
+
+    result = {"requeued": len(pending), "stuck_sending": len(stuck)}
+    logger.info("outbox_sweep_complete", extra=result)
+    return result
+
+
 async def send_email_task(
     to: str | List[str],
     subject: str,
@@ -104,7 +231,13 @@ async def send_email_task(
     attachments: Optional[List[tuple]] = None,
     from_email: Optional[str] = None,
 ) -> bool:
-    """Send an email via the configured provider. Called by the SQS worker."""
+    """Legacy send path — payload carried on the wire, no outbox row.
+
+    Superseded by ``send_outbox_email_task``. Kept only to drain ``send_email``
+    messages already in flight during the rolling deploy (rules/worker.md:
+    message-format changes must be consumed-side backward-compatible). Delete
+    once the queue has drained; nothing enqueues this any more.
+    """
     logger.info("sending_email", extra={"to": mask_email(to), "subject": subject})
     try:
         provider = get_email_provider()
@@ -136,7 +269,8 @@ async def build_data_export_task(user_id: int) -> None:
     """Assemble a candidate GDPR export ZIP and email the download link.
 
     Idempotent guard: if a pending export already exists the task is a no-op
-    so SQS redelivery is safe.
+    so SQS redelivery is safe. The export row and the email that carries its
+    download link commit together, so that guard can never outlive the link.
     """
     from rs_shared.core.services.storage import get_storage_provider
     from rs_shared.services.candidate.data_export import (
@@ -154,31 +288,32 @@ async def build_data_export_task(user_id: int) -> None:
             )
             return
 
+    # The export row and the email announcing it commit together — the ZIP is
+    # useless to the candidate if the link never reaches them, and this used to
+    # enqueue afterwards behind a try/except that swallowed the failure.
     async with async_session() as session:
         async with transactional(session):
             raw_token, candidate_email = await build_and_persist_export(
                 user_id, session, get_storage_provider()
             )
-
-    download_url = f"{settings.frontend_base_url}/api/candidate/me/export/{raw_token}"
-    html = build_data_export_ready_html(
-        download_url=download_url, ttl_hours=DATA_EXPORT_TTL_HOURS
-    )
-    try:
-        await enqueue_email_task(
-            to=candidate_email,
-            subject="ייצוא הנתונים שלכם מוכן – RS Recruiting",
-            body=(
-                "שלום,\n\n"
-                "ייצוא הנתונים שביקשתם מוכן להורדה.\n\n"
-                f"קישור להורדה (תקף ל-{DATA_EXPORT_TTL_HOURS} שעות):\n"
-                f"{download_url}\n\n"
-                "בברכה,\nצוות RS Recruiting"
-            ),
-            html_body=html,
-        )
-    except Exception:
-        logger.exception("Failed to enqueue data export notification email")
+            download_url = (
+                f"{settings.frontend_base_url}/api/candidate/me/export/{raw_token}"
+            )
+            await queue_email(
+                session,
+                to=candidate_email,
+                subject="ייצוא הנתונים שלכם מוכן – RS Recruiting",
+                body=(
+                    "שלום,\n\n"
+                    "ייצוא הנתונים שביקשתם מוכן להורדה.\n\n"
+                    f"קישור להורדה (תקף ל-{DATA_EXPORT_TTL_HOURS} שעות):\n"
+                    f"{download_url}\n\n"
+                    "בברכה,\nצוות RS Recruiting"
+                ),
+                html_body=build_data_export_ready_html(
+                    download_url=download_url, ttl_hours=DATA_EXPORT_TTL_HOURS
+                ),
+            )
 
 
 async def nightly_cleanup_task() -> dict:
@@ -246,6 +381,69 @@ async def nightly_cleanup_task() -> dict:
 # ---------------------------------------------------------------------------
 
 
+async def queue_email(
+    session: AsyncSession,
+    to: str | List[str],
+    subject: str,
+    body: str,
+    html_body: Optional[str] = None,
+    attachments: Optional[List[Attachment]] = None,
+    from_email: Optional[str] = None,
+    dedup_key: Optional[str] = None,
+) -> Optional[int]:
+    """Queue an email as part of the caller's transaction. The producer API.
+
+    Call this *inside* a ``transactional()`` block, from the service that owns
+    the domain change. The outbox row is written in that same transaction, so
+    committing the change and queueing its email are one atomic act: an
+    approved company can no longer end up without its activation email.
+
+    The SQS nudge is deferred to after the commit — it must not fire for a
+    transaction that rolls back. If the nudge fails, the committed PENDING row
+    is still there and ``sweep_email_outbox_task`` re-enqueues it; that is the
+    difference from the old ``defer_after_commit(enqueue_email_task)``, where a
+    failed enqueue meant the email was simply never sent.
+
+    ``dedup_key`` is optional business-level idempotency: pass a deterministic
+    key for the domain event (``f"password_reset:{token.id}"``) and a second
+    queue of the same event is dropped. Returns the outbox row id, or None when
+    the email was deduped.
+    """
+    outbox_id = await email_outbox.insert_email(
+        session,
+        to=to,
+        subject=subject,
+        body=body,
+        html_body=html_body,
+        attachments=attachments,
+        from_email=from_email,
+        dedup_key=dedup_key,
+    )
+    if outbox_id is None:
+        return None
+
+    defer_after_commit(lambda: enqueue_send_outbox_email_task(outbox_id))
+    return outbox_id
+
+
+async def enqueue_send_outbox_email_task(outbox_id: int) -> str:
+    """Nudge the worker to send an already-committed outbox row.
+
+    Runs the send inline when SQS_QUEUE_URL is unset (local dev), matching the
+    other producers. Note the nudge carries only the id — see
+    ``build_send_outbox_email_message``.
+    """
+    if not settings.sqs_queue_url:
+        await send_outbox_email_task(outbox_id)
+        return "inline"
+
+    message_id = await _sqs_send(build_send_outbox_email_message(outbox_id))
+    logger.info(
+        "email_enqueued", extra={"message_id": message_id, "outbox_id": outbox_id}
+    )
+    return message_id
+
+
 async def enqueue_email_task(
     to: str | List[str],
     subject: str,
@@ -254,12 +452,11 @@ async def enqueue_email_task(
     attachments: Optional[List[tuple]] = None,
     from_email: Optional[str] = None,
 ) -> str:
-    """Enqueue an email send. Call sites are unchanged from the Arq era.
+    """Legacy producer — enqueues the payload on the wire, with no outbox row.
 
-    Attachments (bytes) are base64-encoded for JSON transport over SQS.
-    Single-page PDFs are ~20–80 KB — well under the 256 KB SQS message limit.
-
-    When SQS_QUEUE_URL is not configured the task runs inline (local dev).
+    Superseded by ``queue_email``. Retained only because it has no session to
+    write a row with; any remaining caller gets the old at-least-once, no-record
+    behaviour. Prefer ``queue_email`` for anything transactional.
     """
     if not settings.sqs_queue_url:
         await send_email_task(
@@ -345,6 +542,10 @@ async def enqueue_match_candidate_task(candidate_id: int) -> str:
 # Maps the "task" field in the SQS message body to the implementing coroutine.
 # Add new tasks here; the worker picks them up without any other changes.
 TASK_REGISTRY: dict = {
+    TaskName.SEND_OUTBOX_EMAIL: send_outbox_email_task,
+    TaskName.SWEEP_EMAIL_OUTBOX: sweep_email_outbox_task,
+    # Legacy — drains send_email messages still in flight from the previous
+    # release. Nothing produces these any more; remove next release.
     TaskName.SEND_EMAIL: send_email_task,
     TaskName.BUILD_DATA_EXPORT: build_data_export_task,
     # Wire-format key kept as PURGE_EXPIRED_CANDIDATES for backward compatibility

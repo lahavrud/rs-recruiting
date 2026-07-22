@@ -106,7 +106,7 @@ export interface paths {
         get?: never;
         /**
          * Update Application Status Endpoint
-         * @description Update application status. Emails (if any) enqueued after commit.
+         * @description Update application status. Emails (if any) queued in the same transaction.
          */
         put: operations["update_application_status_endpoint_api_admin_applications__application_id__status_put"];
         post?: never;

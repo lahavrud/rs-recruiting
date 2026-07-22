@@ -146,11 +146,12 @@ async def test_request_deletion_sends_email_for_known_email(session):
     await session.flush()
 
     with patch(
-        "rs_shared.services.candidate.account_deletion.defer_after_commit"
-    ) as mock_defer:
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ) as mock_queue:
         await request_account_deletion("known@test.com", session)
 
-    mock_defer.assert_called_once()
+    mock_queue.assert_called_once()
     result = await session.execute(
         select(AccountDeletionToken).where(
             AccountDeletionToken.candidate_profile_id  # type: ignore[arg-type]
@@ -171,11 +172,12 @@ async def test_request_deletion_sends_email_for_known_email(session):
 @pytest.mark.asyncio
 async def test_request_deletion_silent_for_unknown_email(session):
     with patch(
-        "rs_shared.services.candidate.account_deletion.defer_after_commit"
-    ) as mock_defer:
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ) as mock_queue:
         await request_account_deletion("nobody@test.com", session)
 
-    mock_defer.assert_not_called()
+    mock_queue.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -185,11 +187,12 @@ async def test_request_deletion_silent_for_already_deleted_profile(session):
     await session.flush()
 
     with patch(
-        "rs_shared.services.candidate.account_deletion.defer_after_commit"
-    ) as mock_defer:
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ) as mock_queue:
         await request_account_deletion("gone@test.com", session)
 
-    mock_defer.assert_not_called()
+    mock_queue.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -202,11 +205,12 @@ async def test_request_deletion_rate_limit_blocks_after_3(session):
     await session.flush()
 
     with patch(
-        "rs_shared.services.candidate.account_deletion.defer_after_commit"
-    ) as mock_defer:
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ) as mock_queue:
         await request_account_deletion("rl@test.com", session)
 
-    mock_defer.assert_not_called()
+    mock_queue.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -215,7 +219,10 @@ async def test_request_deletion_writes_audit_event(session):
     await _make_profile(session, user=user, email="audit@test.com")
     await session.flush()
 
-    with patch("rs_shared.services.candidate.account_deletion.defer_after_commit"):
+    with patch(
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ):
         await request_account_deletion("audit@test.com", session)
 
     audit_rows = list(

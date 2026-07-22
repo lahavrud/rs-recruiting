@@ -24,7 +24,7 @@ async def test_get_pending_companies_empty(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_get_pending_companies(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -129,7 +129,7 @@ async def test_active_companies_invalid_sort_returns_422(admin_client: AsyncClie
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 async def test_approve_company_success(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -164,7 +164,7 @@ async def test_approve_company_not_found(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
 async def test_approve_company_already_approved(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -183,7 +183,7 @@ async def test_approve_company_already_approved(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.companies.enqueue_email_task")
+@patch("rs_shared.services.admin.companies.queue_email")
 async def test_reject_company_success(
     mock_enqueue_email, admin_client: AsyncClient, company_user
 ):
@@ -212,8 +212,8 @@ async def test_reject_company_not_found(admin_client: AsyncClient):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.company_approval.enqueue_email_task")
-@patch("rs_shared.services.admin.companies.enqueue_email_task")
+@patch("rs_shared.services.admin.company_approval.queue_email")
+@patch("rs_shared.services.admin.companies.queue_email")
 async def test_reject_company_already_approved(
     mock_enqueue_email, mock_approval_email, admin_client: AsyncClient, company_user
 ):

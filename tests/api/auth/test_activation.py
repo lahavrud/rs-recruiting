@@ -78,7 +78,7 @@ async def test_activate_valid_token(test_db):
 
         app.dependency_overrides[get_session] = _use_this_session
 
-        with patch("rs_shared.services.admin.companies.enqueue_email_task"):
+        with patch("rs_shared.services.admin.companies.queue_email"):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
@@ -187,7 +187,7 @@ async def test_activate_candidate_returns_200_and_enqueues_welcome(test_db):
         app.dependency_overrides[get_session] = _use_this_session
 
         with patch(
-            "rs_api.api.auth.activation.enqueue_email_task",
+            "rs_api.api.auth.activation.queue_email",
             new_callable=AsyncMock,
         ) as mock_enqueue:
             async with AsyncClient(
@@ -225,7 +225,7 @@ async def test_activate_candidate_links_existing_profile_and_writes_consent(test
         app.dependency_overrides[get_session] = _use_this_session
 
         with patch(
-            "rs_api.api.auth.activation.enqueue_email_task",
+            "rs_api.api.auth.activation.queue_email",
             new_callable=AsyncMock,
         ):
             async with AsyncClient(
@@ -259,7 +259,7 @@ async def test_activate_candidate_prefills_profile_full_name_from_token(test_db)
         app.dependency_overrides[get_session] = _use_this_session
 
         with patch(
-            "rs_api.api.auth.activation.enqueue_email_task",
+            "rs_api.api.auth.activation.queue_email",
             new_callable=AsyncMock,
         ):
             async with AsyncClient(
@@ -297,7 +297,7 @@ async def test_activate_candidate_falls_back_to_email_prefix_when_no_name(
         app.dependency_overrides[get_session] = _use_this_session
 
         with patch(
-            "rs_api.api.auth.activation.enqueue_email_task",
+            "rs_api.api.auth.activation.queue_email",
             new_callable=AsyncMock,
         ):
             async with AsyncClient(

@@ -4402,7 +4402,7 @@
     },
     "/api/admin/applications/{application_id}/status": {
       "put": {
-        "description": "Update application status. Emails (if any) enqueued after commit.",
+        "description": "Update application status. Emails (if any) queued in the same transaction.",
         "operationId": "update_application_status_endpoint_api_admin_applications__application_id__status_put",
         "parameters": [
           {

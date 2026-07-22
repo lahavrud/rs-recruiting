@@ -102,10 +102,38 @@ consumer so they can't drift. The worker deletes a message on success and leaves
 it for redelivery (eventually the DLQ) on failure; SQS is at-least-once, so tasks
 must be idempotent. Full rules: `.claude/rules/worker.md`.
 
-Current tasks: `send_email_task`, `build_data_export_task` (GDPR export ZIP),
-`purge_expired_candidate_data_task` (nightly retention purge via EventBridge
-Scheduler → SQS), and `embed_job_task` / `match_candidate_task`
-(resume-matching embeddings, in `core/matching.py`).
+Current tasks: `send_outbox_email_task`, `sweep_email_outbox_task`,
+`build_data_export_task` (GDPR export ZIP), `purge_expired_candidate_data_task`
+(nightly retention purge via EventBridge Scheduler → SQS), and `embed_job_task` /
+`match_candidate_task` (resume-matching embeddings, in `core/matching.py`).
+
+### Email goes through the outbox
+
+**Never call `enqueue_email_task` in new code** — it is the legacy producer, kept
+only to drain in-flight `send_email` messages across one rolling deploy, and it
+carries none of the guarantees below. Delete it (and `send_email_task`, and
+`TaskName.SEND_EMAIL`) once the queue has drained.
+
+`queue_email(session, ...)` is the producer. It writes an `email_outbox` row in
+the **caller's transaction** and defers only the SQS nudge, so committing a
+domain change and queueing its email are one atomic act. Two consequences:
+
+- It **must** be called inside a `transactional()` block (it uses
+  `defer_after_commit`, which raises outside one). Queueing an email is now a DB
+  write — an endpoint that only sends email still needs a transaction.
+- A failed SQS enqueue no longer loses the email: the committed PENDING row is
+  re-enqueued by `sweep_email_outbox_task`.
+
+The row — not the message — is the unit of idempotency: `claim_for_send` only
+claims a PENDING row, so an at-least-once redelivery no-ops. **A row left in
+SENDING is never resent** (it may already have reached the provider); the sweeper
+logs it CRITICAL for a human instead. That is a deliberate trade of a possible
+lost email over a duplicate, and it is why the quota bump shares the mark-sent
+transaction — when it had its own, a failed quota write resent the email.
+
+The sweeper needs an EventBridge schedule, which lives in `rs-recruiting-infra`
+(`tofu/modules/sqs/main.tf`, next to the nightly purge). Until that exists it is
+manual-only, and the PENDING backstop is not actually running.
 
 ---
 

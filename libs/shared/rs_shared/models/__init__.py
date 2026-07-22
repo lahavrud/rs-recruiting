@@ -26,6 +26,7 @@ from rs_shared.models.auth_tokens import (
     RefreshToken,
     UsedRefreshToken,
 )
+from rs_shared.models.email_outbox import EmailOutbox
 from rs_shared.models.identity import CandidateProfile, CompanyProfile, User
 from rs_shared.models.jobs import Job
 from rs_shared.models.matching import MatchSuggestion
@@ -49,7 +50,8 @@ __all__ = [
     "PasswordResetToken",
     "DataExportRequest",
     "AccountDeletionToken",
-    # audit / quota
+    # audit / quota / email
     "AuditLog",
     "EmailQuota",
+    "EmailOutbox",
 ]
