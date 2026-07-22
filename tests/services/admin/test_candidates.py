@@ -698,11 +698,14 @@ async def test_purge_removes_old_closed_non_hired(
     candidate = await _make_candidate(
         session, email="purge@test.com", resume_path="uploads/resumes/x.pdf"
     )
+    # JOB_CLOSED is the realistic post-cascade state for an application on a
+    # closed job. An *active* status here would preserve the candidate — see
+    # test_purge_preserves_active_application_on_long_closed_job.
     await _make_app(
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     with patch(
@@ -749,11 +752,12 @@ async def test_purge_preserves_recently_closed_jobs(
         session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS - 30
     )
     candidate = await _make_candidate(session, email="recent@test.com")
+    # Terminal, so recency of the close is the only thing preserving here.
     await _make_app(
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     with patch(
@@ -787,11 +791,12 @@ async def test_purge_preserves_candidate_with_any_active_application(
     await session.refresh(active)
 
     candidate = await _make_candidate(session, email="mixed@test.com")
+    # Expired history on the closed job, still in flight on the open one.
     await _make_app(
         session,
         job=old_closed,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
     await _make_app(
         session,
@@ -818,7 +823,7 @@ async def test_purge_idempotent(session: AsyncSession, company_profile: CompanyP
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     with patch(
@@ -846,7 +851,7 @@ async def test_purge_removes_backing_user(
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     with patch(
@@ -880,7 +885,7 @@ async def test_purge_unaffected_by_edit_to_long_closed_job(
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     # An admin fixes a typo on the long-closed job today.
@@ -910,11 +915,12 @@ async def test_purge_preserves_closed_job_with_null_closed_at(
     await session.commit()
 
     candidate = await _make_candidate(session, email="nullclosed@test.com")
+    # Terminal, so the NULL anchor is the only thing preserving here.
     await _make_app(
         session,
         job=job,
         candidate=candidate,
-        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        status=ApplicationStatus.JOB_CLOSED,
     )
 
     with patch(
@@ -922,6 +928,41 @@ async def test_purge_preserves_closed_job_with_null_closed_at(
     ) as factory:
         factory.return_value.delete_file = AsyncMock()
         assert await purge_expired_candidates(session) == 0
+
+
+@pytest.mark.parametrize(
+    "status",
+    [s for s in ApplicationStatus if s.is_active],
+)
+@pytest.mark.asyncio
+async def test_purge_preserves_active_application_on_long_closed_job(
+    session: AsyncSession,
+    company_profile: CompanyProfile,
+    status: ApplicationStatus,
+):
+    """An in-flight application preserves regardless of the job's age or status.
+
+    The preserve rule used to infer "still active" from ``Job.status != CLOSED``
+    rather than reading the application's own status, so an application left in
+    flight on a long-closed job did not hold its candidate back — the candidate
+    was purged while the pipeline still showed the application as live work.
+    """
+    job = await _make_closed_job(
+        session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
+    )
+    candidate = await _make_candidate(session, email=f"active-{status.value}@test.com")
+    await _make_app(session, job=job, candidate=candidate, status=status)
+
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
+        factory.return_value.delete_file = AsyncMock()
+        assert await purge_expired_candidates(session) == 0
+
+    remaining = await session.execute(
+        select(CandidateProfile).where(CandidateProfile.id == candidate.id)  # pyright: ignore[reportArgumentType]
+    )
+    assert remaining.scalar_one_or_none() is not None
 
 
 # ---------------------------------------------------------------------------

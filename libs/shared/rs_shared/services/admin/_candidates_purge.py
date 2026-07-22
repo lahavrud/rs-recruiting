@@ -17,6 +17,10 @@ from rs_shared.services.utils.audit import record_audit_event
 
 CANDIDATE_RETENTION_DAYS = 365  # 12 months per privacy policy
 
+# In-flight applications hold their candidate back from the purge — source of
+# truth is ``ApplicationStatus.is_active``, never a re-listed status set.
+_ACTIVE_STATUSES = tuple(s for s in ApplicationStatus if s.is_active)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -24,11 +28,19 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """Delete candidates whose data is past the 12-month retention window.
 
     A candidate is purged only when *every* one of their applications meets
-    all three conditions:
+    all four conditions:
 
     - linked Job is CLOSED
     - linked Job.closed_at is more than ``CANDIDATE_RETENTION_DAYS`` ago
     - the application's own status is not HIRED
+    - the application's own status is not ``is_active``
+
+    The active check is deliberately stated on the application rather than
+    inferred from the job. It used to be implicit — an active application was
+    assumed to imply a job that is not closed — so an application left in
+    flight on a long-closed job silently failed to preserve its candidate, and
+    the candidate was purged while the admin pipeline still showed the
+    application as live work.
 
     The window is measured from ``Job.closed_at``, not ``Job.updated_at``:
     ``updated_at`` moves on every edit, so touching a long-closed job used to
@@ -61,6 +73,7 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
             | (Job.closed_at.is_(None))
             | (Job.closed_at >= cutoff)
             | (Application.status == ApplicationStatus.HIRED)
+            | (Application.status.in_(_ACTIVE_STATUSES))  # pyright: ignore[reportAttributeAccessIssue]
         )
     ).subquery()
 
