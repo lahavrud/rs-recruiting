@@ -5,6 +5,7 @@ whole point of the outbox is what survives a commit, which a MagicMock session
 cannot demonstrate.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
@@ -243,7 +244,7 @@ async def test_sweeper_requeues_a_row_whose_nudge_never_landed(session, outbox_d
     """The silent-loss path: enqueue failed, but the row is committed."""
     outbox_id = await _queue_row(session)
     row = await _get(session, outbox_id)
-    row.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    row.updated_at = datetime.now(timezone.utc) - timedelta(hours=1)
     await session.commit()
 
     with patch(
@@ -257,6 +258,28 @@ async def test_sweeper_requeues_a_row_whose_nudge_never_landed(session, outbox_d
 
 async def test_sweeper_leaves_fresh_pending_rows_alone(session, outbox_db):
     await _queue_row(session)
+
+    with patch(
+        "rs_shared.core.tasks.enqueue_send_outbox_email_task", new_callable=AsyncMock
+    ) as mock_enqueue:
+        result = await sweep_email_outbox_task()
+
+    assert result["requeued"] == 0
+    mock_enqueue.assert_not_called()
+
+
+async def test_sweeper_leaves_a_just_retried_row_to_its_redelivery(session, outbox_db):
+    """A retried row is old by created_at but fresh by updated_at.
+
+    mark_for_retry returns it to PENDING without touching created_at, so a
+    sweeper keyed on creation time would re-nudge it on every pass and race
+    the SQS redelivery that is already coming.
+    """
+    outbox_id = await _queue_row(session)
+    row = await _get(session, outbox_id)
+    row.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await email_outbox.mark_for_retry(session, row, "SMTP timeout")
+    await session.commit()
 
     with patch(
         "rs_shared.core.tasks.enqueue_send_outbox_email_task", new_callable=AsyncMock
@@ -283,3 +306,43 @@ async def test_sweeper_reports_stuck_sending_rows_without_resending(session, out
     assert result["stuck_sending"] == 1
     assert result["requeued"] == 0
     mock_enqueue.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Concurrent claims — routine contention must not page anyone
+# ---------------------------------------------------------------------------
+
+
+async def test_a_send_still_in_flight_is_skipped_without_a_critical(session, caplog):
+    """SENDING + recently touched is another worker mid-send, not a crash.
+
+    An at-least-once duplicate lands here routinely. Paging on it would train
+    everyone to ignore outbox_row_stuck_sending, which is the one log that
+    means an email may really have been lost.
+    """
+    outbox_id = await _queue_row(session)
+    row = await _get(session, outbox_id)
+    row.status = EmailStatus.SENDING
+    row.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        assert await email_outbox.claim_for_send(session, outbox_id) is None
+
+    events = {r.getMessage() for r in caplog.records}
+    assert "outbox_send_skipped_in_flight" in events
+    assert "outbox_row_stuck_sending" not in events
+
+
+async def test_a_send_stalled_past_the_sweep_threshold_is_critical(session, caplog):
+    outbox_id = await _queue_row(session)
+    row = await _get(session, outbox_id)
+    row.status = EmailStatus.SENDING
+    row.updated_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await session.commit()
+
+    with caplog.at_level(logging.WARNING):
+        assert await email_outbox.claim_for_send(session, outbox_id) is None
+
+    critical = [r.getMessage() for r in caplog.records if r.levelno == logging.CRITICAL]
+    assert critical == ["outbox_row_stuck_sending"]

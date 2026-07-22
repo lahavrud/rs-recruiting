@@ -18,12 +18,13 @@ which makes a redelivered send a no-op instead of a second email.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.services.email_quota import increment_and_alert
 from rs_shared.core.task_contract import Attachment, encode_attachments
 from rs_shared.enums import EmailStatus
@@ -39,6 +40,20 @@ MAX_SEND_ATTEMPTS = 5
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def sweep_cutoff() -> datetime:
+    """Rows untouched since this instant are the sweeper's business.
+
+    One definition of "stale" for every caller: the sweeper's two queries and
+    ``claim_for_send``'s stuck-vs-in-flight call all derive from this, so they
+    cannot drift into disagreeing about which rows need a human.
+    """
+    return _now() - timedelta(minutes=settings.email_outbox_sweep_after_minutes)
+
+
+def _is_stale(updated_at: datetime) -> bool:
+    return updated_at < sweep_cutoff()
 
 
 async def insert_email(
@@ -98,6 +113,14 @@ async def claim_for_send(session: AsyncSession, outbox_id: int) -> EmailOutbox |
       may or may not have hit the provider, so resending risks a duplicate.
       We refuse and let ``sweep_email_outbox_task`` surface it for a human.
       That trades a possible lost email for never double-emailing a candidate.
+
+    A SENDING row is only *stuck* once it has sat there past the sweep
+    threshold. Before that it is almost certainly a send still in flight, and
+    hitting this branch is routine: an at-least-once duplicate, or the
+    sweeper's nudge racing an SQS redelivery. Those log at WARNING under a
+    distinct event name, so ``outbox_row_stuck_sending`` stays a CRITICAL that
+    only fires when a worker really did die mid-send — an alert that fires on
+    normal contention is one nobody reads.
     """
     row = (
         await session.execute(
@@ -115,10 +138,16 @@ async def claim_for_send(session: AsyncSession, outbox_id: int) -> EmailOutbox |
         )
         return None
     if row.status == EmailStatus.SENDING:
-        logger.critical(
-            "outbox_row_stuck_sending",
-            extra={"outbox_id": outbox_id, "attempts": row.attempts},
-        )
+        if _is_stale(row.updated_at):
+            logger.critical(
+                "outbox_row_stuck_sending",
+                extra={"outbox_id": outbox_id, "attempts": row.attempts},
+            )
+        else:
+            logger.warning(
+                "outbox_send_skipped_in_flight",
+                extra={"outbox_id": outbox_id, "attempts": row.attempts},
+            )
         return None
 
     row.status = EmailStatus.SENDING
@@ -168,14 +197,23 @@ async def mark_failed(session: AsyncSession, row: EmailOutbox, error: str) -> No
 async def stale_pending_ids(
     session: AsyncSession, older_than: datetime, limit: int = 100
 ) -> list[int]:
-    """PENDING rows whose SQS nudge never landed — the sweeper's work list."""
+    """PENDING rows whose SQS nudge never landed — the sweeper's work list.
+
+    Keyed on ``updated_at``, not ``created_at``. For a row that was never
+    nudged the two are identical, but ``mark_for_retry`` returns a row to
+    PENDING without touching ``created_at`` — so on ``created_at`` every
+    retried row is sweep-eligible on every pass, and the sweeper's nudge races
+    the SQS redelivery that is already coming. ``updated_at`` gives the
+    redelivery its full window before the backstop steps in, and matches
+    ``stale_sending_ids``.
+    """
     result = await session.execute(
         select(EmailOutbox.id)
         .where(
             EmailOutbox.status == EmailStatus.PENDING,
-            EmailOutbox.created_at < older_than,
+            EmailOutbox.updated_at < older_than,
         )
-        .order_by(EmailOutbox.created_at)
+        .order_by(EmailOutbox.updated_at)
         .limit(limit)
     )
     return list(result.scalars().all())

@@ -23,7 +23,6 @@ legacy pre-outbox path, retained for one release to drain in-flight
 import json
 import logging
 import time
-from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import aioboto3
@@ -208,9 +207,7 @@ async def sweep_email_outbox_task() -> dict:
     Scheduled by EventBridge → SQS, which lives in the infra repo. Until that
     rule exists this is still runnable as a one-off ECS task.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(
-        minutes=settings.email_outbox_sweep_after_minutes
-    )
+    cutoff = email_outbox.sweep_cutoff()
     async with async_session() as session:
         pending = await email_outbox.stale_pending_ids(session, cutoff)
         stuck = await email_outbox.stale_sending_ids(session, cutoff)
