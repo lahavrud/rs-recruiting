@@ -125,3 +125,112 @@ async def test_job_salary_range_db_constraint_allows_equal(
     await session.commit()
     await session.refresh(job)
     assert job.id is not None
+
+
+# ── closed_at flush hook ──────────────────────────────────────────────────────
+
+
+def _job(company_id: int, status: JobStatus = JobStatus.PENDING_APPROVAL) -> Job:
+    return Job(
+        company_id=company_id,
+        title="Anchor Role",
+        short_description="Short blurb for testing.",
+        description="x",
+        requirements=[{"text": "x"}, {"text": "y"}, {"text": "z"}],
+        location="x",
+        salary_min=15000,
+        salary_max=25000,
+        status=status,
+    )
+
+
+@pytest.mark.asyncio
+async def test_closed_at_stamped_on_raw_status_assignment(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The anchor is maintained by the model, not by the service that closes.
+
+    This is the whole point of the before_flush hook: a close performed without
+    going through update_job/reject_job — a script, a shell, a future code path
+    — still gets a retention anchor. Without one the purge preserves the job's
+    candidates forever.
+    """
+    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    session.add(job)
+    await session.commit()
+    assert job.closed_at is None
+
+    job.status = JobStatus.CLOSED
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_closed_at_stamped_when_created_closed(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A job born CLOSED — as the seed script and admin create both allow."""
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_closed_at_untouched_by_unrelated_edit(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """An edit that does not move the status must not move the anchor."""
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    anchor = job.closed_at
+
+    job.title = "Renamed"
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at == anchor
+
+
+@pytest.mark.asyncio
+async def test_closed_at_cleared_on_reopen(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A stale anchor must not outlive the CLOSED status."""
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+    job.status = JobStatus.PUBLISHED
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is None
+
+
+@pytest.mark.asyncio
+async def test_explicit_closed_at_survives_when_status_unchanged(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Backdating the anchor is how the purge fixtures build aged jobs."""
+    from datetime import datetime, timedelta, timezone
+
+    job = _job(company_with_user.id, JobStatus.CLOSED)
+    session.add(job)
+    await session.commit()
+
+    backdated = datetime.now(timezone.utc) - timedelta(days=400)
+    job.closed_at = backdated
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is not None
+    assert (job.closed_at - backdated).total_seconds() < 1

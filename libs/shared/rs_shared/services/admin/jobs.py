@@ -201,11 +201,6 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
         salary_min=data.salary_min,
         salary_max=data.salary_max,
         status=data.status,
-        # JobAdminCreate accepts any status, so a job can be born CLOSED —
-        # it still needs a retention anchor, or the purge would never expire it.
-        closed_at=(
-            datetime.now(timezone.utc) if data.status == JobStatus.CLOSED else None
-        ),
     )
     session.add(job)
     await session.flush()
@@ -261,8 +256,8 @@ async def update_job(
 
     for field, value in payload.items():
         setattr(job, field, value)
-    now = datetime.now(timezone.utc)
-    job.updated_at = now
+    job.updated_at = datetime.now(timezone.utc)
+    # closed_at is stamped by the before_flush hook in models/jobs.py.
 
     # Any entry into CLOSED sweeps, not just PUBLISHED → CLOSED. Gating on
     # PUBLISHED assumed only a published job can hold active applications, which
@@ -273,13 +268,13 @@ async def update_job(
     # costs one empty SELECT.
     is_closing = old_status != JobStatus.CLOSED and job.status == JobStatus.CLOSED
 
-    # Stamp the retention anchor on the transition only — never on a plain edit,
-    # which is the whole point of not reusing updated_at. Clearing on reopen
-    # keeps a stale timestamp from outliving the CLOSED status.
-    if is_closing:
-        job.closed_at = now
-    elif old_status == JobStatus.CLOSED and job.status != JobStatus.CLOSED:
-        job.closed_at = None
+    # The closure email tells the company the job left the public board and that
+    # active candidates were notified. Both are only true if it was actually
+    # PUBLISHED — for a job closed straight out of PENDING_APPROVAL neither is,
+    # and the company already hears about that transition through the generic
+    # "fields changed" mail (status is one of the labels). Sweeping is broader
+    # than announcing, so the two gates are deliberately different.
+    announce_closure = is_closing and old_status == JobStatus.PUBLISHED
 
     await session.flush()
 
@@ -288,7 +283,7 @@ async def update_job(
         old_title=old_title,
         title_changed=title_changed,
         changed_labels=changed_labels,
-        is_closing=is_closing,
+        is_closing=announce_closure,
     )
 
     # When a published job is closed, notify all active applicants and

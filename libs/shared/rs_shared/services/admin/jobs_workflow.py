@@ -166,11 +166,9 @@ async def reject_job(
     job_title = job.title
     job_location = job.location
 
-    now = datetime.now(timezone.utc)
     job.status = JobStatus.CLOSED
-    job.updated_at = now
-    # Rejection is a close too — anchor retention here, not on updated_at.
-    job.closed_at = now
+    job.updated_at = datetime.now(timezone.utc)
+    # closed_at is stamped by the before_flush hook in models/jobs.py.
     await session.flush()
 
     await record_audit_event(

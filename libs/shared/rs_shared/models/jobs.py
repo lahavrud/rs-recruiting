@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, event, inspect
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Session
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 from rs_shared.enums import JobStatus
@@ -85,3 +86,43 @@ class Job(SQLModel, table=True):
     company: CompanyProfile = Relationship()
     # Note: One-way relationship (SQLModel 0.0.22 limitation)
     # Access via: session.exec(select(Job).where(Job.company_id == X))
+
+
+@event.listens_for(Session, "before_flush")
+def _stamp_job_closed_at(
+    session: Session, flush_context: object, instances: object
+) -> None:
+    """Keep ``Job.closed_at`` in lockstep with the CLOSED status.
+
+    The retention purge treats ``closed_at`` as the start of the window, and a
+    CLOSED job with a NULL anchor is preserved forever — so a close path that
+    forgets to stamp it fails silently, as over-retention with no error and a
+    plausible-looking nightly purge count.
+
+    Enforcing it here rather than at each call site means it cannot be
+    forgotten: it covers ``update_job``, ``reject_job``, ``admin_create_job``,
+    the seed script, and any future path, including a raw ``job.status =
+    CLOSED`` in a shell. Listening on ``Session`` catches ``AsyncSession`` too,
+    which delegates to a sync session underneath.
+
+    An explicit ``closed_at`` assignment still wins when the status is not
+    changing in the same flush — that is what lets tests backdate the anchor.
+    """
+    now = datetime.now(timezone.utc)
+
+    for obj in session.new:
+        if isinstance(obj, Job) and obj.status == JobStatus.CLOSED:
+            if obj.closed_at is None:
+                obj.closed_at = now
+
+    for obj in session.dirty:
+        if not isinstance(obj, Job):
+            continue
+        # session.dirty is a superset of actually-modified objects, and an
+        # unrelated edit to a closed job must not move the anchor.
+        if not inspect(obj).attrs.status.history.has_changes():
+            continue
+        if obj.status == JobStatus.CLOSED:
+            obj.closed_at = now
+        elif obj.closed_at is not None:
+            obj.closed_at = None
