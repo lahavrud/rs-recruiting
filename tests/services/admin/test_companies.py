@@ -83,7 +83,7 @@ async def test_list_pending_companies_empty(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_pending_companies(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     await _register(_company_create("p1@example.com", "Company 1"), session)
@@ -104,7 +104,7 @@ async def test_list_pending_companies(mock_email, session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_pending_companies_paginates(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     for i in range(5):
@@ -129,7 +129,7 @@ async def test_list_pending_companies_paginates(mock_email, session: AsyncSessio
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.companies.enqueue_email_task")
+@patch("rs_shared.services.admin.companies.queue_email")
 async def test_reject_company_success(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(_company_create("reject@example.com", "Reject Co"), session)
@@ -154,7 +154,7 @@ async def test_reject_company_success(mock_email, session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.admin.companies.enqueue_email_task")
+@patch("rs_shared.services.admin.companies.queue_email")
 @patch("rs_shared.services.admin.companies.get_storage_provider")
 async def test_reject_company_deletes_s3_files(
     mock_storage, mock_email, session: AsyncSession
@@ -179,7 +179,7 @@ async def test_reject_company_not_found(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_reject_company_already_approved(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(
@@ -214,7 +214,7 @@ async def test_reject_company_wrong_role(session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_active_companies_empty(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     # Pending company should not appear
@@ -225,7 +225,7 @@ async def test_list_active_companies_empty(mock_email, session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_active_companies(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     for email, name in [("a@example.com", "A Co"), ("b@example.com", "B Co")]:
@@ -244,7 +244,7 @@ async def test_list_active_companies(mock_email, session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_active_companies_paginates(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     for i in range(5):
@@ -302,7 +302,7 @@ async def test_list_active_companies_includes_admin_created_profiles(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_active_companies_sort_by_name(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     for email, name in [("b@example.com", "Bravo Co"), ("a@example.com", "Alpha Co")]:
@@ -318,7 +318,7 @@ async def test_list_active_companies_sort_by_name(mock_email, session: AsyncSess
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_list_active_companies_cursor_rejects_sort_change(
     mock_email, session: AsyncSession
 ):
@@ -341,7 +341,7 @@ async def test_list_active_companies_cursor_rejects_sort_change(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_delete_active_company_with_activation_and_refresh_tokens(
     mock_email, session: AsyncSession
 ):
@@ -382,7 +382,7 @@ async def test_delete_active_company_with_activation_and_refresh_tokens(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_delete_active_company_with_password_reset_token(
     mock_email, session: AsyncSession
 ):
@@ -426,7 +426,7 @@ async def test_delete_active_company_with_password_reset_token(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 @patch("rs_shared.services.admin.companies.get_storage_provider")
 async def test_delete_active_company_deletes_s3_files(
     mock_storage, mock_email, session: AsyncSession
@@ -450,7 +450,7 @@ async def test_delete_active_company_deletes_s3_files(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_delete_active_company_no_jobs(mock_email, session: AsyncSession):
     mock_email.return_value = "job-id"
     user = await _register(_company_create("del@example.com", "Del Co"), session)
@@ -470,7 +470,7 @@ async def test_delete_active_company_no_jobs(mock_email, session: AsyncSession):
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.auth.registration.enqueue_email_task")
+@patch("rs_shared.services.auth.registration.queue_email")
 async def test_delete_active_company_cascades_jobs_and_applications(
     mock_email, session: AsyncSession
 ):

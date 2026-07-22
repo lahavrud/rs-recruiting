@@ -8,7 +8,11 @@ Carved out of ``applications.py`` to keep the main module under the
 * ``upsert_candidate_and_application`` — the find-or-create profile +
   Application row pair, with consent-write and resume-snapshot semantics.
 * ``send_application_emails`` — the candidate-confirmation + admin-
-  notification fan-out, normally invoked via ``defer_after_commit``.
+  notification fan-out. Call it **inside** the apply transaction, never from a
+  ``defer_after_commit`` hook: it queues via ``queue_email``, which writes an
+  outbox row on the caller's session, and a hook runs after that session has
+  already committed — the row would land in a transaction nobody commits and
+  the email would be silently dropped.
 
 Resume validation/upload (``validate_and_upload_resume``) and the candidate-
 profile lookup/update primitives live in the kernel (``services/utils``) so both
@@ -22,7 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus, UserRole
 from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.schemas import CandidateProfileCreate
@@ -190,7 +194,8 @@ async def send_application_emails(
     session: AsyncSession,
 ) -> None:
     """Enqueue confirmation email to the candidate and notification to admins."""
-    await enqueue_email_task(
+    await queue_email(
+        session,
         to=candidate.email,
         subject=f"מועמדותך למשרת '{job.title}' התקבלה",
         body=(
@@ -211,7 +216,8 @@ async def send_application_emails(
 
     if admin_recipients:
         admin_url = f"{settings.frontend_base_url}/login?redirect=/admin/applications"
-        await enqueue_email_task(
+        await queue_email(
+            session,
             to=admin_recipients,
             subject=f"מועמדות חדשה למשרת '{job.title}' — {candidate.full_name}",
             body=(

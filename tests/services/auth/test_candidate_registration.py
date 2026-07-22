@@ -28,7 +28,7 @@ from rs_shared.services.exceptions import EmailAlreadyExistsError
 @pytest.fixture
 def _patch_email():
     with patch(
-        "rs_shared.services.auth.candidate_registration.enqueue_email_task",
+        "rs_shared.services.auth.candidate_registration.queue_email",
         new_callable=AsyncMock,
     ) as p:
         yield p

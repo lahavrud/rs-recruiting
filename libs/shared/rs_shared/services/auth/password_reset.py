@@ -4,8 +4,9 @@ Security model:
 - Reset tokens are random 32-byte URL-safe strings; DB stores only their
   SHA-256 hash (mirrors `RefreshToken`).
 - `forgot_password` MUST be indistinguishable for known and unknown emails:
-  the caller always sees the same response, and the email send is deferred
-  via `defer_after_commit` so timing differences from SMTP cannot leak.
+  the caller always sees the same response, and the request only ever writes
+  an outbox row — the provider is never called in the request path, so
+  timing differences from SMTP cannot leak.
 - Per-email rate limit (3/hour) lives in Redis and protects victims from
   inbox-spam when the IP rate limit is wide-open.
 - Successful reset revokes every refresh token for the user and clears any
@@ -25,7 +26,7 @@ from rs_shared.core.infrastructure.security import (
     hash_token,
 )
 from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.models import PasswordResetToken, RefreshToken, User
 from rs_shared.services.auth.login import _clear_failed_attempts
 from rs_shared.services.exceptions import InvalidPasswordResetTokenError
@@ -101,13 +102,12 @@ async def request_password_reset(email: str, session: AsyncSession) -> None:
         "הקישור תקף ל-60 דקות.\n"
         "אם לא ביקשת איפוס סיסמה, ניתן להתעלם מההודעה."
     )
-    defer_after_commit(
-        lambda: enqueue_email_task(
-            to=recipient,
-            subject="איפוס סיסמה — RS Recruiting",
-            body=plain,
-            html_body=html,
-        )
+    await queue_email(
+        session,
+        to=recipient,
+        subject="איפוס סיסמה — RS Recruiting",
+        body=plain,
+        html_body=html,
     )
 
 
