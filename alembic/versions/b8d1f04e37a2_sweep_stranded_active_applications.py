@@ -24,9 +24,12 @@ and a batch of "the job you applied to has closed" mails about long-dead
 postings would be worse than silence.
 """
 
+import logging
 from typing import Sequence, Union
 
 from alembic import op
+
+_logger = logging.getLogger("alembic.runtime.migration")
 
 revision: str = "b8d1f04e37a2"
 down_revision: Union[str, Sequence[str], None] = "a4c7e91b2d63"
@@ -47,34 +50,37 @@ _STRANDED = """
       )
 """
 
+# Module-level so tests/test_migrations.py can execute these verbatim against a
+# seeded database. A data migration that silently matches nothing — a wrong
+# table, a stale enum literal — looks identical to a successful run, and
+# `alembic upgrade --sql` only proves the SQL renders, not that it selects the
+# rows it is meant to.
+AUDIT_SQL = f"""
+    INSERT INTO audit_log (
+        actor_user_id, action, target_type, target_id, detail, created_at
+    )
+    SELECT
+        NULL,
+        'application.status_change',
+        'Application',
+        a.id,
+        'JOB_CLOSED (backfill: stranded active on closed job ' || a.job_id || ')',
+        now()
+    {_STRANDED}
+"""
+
+SWEEP_SQL = f"""
+    UPDATE application
+    SET status = 'JOB_CLOSED', updated_at = now()
+    WHERE id IN (SELECT a.id {_STRANDED})
+"""
+
 
 def upgrade() -> None:
     """Upgrade schema."""
     # Audit first — once the UPDATE lands, the rows no longer match the filter.
-    op.execute(
-        f"""
-        INSERT INTO audit_log (
-            actor_user_id, action, target_type, target_id, detail, created_at
-        )
-        SELECT
-            NULL,
-            'application.status_change',
-            'Application',
-            a.id,
-            'JOB_CLOSED (backfill: stranded active on closed job '
-                || a.job_id || ')',
-            now()
-        {_STRANDED}
-        """
-    )
-
-    op.execute(
-        f"""
-        UPDATE application
-        SET status = 'JOB_CLOSED', updated_at = now()
-        WHERE id IN (SELECT a.id {_STRANDED})
-        """
-    )
+    op.execute(AUDIT_SQL)
+    op.execute(SWEEP_SQL)
 
 
 def downgrade() -> None:
@@ -83,5 +89,18 @@ def downgrade() -> None:
     Not reversible: the pre-sweep status of each application is not recorded
     anywhere, so there is nothing to restore it from. The audit rows written by
     ``upgrade`` are the only trace, and they are append-only by design.
+
+    This deliberately does not raise. Raising would block rolling back the
+    schema migration underneath it, which *is* reversible, and an operator
+    mid-incident should not be stuck behind a data repair. It warns instead, so
+    the one-way door is visible at the moment it is crossed rather than
+    discovered later.
     """
-    pass
+    _logger.warning(
+        "downgrade is a no-op: applications swept to JOB_CLOSED by %s keep that "
+        "status, and the audit rows recording the sweep remain. The original "
+        "statuses were not captured and cannot be restored. Query audit_log for "
+        "action='application.status_change' with a NULL actor to see what was "
+        "changed.",
+        revision,
+    )
