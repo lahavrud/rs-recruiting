@@ -150,7 +150,7 @@ async def test_closed_at_stamped_on_raw_status_assignment(
 ):
     """The anchor is maintained by the model, not by the service that closes.
 
-    This is the whole point of the before_flush hook: a close performed without
+    This is the whole point of enforcing it below the services: a close without
     going through update_job/reject_job — a script, a shell, a future code path
     — still gets a retention anchor. Without one the purge preserves the job's
     candidates forever.
@@ -217,13 +217,77 @@ async def test_closed_at_cleared_on_reopen(
 
 
 @pytest.mark.asyncio
+async def test_closed_at_readable_without_refresh(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The mirror's whole reason to exist, pinned.
+
+    Both session factories use ``expire_on_commit=False``, so attributes are not
+    reloaded after commit. If only the trigger stamped the anchor, a caller
+    reading ``job.closed_at`` straight after closing would see the pre-write
+    value with nothing to hint it is stale.
+    """
+    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    session.add(job)
+    await session.commit()
+
+    job.status = JobStatus.CLOSED
+    await session.commit()
+
+    assert job.closed_at is not None  # deliberately no refresh
+
+    job.status = JobStatus.PUBLISHED
+    await session.commit()
+
+    assert job.closed_at is None  # cleared in memory too
+
+
+@pytest.mark.asyncio
+async def test_orm_and_trigger_agree_on_a_caller_supplied_anchor(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Closing with an explicit anchor keeps it, whichever layer handles it.
+
+    The trigger only ever fills a NULL. The ORM mirror has to match, or a data
+    correction replaying a historical close would get ``now()`` through the ORM
+    and its own value through a bulk UPDATE — the same write, two answers.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    backdated = datetime.now(timezone.utc) - timedelta(days=200)
+
+    via_orm = _job(company_with_user.id, JobStatus.PUBLISHED)
+    via_bulk = _job(company_with_user.id, JobStatus.PUBLISHED)
+    session.add_all([via_orm, via_bulk])
+    await session.commit()
+
+    via_orm.status = JobStatus.CLOSED
+    via_orm.closed_at = backdated
+    await session.commit()
+
+    from sqlalchemy import update
+
+    await session.execute(
+        update(Job)
+        .where(Job.id == via_bulk.id)  # pyright: ignore[reportArgumentType]
+        .values(status=JobStatus.CLOSED, closed_at=backdated)
+    )
+    await session.commit()
+
+    await session.refresh(via_orm)
+    await session.refresh(via_bulk)
+    assert via_orm.closed_at == backdated
+    assert via_bulk.closed_at == backdated
+
+
+@pytest.mark.asyncio
 async def test_closed_at_stamped_by_bulk_update_bypassing_the_orm(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
     """The database trigger, not the ORM hook, is the actual guarantee.
 
-    A Core-level UPDATE never populates ``session.dirty``, so the before_flush
-    hook cannot see it. This is the shape a mass-close would be written in —
+    A Core-level UPDATE never loads an instance, so the mapper-level hooks
+    never fire. This is the shape a mass-close would be written in —
     the codebase already uses ``update(Application)`` this way — and getting a
     NULL anchor here would mean those candidates were never purged.
     """
