@@ -31,6 +31,39 @@ down_revision: Union[str, Sequence[str], None] = "29333542be15"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+# The anchor's guarantee. Every writer goes through the database, so this is the
+# one layer a bulk UPDATE, a psql session or a future service cannot go around —
+# the mapper-level hooks in models/jobs.py only keep in-memory objects in step
+# with it.
+#
+# Copied verbatim from CLOSED_AT_FUNCTION_SQL / CLOSED_AT_TRIGGER_SQL in
+# libs/shared/rs_shared/models/jobs.py, which is how dev and test get the same
+# trigger (they build the schema with create_all, not by running migrations).
+# Copied rather than imported because a migration must stay frozen: importing
+# would make replaying history apply whatever the model says today.
+# tests/test_migrations.py fails if the two ever diverge.
+CLOSED_AT_FUNCTION_SQL = """
+CREATE OR REPLACE FUNCTION job_stamp_closed_at() RETURNS trigger AS $$
+BEGIN
+    IF NEW.status = 'CLOSED'
+       AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'CLOSED') THEN
+        IF NEW.closed_at IS NULL THEN
+            NEW.closed_at := now();
+        END IF;
+    ELSIF NEW.status <> 'CLOSED' THEN
+        NEW.closed_at := NULL;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+CLOSED_AT_TRIGGER_SQL = """
+CREATE TRIGGER job_closed_at_stamp
+BEFORE INSERT OR UPDATE OF status ON job
+FOR EACH ROW EXECUTE FUNCTION job_stamp_closed_at()
+"""
+
 
 def upgrade() -> None:
     """Upgrade schema."""
@@ -62,37 +95,11 @@ def upgrade() -> None:
         """
     )
 
-    # The anchor's guarantee. Every writer goes through the database, so this is
-    # the one layer a bulk UPDATE, a psql session or a future service cannot go
-    # around — the ORM hook in models/jobs.py only keeps in-memory objects in
-    # step with it. Kept byte-identical to the DDL attached to the table's
-    # after_create there, which is how dev and test (built by create_all, not by
-    # migrations) get the same trigger.
-    op.execute(
-        """
-        CREATE OR REPLACE FUNCTION job_stamp_closed_at() RETURNS trigger AS $$
-        BEGIN
-            IF NEW.status = 'CLOSED'
-               AND (TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM 'CLOSED') THEN
-                IF NEW.closed_at IS NULL THEN
-                    NEW.closed_at := now();
-                END IF;
-            ELSIF NEW.status <> 'CLOSED' THEN
-                NEW.closed_at := NULL;
-            END IF;
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    )
+    op.execute(CLOSED_AT_FUNCTION_SQL)
+    # The table already exists here, unlike the create_all path, so an earlier
+    # trigger of the same name could be present.
     op.execute("DROP TRIGGER IF EXISTS job_closed_at_stamp ON job")
-    op.execute(
-        """
-        CREATE TRIGGER job_closed_at_stamp
-        BEFORE INSERT OR UPDATE OF status ON job
-        FOR EACH ROW EXECUTE FUNCTION job_stamp_closed_at()
-        """
-    )
+    op.execute(CLOSED_AT_TRIGGER_SQL)
 
 
 def downgrade() -> None:

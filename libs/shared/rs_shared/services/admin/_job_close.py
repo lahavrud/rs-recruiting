@@ -25,7 +25,14 @@ async def close_active_applications(
     *,
     actor_user_id: int | None = None,
 ) -> None:
-    """Transition active applications to JOB_CLOSED and send closure emails."""
+    """Transition active applications to JOB_CLOSED and send closure emails.
+
+    "Active" means still in flight — pre-decision, so the closing job is the
+    thing that ends them. Terminal applications are left alone: their outcome
+    already happened and is not the job's to overwrite. The set is
+    ``ACTIVE_APPLICATION_STATUSES``, derived from ``ApplicationStatus.is_active``
+    so it cannot drift from the enum.
+    """
     apps_result = await session.execute(
         select(Application)
         .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]

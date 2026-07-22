@@ -40,12 +40,64 @@ def _load_migration(stem: str) -> ModuleType:
     normally — but loading by path lets a test run the migration's own SQL
     constants rather than a copy that can drift from them.
     """
-    path = next(_VERSIONS.glob(f"{stem}_*.py"))
+    path = next(_VERSIONS.glob(f"{stem}_*.py"), None)
+    assert path is not None, (
+        f"no migration matching {stem}_*.py in {_VERSIONS}. If it was renamed "
+        "or squashed, update the revision this test references."
+    )
     spec = importlib.util.spec_from_file_location(stem, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _newest_migration_defining(symbol: str) -> ModuleType:
+    """The latest revision in the chain whose source mentions *symbol*.
+
+    Walking the real chain rather than hardcoding a revision means that when
+    the trigger is next changed — which requires a new migration — this
+    resolves to that one instead of failing against the superseded copy.
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    root = Path(__file__).resolve().parents[1]
+    script = ScriptDirectory.from_config(Config(str(root / "alembic.ini")))
+    for revision in script.walk_revisions():  # newest first
+        if revision.path and symbol in Path(revision.path).read_text():
+            return _load_migration(revision.revision)
+    raise AssertionError(f"no migration defines {symbol}")
+
+
+def _sql_equal(left: str, right: str) -> bool:
+    """Compare SQL ignoring only indentation and blank lines."""
+
+    def norm(sql: str) -> list[str]:
+        return [line.strip() for line in sql.strip().splitlines() if line.strip()]
+
+    return norm(left) == norm(right)
+
+
+def test_trigger_ddl_matches_the_migration_that_installs_it():
+    """The model and the migration must not drift apart.
+
+    The trigger is defined twice on purpose — the model's copy is what
+    ``create_all`` installs for dev and test, the migration's is what production
+    gets, and a migration has to stay frozen so replaying history does not apply
+    whatever the model says today. The cost of that duplication is that a
+    one-sided edit would leave dev and test enforcing a different rule from
+    production, silently, in the environment nobody can inspect.
+
+    If this fails because you changed the trigger: add a new migration carrying
+    the new definition. This test will then resolve to it.
+    """
+    from rs_shared.models import jobs as model
+
+    migration = _newest_migration_defining("job_stamp_closed_at")
+
+    assert _sql_equal(migration.CLOSED_AT_FUNCTION_SQL, model.CLOSED_AT_FUNCTION_SQL)
+    assert _sql_equal(migration.CLOSED_AT_TRIGGER_SQL, model.CLOSED_AT_TRIGGER_SQL)
 
 
 async def _job(session: AsyncSession, company_id: int, status: JobStatus) -> Job:
