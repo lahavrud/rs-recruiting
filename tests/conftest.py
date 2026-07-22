@@ -5,7 +5,7 @@ import base64 as _base64
 import os
 import struct as _struct
 import zlib as _zlib
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -631,6 +631,43 @@ _DEFAULT_REQUIREMENTS: list[dict] = [
     {"text": "FastAPI fluency"},
     {"text": "PostgreSQL fundamentals"},
 ]
+
+
+@pytest.fixture
+def make_job() -> Callable[..., Job]:
+    """Factory for an unsaved Job with every required column filled in.
+
+    For tests that need a job in a specific state rather than one of the
+    ``pending_job`` / ``published_job`` / ``closed_job`` fixtures — those open
+    their own session, which is wrong when the test is driving the ``session``
+    fixture itself. Centralised so the required-column set, and the minimum
+    requirements count the schema validates, live in one place.
+
+    A fixture rather than an importable helper because ``.claude/rules/tests.md``
+    forbids cross-test imports: tests reach shared setup through pytest, not by
+    importing conftest.
+    """
+
+    def _make(
+        company_id: int,
+        status: JobStatus = JobStatus.PENDING_APPROVAL,
+        **overrides: object,
+    ) -> Job:
+        fields: dict = {
+            "company_id": company_id,
+            "title": "Senior Python Developer",
+            "short_description": "Senior Python role on a small backend team.",
+            "description": "We are looking for a senior Python developer...",
+            "requirements": list(_DEFAULT_REQUIREMENTS),
+            "location": "Tel Aviv, Israel",
+            "salary_min": 15000,
+            "salary_max": 25000,
+            "status": status,
+        }
+        fields.update(overrides)
+        return Job(**fields)
+
+    return _make
 
 
 @pytest.fixture

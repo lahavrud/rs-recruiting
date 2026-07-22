@@ -13,6 +13,7 @@ so the DDL those migrations emit is verified by the model tests instead.
 """
 
 import importlib.util
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import ModuleType
@@ -52,12 +53,19 @@ def _load_migration(stem: str) -> ModuleType:
     return module
 
 
-def _newest_migration_defining(symbol: str) -> ModuleType:
-    """The latest revision in the chain whose source mentions *symbol*.
+def _newest_migration_defining(*attrs: str) -> ModuleType:
+    """The latest revision in the chain that actually defines all of *attrs*.
 
     Walking the real chain rather than hardcoding a revision means that when
     the trigger is next changed — which requires a new migration — this
     resolves to that one instead of failing against the superseded copy.
+
+    The match is on the attributes being present, not on the file mentioning
+    them: a later migration that drops or renames the trigger would contain the
+    name without defining the constants, and returning it would fail the caller
+    with an opaque AttributeError instead of the drift message it exists to
+    give. The text check is only a cheap prefilter to avoid importing every
+    revision in the chain.
     """
     from alembic.config import Config
     from alembic.script import ScriptDirectory
@@ -65,9 +73,15 @@ def _newest_migration_defining(symbol: str) -> ModuleType:
     root = Path(__file__).resolve().parents[1]
     script = ScriptDirectory.from_config(Config(str(root / "alembic.ini")))
     for revision in script.walk_revisions():  # newest first
-        if revision.path and symbol in Path(revision.path).read_text():
-            return _load_migration(revision.revision)
-    raise AssertionError(f"no migration defines {symbol}")
+        if not revision.path:
+            continue
+        source = Path(revision.path).read_text()
+        if not all(attr in source for attr in attrs):
+            continue
+        module = _load_migration(revision.revision)
+        if all(hasattr(module, attr) for attr in attrs):
+            return module
+    raise AssertionError(f"no migration defines all of {attrs}")
 
 
 def _sql_equal(left: str, right: str) -> bool:
@@ -94,24 +108,22 @@ def test_trigger_ddl_matches_the_migration_that_installs_it():
     """
     from rs_shared.models import jobs as model
 
-    migration = _newest_migration_defining("job_stamp_closed_at")
+    migration = _newest_migration_defining(
+        "CLOSED_AT_FUNCTION_SQL", "CLOSED_AT_TRIGGER_SQL"
+    )
 
     assert _sql_equal(migration.CLOSED_AT_FUNCTION_SQL, model.CLOSED_AT_FUNCTION_SQL)
     assert _sql_equal(migration.CLOSED_AT_TRIGGER_SQL, model.CLOSED_AT_TRIGGER_SQL)
 
 
-async def _job(session: AsyncSession, company_id: int, status: JobStatus) -> Job:
-    job = Job(
-        company_id=company_id,
-        title=f"{status.value} role",
-        short_description="Short blurb for testing.",
-        description="x",
-        requirements=[{"text": "x"}, {"text": "y"}, {"text": "z"}],
-        location="x",
-        salary_min=15000,
-        salary_max=25000,
-        status=status,
-    )
+async def _job(
+    session: AsyncSession,
+    make_job: Callable[..., Job],
+    company_id: int,
+    status: JobStatus,
+) -> Job:
+    """A flushed job in *status*, titled so failures name the row that surprised you."""
+    job = make_job(company_id, status, title=f"{status.value} role")
     session.add(job)
     await session.flush()
     return job
@@ -131,13 +143,13 @@ async def _application(
 
 @pytest.mark.asyncio
 async def test_sweep_stranded_active_applications(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_job
 ):
     """b8d1f04e37a2 repairs exactly the stranded rows and nothing else."""
     migration = _load_migration("b8d1f04e37a2")
 
-    closed = await _job(session, company_with_user.id, JobStatus.CLOSED)
-    published = await _job(session, company_with_user.id, JobStatus.PUBLISHED)
+    closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
+    published = await _job(session, make_job, company_with_user.id, JobStatus.PUBLISHED)
 
     stranded = await _application(
         session, closed, "stranded@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
@@ -174,12 +186,12 @@ async def test_sweep_stranded_active_applications(
 
 @pytest.mark.asyncio
 async def test_sweep_writes_one_audit_row_per_repaired_application(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_job
 ):
     """The sweep is a silent bulk edit to candidate data — it must leave a trail."""
     migration = _load_migration("b8d1f04e37a2")
 
-    closed = await _job(session, company_with_user.id, JobStatus.CLOSED)
+    closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
     stranded = await _application(
         session, closed, "audit@test.com", ApplicationStatus.APPROVED_BY_ADMIN
     )
@@ -212,7 +224,7 @@ async def test_sweep_writes_one_audit_row_per_repaired_application(
 
 @pytest.mark.asyncio
 async def test_sweep_is_idempotent(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_job
 ):
     """A re-run must not re-sweep or duplicate audit rows.
 
@@ -221,7 +233,7 @@ async def test_sweep_is_idempotent(
     """
     migration = _load_migration("b8d1f04e37a2")
 
-    closed = await _job(session, company_with_user.id, JobStatus.CLOSED)
+    closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
     await _application(
         session, closed, "idem@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
@@ -248,7 +260,7 @@ async def test_sweep_is_idempotent(
 
 @pytest.mark.asyncio
 async def test_swept_rows_become_purgeable_again(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_job
 ):
     """The point of the sweep: restore these candidates to the retention policy.
 
@@ -264,7 +276,7 @@ async def test_swept_rows_become_purgeable_again(
 
     migration = _load_migration("b8d1f04e37a2")
 
-    closed = await _job(session, company_with_user.id, JobStatus.CLOSED)
+    closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
     await _application(
         session, closed, "expired@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )

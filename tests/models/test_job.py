@@ -1,6 +1,9 @@
 """Tests for Job model."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -127,26 +130,19 @@ async def test_job_salary_range_db_constraint_allows_equal(
     assert job.id is not None
 
 
-# ── closed_at flush hook ──────────────────────────────────────────────────────
-
-
-def _job(company_id: int, status: JobStatus = JobStatus.PENDING_APPROVAL) -> Job:
-    return Job(
-        company_id=company_id,
-        title="Anchor Role",
-        short_description="Short blurb for testing.",
-        description="x",
-        requirements=[{"text": "x"}, {"text": "y"}, {"text": "z"}],
-        location="x",
-        salary_min=15000,
-        salary_max=25000,
-        status=status,
-    )
+# ── closed_at retention anchor ────────────────────────────────────────────────
+#
+# The anchor is maintained by a database trigger, mirrored onto in-memory
+# objects by the mapper-level hooks in models/jobs.py. These tests drive both
+# paths: ORM writes exercise the mirror and the trigger together, Core-level
+# UPDATEs bypass the mirror entirely and leave only the trigger.
 
 
 @pytest.mark.asyncio
 async def test_closed_at_stamped_on_raw_status_assignment(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """The anchor is maintained by the model, not by the service that closes.
 
@@ -155,7 +151,7 @@ async def test_closed_at_stamped_on_raw_status_assignment(
     — still gets a retention anchor. Without one the purge preserves the job's
     candidates forever.
     """
-    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    job = make_job(company_with_user.id, JobStatus.PUBLISHED)
     session.add(job)
     await session.commit()
     assert job.closed_at is None
@@ -169,10 +165,12 @@ async def test_closed_at_stamped_on_raw_status_assignment(
 
 @pytest.mark.asyncio
 async def test_closed_at_stamped_when_created_closed(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """A job born CLOSED — as the seed script and admin create both allow."""
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
 
@@ -182,10 +180,12 @@ async def test_closed_at_stamped_when_created_closed(
 
 @pytest.mark.asyncio
 async def test_closed_at_untouched_by_unrelated_edit(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """An edit that does not move the status must not move the anchor."""
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -200,10 +200,12 @@ async def test_closed_at_untouched_by_unrelated_edit(
 
 @pytest.mark.asyncio
 async def test_closed_at_cleared_on_reopen(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """A stale anchor must not outlive the CLOSED status."""
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -218,7 +220,9 @@ async def test_closed_at_cleared_on_reopen(
 
 @pytest.mark.asyncio
 async def test_closed_at_readable_without_refresh(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """The mirror's whole reason to exist, pinned.
 
@@ -227,7 +231,7 @@ async def test_closed_at_readable_without_refresh(
     reading ``job.closed_at`` straight after closing would see the pre-write
     value with nothing to hint it is stale.
     """
-    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    job = make_job(company_with_user.id, JobStatus.PUBLISHED)
     session.add(job)
     await session.commit()
 
@@ -244,7 +248,9 @@ async def test_closed_at_readable_without_refresh(
 
 @pytest.mark.asyncio
 async def test_orm_and_trigger_agree_on_a_caller_supplied_anchor(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """Closing with an explicit anchor keeps it, whichever layer handles it.
 
@@ -252,20 +258,16 @@ async def test_orm_and_trigger_agree_on_a_caller_supplied_anchor(
     correction replaying a historical close would get ``now()`` through the ORM
     and its own value through a bulk UPDATE — the same write, two answers.
     """
-    from datetime import datetime, timedelta, timezone
-
     backdated = datetime.now(timezone.utc) - timedelta(days=200)
 
-    via_orm = _job(company_with_user.id, JobStatus.PUBLISHED)
-    via_bulk = _job(company_with_user.id, JobStatus.PUBLISHED)
+    via_orm = make_job(company_with_user.id, JobStatus.PUBLISHED)
+    via_bulk = make_job(company_with_user.id, JobStatus.PUBLISHED)
     session.add_all([via_orm, via_bulk])
     await session.commit()
 
     via_orm.status = JobStatus.CLOSED
     via_orm.closed_at = backdated
     await session.commit()
-
-    from sqlalchemy import update
 
     await session.execute(
         update(Job)
@@ -282,7 +284,9 @@ async def test_orm_and_trigger_agree_on_a_caller_supplied_anchor(
 
 @pytest.mark.asyncio
 async def test_closed_at_stamped_by_bulk_update_bypassing_the_orm(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """The database trigger, not the ORM hook, is the actual guarantee.
 
@@ -291,9 +295,7 @@ async def test_closed_at_stamped_by_bulk_update_bypassing_the_orm(
     the codebase already uses ``update(Application)`` this way — and getting a
     NULL anchor here would mean those candidates were never purged.
     """
-    from sqlalchemy import update
-
-    job = _job(company_with_user.id, JobStatus.PUBLISHED)
+    job = make_job(company_with_user.id, JobStatus.PUBLISHED)
     session.add(job)
     await session.commit()
     assert job.closed_at is None
@@ -310,12 +312,12 @@ async def test_closed_at_stamped_by_bulk_update_bypassing_the_orm(
 
 @pytest.mark.asyncio
 async def test_bulk_reopen_clears_closed_at(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """The trigger clears on the way out too, not just on the way in."""
-    from sqlalchemy import update
-
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -332,12 +334,12 @@ async def test_bulk_reopen_clears_closed_at(
 
 @pytest.mark.asyncio
 async def test_bulk_edit_of_closed_job_does_not_move_closed_at(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """`UPDATE OF status` means a title-only write never fires the trigger."""
-    from sqlalchemy import update
-
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -354,7 +356,9 @@ async def test_bulk_edit_of_closed_job_does_not_move_closed_at(
 
 @pytest.mark.asyncio
 async def test_reclosing_does_not_move_closed_at(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """Re-setting CLOSED on an already-closed job must not restart retention.
 
@@ -365,9 +369,7 @@ async def test_reclosing_does_not_move_closed_at(
     write a no-op even when the ORM is bypassed. Pinned because a regression
     here silently re-retains every candidate who applied to the job.
     """
-    from sqlalchemy import update
-
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
     await session.refresh(job)
@@ -389,12 +391,12 @@ async def test_reclosing_does_not_move_closed_at(
 
 @pytest.mark.asyncio
 async def test_explicit_closed_at_survives_when_status_unchanged(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+    make_job,
 ):
     """Backdating the anchor is how the purge fixtures build aged jobs."""
-    from datetime import datetime, timedelta, timezone
-
-    job = _job(company_with_user.id, JobStatus.CLOSED)
+    job = make_job(company_with_user.id, JobStatus.CLOSED)
     session.add(job)
     await session.commit()
 
