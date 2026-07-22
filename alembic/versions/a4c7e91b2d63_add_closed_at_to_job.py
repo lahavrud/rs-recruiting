@@ -40,6 +40,19 @@ def upgrade() -> None:
     )
     # Backfill closed jobs so the purge sees the same retention window it saw
     # before this migration. Guarded on NULL so a re-run is a no-op.
+    #
+    # Deliberately one statement rather than a batched loop. Alembic wraps the
+    # migration in a single transaction, so batching would not shorten how long
+    # `job` is locked — and a rowcount-driven loop cannot run under
+    # `alembic upgrade --sql`, which is the review step this repo mandates
+    # (.claude/rules/migrations.md). The bound is therefore stated rather than
+    # enforced: this touches one row per closed job, so confirm the scale is
+    # what you expect before applying —
+    #
+    #     SELECT count(*) FROM job WHERE status = 'CLOSED';
+    #
+    # At the scale this app is built for that is a sub-second update. If it
+    # ever returns millions, split this into an online batched backfill first.
     op.execute(
         """
         UPDATE job
