@@ -551,6 +551,70 @@ async def test_reclosing_closed_job_does_not_refire_cascade(
     assert mock_email.call_count == 1  # unchanged by the second close
 
 
+@pytest.mark.asyncio
+async def test_close_skips_email_for_tombstoned_candidate(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Deleted candidates are swept and audited, but never emailed.
+
+    ``scrub_candidate_pii`` rewrites the address to ``deleted-{id}@deleted``,
+    which cannot be delivered — sending would be a guaranteed hard bounce.
+    """
+    from rs_shared.models import AuditLog
+    from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
+
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+
+    live_app = await _make_application(session, job_id, "live@test.com")
+    deleted_app = await _make_application(session, job_id, "gone@test.com")
+
+    deleted_candidate = await session.get(CandidateProfile, deleted_app.candidate_id)
+    assert deleted_candidate is not None
+    scrub_candidate_pii(deleted_candidate)
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_EMAIL) as mock_email:
+            with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+                await update_job(
+                    job_id,
+                    JobAdminUpdate(status=JobStatus.CLOSED),
+                    session,
+                    actor_user_id=7,
+                )
+                await session.commit()
+
+    recipients = {c.kwargs["to"] for c in mock_email.call_args_list}
+    assert recipients == {"live@test.com"}
+    assert not any(r.endswith("@deleted") for r in recipients)
+
+    # The transition and the audit trail still cover the tombstoned row —
+    # only the email is suppressed.
+    await session.refresh(live_app)
+    await session.refresh(deleted_app)
+    assert live_app.status == ApplicationStatus.JOB_CLOSED
+    assert deleted_app.status == ApplicationStatus.JOB_CLOSED
+
+    audited_ids = {
+        r.target_id
+        for r in (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.target_type == "Application",  # pyright: ignore[reportArgumentType]
+                    AuditLog.action == "application.status_change",  # pyright: ignore[reportArgumentType]
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert {live_app.id, deleted_app.id} <= audited_ids
+
+
 # ── list_jobs ─────────────────────────────────────────────────────────────────
 
 

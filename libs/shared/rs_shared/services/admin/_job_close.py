@@ -59,6 +59,15 @@ async def close_active_applications(
 
     for app in apps:
         candidate: CandidateProfile = app.candidate
+        # Tombstoned candidates keep their Application rows (account deletion
+        # preserves recruiting history and never moves the status), so they
+        # reach the sweep above and are audited like anyone else. They must not
+        # reach the mail: ``scrub_candidate_pii`` rewrites the address to the
+        # non-routable ``deleted-{id}@deleted``, so every send is a guaranteed
+        # hard bounce against the shared sender reputation — and the person
+        # asked to stop hearing from us.
+        if candidate.deleted_at is not None:
+            continue
         _to = candidate.email
         _name = candidate.full_name
         _title = job_title
