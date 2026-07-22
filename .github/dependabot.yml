@@ -19,6 +19,16 @@ updates:
       npm-all:
         patterns:
           - "*"
+    # No typescript-eslint release accepts TypeScript >= 6.1: 8.65.0 (latest,
+    # and there is no v9) still peers `typescript: >=4.8.4 <6.1.0`. A grouped
+    # bump that raises frontend's `~6.0.2` pin fails `npm ci` with ERESOLVE
+    # before a single check runs, which takes the whole npm-all PR down with
+    # it — one unsatisfiable dependency blocks every other update in the batch.
+    # Hold typescript until typescript-eslint ships support, then drop this
+    # block and bump the two together.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=6.1.0"]
 
   - package-ecosystem: "uv"
     directory: "/"
