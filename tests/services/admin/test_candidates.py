@@ -16,6 +16,7 @@ from rs_shared.models import (
     Job,
     User,
 )
+from rs_shared.schemas import JobAdminUpdate
 from rs_shared.services.admin.candidates import (
     CANDIDATE_RETENTION_DAYS,
     admin_tombstone_candidate,
@@ -24,6 +25,7 @@ from rs_shared.services.admin.candidates import (
     list_candidates,
     purge_expired_candidates,
 )
+from rs_shared.services.admin.jobs import update_job
 from rs_shared.services.exceptions import (
     CandidateAlreadyDeletedError,
     CandidateNotFoundError,
@@ -649,7 +651,10 @@ async def _make_closed_job(
     session.add(job)
     await session.commit()
     await session.refresh(job)
-    job.updated_at = datetime.now(timezone.utc) - timedelta(days=closed_days_ago)
+    # Retention is anchored on closed_at. updated_at is deliberately left at
+    # "now" so these fixtures also prove a recent edit does not hold the
+    # candidate back from purge.
+    job.closed_at = datetime.now(timezone.utc) - timedelta(days=closed_days_ago)
     session.add(job)
     await session.commit()
     return job
@@ -855,6 +860,68 @@ async def test_purge_removes_backing_user(
         select(User).where(User.id == user_id)  # pyright: ignore[reportArgumentType]
     )
     assert user_row.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_purge_unaffected_by_edit_to_long_closed_job(
+    session: AsyncSession, company_profile: CompanyProfile
+):
+    """Editing a closed job must not restart its candidates' retention clock.
+
+    Retention is anchored on closed_at; updated_at moves on every edit, so
+    keying off it let any later touch of a closed job silently re-retain
+    everyone who had applied to it.
+    """
+    job = await _make_closed_job(
+        session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
+    )
+    candidate = await _make_candidate(session, email="edited@test.com")
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
+
+    # An admin fixes a typo on the long-closed job today.
+    await update_job(job.id, JobAdminUpdate(title="Corrected Title"), session)
+    await session.commit()
+
+    await session.refresh(job)
+    assert job.updated_at >= datetime.now(timezone.utc) - timedelta(minutes=5)
+
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
+        factory.return_value.delete_file = AsyncMock()
+        assert await purge_expired_candidates(session) == 1
+
+
+@pytest.mark.asyncio
+async def test_purge_preserves_closed_job_with_null_closed_at(
+    session: AsyncSession, company_profile: CompanyProfile
+):
+    """An unknown close date preserves — over-retaining is the safe reading."""
+    job = await _make_closed_job(
+        session, company_profile, closed_days_ago=CANDIDATE_RETENTION_DAYS + 30
+    )
+    job.closed_at = None
+    session.add(job)
+    await session.commit()
+
+    candidate = await _make_candidate(session, email="nullclosed@test.com")
+    await _make_app(
+        session,
+        job=job,
+        candidate=candidate,
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+    )
+
+    with patch(
+        "rs_shared.services.admin._candidates_purge.get_storage_provider"
+    ) as factory:
+        factory.return_value.delete_file = AsyncMock()
+        assert await purge_expired_candidates(session) == 0
 
 
 # ---------------------------------------------------------------------------

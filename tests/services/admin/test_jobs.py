@@ -615,6 +615,114 @@ async def test_close_skips_email_for_tombstoned_candidate(
     assert {live_app.id, deleted_app.id} <= audited_ids
 
 
+# ── closed_at retention anchor ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_close_stamps_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    job = await session.get(Job, job_id)
+    assert job is not None
+    assert job.closed_at is None  # published job has never closed
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+            await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_editing_closed_job_does_not_move_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The retention anchor must survive later edits — that is the whole point.
+
+    ``updated_at`` moves on every edit; ``closed_at`` must not, or the purge
+    window silently restarts for everyone who applied to the job.
+    """
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+            await session.commit()
+
+    job = await session.get(Job, job_id)
+    assert job is not None
+    closed_at = job.closed_at
+    updated_at = job.updated_at
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+    ):
+        await update_job(job_id, JobAdminUpdate(title="Corrected Title"), session)
+        await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at == closed_at  # anchor held
+    assert job.updated_at > updated_at  # the edit did land
+
+
+@pytest.mark.asyncio
+async def test_reopening_clears_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A stale anchor must not outlive the CLOSED status."""
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL),
+        patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()),
+        patch(_PATCH_EMBED),
+    ):
+        with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+            await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+            await session.commit()
+
+            job = await session.get(Job, job_id)
+            assert job is not None
+            assert job.closed_at is not None
+
+            await update_job(
+                job_id, JobAdminUpdate(status=JobStatus.PUBLISHED), session
+            )
+            await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is None
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_as_closed_stamps_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """JobAdminCreate accepts any status — a job born CLOSED still needs an anchor."""
+    payload = _payload(company_with_user.id)
+    payload.status = JobStatus.CLOSED
+    created = await admin_create_job(payload, session)
+    await session.commit()
+
+    job = await session.get(Job, created.id)
+    assert job is not None
+    assert job.closed_at is not None
+
+
 # ── list_jobs ─────────────────────────────────────────────────────────────────
 
 

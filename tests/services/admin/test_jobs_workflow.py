@@ -178,6 +178,8 @@ async def test_reject_job_success(
     await session.refresh(pending_job)
 
     assert pending_job.status == JobStatus.CLOSED
+    # Rejection closes the job, so it anchors the retention window too.
+    assert pending_job.closed_at is not None
 
     # Verify email was sent (defer_after_commit fires after transactional commits)
     mock_enqueue_email.assert_called_once()

@@ -59,6 +59,15 @@ class Job(SQLModel, table=True):
     salary_min: int
     salary_max: int
     status: JobStatus = Field(default=JobStatus.PENDING_APPROVAL, index=True)
+    # When the job entered CLOSED — the start of the candidate-retention window
+    # (see services/admin/_candidates_purge.py). Distinct from ``updated_at``,
+    # which any later edit bumps and which therefore cannot express "closed
+    # since". NULL while the job has never been closed, and cleared again on
+    # reopen so a stale value can't outlive the status.
+    closed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True),

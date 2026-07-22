@@ -201,6 +201,11 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
         salary_min=data.salary_min,
         salary_max=data.salary_max,
         status=data.status,
+        # JobAdminCreate accepts any status, so a job can be born CLOSED —
+        # it still needs a retention anchor, or the purge would never expire it.
+        closed_at=(
+            datetime.now(timezone.utc) if data.status == JobStatus.CLOSED else None
+        ),
     )
     session.add(job)
     await session.flush()
@@ -256,9 +261,8 @@ async def update_job(
 
     for field, value in payload.items():
         setattr(job, field, value)
-    job.updated_at = datetime.now(timezone.utc)
-
-    await session.flush()
+    now = datetime.now(timezone.utc)
+    job.updated_at = now
 
     # Any entry into CLOSED sweeps, not just PUBLISHED → CLOSED. Gating on
     # PUBLISHED assumed only a published job can hold active applications, which
@@ -268,6 +272,16 @@ async def update_job(
     # because old_status is then CLOSED; a job with nothing active to sweep
     # costs one empty SELECT.
     is_closing = old_status != JobStatus.CLOSED and job.status == JobStatus.CLOSED
+
+    # Stamp the retention anchor on the transition only — never on a plain edit,
+    # which is the whole point of not reusing updated_at. Clearing on reopen
+    # keeps a stale timestamp from outliving the CLOSED status.
+    if is_closing:
+        job.closed_at = now
+    elif old_status == JobStatus.CLOSED and job.status != JobStatus.CLOSED:
+        job.closed_at = None
+
+    await session.flush()
 
     notify_company_of_update(
         job,

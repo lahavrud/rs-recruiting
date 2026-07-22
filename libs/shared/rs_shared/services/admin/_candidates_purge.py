@@ -27,8 +27,15 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     all three conditions:
 
     - linked Job is CLOSED
-    - linked Job.updated_at is more than ``CANDIDATE_RETENTION_DAYS`` ago
+    - linked Job.closed_at is more than ``CANDIDATE_RETENTION_DAYS`` ago
     - the application's own status is not HIRED
+
+    The window is measured from ``Job.closed_at``, not ``Job.updated_at``:
+    ``updated_at`` moves on every edit, so touching a long-closed job used to
+    restart the retention clock for everyone who had applied to it. A CLOSED
+    job with a NULL ``closed_at`` preserves rather than purges — it should not
+    occur (the migration backfills, and every close path stamps it), so it
+    means the anchor is unknown, and over-retaining is the safe reading.
 
     A candidate with even one application that is still active, recently
     closed, or HIRED is preserved — companies may still need that data for
@@ -51,7 +58,8 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
         .join(Job, Job.id == Application.job_id)  # pyright: ignore[reportArgumentType]
         .where(
             (Job.status != JobStatus.CLOSED)
-            | (Job.updated_at >= cutoff)
+            | (Job.closed_at.is_(None))
+            | (Job.closed_at >= cutoff)
             | (Application.status == ApplicationStatus.HIRED)
         )
     ).subquery()
