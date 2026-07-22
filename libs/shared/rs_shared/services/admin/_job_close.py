@@ -12,14 +12,13 @@ from sqlalchemy.orm import selectinload
 
 from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.tasks import enqueue_email_task
-from rs_shared.enums import ApplicationStatus
+from rs_shared.enums import ACTIVE_APPLICATION_STATUSES, ApplicationStatus
 from rs_shared.models import Application, CandidateProfile
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_job_closed_candidate_html
 
-# In-flight applications swept into JOB_CLOSED when the parent job closes —
-# source of truth is ``ApplicationStatus.is_active``.
-_ACTIVE_STATUSES = tuple(s for s in ApplicationStatus if s.is_active)
+# In-flight applications are the ones swept into JOB_CLOSED when the parent job
+# closes — see ``ACTIVE_APPLICATION_STATUSES`` in enums.py.
 
 
 async def close_active_applications(
@@ -35,7 +34,7 @@ async def close_active_applications(
         .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
         .where(
             Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
-            Application.status.in_(_ACTIVE_STATUSES),  # pyright: ignore[reportArgumentType]
+            Application.status.in_(ACTIVE_APPLICATION_STATUSES),  # pyright: ignore[reportArgumentType]
         )
     )
     apps = list(apps_result.scalars().all())

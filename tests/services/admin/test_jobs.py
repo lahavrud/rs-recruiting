@@ -486,6 +486,51 @@ async def test_non_published_to_closed_cascades(
 
 
 @pytest.mark.asyncio
+async def test_closing_never_published_job_sends_no_closure_email(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """Sweeping is broader than announcing.
+
+    The closure mail tells the company the job left the public board and that
+    active candidates were notified. For a job closed straight out of
+    PENDING_APPROVAL both claims are false, so it must not be sent — the
+    company still hears about the transition via the generic "fields changed"
+    mail, which is accurate.
+    """
+    job = Job(
+        company_id=company_with_user.id,
+        title="Never Published",
+        short_description="x",
+        description="x",
+        requirements=[{"text": "x"}, {"text": "y"}, {"text": "z"}],
+        location="x",
+        status=JobStatus.PENDING_APPROVAL,
+        salary_min=10000,
+        salary_max=20000,
+    )
+    session.add(job)
+    await session.flush()
+    app = await _make_application(session, job.id, "pending@test.com")
+    await session.commit()
+
+    with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
+        with patch(_PATCH_NOTIFY_DEFER, side_effect=lambda fn: fn()):
+            with patch(_PATCH_DEFER, side_effect=lambda fn: fn()):
+                await update_job(
+                    job.id, JobAdminUpdate(status=JobStatus.CLOSED), session
+                )
+                await session.commit()
+
+    subjects = [c.kwargs["subject"] for c in mock_email.call_args_list]
+    assert not any("נסגרה" in s for s in subjects)  # no closure announcement
+    assert any("עודכן" in s for s in subjects)  # generic update mail still sent
+
+    # The sweep itself is unconditional — only the announcement is gated.
+    await session.refresh(app)
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
 async def test_published_to_pending_to_closed_cascades(
     session: AsyncSession, company_with_user: CompanyProfile
 ):

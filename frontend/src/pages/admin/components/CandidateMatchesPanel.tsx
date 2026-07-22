@@ -74,10 +74,16 @@ export default function CandidateMatchesPanel({ candidateId }: Props) {
     } catch (err: unknown) {
       const response = (err as { response?: { status?: number; data?: { detail?: unknown } } })
         ?.response;
-      // Two distinct 409s reach here, so branch on the code rather than the
-      // status: the job closed under the feed, or the pair already applied.
-      if (response?.data?.detail === "job_not_published") {
+      const detail = response?.data?.detail;
+      // Every outcome the job itself can no longer satisfy is terminal for this
+      // banner — retrying cannot succeed, so clear the param rather than invite
+      // it. Two distinct 409s reach here (closed under the feed vs. already
+      // applied), so branch on the code, not the bare status.
+      if (detail === "job_not_published") {
         toast.info(t("admin:candidates.pushJobNotPublished"));
+        clearJobParam();
+      } else if (detail === "job_not_found") {
+        toast.info(t("admin:candidates.pushJobMissing"));
         clearJobParam();
       } else if (response?.status === 409) {
         toast.info(t("admin:candidates.pushAlreadyApplied"));

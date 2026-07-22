@@ -11,15 +11,15 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.services.storage import get_storage_provider
-from rs_shared.enums import ApplicationStatus, JobStatus
+from rs_shared.enums import (
+    ACTIVE_APPLICATION_STATUSES,
+    ApplicationStatus,
+    JobStatus,
+)
 from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.services.utils.audit import record_audit_event
 
 CANDIDATE_RETENTION_DAYS = 365  # 12 months per privacy policy
-
-# In-flight applications hold their candidate back from the purge — source of
-# truth is ``ApplicationStatus.is_active``, never a re-listed status set.
-_ACTIVE_STATUSES = tuple(s for s in ApplicationStatus if s.is_active)
 
 _logger = logging.getLogger(__name__)
 
@@ -65,15 +65,22 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=CANDIDATE_RETENTION_DAYS)
 
+    # The job's retention window has run out. Stated positively and once: only
+    # a CLOSED job with a known anchor older than the cutoff can expire, so a
+    # NULL anchor simply fails this test rather than needing its own clause.
+    job_window_expired = (
+        (Job.status == JobStatus.CLOSED)
+        & (Job.closed_at.is_not(None))
+        & (Job.closed_at < cutoff)
+    )
+
     preserved_ids_subq = (
         select(Application.candidate_id)
         .join(Job, Job.id == Application.job_id)  # pyright: ignore[reportArgumentType]
         .where(
-            (Job.status != JobStatus.CLOSED)
-            | (Job.closed_at.is_(None))
-            | (Job.closed_at >= cutoff)
+            ~job_window_expired
             | (Application.status == ApplicationStatus.HIRED)
-            | (Application.status.in_(_ACTIVE_STATUSES))  # pyright: ignore[reportAttributeAccessIssue]
+            | (Application.status.in_(ACTIVE_APPLICATION_STATUSES))  # type: ignore[arg-type]
         )
     ).subquery()
 

@@ -129,6 +129,14 @@ _COMPANY_SETTABLE_STATUSES: frozenset[ApplicationStatus] = frozenset(
     }
 )
 
+# Query-ready ordering of the active group, for SQL ``IN`` clauses and anywhere
+# else a sequence is needed. Derived from ``is_active`` so it cannot drift, and
+# ordered by the pipeline so generated SQL is stable and readable. Import this
+# rather than re-deriving it per call site.
+ACTIVE_APPLICATION_STATUSES: tuple[ApplicationStatus, ...] = tuple(
+    s for s in _STATUS_SORT_ORDER if s in _ACTIVE_STATUSES
+)
+
 
 class InviteTokenStatus(str, Enum):
     """Invite token lifecycle status."""

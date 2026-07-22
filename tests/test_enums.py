@@ -5,6 +5,7 @@ These guard the single source of truth that consumers derive from
 ``sort_weight``) so a future value can't silently fall out of a grouping.
 """
 
+from rs_shared.enums import ACTIVE_APPLICATION_STATUSES
 from rs_shared.enums import ApplicationStatus as S
 
 
@@ -29,6 +30,20 @@ def test_active_statuses():
         S.INTERVIEWING,
         S.OFFER,
     }
+
+
+def test_active_application_statuses_tracks_is_active():
+    """The query-ready tuple must not drift from the ``is_active`` property.
+
+    Consumers put this straight into SQL ``IN`` clauses (the close cascade, the
+    retention purge), so a value falling out of sync here would silently change
+    who gets swept and who gets purged.
+    """
+    assert set(ACTIVE_APPLICATION_STATUSES) == {s for s in S if s.is_active}
+    # Ordered by the pipeline, so generated SQL is stable across runs.
+    assert list(ACTIVE_APPLICATION_STATUSES) == sorted(
+        ACTIVE_APPLICATION_STATUSES, key=lambda s: s.sort_weight
+    )
 
 
 def test_company_settable_is_a_subset_of_company_visible():
