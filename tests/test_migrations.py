@@ -24,9 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.enums import ApplicationStatus, JobStatus
 from rs_shared.models import (
-    Application,
     AuditLog,
-    CandidateProfile,
     CompanyProfile,
     Job,
 )
@@ -129,21 +127,9 @@ async def _job(
     return job
 
 
-async def _application(
-    session: AsyncSession, job: Job, email: str, status: ApplicationStatus
-) -> Application:
-    candidate = CandidateProfile(full_name="מועמד", email=email, phone="050-0000000")
-    session.add(candidate)
-    await session.flush()
-    app = Application(job_id=job.id, candidate_id=candidate.id, status=status)
-    session.add(app)
-    await session.flush()
-    return app
-
-
 @pytest.mark.asyncio
 async def test_sweep_stranded_active_applications(
-    session: AsyncSession, company_with_user: CompanyProfile, make_job
+    session: AsyncSession, company_with_user: CompanyProfile, make_job, make_application
 ):
     """b8d1f04e37a2 repairs exactly the stranded rows and nothing else."""
     migration = _load_migration("b8d1f04e37a2")
@@ -151,22 +137,22 @@ async def test_sweep_stranded_active_applications(
     closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
     published = await _job(session, make_job, company_with_user.id, JobStatus.PUBLISHED)
 
-    stranded = await _application(
-        session, closed, "stranded@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
+    stranded = await make_application(
+        session, closed.id, "stranded@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
-    stranded_late = await _application(
-        session, closed, "offer@test.com", ApplicationStatus.OFFER
+    stranded_late = await make_application(
+        session, closed.id, "offer@test.com", ApplicationStatus.OFFER
     )
     # Must be left alone: a terminal outcome on the same closed job, and an
     # in-flight application on a job that is still open.
-    hired = await _application(
-        session, closed, "hired@test.com", ApplicationStatus.HIRED
+    hired = await make_application(
+        session, closed.id, "hired@test.com", ApplicationStatus.HIRED
     )
-    already_swept = await _application(
-        session, closed, "swept@test.com", ApplicationStatus.JOB_CLOSED
+    already_swept = await make_application(
+        session, closed.id, "swept@test.com", ApplicationStatus.JOB_CLOSED
     )
-    live = await _application(
-        session, published, "live@test.com", ApplicationStatus.INTERVIEWING
+    live = await make_application(
+        session, published.id, "live@test.com", ApplicationStatus.INTERVIEWING
     )
     await session.commit()
 
@@ -186,16 +172,18 @@ async def test_sweep_stranded_active_applications(
 
 @pytest.mark.asyncio
 async def test_sweep_writes_one_audit_row_per_repaired_application(
-    session: AsyncSession, company_with_user: CompanyProfile, make_job
+    session: AsyncSession, company_with_user: CompanyProfile, make_job, make_application
 ):
     """The sweep is a silent bulk edit to candidate data — it must leave a trail."""
     migration = _load_migration("b8d1f04e37a2")
 
     closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
-    stranded = await _application(
-        session, closed, "audit@test.com", ApplicationStatus.APPROVED_BY_ADMIN
+    stranded = await make_application(
+        session, closed.id, "audit@test.com", ApplicationStatus.APPROVED_BY_ADMIN
     )
-    await _application(session, closed, "hired2@test.com", ApplicationStatus.HIRED)
+    await make_application(
+        session, closed.id, "hired2@test.com", ApplicationStatus.HIRED
+    )
     await session.commit()
 
     await session.execute(text(migration.AUDIT_SQL))
@@ -224,7 +212,7 @@ async def test_sweep_writes_one_audit_row_per_repaired_application(
 
 @pytest.mark.asyncio
 async def test_sweep_is_idempotent(
-    session: AsyncSession, company_with_user: CompanyProfile, make_job
+    session: AsyncSession, company_with_user: CompanyProfile, make_job, make_application
 ):
     """A re-run must not re-sweep or duplicate audit rows.
 
@@ -234,8 +222,8 @@ async def test_sweep_is_idempotent(
     migration = _load_migration("b8d1f04e37a2")
 
     closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
-    await _application(
-        session, closed, "idem@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
+    await make_application(
+        session, closed.id, "idem@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
     await session.commit()
 
@@ -260,7 +248,7 @@ async def test_sweep_is_idempotent(
 
 @pytest.mark.asyncio
 async def test_swept_rows_become_purgeable_again(
-    session: AsyncSession, company_with_user: CompanyProfile, make_job
+    session: AsyncSession, company_with_user: CompanyProfile, make_job, make_application
 ):
     """The point of the sweep: restore these candidates to the retention policy.
 
@@ -277,8 +265,8 @@ async def test_swept_rows_become_purgeable_again(
     migration = _load_migration("b8d1f04e37a2")
 
     closed = await _job(session, make_job, company_with_user.id, JobStatus.CLOSED)
-    await _application(
-        session, closed, "expired@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
+    await make_application(
+        session, closed.id, "expired@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
     closed.closed_at = datetime.now(timezone.utc) - timedelta(
         days=CANDIDATE_RETENTION_DAYS + 30

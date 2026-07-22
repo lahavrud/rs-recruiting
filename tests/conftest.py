@@ -5,7 +5,7 @@ import base64 as _base64
 import os
 import struct as _struct
 import zlib as _zlib
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -626,26 +626,36 @@ async def company_with_user(session: AsyncSession) -> CompanyProfile:
 # ==================== Job Fixtures ====================
 
 
-_DEFAULT_REQUIREMENTS: list[dict] = [
-    {"text": "5+ years Python experience"},
-    {"text": "FastAPI fluency"},
-    {"text": "PostgreSQL fundamentals"},
-]
+def _default_requirements() -> list[dict]:
+    """A fresh requirements list — three entries, the schema's minimum.
+
+    Built per call rather than copied from a module-level list: ``list(...)`` on
+    a shared list is a shallow copy, so every Job in the suite would point at the
+    same dicts and one test reaching into ``job.requirements[0]`` would corrupt
+    the others. Under ``pytest -n auto`` that surfaces in whichever worker
+    touches it next.
+    """
+    return [
+        {"text": "5+ years Python experience"},
+        {"text": "FastAPI fluency"},
+        {"text": "PostgreSQL fundamentals"},
+    ]
 
 
 @pytest.fixture
 def make_job() -> Callable[..., Job]:
     """Factory for an unsaved Job with every required column filled in.
 
-    For tests that need a job in a specific state rather than one of the
-    ``pending_job`` / ``published_job`` / ``closed_job`` fixtures — those open
-    their own session, which is wrong when the test is driving the ``session``
-    fixture itself. Centralised so the required-column set, and the minimum
-    requirements count the schema validates, live in one place.
+    Complements the ``pending_job`` / ``published_job`` / ``closed_job``
+    fixtures rather than replacing them. Reach for those first; reach for this
+    when a test needs several jobs, a status they do not cover, or an object
+    attached to the test's own ``session`` — theirs are created in a separate
+    session and come back detached, so lazy attribute access on them fails.
 
-    A fixture rather than an importable helper because ``.claude/rules/tests.md``
-    forbids cross-test imports: tests reach shared setup through pytest, not by
-    importing conftest.
+    Centralised so the required-column set, and the minimum requirements count
+    the schema validates, live in one place. A fixture rather than an importable
+    helper because ``.claude/rules/tests.md`` forbids cross-test imports: tests
+    reach shared setup through pytest, not by importing conftest.
     """
 
     def _make(
@@ -658,7 +668,7 @@ def make_job() -> Callable[..., Job]:
             "title": "Senior Python Developer",
             "short_description": "Senior Python role on a small backend team.",
             "description": "We are looking for a senior Python developer...",
-            "requirements": list(_DEFAULT_REQUIREMENTS),
+            "requirements": _default_requirements(),
             "location": "Tel Aviv, Israel",
             "salary_min": 15000,
             "salary_max": 25000,
@@ -666,6 +676,36 @@ def make_job() -> Callable[..., Job]:
         }
         fields.update(overrides)
         return Job(**fields)
+
+    return _make
+
+
+@pytest.fixture
+def make_application() -> Callable[..., Awaitable[Application]]:
+    """Factory for a candidate plus their application to *job*, flushed.
+
+    The pair is created together because that is how every caller needs it — an
+    application is meaningless without a candidate, and tests that care about
+    the candidate's own fields build it themselves instead.
+    """
+
+    async def _make(
+        session: AsyncSession,
+        job_id: int,
+        email: str,
+        status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
+    ) -> Application:
+        candidate = CandidateProfile(
+            full_name="מועמד", email=email, phone="050-0000000"
+        )
+        session.add(candidate)
+        await session.flush()
+        application = Application(
+            job_id=job_id, candidate_id=candidate.id, status=status
+        )
+        session.add(application)
+        await session.flush()
+        return application
 
     return _make
 
@@ -679,7 +719,7 @@ async def pending_job(company_profile: CompanyProfile) -> Job:
             title="Senior Python Developer",
             short_description="Senior Python role on a small backend team.",
             description="We are looking for a senior Python developer...",
-            requirements=list(_DEFAULT_REQUIREMENTS),
+            requirements=_default_requirements(),
             tags=["Remote", "Senior"],
             location="Tel Aviv, Israel",
             salary_min=15000,
@@ -701,7 +741,7 @@ async def published_job(company_profile: CompanyProfile) -> Job:
             title="Senior Python Developer",
             short_description="Senior Python role on a small backend team.",
             description="We are looking for a senior Python developer...",
-            requirements=list(_DEFAULT_REQUIREMENTS),
+            requirements=_default_requirements(),
             tags=["Remote", "Senior"],
             location="Tel Aviv, Israel",
             salary_min=15000,
@@ -723,7 +763,7 @@ async def closed_job(company_profile: CompanyProfile) -> Job:
             title="Closed Position",
             short_description="An older role that has since been closed.",
             description="This position is closed",
-            requirements=list(_DEFAULT_REQUIREMENTS),
+            requirements=_default_requirements(),
             tags=[],
             location="N/A",
             salary_min=10000,

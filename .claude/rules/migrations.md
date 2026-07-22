@@ -30,6 +30,19 @@ docker compose down -v && make services   # drop the volume, rebuild the schema
 uv run python scripts/seed_mock_data.py   # optional: repopulate
 ```
 
+If `docker compose ps` prints nothing while `docker ps` shows `rs-recruiting-*`
+containers running, they belong to a different compose project and `down -v`
+above is a silent no-op — you will recreate nothing and still see the old
+schema. The compose services set an explicit `container_name`, so containers
+started from another directory collide by name rather than coexisting, which
+also shows up as `make services` failing with "container name is already in
+use". Find where they came from and tear them down there:
+
+```bash
+docker inspect rs-recruiting-db \
+  --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+```
+
 Production is unaffected — it runs the migration chain, which does alter in
 place.
 

@@ -272,21 +272,6 @@ async def test_delete_job_not_found(session: AsyncSession):
 # ── close published job ───────────────────────────────────────────────────────
 
 
-async def _make_application(
-    session: AsyncSession,
-    job_id: int,
-    email: str,
-    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
-) -> Application:
-    candidate = CandidateProfile(full_name="מועמד", email=email, phone="050-0000000")
-    session.add(candidate)
-    await session.flush()
-    app = Application(job_id=job_id, candidate_id=candidate.id, status=status)
-    session.add(app)
-    await session.flush()
-    return app
-
-
 @pytest.mark.asyncio
 async def test_close_published_job_sends_company_closure_email(
     session: AsyncSession, company_with_user: CompanyProfile
@@ -335,18 +320,18 @@ async def test_close_published_job_with_other_changes_sends_two_emails(
 
 @pytest.mark.asyncio
 async def test_close_published_job_transitions_active_applications(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    app_new = await _make_application(
+    app_new = await make_application(
         session, job_id, "new@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
-    app_approved = await _make_application(
+    app_approved = await make_application(
         session, job_id, "approved@test.com", ApplicationStatus.APPROVED_BY_ADMIN
     )
-    app_rejected = await _make_application(
+    app_rejected = await make_application(
         session, job_id, "rejected@test.com", ApplicationStatus.REJECTED_BY_ADMIN
     )
     await session.commit()
@@ -374,13 +359,13 @@ async def test_close_published_job_transitions_active_applications(
 
 @pytest.mark.asyncio
 async def test_close_published_job_sends_candidate_emails(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    await _make_application(session, job_id, "c1@test.com")
-    await _make_application(session, job_id, "c2@test.com")
+    await make_application(session, job_id, "c1@test.com")
+    await make_application(session, job_id, "c2@test.com")
     await session.commit()
 
     with (
@@ -403,15 +388,15 @@ async def test_close_published_job_sends_candidate_emails(
 
 @pytest.mark.asyncio
 async def test_close_published_job_records_audit_events(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     from rs_shared.models import AuditLog
 
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    app1 = await _make_application(session, job_id, "audit1@test.com")
-    app2 = await _make_application(session, job_id, "audit2@test.com")
+    app1 = await make_application(session, job_id, "audit1@test.com")
+    app2 = await make_application(session, job_id, "audit2@test.com")
     await session.commit()
 
     with (
@@ -449,7 +434,7 @@ async def test_close_published_job_records_audit_events(
 
 @pytest.mark.asyncio
 async def test_non_published_to_closed_cascades(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     """Closing from PENDING_APPROVAL still sweeps active applications.
 
@@ -470,7 +455,7 @@ async def test_non_published_to_closed_cascades(
     )
     session.add(job)
     await session.flush()
-    app = await _make_application(session, job.id, "p@test.com")
+    app = await make_application(session, job.id, "p@test.com")
     await session.commit()
 
     with (
@@ -487,7 +472,7 @@ async def test_non_published_to_closed_cascades(
 
 @pytest.mark.asyncio
 async def test_closing_never_published_job_sends_no_closure_email(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     """Sweeping is broader than announcing.
 
@@ -510,7 +495,7 @@ async def test_closing_never_published_job_sends_no_closure_email(
     )
     session.add(job)
     await session.flush()
-    app = await _make_application(session, job.id, "pending@test.com")
+    app = await make_application(session, job.id, "pending@test.com")
     await session.commit()
 
     with patch(_PATCH_NOTIFY_EMAIL) as mock_email:
@@ -532,7 +517,7 @@ async def test_closing_never_published_job_sends_no_closure_email(
 
 @pytest.mark.asyncio
 async def test_published_to_pending_to_closed_cascades(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     """PUBLISHED → PENDING_APPROVAL → CLOSED must not strand applications.
 
@@ -542,7 +527,7 @@ async def test_published_to_pending_to_closed_cascades(
     """
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
-    app = await _make_application(session, job_id, "roundtrip@test.com")
+    app = await make_application(session, job_id, "roundtrip@test.com")
     await session.commit()
 
     with (
@@ -568,12 +553,12 @@ async def test_published_to_pending_to_closed_cascades(
 
 @pytest.mark.asyncio
 async def test_reclosing_closed_job_does_not_refire_cascade(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     """CLOSED → CLOSED is a no-op — no duplicate emails, no duplicate audit rows."""
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
-    await _make_application(session, job_id, "once@test.com")
+    await make_application(session, job_id, "once@test.com")
     await session.commit()
 
     with (
@@ -598,7 +583,7 @@ async def test_reclosing_closed_job_does_not_refire_cascade(
 
 @pytest.mark.asyncio
 async def test_close_skips_email_for_tombstoned_candidate(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     """Deleted candidates are swept and audited, but never emailed.
 
@@ -611,8 +596,8 @@ async def test_close_skips_email_for_tombstoned_candidate(
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    live_app = await _make_application(session, job_id, "live@test.com")
-    deleted_app = await _make_application(session, job_id, "gone@test.com")
+    live_app = await make_application(session, job_id, "live@test.com")
+    deleted_app = await make_application(session, job_id, "gone@test.com")
 
     deleted_candidate = await session.get(CandidateProfile, deleted_app.candidate_id)
     assert deleted_candidate is not None

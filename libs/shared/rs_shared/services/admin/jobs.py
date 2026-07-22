@@ -257,7 +257,8 @@ async def update_job(
     for field, value in payload.items():
         setattr(job, field, value)
     job.updated_at = datetime.now(timezone.utc)
-    # closed_at is stamped by the before_flush hook in models/jobs.py.
+    # closed_at is not set here on purpose: the job_closed_at_stamp trigger
+    # maintains it for every writer, ORM or not. See models/jobs.py.
 
     # Any entry into CLOSED sweeps, not just PUBLISHED → CLOSED. Gating on
     # PUBLISHED assumed only a published job can hold active applications, which
