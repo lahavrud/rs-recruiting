@@ -5,7 +5,7 @@ description = "RS Recruitment HTTP API (FastAPI) — routers, web infrastructure
 requires-python = ">=3.12"
 dependencies = [
     "rs-recruiting-shared",
-    "fastapi>=0.139.2",
+    "fastapi>=0.140.0",
     "uvicorn>=0.51.0",
     "slowapi>=0.1.10",
     "python-multipart>=0.0.32,<1",
