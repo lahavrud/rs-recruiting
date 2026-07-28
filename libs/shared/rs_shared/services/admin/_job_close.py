@@ -10,8 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus
 from rs_shared.models import Application, CandidateProfile
 from rs_shared.services.utils.audit import record_audit_event
@@ -59,25 +58,25 @@ async def close_active_applications(
 
     for app in apps:
         candidate: CandidateProfile = app.candidate
-        _to = candidate.email
-        _name = candidate.full_name
-        _title = job_title
-        defer_after_commit(
-            lambda to=_to, name=_name, title=_title: enqueue_email_task(
-                to=to,
-                subject=f"עדכון בנוגע למועמדותך למשרת {title} — RS Recruiting",
-                body=(
-                    f"{name} שלום,\n\n"
-                    f"תודה על מועמדותך ועל העניין שגילית בתפקיד {title}.\n\n"
-                    "לצערנו, המשרה נסגרה. הדבר אינו קשור לפרופיל שלך אלא נובע "
-                    "מנסיבות פנימיות — כגון איוש המשרה או שינוי בצרכי הגיוס.\n\n"
-                    "נשמח לשמור את קורות החיים שלך ולפנות אליך כשתעמוד על הפרק "
-                    "משרה שתתאים לכישוריך.\n\n"
-                    "בברכה,\nצוות RS Recruiting"
-                ),
-                html_body=build_job_closed_candidate_html(
-                    candidate_name=name,
-                    job_title=title,
-                ),
-            )
+        name = candidate.full_name
+        # One row per application, so a re-close never re-emails a candidate
+        # who was already notified.
+        await queue_email(
+            session,
+            to=candidate.email,
+            subject=f"עדכון בנוגע למועמדותך למשרת {job_title} — RS Recruiting",
+            body=(
+                f"{name} שלום,\n\n"
+                f"תודה על מועמדותך ועל העניין שגילית בתפקיד {job_title}.\n\n"
+                "לצערנו, המשרה נסגרה. הדבר אינו קשור לפרופיל שלך אלא נובע "
+                "מנסיבות פנימיות — כגון איוש המשרה או שינוי בצרכי הגיוס.\n\n"
+                "נשמח לשמור את קורות החיים שלך ולפנות אליך כשתעמוד על הפרק "
+                "משרה שתתאים לכישוריך.\n\n"
+                "בברכה,\nצוות RS Recruiting"
+            ),
+            html_body=build_job_closed_candidate_html(
+                candidate_name=name,
+                job_title=job_title,
+            ),
+            dedup_key=f"job_closed:{app.id}",
         )

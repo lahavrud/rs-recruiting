@@ -106,6 +106,54 @@ async def test_list_applications_returns_with_details(
 
 
 @pytest.mark.asyncio
+async def test_list_applications_hides_tombstoned_candidates_by_default(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The default view drops applications whose candidate was tombstoned."""
+    live = await _make_candidate(session, email="live@test.com")
+    dead = await _make_candidate(session, email="dead@deleted")
+    dead.deleted_at = datetime.now(timezone.utc)
+    await _make_application(session, company_with_user, live)
+    await _make_application(session, company_with_user, dead)
+
+    page = await list_applications(session)
+
+    emails = [item.candidate.email for item in page.items]
+    assert "live@test.com" in emails
+    assert "dead@deleted" not in emails
+
+
+@pytest.mark.asyncio
+async def test_list_applications_include_deleted_shows_tombstoned_candidates(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """``include_deleted=True`` surfaces them — the applications are retained."""
+    dead = await _make_candidate(session, email="dead@deleted")
+    dead.deleted_at = datetime.now(timezone.utc)
+    await _make_application(session, company_with_user, dead)
+
+    page = await list_applications(session, include_deleted=True)
+
+    emails = [item.candidate.email for item in page.items]
+    assert "dead@deleted" in emails
+
+
+@pytest.mark.asyncio
+async def test_list_applications_hides_tombstones_when_searching(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The `q` path already joins CandidateProfile — the filter still applies."""
+    dead = await _make_candidate(session, email="dead@deleted")
+    dead.full_name = "Findable Name"
+    dead.deleted_at = datetime.now(timezone.utc)
+    await _make_application(session, company_with_user, dead)
+
+    page = await list_applications(session, q="Findable")
+
+    assert page.items == []
+
+
+@pytest.mark.asyncio
 async def test_list_applications_filter_by_status(
     session: AsyncSession, company_with_user: CompanyProfile
 ):

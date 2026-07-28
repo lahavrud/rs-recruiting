@@ -95,7 +95,10 @@ async def test_authenticated_deletion_request_returns_202(session, test_db):
     user, profile = await _seed_candidate(session, "auth-del@test.com")
     _override_candidate(user, profile)
 
-    with patch("rs_shared.services.candidate.account_deletion.defer_after_commit"):
+    with patch(
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ):
         async with await _client() as client:
             resp = await client.post("/api/candidate/me/deletion-request")
 
@@ -111,7 +114,10 @@ async def test_authenticated_deletion_request_returns_202(session, test_db):
 async def test_anonymous_deletion_request_returns_202_for_known_email(session, test_db):
     await _seed_candidate(session, "anon-del@test.com")
 
-    with patch("rs_shared.services.candidate.account_deletion.defer_after_commit"):
+    with patch(
+        "rs_shared.services.candidate.account_deletion.queue_email",
+        new_callable=AsyncMock,
+    ):
         async with await _client() as client:
             resp = await client.post(
                 "/api/candidate/deletion-request",

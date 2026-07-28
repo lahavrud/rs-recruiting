@@ -215,6 +215,9 @@ async def contact_job_posting(
 ) -> None:
     """Send a contextual email to the company that owns a job posting."""
     try:
-        await contact_job(job_id, body.admin_note, session)
+        # Queueing the email writes an outbox row, so this endpoint now needs a
+        # transaction like the rest — it had none while the send was fire-and-forget.
+        async with transactional(session):
+            await contact_job(job_id, body.admin_note, session)
     except JobNotFoundError as e:
         raise service_exception_to_http(e) from e

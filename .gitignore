@@ -246,8 +246,8 @@ frontend/dist/
 .claude/settings.local.json
 .claude/worktrees/
 
-# Playwright MCP scratch output — screenshots, console logs and page snapshots
-# written during agent browser sessions; never part of a change
+# Playwright MCP — screenshots and traces from browser-driven checks. Throwaway
+# evidence for one session, and they land at the repo root by default.
 .playwright-mcp/
 
 # sigmap — generated context output stays local; the config IS committed

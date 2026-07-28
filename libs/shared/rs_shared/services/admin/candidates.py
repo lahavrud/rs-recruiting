@@ -31,6 +31,7 @@ from rs_shared.services.admin._candidates_purge import (
 from rs_shared.services.admin._candidates_purge import (
     purge_expired_candidates as purge_expired_candidates,
 )
+from rs_shared.services.admin._filters import candidate_not_deleted
 from rs_shared.services.exceptions import (
     CandidateAlreadyDeletedError,
     CandidateNotFoundError,
@@ -109,9 +110,7 @@ async def list_candidates(
     page_size = clamp_limit(limit)
     base = select(CandidateProfile).options(_SELECTIN_USER)
     if not include_deleted:
-        base = base.where(
-            CandidateProfile.deleted_at.is_(None)  # pyright: ignore[reportArgumentType]
-        )
+        base = base.where(candidate_not_deleted())
     if has_account is True:
         base = base.where(
             CandidateProfile.user_id.is_not(None)  # pyright: ignore[reportArgumentType]
@@ -186,9 +185,7 @@ async def _list_candidates_by_score(
         CandidateProfile.embedding.is_not(None)  # pyright: ignore[reportArgumentType]
     )
     if not include_deleted:
-        stmt = stmt.where(
-            CandidateProfile.deleted_at.is_(None)  # pyright: ignore[reportArgumentType]
-        )
+        stmt = stmt.where(candidate_not_deleted())
     if has_account is True:
         stmt = stmt.where(
             CandidateProfile.user_id.is_not(None)  # pyright: ignore[reportArgumentType]

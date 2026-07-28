@@ -4,11 +4,13 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
+import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SearchableSelect from "@/components/admin/SearchableSelect";
 import SortControl from "@/components/admin/SortControl";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
+import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PageHeader from "@/components/ui/PageHeader";
 import SearchInput from "@/components/ui/SearchInput";
@@ -24,6 +26,7 @@ import type { CandidateAdminRead } from "@/types/candidates";
 import type { JobRead } from "@/types/jobs";
 
 import CandidateRecordPane from "./components/CandidateRecordPane";
+import CandidatesFilterPanel from "./components/CandidatesFilterPanel";
 import CandidatesRailList from "./components/CandidatesRailList";
 import CandidatesTable from "./components/CandidatesTable";
 
@@ -49,6 +52,7 @@ export default function AdminCandidatesPage() {
   const [scoreSort, setScoreSort] = useState(false);
   const [scoreSortJobId, setScoreSortJobId] = useState<number | null>(null);
   const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [jobs, setJobs] = useState<Pick<JobRead, "id" | "title">[]>([]);
 
   useEffect(() => {
@@ -144,6 +148,8 @@ export default function AdminCandidatesPage() {
     />
   );
 
+  const activeFilterCount = (debouncedQuery.trim() ? 1 : 0) + (includeDeleted ? 1 : 0);
+
   const header = (
     <>
       <h1 data-page-heading className="sr-only">
@@ -153,14 +159,44 @@ export default function AdminCandidatesPage() {
         eyebrow={t("admin:candidates.title")}
         subtitle={t("admin:candidates.subtitle")}
       />
-      <div className="mb-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder={t("admin:candidates.searchPlaceholder")}
-          isClearable
-        />
+      <div className="mb-3 flex items-stretch gap-2">
+        <div className="flex-1">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder={t("admin:candidates.searchPlaceholder")}
+            isClearable
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsFilterOpen((o) => !o)}
+          aria-expanded={isFilterOpen}
+          aria-label={t("admin:candidates.openFilters")}
+          className={`relative inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-colors duration-200 active:scale-95 ${
+            isFilterOpen
+              ? "border-copper/50 bg-copper/10 text-white"
+              : "border-white/15 bg-card-raised/40 text-white/75 hover:border-copper/40 hover:text-white"
+          }`}
+        >
+          <FunnelIcon />
+          <span className="hidden sm:inline">{t("admin:candidates.filters")}</span>
+          {activeFilterCount > 0 && (
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-copper text-[10px] font-semibold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
       </div>
+
+      <CandidatesFilterPanel
+        isFilterOpen={isFilterOpen}
+        activeFilterCount={activeFilterCount}
+        query={query}
+        setQuery={setQuery}
+        includeDeleted={includeDeleted}
+        setIncludeDeleted={setIncludeDeleted}
+      />
     </>
   );
 
@@ -173,6 +209,17 @@ export default function AdminCandidatesPage() {
     hasQuery: Boolean(debouncedQuery.trim()),
     emptyEyebrow: t("admin:candidates.title"),
     emptyHeadline: t("admin:candidates.empty"),
+    noResultsMessage: t("admin:candidates.noResults"),
+    // Searching for someone who deleted their account otherwise looks identical to
+    // "no such candidate" — the row is there, just filtered out by default.
+    emptyDescription: includeDeleted
+      ? undefined
+      : t("admin:candidates.emptyDeletedHint"),
+    emptyAction: includeDeleted ? undefined : (
+      <Button variant="ghost" size="sm" onClick={() => setIncludeDeleted(true)}>
+        {t("admin:candidates.showDeletedToggle")}
+      </Button>
+    ),
   };
 
   function withListState(loading: ReactNode, children: ReactNode) {
@@ -185,7 +232,11 @@ export default function AdminCandidatesPage() {
 
   const jobOptions = jobs.map((j) => ({ value: j.id, label: j.title }));
 
-  const aiSortPanel = (
+  // `sortWrapperCls` lets the full-list view drop the sort dropdown on desktop,
+  // where CandidatesTable's own sortable column headers already cover it (the
+  // jobs and applications pages gate it the same way). The rail keeps it at
+  // every width — it has no column headers to fall back on.
+  const renderAiSortPanel = (sortWrapperCls: string) => (
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <button
         type="button"
@@ -218,32 +269,20 @@ export default function AdminCandidatesPage() {
       )}
 
       {!scoreSort && (
-        <SortControl
-          ariaLabel={t("admin:candidates.sort.label")}
-          value={`${sort}:${order}`}
-          onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
-          options={[
-            { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
-            { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },
-            { value: "name:asc", label: t("admin:candidates.sort.nameAsc") },
-            { value: "name:desc", label: t("admin:candidates.sort.nameDesc") },
-          ]}
-        />
+        <div className={sortWrapperCls}>
+          <SortControl
+            ariaLabel={t("admin:candidates.sort.label")}
+            value={`${sort}:${order}`}
+            onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+            options={[
+              { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
+              { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },
+              { value: "name:asc", label: t("admin:candidates.sort.nameAsc") },
+              { value: "name:desc", label: t("admin:candidates.sort.nameDesc") },
+            ]}
+          />
+        </div>
       )}
-
-      <button
-        type="button"
-        onClick={() => setIncludeDeleted((v) => !v)}
-        className={[
-          "ms-auto inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
-          includeDeleted
-            ? "border-danger/40 bg-danger/10 text-danger/80"
-            : "border-white/12 bg-card-raised/40 text-white/40 hover:border-white/20 hover:text-white/60",
-        ].join(" ")}
-        aria-pressed={includeDeleted}
-      >
-        {t("admin:candidates.showDeletedToggle")}
-      </button>
     </div>
   );
 
@@ -253,7 +292,7 @@ export default function AdminCandidatesPage() {
     return (
       <div>
         {header}
-        {aiSortPanel}
+        {renderAiSortPanel("w-full md:hidden")}
         {withListState(
           <>
             <div className="md:hidden">
@@ -301,7 +340,7 @@ export default function AdminCandidatesPage() {
       rail={
         <>
           {header}
-          {aiSortPanel}
+          {renderAiSortPanel("w-full")}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {withListState(
               <MobileListSkeleton rows={6} />,
@@ -347,4 +386,3 @@ function SparkleIcon({ active }: { active: boolean }) {
     </svg>
   );
 }
-

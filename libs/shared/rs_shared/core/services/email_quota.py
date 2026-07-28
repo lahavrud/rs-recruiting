@@ -1,11 +1,15 @@
 """Email quota tracking and alerting.
 
-Maintains a daily counter in the ``email_quota`` table. After each successful
-send the worker calls ``increment_and_alert``, which bumps today's row and
-emits log warnings as the free-tier limits approach.
+Maintains a daily counter in the ``email_quota`` table. ``increment_and_alert``
+is called by ``email_outbox.mark_sent`` — i.e. in the same transaction that
+records a successful send, deliberately: when the bump had a transaction of its
+own, a failed quota write raised *after* the email was already out, SQS
+redelivered, and the recipient got it twice.
 
-No hard enforcement is applied here — Resend's own 429 response is the
-backstop. The goal is to surface usage before the ceiling is hit.
+No hard enforcement is applied here — the provider's own 429 response is the
+backstop. The goal is to surface usage before the ceiling is hit. Because the
+counter shares the send's transaction, a bookkeeping failure under-counts rather
+than resends; the count is advisory, so that is the cheaper side to err on.
 """
 
 import logging

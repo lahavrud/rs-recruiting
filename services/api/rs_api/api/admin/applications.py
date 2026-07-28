@@ -13,8 +13,8 @@ from rs_shared.core.infrastructure.pagination import (
     MAX_LIMIT,
     CursorPage,
 )
-from rs_shared.core.infrastructure.transactions import defer_after_commit, transactional
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus
 from rs_shared.models import User
 from rs_shared.schemas import (
@@ -55,6 +55,7 @@ async def get_applications(
     order: Literal["asc", "desc"] = Query(default="desc"),
     sort2: Literal["name", "created_at", "status"] | None = Query(default=None),
     order2: Literal["asc", "desc"] = Query(default="desc"),
+    include_deleted: bool = Query(default=False),
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> CursorPage[ApplicationWithDetails]:
@@ -63,6 +64,9 @@ async def get_applications(
     `q` case-insensitively substring-matches candidate name/email/phone and
     job title. `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
     `sort=status&sort2=created_at` groups by status, then by date.
+    `include_deleted` (default false) controls whether applications from
+    tombstoned candidates appear — the applications themselves are retained
+    either way.
     Cursor-paginated.
     """
     try:
@@ -78,6 +82,7 @@ async def get_applications(
             order=order,
             sort2=sort2,
             order2=order2,
+            include_deleted=include_deleted,
         )
     except InvalidCursorError as exc:
         raise service_exception_to_http(exc) from exc
@@ -128,7 +133,7 @@ async def update_application_status_endpoint(
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> ApplicationRead:
-    """Update application status. Emails (if any) enqueued after commit."""
+    """Update application status. Emails (if any) queued in the same transaction."""
     try:
         async with transactional(session):
             result, email_payloads = await update_application_status(
@@ -140,7 +145,7 @@ async def update_application_status_endpoint(
                 ip_address=client_ip(request),
             )
             for payload in email_payloads:
-                defer_after_commit(lambda p=payload: enqueue_email_task(**p))
+                await queue_email(session, **payload)
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e
     except ApplicationNotEditableError as e:

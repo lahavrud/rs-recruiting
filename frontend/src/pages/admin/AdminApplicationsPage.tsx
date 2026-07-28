@@ -115,15 +115,18 @@ export default function AdminApplicationsPage() {
 
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
+  // Declared before `fetcher` — the useCallback below closes over it.
+  const [includeDeleted, setIncludeDeleted] = useState(false);
 
   const fetcher = useCallback(
     (cursor: string | null): Promise<CursorPage<ApplicationWithDetails>> => {
       const params: ApplicationListParams = { cursor, sort, order, sort2, order2 };
       if (filter !== ALL_FILTER) params.status = filter as ApplicationStatus;
       if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
+      if (includeDeleted) params.include_deleted = true;
       return getApplications(params);
     },
-    [filter, sort, order, sort2, order2, debouncedQuery],
+    [filter, sort, order, sort2, order2, debouncedQuery, includeDeleted],
   );
 
   const {
@@ -190,7 +193,8 @@ export default function AdminApplicationsPage() {
     (debouncedQuery.trim() ? 1 : 0) +
     (filter !== ALL_FILTER ? 1 : 0) +
     jobFilter.length +
-    companyFilter.length;
+    companyFilter.length +
+    (includeDeleted ? 1 : 0);
 
   const STATUS_LABELS: Record<string, string> = {
     PENDING_ADMIN_REVIEW: t("admin:applications.statusLabels.PENDING_ADMIN_REVIEW"),
@@ -326,6 +330,8 @@ export default function AdminApplicationsPage() {
           setJobFilter,
           companyFilter,
           setCompanyFilter,
+          includeDeleted,
+          setIncludeDeleted,
         }}
         lookupMaps={{ allJobs, companyNameById, jobTitleById }}
         uiState={{ activeFilterCount, isFilterOpen, statusLabels: STATUS_LABELS }}
@@ -365,6 +371,7 @@ export default function AdminApplicationsPage() {
           hasQuery={applications.length > 0}
           emptyEyebrow={t("admin:applications.title")}
           emptyHeadline={t("admin:applications.empty")}
+              noResultsMessage={t("admin:applications.noResults")}
         >
           <>
             {/* Mobile */}
@@ -445,6 +452,7 @@ export default function AdminApplicationsPage() {
               hasQuery={applications.length > 0}
               emptyEyebrow={t("admin:applications.title")}
               emptyHeadline={t("admin:applications.empty")}
+              noResultsMessage={t("admin:applications.noResults")}
             >
               <ApplicationsRailList
                 applications={filteredApplications}

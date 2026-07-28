@@ -37,7 +37,14 @@ class TaskName:
     ``rs_shared.core.tasks``). They are plain strings so they serialize as-is.
     """
 
+    # Legacy: carries the whole email payload on the wire. Superseded by
+    # SEND_OUTBOX_EMAIL, but kept registered for one release so messages
+    # already in flight during the rolling deploy still dispatch (the api and
+    # worker ship as separate images — see rules/worker.md). Remove once the
+    # queue has drained.
     SEND_EMAIL = "send_email"
+    SEND_OUTBOX_EMAIL = "send_outbox_email"
+    SWEEP_EMAIL_OUTBOX = "sweep_email_outbox"
     BUILD_DATA_EXPORT = "build_data_export"
     PURGE_EXPIRED_CANDIDATES = "purge_expired_candidates"
     EMBED_JOB = "embed_job"
@@ -55,6 +62,15 @@ class EmailMessage(TypedDict):
     html_body: Optional[str]
     attachments: Optional[list[WireAttachment]]
     from_email: Optional[str]
+
+
+class SendOutboxEmailMessage(TypedDict):
+    task: str
+    outbox_id: int
+
+
+class SweepEmailOutboxMessage(TypedDict):
+    task: str
 
 
 class DataExportMessage(TypedDict):
@@ -120,6 +136,21 @@ def build_email_message(
         "attachments": encode_attachments(attachments),
         "from_email": from_email,
     }
+
+
+def build_send_outbox_email_message(outbox_id: int) -> SendOutboxEmailMessage:
+    """Nudge the worker to send one outbox row.
+
+    Carries only the row id — the payload (body, html, attachments) lives in
+    ``email_outbox``. That keeps the message far under SQS's 256KB ceiling
+    regardless of attachment size, and makes the row, not the message, the
+    unit of idempotency.
+    """
+    return {"task": TaskName.SEND_OUTBOX_EMAIL, "outbox_id": outbox_id}
+
+
+def build_sweep_email_outbox_message() -> SweepEmailOutboxMessage:
+    return {"task": TaskName.SWEEP_EMAIL_OUTBOX}
 
 
 def build_data_export_message(user_id: int) -> DataExportMessage:

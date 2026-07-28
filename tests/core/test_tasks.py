@@ -19,9 +19,14 @@ from rs_shared.core.tasks import (
     nightly_cleanup_task,
     send_email_task,
 )
-from rs_shared.enums import JobStatus, UserRole
-from rs_shared.models import CandidateProfile, DataExportRequest, Job, User
-from rs_shared.services.admin.maintenance import purge_expired_data_export_zips
+from rs_shared.enums import EmailStatus, JobStatus, UserRole
+from rs_shared.models import (
+    CandidateProfile,
+    DataExportRequest,
+    EmailOutbox,
+    Job,
+    User,
+)
 from rs_shared.services.candidate.data_export import has_pending_export
 from tests.conftest import TestSessionLocal
 
@@ -242,6 +247,9 @@ async def test_build_data_export_task_notify_failure_leaves_no_pending_export(
     notification the candidate never gets the link, redelivery no-ops on the
     guard, and `has_pending_export` locks them out for DATA_EXPORT_TTL_HOURS.
     Redelivery must be able to rebuild, so the row must not outlive the failure.
+
+    The outbox row is written in the export's own transaction, so this now
+    holds by rollback rather than by an explicit discard.
     """
     user = await _seed_export_candidate(session, "strand@test.com")
     storage = _fake_export_storage()
@@ -252,11 +260,9 @@ async def test_build_data_export_task_notify_failure_leaves_no_pending_export(
             "rs_shared.core.services.storage.get_storage_provider",
             return_value=storage,
         ),
-        patch(
-            "rs_shared.core.tasks.enqueue_email_task", new_callable=AsyncMock
-        ) as mock_email,
+        patch("rs_shared.core.tasks.queue_email", new_callable=AsyncMock) as mock_email,
     ):
-        mock_email.side_effect = RuntimeError("SQS unavailable")
+        mock_email.side_effect = RuntimeError("outbox insert failed")
 
         # Must propagate: a swallowed exception acks the message and loses the work.
         with pytest.raises(RuntimeError):
@@ -267,74 +273,14 @@ async def test_build_data_export_task_notify_failure_leaves_no_pending_export(
 
 
 @pytest.mark.asyncio
-async def test_build_data_export_task_notify_failure_leaves_zip_sweepable(
-    session, session_local_factory
-):
-    """The discarded row must survive expired, or its ZIP is orphaned forever.
-
-    ``purge_expired_data_export_zips`` finds ZIPs only by walking their rows,
-    so deleting the row here would leave a bundle of the candidate's profile,
-    applications and resumes in storage that no sweeper can ever reach.
-    Back-dating ``expires_at`` frees the candidate (``has_pending_export`` goes
-    False) *and* hands the ZIP to the nightly sweep.
-    """
-    user = await _seed_export_candidate(session, "orphan@test.com")
-    storage = _fake_export_storage()
-
-    with (
-        patch("rs_shared.core.tasks.async_session", session_local_factory),
-        patch(
-            "rs_shared.core.services.storage.get_storage_provider",
-            return_value=storage,
-        ),
-        patch(
-            "rs_shared.core.tasks.enqueue_email_task", new_callable=AsyncMock
-        ) as mock_email,
-    ):
-        mock_email.side_effect = RuntimeError("SQS unavailable")
-        with pytest.raises(RuntimeError):
-            await build_data_export_task(user.id)
-
-    # The task itself must not touch storage — the sweep owns ZIP deletion,
-    # and it retries on failure where a fire-and-forget delete here could not.
-    storage.delete_file.assert_not_awaited()
-
-    async with session_local_factory() as fresh:
-        row = (
-            (
-                await fresh.execute(
-                    select(DataExportRequest).where(
-                        DataExportRequest.user_id == user.id
-                    )
-                )
-            )
-            .scalars()
-            .one()
-        )
-        assert row.download_path == "exports/1/export.zip"
-        assert row.expires_at <= datetime.now(timezone.utc)
-
-    # Eligible for the nightly sweep, which deletes the ZIP then the row.
-    async with session_local_factory() as fresh:
-        with patch(
-            "rs_shared.services.admin.maintenance.get_storage_provider",
-            return_value=storage,
-        ):
-            assert await purge_expired_data_export_zips(fresh) == 1
-            await fresh.commit()
-
-    storage.delete_file.assert_awaited_once_with("exports/1/export.zip")
-
-
-@pytest.mark.asyncio
 async def test_build_data_export_task_redelivery_recovers_after_notify_failure(
     session, session_local_factory
 ):
-    """The whole point of the discard: the SQS retry must actually succeed.
+    """The point of rolling the export back: the SQS retry must actually succeed.
 
-    Reproduces the real sequence — notify fails, the message is redelivered,
-    and the second attempt rebuilds and emails rather than no-opping on a
-    guard row left behind by the first.
+    Reproduces the real sequence — the queue write fails, the message is
+    redelivered, and the second attempt rebuilds and emails rather than
+    no-opping on a guard row left behind by the first.
     """
     user = await _seed_export_candidate(session, "retry@test.com")
     storage = _fake_export_storage()
@@ -345,15 +291,13 @@ async def test_build_data_export_task_redelivery_recovers_after_notify_failure(
             "rs_shared.core.services.storage.get_storage_provider",
             return_value=storage,
         ),
-        patch(
-            "rs_shared.core.tasks.enqueue_email_task", new_callable=AsyncMock
-        ) as mock_email,
+        patch("rs_shared.core.tasks.queue_email", new_callable=AsyncMock) as mock_email,
     ):
-        mock_email.side_effect = RuntimeError("SQS unavailable")
+        mock_email.side_effect = RuntimeError("outbox insert failed")
         with pytest.raises(RuntimeError):
             await build_data_export_task(user.id)
 
-        # SQS redelivers the same message; this time the notify succeeds.
+        # SQS redelivers the same message; this time the queue write succeeds.
         mock_email.side_effect = None
         await build_data_export_task(user.id)
 
@@ -367,7 +311,12 @@ async def test_build_data_export_task_redelivery_recovers_after_notify_failure(
 async def test_build_data_export_task_succeeds_and_keeps_the_export(
     session, session_local_factory
 ):
-    """The happy path is unchanged: row persists and the link is emailed."""
+    """The happy path: the export row and its notification commit together.
+
+    Uses the real ``queue_email`` and reads back from a fresh session, so this
+    fails if the outbox row is written to a transaction nobody commits — the
+    exact silent loss the outbox exists to prevent.
+    """
     user = await _seed_export_candidate(session, "happy@test.com")
     storage = _fake_export_storage()
 
@@ -378,16 +327,18 @@ async def test_build_data_export_task_succeeds_and_keeps_the_export(
             return_value=storage,
         ),
         patch(
-            "rs_shared.core.tasks.enqueue_email_task", new_callable=AsyncMock
-        ) as mock_email,
+            "rs_shared.core.tasks.enqueue_send_outbox_email_task",
+            new_callable=AsyncMock,
+        ),
     ):
         await build_data_export_task(user.id)
 
-    mock_email.assert_awaited_once()
-    assert mock_email.await_args.kwargs["to"] == "happy@test.com"
     storage.delete_file.assert_not_awaited()
     async with session_local_factory() as fresh:
         assert await has_pending_export(user.id, fresh) is True
+        row = (await fresh.execute(select(EmailOutbox))).scalars().one()
+        assert row.to_addrs == ["happy@test.com"]
+        assert row.status == EmailStatus.PENDING
 
 
 @pytest.mark.asyncio

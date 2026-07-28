@@ -36,7 +36,7 @@ def _install_session_override():
 @pytest.fixture
 def _patch_enqueue_email():
     with patch(
-        "rs_shared.services.auth.candidate_registration.enqueue_email_task",
+        "rs_shared.services.auth.candidate_registration.queue_email",
         new_callable=AsyncMock,
     ) as p:
         yield p
@@ -45,7 +45,7 @@ def _patch_enqueue_email():
 @pytest.fixture
 def _patch_activation_email():
     with patch(
-        "rs_api.api.auth.activation.enqueue_email_task",
+        "rs_api.api.auth.activation.queue_email",
         new_callable=AsyncMock,
     ) as p:
         yield p

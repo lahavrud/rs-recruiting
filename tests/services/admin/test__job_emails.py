@@ -1,12 +1,14 @@
 """Unit tests for admin job-update company-notification emails."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from rs_shared.models import CompanyProfile, Job, User
 from rs_shared.services.admin._job_emails import notify_company_of_update
 
-_PATCH_EMAIL = "rs_shared.services.admin._job_emails.enqueue_email_task"
-_PATCH_DEFER = "rs_shared.services.admin._job_emails.defer_after_commit"
+# queue_email writes the outbox row inside the caller's transaction, so these
+# unit tests patch it out and assert on the arguments instead of a real row —
+# the row-writing itself is covered in tests/core/services/test_email_outbox.py.
+_PATCH_EMAIL = "rs_shared.services.admin._job_emails.queue_email"
 
 
 def _job_with_user(email: str = "company@test.com") -> Job:
@@ -19,14 +21,13 @@ def _job_with_user(email: str = "company@test.com") -> Job:
     return job
 
 
-def test_notify_company_of_update_sends_closure_email_when_closing():
+async def test_notify_company_of_update_sends_closure_email_when_closing():
     job = _job_with_user()
+    session = AsyncMock()
 
-    with (
-        patch(_PATCH_EMAIL) as mock_email,
-        patch(_PATCH_DEFER, side_effect=lambda fn: fn()),
-    ):
-        notify_company_of_update(
+    with patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email:
+        await notify_company_of_update(
+            session,
             job,
             old_title="Backend Engineer",
             title_changed=False,
@@ -40,14 +41,13 @@ def test_notify_company_of_update_sends_closure_email_when_closing():
     assert "נסגרה" in kwargs["subject"]
 
 
-def test_notify_company_of_update_sends_update_email_for_other_field_changes():
+async def test_notify_company_of_update_sends_update_email_for_other_field_changes():
     job = _job_with_user()
+    session = AsyncMock()
 
-    with (
-        patch(_PATCH_EMAIL) as mock_email,
-        patch(_PATCH_DEFER, side_effect=lambda fn: fn()),
-    ):
-        notify_company_of_update(
+    with patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email:
+        await notify_company_of_update(
+            session,
             job,
             old_title="Backend Engineer",
             title_changed=False,
@@ -60,14 +60,13 @@ def test_notify_company_of_update_sends_update_email_for_other_field_changes():
     assert "עודכן" in kwargs["subject"]
 
 
-def test_notify_company_of_update_sends_both_emails_when_closing_with_other_changes():
+async def test_notify_company_of_update_both_emails_when_closing_with_changes():
     job = _job_with_user()
+    session = AsyncMock()
 
-    with (
-        patch(_PATCH_EMAIL) as mock_email,
-        patch(_PATCH_DEFER, side_effect=lambda fn: fn()),
-    ):
-        notify_company_of_update(
+    with patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email:
+        await notify_company_of_update(
+            session,
             job,
             old_title="Old Title",
             title_changed=True,
@@ -80,16 +79,15 @@ def test_notify_company_of_update_sends_both_emails_when_closing_with_other_chan
     assert any("עודכן" in s for s in subjects)
 
 
-def test_notify_company_of_update_skips_when_company_has_no_user():
+async def test_notify_company_of_update_skips_when_company_has_no_user():
     job = Job(title="Backend Engineer", status="published")
     job.company = CompanyProfile(name="Orphan Co")
     job.company.user = None
+    session = AsyncMock()
 
-    with (
-        patch(_PATCH_EMAIL) as mock_email,
-        patch(_PATCH_DEFER, side_effect=lambda fn: fn()),
-    ):
-        notify_company_of_update(
+    with patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email:
+        await notify_company_of_update(
+            session,
             job,
             old_title="Backend Engineer",
             title_changed=False,
@@ -100,14 +98,13 @@ def test_notify_company_of_update_skips_when_company_has_no_user():
     mock_email.assert_not_called()
 
 
-def test_notify_company_of_update_no_email_when_nothing_relevant_changed():
+async def test_notify_company_of_update_no_email_when_nothing_relevant_changed():
     job = _job_with_user()
+    session = AsyncMock()
 
-    with (
-        patch(_PATCH_EMAIL) as mock_email,
-        patch(_PATCH_DEFER, side_effect=lambda fn: fn()),
-    ):
-        notify_company_of_update(
+    with patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email:
+        await notify_company_of_update(
+            session,
             job,
             old_title="Backend Engineer",
             title_changed=False,

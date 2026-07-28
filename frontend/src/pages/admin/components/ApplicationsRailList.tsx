@@ -74,6 +74,12 @@ export default function ApplicationsRailList({
                 <p className="truncate font-medium text-white/85">
                   {app.candidate.full_name}
                 </p>
+                {app.candidate.is_deleted && (
+                  <StatusBadge
+                    label={t("admin:candidates.statusDeleted")}
+                    variant="danger"
+                  />
+                )}
                 {showScore && app.ai_score != null && (
                   <ScoreBadge score={app.ai_score} />
                 )}
