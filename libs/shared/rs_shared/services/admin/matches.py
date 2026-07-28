@@ -14,7 +14,11 @@ from rs_shared.schemas import (
     GlobalMatchRead,
 )
 from rs_shared.schemas.jobs import JobRead
-from rs_shared.services.exceptions import ApplicationAlreadyExistsError
+from rs_shared.services.exceptions import (
+    ApplicationAlreadyExistsError,
+    JobNotFoundError,
+    JobNotPublishedError,
+)
 
 _CANDIDATE_POOL = 30
 _JOBS_PER_CANDIDATE = 3
@@ -117,8 +121,22 @@ async def push_match(
     the feed, then creates the Application.
 
     Raises:
+        JobNotFoundError: If the job does not exist.
+        JobNotPublishedError: If the job is no longer PUBLISHED.
         ApplicationAlreadyExistsError: If a non-withdrawn application already exists.
     """
+    # The feed's PUBLISHED filter runs when the feed is built, not when the push
+    # lands, so a close in between would otherwise seed an active application on
+    # a closed job — after that job's cascade has already run. Nothing sweeps it
+    # afterwards, so reject at the source rather than create an orphan.
+    job = await session.get(Job, job_id)
+    if job is None:
+        raise JobNotFoundError(f"Job {job_id} not found")
+    if job.status != JobStatus.PUBLISHED:
+        raise JobNotPublishedError(
+            f"Job {job_id} is not published (current status: {job.status})"
+        )
+
     existing = (
         await session.execute(
             select(Application).where(

@@ -109,6 +109,17 @@ class JobNotPendingError(Exception):
     pass
 
 
+class JobNotPublishedError(Exception):
+    """Raised when pushing a match onto a job that is not PUBLISHED.
+
+    The match feed filters to PUBLISHED at query time, so a job closed between
+    the feed load and the push would otherwise yield an application on a closed
+    job — one the close cascade has already run past and will never sweep.
+    """
+
+    pass
+
+
 class ApplicationAlreadyExistsError(Exception):
     """Raised when attempting to create an application that already exists.
 

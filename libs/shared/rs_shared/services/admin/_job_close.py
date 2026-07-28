@@ -11,14 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from rs_shared.core.tasks import queue_email
-from rs_shared.enums import ApplicationStatus
+from rs_shared.enums import ACTIVE_APPLICATION_STATUSES, ApplicationStatus
 from rs_shared.models import Application, CandidateProfile
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_job_closed_candidate_html
-
-# In-flight applications swept into JOB_CLOSED when the parent job closes —
-# source of truth is ``ApplicationStatus.is_active``.
-_ACTIVE_STATUSES = tuple(s for s in ApplicationStatus if s.is_active)
 
 
 async def close_active_applications(
@@ -28,13 +24,20 @@ async def close_active_applications(
     *,
     actor_user_id: int | None = None,
 ) -> None:
-    """Transition active applications to JOB_CLOSED and send closure emails."""
+    """Transition active applications to JOB_CLOSED and send closure emails.
+
+    "Active" means still in flight — pre-decision, so the closing job is the
+    thing that ends them. Terminal applications are left alone: their outcome
+    already happened and is not the job's to overwrite. The set is
+    ``ACTIVE_APPLICATION_STATUSES``, derived from ``ApplicationStatus.is_active``
+    so it cannot drift from the enum.
+    """
     apps_result = await session.execute(
         select(Application)
         .options(selectinload(Application.candidate))  # pyright: ignore[reportArgumentType]
         .where(
             Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
-            Application.status.in_(_ACTIVE_STATUSES),  # pyright: ignore[reportArgumentType]
+            Application.status.in_(ACTIVE_APPLICATION_STATUSES),  # pyright: ignore[reportArgumentType]
         )
     )
     apps = list(apps_result.scalars().all())
@@ -58,6 +61,15 @@ async def close_active_applications(
 
     for app in apps:
         candidate: CandidateProfile = app.candidate
+        # Tombstoned candidates keep their Application rows (account deletion
+        # preserves recruiting history and never moves the status), so they
+        # reach the sweep above and are audited like anyone else. They must not
+        # reach the mail: ``scrub_candidate_pii`` rewrites the address to the
+        # non-routable ``deleted-{id}@deleted``, so every send is a guaranteed
+        # hard bounce against the shared sender reputation — and the person
+        # asked to stop hearing from us.
+        if candidate.deleted_at is not None:
+            continue
         name = candidate.full_name
         # One row per application, so a re-close never re-emails a candidate
         # who was already notified.
