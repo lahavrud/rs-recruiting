@@ -87,6 +87,10 @@ EXCLUDED_TEST_FILES: set[str] = {
     # modules via real HTTP. The package's internal _*.py files are listed in
     # EXCLUDED_SOURCE_FILES above for the same reason.
     "tests/api/test_seo.py",
+    # Executes data migrations' real SQL against a seeded database. Maps to
+    # alembic/versions/, which is outside SOURCE_TO_TEST_MAPPING and has no
+    # per-module test convention.
+    "tests/test_migrations.py",
 }
 
 

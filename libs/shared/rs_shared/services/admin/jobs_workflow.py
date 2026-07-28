@@ -163,6 +163,8 @@ async def reject_job(
 
     job.status = JobStatus.CLOSED
     job.updated_at = datetime.now(timezone.utc)
+    # closed_at is not set here on purpose: the job_closed_at_stamp trigger
+    # maintains it for every writer, ORM or not. See models/jobs.py.
     await session.flush()
 
     await record_audit_event(

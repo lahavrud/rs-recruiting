@@ -39,6 +39,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
     JobNotPendingError,
+    JobNotPublishedError,
     PendingActivationError,
     PendingApprovalError,
 )
@@ -59,6 +60,9 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     ApplicationNotEditableError: status.HTTP_409_CONFLICT,
     InvitePendingForEmailError: status.HTTP_409_CONFLICT,
     EmailAlreadyExistsError: status.HTTP_409_CONFLICT,
+    # The job's state changed under a feed the admin already had open — a
+    # conflict with current state, not a malformed request.
+    JobNotPublishedError: status.HTTP_409_CONFLICT,
     # Forbidden errors (403)
     JobNotOwnedByCompanyError: status.HTTP_403_FORBIDDEN,
     # Bad request — invalid tokens
@@ -129,6 +133,7 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     JobCannotBeDeletedError: "job_cannot_be_deleted",
     CompanyNotPendingError: "company_not_pending",
     JobNotPendingError: "job_not_pending",
+    JobNotPublishedError: "job_not_published",
     InvalidApplicationStatusTransitionError: "invalid_status_transition",
     # Pagination
     InvalidCursorError: "invalid_cursor",
