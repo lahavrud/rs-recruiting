@@ -20,7 +20,11 @@ from rs_shared.services.admin.matches import (
     get_hot_applications,
     push_match,
 )
-from rs_shared.services.exceptions import ApplicationAlreadyExistsError
+from rs_shared.services.exceptions import (
+    ApplicationAlreadyExistsError,
+    JobNotFoundError,
+    JobNotPublishedError,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -67,7 +71,11 @@ async def push_match_endpoint(
                 current_admin.id,  # type: ignore[arg-type]
                 session,
             )
-    except ApplicationAlreadyExistsError as exc:
+    except (
+        ApplicationAlreadyExistsError,
+        JobNotFoundError,
+        JobNotPublishedError,
+    ) as exc:
         raise service_exception_to_http(exc) from exc
 
 
