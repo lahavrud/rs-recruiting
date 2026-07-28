@@ -11,7 +11,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.services.storage import get_storage_provider
-from rs_shared.enums import ApplicationStatus, JobStatus
+from rs_shared.enums import (
+    ACTIVE_APPLICATION_STATUSES,
+    ApplicationStatus,
+    JobStatus,
+)
 from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.services.utils.audit import record_audit_event
 
@@ -24,11 +28,26 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """Delete candidates whose data is past the 12-month retention window.
 
     A candidate is purged only when *every* one of their applications meets
-    all three conditions:
+    all four conditions:
 
     - linked Job is CLOSED
-    - linked Job.updated_at is more than ``CANDIDATE_RETENTION_DAYS`` ago
+    - linked Job.closed_at is more than ``CANDIDATE_RETENTION_DAYS`` ago
     - the application's own status is not HIRED
+    - the application's own status is not ``is_active``
+
+    The active check is deliberately stated on the application rather than
+    inferred from the job. It used to be implicit — an active application was
+    assumed to imply a job that is not closed — so an application left in
+    flight on a long-closed job silently failed to preserve its candidate, and
+    the candidate was purged while the admin pipeline still showed the
+    application as live work.
+
+    The window is measured from ``Job.closed_at``, not ``Job.updated_at``:
+    ``updated_at`` moves on every edit, so touching a long-closed job used to
+    restart the retention clock for everyone who had applied to it. A CLOSED
+    job with a NULL ``closed_at`` preserves rather than purges — it should not
+    occur (the migration backfills, and every close path stamps it), so it
+    means the anchor is unknown, and over-retaining is the safe reading.
 
     A candidate with even one application that is still active, recently
     closed, or HIRED is preserved — companies may still need that data for
@@ -46,13 +65,22 @@ async def purge_expired_candidates(session: AsyncSession) -> int:
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=CANDIDATE_RETENTION_DAYS)
 
+    # The job's retention window has run out. Stated positively and once: only
+    # a CLOSED job with a known anchor older than the cutoff can expire, so a
+    # NULL anchor simply fails this test rather than needing its own clause.
+    job_window_expired = (
+        (Job.status == JobStatus.CLOSED)
+        & (Job.closed_at.is_not(None))
+        & (Job.closed_at < cutoff)
+    )
+
     preserved_ids_subq = (
         select(Application.candidate_id)
         .join(Job, Job.id == Application.job_id)  # pyright: ignore[reportArgumentType]
         .where(
-            (Job.status != JobStatus.CLOSED)
-            | (Job.updated_at >= cutoff)
+            ~job_window_expired
             | (Application.status == ApplicationStatus.HIRED)
+            | (Application.status.in_(ACTIVE_APPLICATION_STATUSES))  # type: ignore[arg-type]
         )
     ).subquery()
 
