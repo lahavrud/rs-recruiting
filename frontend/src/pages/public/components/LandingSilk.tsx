@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { useReducedMotion } from "motion/react";
 
-import { createSilkRenderer, readSilkPalette } from "./landingSilkUtils";
+import {
+  createSilkRenderer,
+  readSilkPalette,
+  reportSilkFailure,
+} from "./landingSilkUtils";
 
 /* Silk backdrop for the hero's start-side void: a WebGL canvas of molten
    silk bands (plum → wine → copper → gold) flowing from under the navbar
@@ -78,9 +82,40 @@ export default function LandingSilk() {
     let lastTime = reduceMotion ? STATIC_TIME_S : 0;
     let lastFade = reduceMotion ? 1 : 0;
 
+    // A shimmed WebGL context (privacy extensions, in-app WebViews) can pass
+    // renderer creation and still throw on a later GL call. Both entry points
+    // below run synchronously inside this effect, where an escaping error
+    // would take the whole landing page down — retire to the CSS wash instead,
+    // which also stops a per-frame throw from looping.
+    const disposeRenderer = () => {
+      try {
+        renderer?.dispose();
+      } catch {
+        /* context already broken — nothing left to release */
+      }
+    };
+
+    // Terminal, unlike `webglcontextlost`: that's a recoverable suspend, this
+    // is a context we've proven we can't drive. Without the flag a later real
+    // loss/restore cycle would rebuild, throw, and retire again on every
+    // restore — flashing the blank canvas over the wash each time.
+    let retired = false;
+    const failToWash = (cause: unknown) => {
+      retired = true;
+      stop();
+      canvas.style.display = "none";
+      disposeRenderer();
+      renderer = null;
+      reportSilkFailure(cause);
+    };
+
     const drawFrame = () => {
       const gain = isDesktopRef.current ? 1 : MOBILE_GAIN;
-      renderer?.draw(lastTime, pointerX, pointerY, lastFade * gain);
+      try {
+        renderer?.draw(lastTime, pointerX, pointerY, lastFade * gain);
+      } catch (cause) {
+        failToWash(cause);
+      }
     };
 
     const frame = (now: DOMHighResTimeStamp) => {
@@ -95,6 +130,7 @@ export default function LandingSilk() {
       drawFrame();
     };
     const start = () => {
+      if (!renderer) return;
       if (!running) {
         running = true;
         raf = requestAnimationFrame(frame);
@@ -110,7 +146,12 @@ export default function LandingSilk() {
     const fit = () => {
       const cap = isDesktopRef.current ? DESKTOP_DPR_CAP : MOBILE_DPR_CAP;
       const dpr = Math.min(window.devicePixelRatio || 1, cap);
-      renderer?.resize(host.clientWidth, host.clientHeight, dpr);
+      try {
+        renderer?.resize(host.clientWidth, host.clientHeight, dpr);
+      } catch (cause) {
+        failToWash(cause);
+        return;
+      }
       // Resizing clears the buffer to black; repaint now rather than letting
       // a black box show until the next rAF tick (visible when maximizing).
       drawFrame();
@@ -139,7 +180,8 @@ export default function LandingSilk() {
       canvas.style.display = "none";
     };
     const onContextRestored = () => {
-      renderer?.dispose();
+      if (retired) return;
+      disposeRenderer();
       renderer = createSilkRenderer(canvas, readSilkPalette());
       if (!renderer) {
         return;
@@ -159,7 +201,7 @@ export default function LandingSilk() {
         ro.disconnect();
         canvas.removeEventListener("webglcontextlost", onContextLost);
         canvas.removeEventListener("webglcontextrestored", onContextRestored);
-        renderer?.dispose();
+        disposeRenderer();
       };
     }
 
@@ -188,7 +230,7 @@ export default function LandingSilk() {
       window.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("webglcontextlost", onContextLost);
       canvas.removeEventListener("webglcontextrestored", onContextRestored);
-      renderer?.dispose();
+      disposeRenderer();
     };
   }, [reduceMotion]);
 
