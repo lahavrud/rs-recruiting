@@ -6,6 +6,8 @@
    (plum → wine → copper → gold); all colors are read from the CSS tokens at
    runtime, never duplicated here except as jsdom-only fallbacks. */
 
+import * as Sentry from "@sentry/react";
+
 export type RGB = readonly [number, number, number];
 
 export interface SilkPalette {
@@ -197,17 +199,95 @@ function compileShader(
   return shader;
 }
 
+/* Methods this renderer calls on the context. Anti-fingerprinting extensions,
+   privacy-hardened browsers and some in-app WebViews hand back a stub object
+   that passes the null check but implements almost none of the API — probe it
+   before touching it so we take the CSS-wash rung of the ladder instead of
+   throwing (`gl.getShaderParameter is not a function`, seen in production). */
+const REQUIRED_GL_METHODS = [
+  "createShader",
+  "shaderSource",
+  "compileShader",
+  "getShaderParameter",
+  "deleteShader",
+  "createProgram",
+  "attachShader",
+  "linkProgram",
+  "getProgramParameter",
+  "deleteProgram",
+  "useProgram",
+  "getUniformLocation",
+  "uniform1f",
+  "uniform2f",
+  "uniform3f",
+  "viewport",
+  "drawArrays",
+  "isContextLost",
+  "getExtension",
+] as const;
+
+function acquireContext(canvas: HTMLCanvasElement): WebGL2RenderingContext | null {
+  let gl: WebGL2RenderingContext | null;
+  try {
+    gl = canvas.getContext("webgl2", {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "low-power",
+    });
+  } catch {
+    // Some hardened builds throw outright rather than returning null.
+    return null;
+  }
+  if (!gl) return null;
+  const usable = REQUIRED_GL_METHODS.every((name) => typeof gl[name] === "function");
+  return usable ? gl : null;
+}
+
+/* Falling back is silent for the user by design, but a silent fallback is an
+   invisible regression: if a shader or uniform edit made `draw` throw for
+   everyone, the hero would quietly become a CSS gradient and nobody would
+   hear about it.
+
+   Only *thrown* failures are reported. An absent or stubbed context is a
+   supported rung of the ladder — reporting it would just log every visitor
+   running a privacy extension. Report once per page load: these paths can
+   fire per frame, and the wash looks fine, so this is a signal to watch
+   rather than an incident. */
+let silkFailureReported = false;
+
+/** Report a handled silk failure to Sentry, at most once per page load. */
+export function reportSilkFailure(cause: unknown): void {
+  if (silkFailureReported) return;
+  silkFailureReported = true;
+  Sentry.captureException(cause, {
+    level: "warning",
+    tags: { feature: "landing-silk" },
+  });
+}
+
+/** Build the renderer, or `null` on any environment we can't draw in — the
+    caller falls back to the CSS wash. Never throws: a shimmed context can have
+    every method and still throw when called, and this runs inside an effect,
+    where an escaping error would take the whole landing page down with it. */
 export function createSilkRenderer(
   canvas: HTMLCanvasElement,
   palette: SilkPalette,
 ): SilkRenderer | null {
-  const gl = canvas.getContext("webgl2", {
-    alpha: false,
-    antialias: false,
-    depth: false,
-    stencil: false,
-    powerPreference: "low-power",
-  });
+  try {
+    return buildSilkRenderer(canvas, palette);
+  } catch (cause) {
+    reportSilkFailure(cause);
+    return null;
+  }
+}
+
+function buildSilkRenderer(
+  canvas: HTMLCanvasElement,
+  palette: SilkPalette,
+): SilkRenderer | null {
+  const gl = acquireContext(canvas);
   if (!gl) return null;
 
   const vert = compileShader(gl, gl.VERTEX_SHADER, VERT_SRC);
