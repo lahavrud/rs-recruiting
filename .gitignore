@@ -246,6 +246,10 @@ frontend/dist/
 .claude/settings.local.json
 .claude/worktrees/
 
+# Playwright MCP — screenshots and traces from browser-driven checks. Throwaway
+# evidence for one session, and they land at the repo root by default.
+.playwright-mcp/
+
 # sigmap — generated context output stays local; the config IS committed
 # (gen-context.config.json pins srcDirs to the uv-workspace layout and keeps
 # the 'claude' adapter out of outputs so it can never overwrite CLAUDE.md)

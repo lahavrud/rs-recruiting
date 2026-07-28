@@ -59,19 +59,19 @@ from rs_shared.services.auth.registration import (
 )
 
 _EMAIL_TASK_TARGETS = [
-    "rs_shared.services.auth.registration.enqueue_email_task",
-    "rs_shared.services.auth.candidate_registration.enqueue_email_task",
-    "rs_shared.services.auth.password_reset.enqueue_email_task",
-    "rs_shared.services.admin.companies.enqueue_email_task",
-    "rs_shared.services.admin.company_approval.enqueue_email_task",
-    "rs_shared.services.admin.invites.enqueue_email_task",
-    "rs_shared.services.admin._job_close.enqueue_email_task",
-    "rs_shared.services.admin.jobs_workflow.enqueue_email_task",
-    "rs_shared.services.company.jobs.enqueue_email_task",
-    "rs_shared.services.public.applications.enqueue_email_task",
-    "rs_shared.services.public._application_helpers.enqueue_email_task",
-    "rs_api.api.admin.applications.enqueue_email_task",
-    "rs_api.api.auth.activation.enqueue_email_task",
+    "rs_shared.services.auth.registration.queue_email",
+    "rs_shared.services.auth.candidate_registration.queue_email",
+    "rs_shared.services.auth.password_reset.queue_email",
+    "rs_shared.services.admin.companies.queue_email",
+    "rs_shared.services.admin.company_approval.queue_email",
+    "rs_shared.services.admin.invites.queue_email",
+    "rs_shared.services.admin._job_close.queue_email",
+    "rs_shared.services.admin.jobs_workflow.queue_email",
+    "rs_shared.services.company.jobs.queue_email",
+    "rs_shared.services.public.applications.queue_email",
+    "rs_shared.services.public._application_helpers.queue_email",
+    "rs_api.api.admin.applications.queue_email",
+    "rs_api.api.auth.activation.queue_email",
 ]
 
 
@@ -97,11 +97,15 @@ def _fast_bcrypt_for_tests():
 
 @pytest.fixture(autouse=True)
 def mock_enqueue_email():
-    """Patch enqueue_email_task in every service module for all tests.
+    """Patch queue_email in every service module for all tests.
 
-    Prevents any test from trying to connect to Redis. Each service imports
-    enqueue_email_task with 'from rs_shared.core.tasks import ...', creating a local
-    binding, so each module must be patched individually.
+    Stops tests reaching a real provider. Each service imports queue_email with
+    'from rs_shared.core.tasks import ...', creating a local binding, so each
+    module must be patched individually.
+
+    Note this patches out the outbox write too, so tests asserting on
+    email_outbox rows must not rely on this fixture — call queue_email (or the
+    real service) against the session directly.
     """
     patches = [patch(target, new_callable=AsyncMock) for target in _EMAIL_TASK_TARGETS]
     for p in patches:

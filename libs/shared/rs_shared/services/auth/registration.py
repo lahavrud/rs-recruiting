@@ -16,10 +16,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import get_password_hash
-from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.file_validation import is_valid_image_magic_bytes
 from rs_shared.core.services.storage import StorageProvider, get_storage_provider
-from rs_shared.core.tasks import enqueue_email_task
+from rs_shared.core.tasks import queue_email
 from rs_shared.core.utils import mask_email
 from rs_shared.enums import UserRole
 from rs_shared.models import CompanyProfile, User
@@ -232,6 +231,7 @@ async def _persist_profile_and_audit(
 
 
 async def _notify_admins_new_registration(
+    session: AsyncSession,
     profile: CompanyProfile,
     email: str,
     sig_bytes: bytes,
@@ -263,13 +263,15 @@ async def _notify_admins_new_registration(
         )
     except Exception:
         logger.exception("Failed to generate contract PDF for %s", mask_email(email))
-    attachments = [("חוזה-RS.pdf", pdf_bytes, "application/pdf")] if pdf_bytes else None
-    await enqueue_email_task(
+    await queue_email(
+        session,
         to=admin_emails,
         subject="בקשת הרשמה חדשה ממתינה לאישור – RS Recruiting",
         body=f"חברה חדשה '{profile.name}' נרשמה וממתינה לאישור.\nכתובת: {admin_url}",
         html_body=html,
-        attachments=attachments,
+        attachments=(
+            [("חוזה-RS.pdf", pdf_bytes, "application/pdf")] if pdf_bytes else None
+        ),
     )
 
 
@@ -326,10 +328,8 @@ async def register_company_user(
 
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
-        defer_after_commit(
-            lambda: _notify_admins_new_registration(
-                new_company_profile, new_user.email, sig_bytes, now, admin_emails
-            )
+        await _notify_admins_new_registration(
+            session, new_company_profile, new_user.email, sig_bytes, now, admin_emails
         )
 
     return UserWithCompanyRead(

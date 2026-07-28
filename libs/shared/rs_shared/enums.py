@@ -152,3 +152,21 @@ class MatchSuggestionStatus(str, Enum):
 
     DISMISSED = "DISMISSED"
     PUSHED = "PUSHED"
+
+
+class EmailStatus(str, Enum):
+    """Lifecycle of an ``EmailOutbox`` row.
+
+        PENDING → SENDING → SENT
+                          → FAILED    (permanent — will not be retried)
+                  SENDING → PENDING   (transient failure; SQS redelivers)
+
+    SENDING is the crash-window marker: a row left in SENDING may or may not
+    have reached the provider, so the worker refuses to resend it rather than
+    risk a duplicate. See ``models/email_outbox.py``.
+    """
+
+    PENDING = "PENDING"
+    SENDING = "SENDING"
+    SENT = "SENT"
+    FAILED = "FAILED"

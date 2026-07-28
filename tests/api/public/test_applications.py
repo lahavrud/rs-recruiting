@@ -42,7 +42,7 @@ _SUCCESS_FORM_DATA = {
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_returns_201_with_candidate_data(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -68,7 +68,7 @@ async def test_apply_endpoint_returns_201_with_candidate_data(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_creates_candidate_with_consent_audit(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -101,7 +101,7 @@ async def test_apply_endpoint_creates_candidate_with_consent_audit(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_creates_application_with_interview_fields(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -147,7 +147,7 @@ async def test_apply_endpoint_creates_application_with_interview_fields(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_apply_endpoint_with_resume(
     mock_storage_provider,
@@ -191,7 +191,7 @@ async def test_apply_endpoint_with_resume(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_validation_error(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -216,7 +216,7 @@ async def test_apply_endpoint_validation_error(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_apply_endpoint_invalid_file_type(
     mock_storage_provider,
@@ -251,7 +251,7 @@ async def test_apply_endpoint_invalid_file_type(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 @patch("rs_shared.services.public.applications.get_storage_provider")
 async def test_apply_endpoint_file_size_limit(
     mock_storage_provider,
@@ -295,7 +295,7 @@ _CREATES_APPLICATION_FORM_DATA = {
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_creates_application_record(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -331,7 +331,7 @@ async def test_apply_endpoint_creates_application_record(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_application_not_linked_to_user(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -365,7 +365,7 @@ async def test_apply_endpoint_application_not_linked_to_user(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_job_not_found(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -393,7 +393,7 @@ async def test_apply_endpoint_job_not_found(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_public_access(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -425,7 +425,7 @@ async def test_apply_endpoint_public_access(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_reuses_existing_profile(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -508,7 +508,7 @@ async def test_apply_endpoint_reuses_existing_profile(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_duplicate_application_conflict(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -551,7 +551,7 @@ async def test_apply_endpoint_duplicate_application_conflict(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_requires_privacy_consent(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -580,7 +580,7 @@ async def test_apply_endpoint_requires_privacy_consent(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_writes_consent_audit_event(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -621,7 +621,7 @@ async def test_apply_endpoint_writes_consent_audit_event(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_updates_consent_on_reapplication(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -725,7 +725,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_requires_terms_consent(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -754,7 +754,7 @@ async def test_apply_endpoint_requires_terms_consent(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_endpoint_persists_tos_acceptance(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -806,7 +806,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_with_password_creates_pending_candidate_user(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -868,7 +868,7 @@ async def test_apply_with_password_creates_pending_candidate_user(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_password_mismatch_rejected(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -898,7 +898,7 @@ async def test_apply_password_mismatch_rejected(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_email_belongs_to_active_candidate_user_returns_409(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -944,7 +944,7 @@ async def test_apply_email_belongs_to_active_candidate_user_returns_409(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_returns_already_applied_locked_for_non_new_status(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -994,7 +994,7 @@ async def test_apply_returns_already_applied_locked_for_non_new_status(
 
 
 @pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_without_resume_returns_422(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -1025,7 +1025,7 @@ async def test_apply_without_resume_returns_422(
     "job_status",
     [JobStatus.PENDING_APPROVAL, JobStatus.CLOSED],
 )
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_against_non_published_job_returns_404(
     mock_enqueue_email,
     public_client: AsyncClient,
@@ -1095,7 +1095,7 @@ async def test_apply_against_non_published_job_returns_404(
 @pytest.mark.parametrize(
     "field", ["service_concept", "salary_expectations", "strength", "growth_area"]
 )
-@patch("rs_shared.services.public._application_helpers.enqueue_email_task")
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_text_field_over_2000_chars_returns_422(
     mock_enqueue_email,
     public_client: AsyncClient,

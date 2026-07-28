@@ -22,6 +22,7 @@ from rs_shared.schemas import ApplicationRead, ApplicationWithDetails, AuditLogR
 from rs_shared.services.admin._application_status import (
     update_application_status as update_application_status,
 )
+from rs_shared.services.admin._filters import candidate_not_deleted
 from rs_shared.services.exceptions import ApplicationNotFoundError
 from rs_shared.services.utils.audit import list_audit_events
 
@@ -61,6 +62,7 @@ async def _list_applications_by_score(
     status: ApplicationStatus | None = None,
     job_id: int | None = None,
     candidate_id: int | None = None,
+    include_deleted: bool = False,
 ) -> CursorPage[ApplicationWithDetails]:
     """Return applications ranked by AI match score, best first.
 
@@ -87,6 +89,8 @@ async def _list_applications_by_score(
         stmt = stmt.where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
     if candidate_id is not None:
         stmt = stmt.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
+    if not include_deleted:
+        stmt = stmt.where(candidate_not_deleted())
     stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
 
     rows = (await session.execute(stmt)).all()
@@ -111,6 +115,7 @@ async def list_applications(
     order: Literal["asc", "desc"] = "desc",
     sort2: ApplicationSortColumn | None = None,
     order2: Literal["asc", "desc"] = "desc",
+    include_deleted: bool = False,
 ) -> CursorPage[ApplicationWithDetails]:
     """`sort="name"` sorts by the applying candidate's full name.
 
@@ -123,10 +128,18 @@ async def list_applications(
 
     `q`, when given, case-insensitively substring-matches candidate
     name/email/phone and job title.
+
+    `include_deleted`, when False (default), hides applications whose
+    candidate has been tombstoned. The applications themselves survive the
+    deletion by design — this filters the view, never the data.
     """
     if sort == "score":
         return await _list_applications_by_score(
-            session, status=status, job_id=job_id, candidate_id=candidate_id
+            session,
+            status=status,
+            job_id=job_id,
+            candidate_id=candidate_id,
+            include_deleted=include_deleted,
         )
     if sort2 == sort:
         sort2 = None
@@ -142,12 +155,18 @@ async def list_applications(
     if candidate_id is not None:
         base = base.where(Application.candidate_id == candidate_id)  # pyright: ignore[reportArgumentType]
 
-    needs_candidate_join = (sort == "name" or sort2 == "name") or bool(q and q.strip())
+    needs_candidate_join = (
+        (sort == "name" or sort2 == "name")
+        or bool(q and q.strip())
+        or not include_deleted
+    )
     if needs_candidate_join:
         base = base.join(
             CandidateProfile,
             Application.candidate_id == CandidateProfile.id,  # pyright: ignore[reportArgumentType]
         )
+    if not include_deleted:
+        base = base.where(candidate_not_deleted())
 
     if q and q.strip():
         term = f"%{q.strip()}%"

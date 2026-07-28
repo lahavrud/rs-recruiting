@@ -18,6 +18,9 @@ export interface paths {
          *     `q` case-insensitively substring-matches candidate name/email/phone and
          *     job title. `sort2`/`order2` add a second sort column as a tiebreaker — e.g.
          *     `sort=status&sort2=created_at` groups by status, then by date.
+         *     `include_deleted` (default false) controls whether applications from
+         *     tombstoned candidates appear — the applications themselves are retained
+         *     either way.
          *     Cursor-paginated.
          */
         get: operations["get_applications_api_admin_applications_get"];
@@ -103,7 +106,7 @@ export interface paths {
         get?: never;
         /**
          * Update Application Status Endpoint
-         * @description Update application status. Emails (if any) enqueued after commit.
+         * @description Update application status. Emails (if any) queued in the same transaction.
          */
         put: operations["update_application_status_endpoint_api_admin_applications__application_id__status_put"];
         post?: never;
@@ -2212,6 +2215,16 @@ export interface components {
             full_name: string;
             /** Id */
             id: number;
+            /**
+             * Is Deleted
+             * @description Tombstone state, mirroring ``CandidateAdminRead.is_deleted``.
+             *
+             *     Applications outlive the candidate who submitted them, so every
+             *     consumer of this schema can be handed a tombstoned row and needs to
+             *     tell one apart without pattern-matching the scrubbed name or the
+             *     synthetic ``deleted-N@deleted`` address.
+             */
+            readonly is_deleted: boolean;
             /** Is Registered */
             readonly is_registered: boolean;
             /** Linkedin Url */
@@ -3099,6 +3112,7 @@ export interface operations {
                 order?: "asc" | "desc";
                 sort2?: ("name" | "created_at" | "status") | null;
                 order2?: "asc" | "desc";
+                include_deleted?: boolean;
             };
             header?: never;
             path?: never;

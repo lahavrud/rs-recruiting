@@ -374,6 +374,7 @@ export default function AdminJobsPage() {
     hasQuery: activeFilterCount > 0,
     emptyEyebrow: t("admin:jobs.title"),
     emptyHeadline: t("admin:jobs.empty"),
+    noResultsMessage: t("admin:jobs.noResults"),
   };
 
   const dialogs = (

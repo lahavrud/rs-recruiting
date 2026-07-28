@@ -1,7 +1,7 @@
 """add closed_at to job
 
 Revision ID: a4c7e91b2d63
-Revises: 29333542be15
+Revises: c4a1e9b7d38f
 Create Date: 2026-07-22 00:00:00.000000
 
 Adds a nullable ``closed_at`` timestamp to ``job``, recording when the job
@@ -27,7 +27,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a4c7e91b2d63"
-down_revision: Union[str, Sequence[str], None] = "29333542be15"
+down_revision: Union[str, Sequence[str], None] = "c4a1e9b7d38f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

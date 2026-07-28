@@ -9,6 +9,7 @@ import DropdownMenu, {
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
 import KebabButton from "@/components/ui/KebabButton";
 import ResumeButton from "@/components/ui/ResumeViewer";
+import StatusBadge from "@/components/ui/StatusBadge";
 import type { SortOrder } from "@/hooks/useColumnSort";
 import type { CandidateAdminRead } from "@/types/candidates";
 import { formatDate } from "@/utils/formatDate";
@@ -103,18 +104,24 @@ export default function CandidatesTable({
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-white/85">{c.full_name}</p>
                     {c.is_deleted && (
-                      <span className="rounded bg-danger/15 px-1.5 py-0.5 text-[10px] font-medium text-danger/70">
-                        {t("admin:candidates.statusDeleted")}
-                      </span>
+                      <StatusBadge
+                        label={t("admin:candidates.statusDeleted")}
+                        variant="danger"
+                      />
                     )}
                     {!c.is_deleted && c.has_account && (
-                      <span className="rounded bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success/70">
-                        {t("admin:candidates.statusAccount")}
-                      </span>
+                      <StatusBadge
+                        label={t("admin:candidates.statusAccount")}
+                        variant="success"
+                      />
                     )}
                     {showScore && c.ai_score != null && <ScoreBadge score={c.ai_score} />}
                   </div>
-                  <p className="text-xs text-white/40">{c.email}</p>
+                  {/* The stored address is the synthetic deleted-<id>@deleted — not
+                      something an admin should read as a real contact. */}
+                  <p className="text-xs text-white/40">
+                    {c.is_deleted ? t("admin:candidates.deletedSubtitle") : c.email}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-white/60">
                   {c.phone ?? <span className="text-white/20">—</span>}

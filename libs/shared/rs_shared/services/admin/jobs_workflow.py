@@ -13,7 +13,7 @@ from rs_shared.core.infrastructure.pagination import (
     clamp_limit,
 )
 from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.tasks import enqueue_email_task, enqueue_embed_job_task
+from rs_shared.core.tasks import enqueue_embed_job_task, queue_email
 from rs_shared.enums import JobStatus
 from rs_shared.models import CompanyProfile, Job
 from rs_shared.schemas import JobRead
@@ -116,24 +116,19 @@ async def approve_job(
     # reference only until a user is attached.
     if job.company.user is None:
         return JobRead.model_validate(job)
-    _email = job.company.user.email
-    _title = job.title
-    _location = job.location
-    _job_id = job.id
 
-    defer_after_commit(
-        lambda: enqueue_email_task(
-            to=_email,
-            subject="Job Posting Approved",
-            body=(
-                f"Your job posting '{_title}' has been approved "
-                f"and is now published on the job board.\n\n"
-                f"Job Title: {_title}\n"
-                f"Location: {_location}\n"
-                f"Job ID: {_job_id}\n\n"
-                "Candidates can now view and apply for this position."
-            ),
-        )
+    await queue_email(
+        session,
+        to=job.company.user.email,
+        subject="Job Posting Approved",
+        body=(
+            f"Your job posting '{job.title}' has been approved "
+            f"and is now published on the job board.\n\n"
+            f"Job Title: {job.title}\n"
+            f"Location: {job.location}\n"
+            f"Job ID: {job.id}\n\n"
+            "Candidates can now view and apply for this position."
+        ),
     )
 
     return JobRead.model_validate(job)
@@ -183,22 +178,20 @@ async def reject_job(
 
     if job.company.user is None:
         return
-    _email = job.company.user.email
 
-    defer_after_commit(
-        lambda: enqueue_email_task(
-            to=_email,
-            subject="Job Posting Rejected",
-            body=(
-                f"Your job posting '{job_title}' has been rejected "
-                f"and will not be published.\n\n"
-                f"Job Title: {job_title}\n"
-                f"Location: {job_location}\n"
-                f"Job ID: {job_id}\n\n"
-                "If you believe this is an error, please contact support "
-                "or update the job posting and resubmit for approval."
-            ),
-        )
+    await queue_email(
+        session,
+        to=job.company.user.email,
+        subject="Job Posting Rejected",
+        body=(
+            f"Your job posting '{job_title}' has been rejected "
+            f"and will not be published.\n\n"
+            f"Job Title: {job_title}\n"
+            f"Location: {job_location}\n"
+            f"Job ID: {job_id}\n\n"
+            "If you believe this is an error, please contact support "
+            "or update the job posting and resubmit for approval."
+        ),
     )
 
 
@@ -219,9 +212,8 @@ async def contact_job(job_id: int, admin_note: str, session: AsyncSession) -> No
 
     if job.company.user is None:
         return
-    # contact_job has no DB writes so there is no transactional() context;
-    # call enqueue directly and let failures propagate to the caller.
-    await enqueue_email_task(
+    await queue_email(
+        session,
         to=job.company.user.email,
         subject="פנייה בנוגע למשרה — RS Recruiting",
         body=(

@@ -142,11 +142,24 @@ class CandidateProfileRead(BaseModel):
     created_at: datetime
     ai_score: float | None = None
     user_id: int | None = Field(default=None, exclude=True)
+    deleted_at: datetime | None = Field(default=None, exclude=True)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_registered(self) -> bool:
         return self.user_id is not None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_deleted(self) -> bool:
+        """Tombstone state, mirroring ``CandidateAdminRead.is_deleted``.
+
+        Applications outlive the candidate who submitted them, so every
+        consumer of this schema can be handed a tombstoned row and needs to
+        tell one apart without pattern-matching the scrubbed name or the
+        synthetic ``deleted-N@deleted`` address.
+        """
+        return self.deleted_at is not None
 
 
 class CandidateAdminRead(BaseModel):

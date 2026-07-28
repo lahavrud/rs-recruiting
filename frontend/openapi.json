@@ -1692,6 +1692,12 @@
             "title": "Id",
             "type": "integer"
           },
+          "is_deleted": {
+            "description": "Tombstone state, mirroring ``CandidateAdminRead.is_deleted``.\n\nApplications outlive the candidate who submitted them, so every\nconsumer of this schema can be handed a tombstoned row and needs to\ntell one apart without pattern-matching the scrubbed name or the\nsynthetic ``deleted-N@deleted`` address.",
+            "readOnly": true,
+            "title": "Is Deleted",
+            "type": "boolean"
+          },
           "is_registered": {
             "readOnly": true,
             "title": "Is Registered",
@@ -1777,7 +1783,8 @@
           "tos_accepted_at",
           "tos_version",
           "created_at",
-          "is_registered"
+          "is_registered",
+          "is_deleted"
         ],
         "title": "CandidateProfileRead",
         "type": "object"
@@ -3967,7 +3974,7 @@
   "paths": {
     "/api/admin/applications": {
       "get": {
-        "description": "List applications with optional filters, sorted by `sort`/`order`.\n\n`q` case-insensitively substring-matches candidate name/email/phone and\njob title. `sort2`/`order2` add a second sort column as a tiebreaker \u2014 e.g.\n`sort=status&sort2=created_at` groups by status, then by date.\nCursor-paginated.",
+        "description": "List applications with optional filters, sorted by `sort`/`order`.\n\n`q` case-insensitively substring-matches candidate name/email/phone and\njob title. `sort2`/`order2` add a second sort column as a tiebreaker \u2014 e.g.\n`sort=status&sort2=created_at` groups by status, then by date.\n`include_deleted` (default false) controls whether applications from\ntombstoned candidates appear \u2014 the applications themselves are retained\neither way.\nCursor-paginated.",
         "operationId": "get_applications_api_admin_applications_get",
         "parameters": [
           {
@@ -4126,6 +4133,16 @@
               ],
               "title": "Order2",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Deleted",
+              "type": "boolean"
             }
           }
         ],
@@ -4385,7 +4402,7 @@
     },
     "/api/admin/applications/{application_id}/status": {
       "put": {
-        "description": "Update application status. Emails (if any) enqueued after commit.",
+        "description": "Update application status. Emails (if any) queued in the same transaction.",
         "operationId": "update_application_status_endpoint_api_admin_applications__application_id__status_put",
         "parameters": [
           {

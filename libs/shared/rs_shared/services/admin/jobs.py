@@ -279,7 +279,8 @@ async def update_job(
 
     await session.flush()
 
-    notify_company_of_update(
+    await notify_company_of_update(
+        session,
         job,
         old_title=old_title,
         title_changed=title_changed,

@@ -3,7 +3,9 @@ import type { Dispatch, SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 
 import ActiveFilterChip from "@/components/admin/ActiveFilterChip";
+import FilterPanelShell from "@/components/admin/FilterPanelShell";
 import SearchableMultiSelect from "@/components/admin/SearchableMultiSelect";
+import CheckboxField from "@/components/ui/CheckboxField";
 import Eyebrow from "@/components/ui/Eyebrow";
 import FilterPill from "@/components/ui/FilterPill";
 import { ApplicationStatus } from "@/types/enums";
@@ -30,6 +32,8 @@ export interface FilterState {
   setJobFilter: Dispatch<SetStateAction<number[]>>;
   companyFilter: number[];
   setCompanyFilter: Dispatch<SetStateAction<number[]>>;
+  includeDeleted: boolean;
+  setIncludeDeleted: Dispatch<SetStateAction<boolean>>;
 }
 
 export interface LookupMaps {
@@ -64,6 +68,8 @@ export default function ApplicationsFilterPanel({
     setJobFilter,
     companyFilter,
     setCompanyFilter,
+    includeDeleted,
+    setIncludeDeleted,
   } = filterState;
   const { allJobs, companyNameById, jobTitleById } = lookupMaps;
   const { activeFilterCount, isFilterOpen, statusLabels } = uiState;
@@ -101,87 +107,83 @@ export default function ApplicationsFilterPanel({
               onRemove={() => setCompanyFilter((prev) => prev.filter((x) => x !== id))}
             />
           ))}
+          {includeDeleted && (
+            <ActiveFilterChip
+              label={t("admin:candidates.showDeletedToggle")}
+              onRemove={() => setIncludeDeleted(false)}
+            />
+          )}
         </div>
       )}
 
       {/* Filter panel — animated open/close */}
-      <div
-        className={`mb-4 grid transition-[grid-template-rows] duration-300 ease-out ${
-          isFilterOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div
-            className={`space-y-4 rounded-md border border-white/8 bg-card/40 p-4 transition-opacity duration-200 ${
-              isFilterOpen ? "opacity-100 delay-100" : "opacity-0"
-            }`}
-          >
-            <div>
-              <Eyebrow size="md" className="mb-2">
-                {t("admin:applications.table.status")}
-              </Eyebrow>
-              <div className="flex flex-wrap gap-1.5">
-                {filterTabs.map((tab) => (
-                  <FilterPill
-                    key={tab}
-                    isActive={filter === tab}
-                    onClick={() => setFilter(tab)}
-                  >
-                    {tab === ALL_FILTER
-                      ? t("admin:applications.filterAll")
-                      : statusLabels[tab]}
-                  </FilterPill>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {/* Company first → in RTL it lands on the visual right */}
-              <div>
-                <Eyebrow size="md" className="mb-1.5">
-                  {t("admin:applications.filterByCompany")}
-                </Eyebrow>
-                <SearchableMultiSelect<number>
-                  values={companyFilter}
-                  onChange={(next) => {
-                    setCompanyFilter(next);
-                    // Drop any selected jobs that no longer match an active company.
-                    if (next.length > 0 && jobFilter.length > 0) {
-                      const allowed = new Set(
-                        allJobs
-                          .filter((j) => next.includes(j.company_id))
-                          .map((j) => j.id),
-                      );
-                      setJobFilter((prev) => prev.filter((id) => allowed.has(id)));
-                    }
-                  }}
-                  options={Array.from(companyNameById.entries()).map(([id, name]) => ({
-                    value: id,
-                    label: name,
-                  }))}
-                  placeholder={t("admin:applications.allCompanies")}
-                />
-              </div>
-              <div>
-                <Eyebrow size="md" className="mb-1.5">
-                  {t("admin:applications.filterByJob")}
-                </Eyebrow>
-                <SearchableMultiSelect<number>
-                  values={jobFilter}
-                  onChange={setJobFilter}
-                  options={allJobs
-                    .filter(
-                      (j) =>
-                        companyFilter.length === 0 ||
-                        companyFilter.includes(j.company_id),
-                    )
-                    .map((j) => ({ value: j.id, label: j.title }))}
-                  placeholder={t("admin:applications.allJobs")}
-                />
-              </div>
-            </div>
+      <FilterPanelShell isOpen={isFilterOpen}>
+        <div>
+          <Eyebrow size="md" className="mb-2">
+            {t("admin:applications.table.status")}
+          </Eyebrow>
+          <div className="flex flex-wrap gap-1.5">
+            {filterTabs.map((tab) => (
+              <FilterPill
+                key={tab}
+                isActive={filter === tab}
+                onClick={() => setFilter(tab)}
+              >
+                {tab === ALL_FILTER
+                  ? t("admin:applications.filterAll")
+                  : statusLabels[tab]}
+              </FilterPill>
+            ))}
           </div>
         </div>
-      </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* Company first → in RTL it lands on the visual right */}
+          <div>
+            <Eyebrow size="md" className="mb-1.5">
+              {t("admin:applications.filterByCompany")}
+            </Eyebrow>
+            <SearchableMultiSelect<number>
+              values={companyFilter}
+              onChange={(next) => {
+                setCompanyFilter(next);
+                // Drop any selected jobs that no longer match an active company.
+                if (next.length > 0 && jobFilter.length > 0) {
+                  const allowed = new Set(
+                    allJobs.filter((j) => next.includes(j.company_id)).map((j) => j.id),
+                  );
+                  setJobFilter((prev) => prev.filter((id) => allowed.has(id)));
+                }
+              }}
+              options={Array.from(companyNameById.entries()).map(([id, name]) => ({
+                value: id,
+                label: name,
+              }))}
+              placeholder={t("admin:applications.allCompanies")}
+            />
+          </div>
+          <div>
+            <Eyebrow size="md" className="mb-1.5">
+              {t("admin:applications.filterByJob")}
+            </Eyebrow>
+            <SearchableMultiSelect<number>
+              values={jobFilter}
+              onChange={setJobFilter}
+              options={allJobs
+                .filter(
+                  (j) =>
+                    companyFilter.length === 0 || companyFilter.includes(j.company_id),
+                )
+                .map((j) => ({ value: j.id, label: j.title }))}
+              placeholder={t("admin:applications.allJobs")}
+            />
+          </div>
+        </div>
+        <CheckboxField
+          checked={includeDeleted}
+          onChange={setIncludeDeleted}
+          label={t("admin:candidates.showDeletedToggle")}
+        />
+      </FilterPanelShell>
     </>
   );
 }

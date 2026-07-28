@@ -88,6 +88,12 @@ export default function ApplicationsTable({
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-white/85">{app.candidate.full_name}</p>
+                  {app.candidate.is_deleted && (
+                    <StatusBadge
+                      label={t("admin:candidates.statusDeleted")}
+                      variant="danger"
+                    />
+                  )}
                   {showScore && app.ai_score != null && (
                     <ScoreBadge score={app.ai_score} />
                   )}
@@ -97,7 +103,13 @@ export default function ApplicationsTable({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-white/40">{app.candidate.email}</p>
+                {/* The stored address is the synthetic deleted-<id>@deleted — not
+                    something an admin should read as a real contact. */}
+                <p className="text-xs text-white/40">
+                  {app.candidate.is_deleted
+                    ? t("admin:candidates.deletedSubtitle")
+                    : app.candidate.email}
+                </p>
               </td>
               <td className="px-4 py-3">
                 <p className="text-white/80">{app.job.title}</p>
