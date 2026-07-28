@@ -272,21 +272,6 @@ async def test_delete_job_not_found(session: AsyncSession):
 # ── close published job ───────────────────────────────────────────────────────
 
 
-async def _make_application(
-    session: AsyncSession,
-    job_id: int,
-    email: str,
-    status: ApplicationStatus = ApplicationStatus.PENDING_ADMIN_REVIEW,
-) -> Application:
-    candidate = CandidateProfile(full_name="מועמד", email=email, phone="050-0000000")
-    session.add(candidate)
-    await session.flush()
-    app = Application(job_id=job_id, candidate_id=candidate.id, status=status)
-    session.add(app)
-    await session.flush()
-    return app
-
-
 @pytest.mark.asyncio
 async def test_close_published_job_sends_company_closure_email(
     session: AsyncSession, company_with_user: CompanyProfile
@@ -333,18 +318,18 @@ async def test_close_published_job_with_other_changes_sends_two_emails(
 
 @pytest.mark.asyncio
 async def test_close_published_job_transitions_active_applications(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    app_new = await _make_application(
+    app_new = await make_application(
         session, job_id, "new@test.com", ApplicationStatus.PENDING_ADMIN_REVIEW
     )
-    app_approved = await _make_application(
+    app_approved = await make_application(
         session, job_id, "approved@test.com", ApplicationStatus.APPROVED_BY_ADMIN
     )
-    app_rejected = await _make_application(
+    app_rejected = await make_application(
         session, job_id, "rejected@test.com", ApplicationStatus.REJECTED_BY_ADMIN
     )
     await session.commit()
@@ -371,13 +356,13 @@ async def test_close_published_job_transitions_active_applications(
 
 @pytest.mark.asyncio
 async def test_close_published_job_sends_candidate_emails(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    await _make_application(session, job_id, "c1@test.com")
-    await _make_application(session, job_id, "c2@test.com")
+    await make_application(session, job_id, "c1@test.com")
+    await make_application(session, job_id, "c2@test.com")
     await session.commit()
 
     with (
@@ -398,15 +383,15 @@ async def test_close_published_job_sends_candidate_emails(
 
 @pytest.mark.asyncio
 async def test_close_published_job_records_audit_events(
-    session: AsyncSession, company_with_user: CompanyProfile
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
     from rs_shared.models import AuditLog
 
     job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
     await session.flush()
 
-    app1 = await _make_application(session, job_id, "audit1@test.com")
-    app2 = await _make_application(session, job_id, "audit2@test.com")
+    app1 = await make_application(session, job_id, "audit1@test.com")
+    app2 = await make_application(session, job_id, "audit2@test.com")
     await session.commit()
 
     with (
@@ -442,10 +427,15 @@ async def test_close_published_job_records_audit_events(
 
 
 @pytest.mark.asyncio
-async def test_non_published_to_closed_skips_cascade(
-    session: AsyncSession, company_with_user: CompanyProfile
+async def test_non_published_to_closed_cascades(
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
 ):
-    """Closing a PENDING_APPROVAL job does not cascade to applications."""
+    """Closing from PENDING_APPROVAL still sweeps active applications.
+
+    The cascade gates on *entering* CLOSED, not on leaving PUBLISHED — an
+    application can outlive the PUBLISHED status (see the round-trip test
+    below), and a skipped sweep has no second chance.
+    """
     job = Job(
         company_id=company_with_user.id,
         title="Pending Role",
@@ -459,7 +449,7 @@ async def test_non_published_to_closed_skips_cascade(
     )
     session.add(job)
     await session.flush()
-    app = await _make_application(session, job.id, "p@test.com")
+    app = await make_application(session, job.id, "p@test.com")
     await session.commit()
 
     with (
@@ -470,9 +460,272 @@ async def test_non_published_to_closed_skips_cascade(
         await session.commit()
 
     await session.refresh(app)
-    assert (
-        app.status == ApplicationStatus.PENDING_ADMIN_REVIEW
-    )  # cascade only fires on PUBLISHED → CLOSED
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_closing_never_published_job_sends_no_closure_email(
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
+):
+    """Sweeping is broader than announcing.
+
+    The closure mail tells the company the job left the public board and that
+    active candidates were notified. For a job closed straight out of
+    PENDING_APPROVAL both claims are false, so it must not be sent — the
+    company still hears about the transition via the generic "fields changed"
+    mail, which is accurate.
+    """
+    job = Job(
+        company_id=company_with_user.id,
+        title="Never Published",
+        short_description="x",
+        description="x",
+        requirements=[{"text": "x"}, {"text": "y"}, {"text": "z"}],
+        location="x",
+        status=JobStatus.PENDING_APPROVAL,
+        salary_min=10000,
+        salary_max=20000,
+    )
+    session.add(job)
+    await session.flush()
+    app = await make_application(session, job.id, "pending@test.com")
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock) as mock_email,
+        patch(_PATCH_EMAIL, new_callable=AsyncMock),
+    ):
+        await update_job(job.id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+    subjects = [c.kwargs["subject"] for c in mock_email.call_args_list]
+    assert not any("נסגרה" in s for s in subjects)  # no closure announcement
+    assert any("עודכן" in s for s in subjects)  # generic update mail still sent
+
+    # The sweep itself is unconditional — only the announcement is gated.
+    await session.refresh(app)
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_published_to_pending_to_closed_cascades(
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
+):
+    """PUBLISHED → PENDING_APPROVAL → CLOSED must not strand applications.
+
+    The application is created while the job is PUBLISHED and survives the hop
+    back to PENDING_APPROVAL; the close then has to sweep it even though the
+    immediately-preceding status was not PUBLISHED.
+    """
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+    app = await make_application(session, job_id, "roundtrip@test.com")
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMBED),
+    ):
+        await update_job(
+            job_id, JobAdminUpdate(status=JobStatus.PENDING_APPROVAL), session
+        )
+        await session.commit()
+
+        await session.refresh(app)
+        assert app.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # still active
+
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+    await session.refresh(app)
+    assert app.status == ApplicationStatus.JOB_CLOSED
+
+
+@pytest.mark.asyncio
+async def test_reclosing_closed_job_does_not_refire_cascade(
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
+):
+    """CLOSED → CLOSED is a no-op — no duplicate emails, no duplicate audit rows."""
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+    await make_application(session, job_id, "once@test.com")
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email,
+    ):
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+        assert mock_email.call_count == 1
+
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+    assert mock_email.call_count == 1  # unchanged by the second close
+
+
+@pytest.mark.asyncio
+async def test_close_skips_email_for_tombstoned_candidate(
+    session: AsyncSession, company_with_user: CompanyProfile, make_application
+):
+    """Deleted candidates are swept and audited, but never emailed.
+
+    ``scrub_candidate_pii`` rewrites the address to ``deleted-{id}@deleted``,
+    which cannot be delivered — sending would be a guaranteed hard bounce.
+    """
+    from rs_shared.models import AuditLog
+    from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
+
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.flush()
+
+    live_app = await make_application(session, job_id, "live@test.com")
+    deleted_app = await make_application(session, job_id, "gone@test.com")
+
+    deleted_candidate = await session.get(CandidateProfile, deleted_app.candidate_id)
+    assert deleted_candidate is not None
+    scrub_candidate_pii(deleted_candidate)
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock) as mock_email,
+    ):
+        await update_job(
+            job_id,
+            JobAdminUpdate(status=JobStatus.CLOSED),
+            session,
+            actor_user_id=7,
+        )
+        await session.commit()
+
+    recipients = {c.kwargs["to"] for c in mock_email.call_args_list}
+    assert recipients == {"live@test.com"}
+    assert not any(r.endswith("@deleted") for r in recipients)
+
+    # The transition and the audit trail still cover the tombstoned row —
+    # only the email is suppressed.
+    await session.refresh(live_app)
+    await session.refresh(deleted_app)
+    assert live_app.status == ApplicationStatus.JOB_CLOSED
+    assert deleted_app.status == ApplicationStatus.JOB_CLOSED
+
+    audited_ids = {
+        r.target_id
+        for r in (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.target_type == "Application",  # pyright: ignore[reportArgumentType]
+                    AuditLog.action == "application.status_change",  # pyright: ignore[reportArgumentType]
+                )
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert {live_app.id, deleted_app.id} <= audited_ids
+
+
+# ── closed_at retention anchor ────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_close_stamps_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    job = await session.get(Job, job_id)
+    assert job is not None
+    assert job.closed_at is None  # published job has never closed
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock),
+    ):
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_editing_closed_job_does_not_move_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The retention anchor must survive later edits — that is the whole point.
+
+    ``updated_at`` moves on every edit; ``closed_at`` must not, or the purge
+    window silently restarts for everyone who applied to the job.
+    """
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock),
+    ):
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+    job = await session.get(Job, job_id)
+    assert job is not None
+    closed_at = job.closed_at
+    updated_at = job.updated_at
+
+    with patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock):
+        await update_job(job_id, JobAdminUpdate(title="Corrected Title"), session)
+        await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at == closed_at  # anchor held
+    assert job.updated_at > updated_at  # the edit did land
+
+
+@pytest.mark.asyncio
+async def test_reopening_clears_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A stale anchor must not outlive the CLOSED status."""
+    job_id = (await admin_create_job(_payload(company_with_user.id), session)).id
+    await session.commit()
+
+    with (
+        patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMAIL, new_callable=AsyncMock),
+        patch(_PATCH_EMBED),
+    ):
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.CLOSED), session)
+        await session.commit()
+
+        job = await session.get(Job, job_id)
+        assert job is not None
+        assert job.closed_at is not None
+
+        await update_job(job_id, JobAdminUpdate(status=JobStatus.PUBLISHED), session)
+        await session.commit()
+
+    await session.refresh(job)
+    assert job.closed_at is None
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_as_closed_stamps_closed_at(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """JobAdminCreate accepts any status — a job born CLOSED still needs an anchor."""
+    payload = _payload(company_with_user.id)
+    payload.status = JobStatus.CLOSED
+    created = await admin_create_job(payload, session)
+    await session.commit()
+
+    job = await session.get(Job, created.id)
+    assert job is not None
+    assert job.closed_at is not None
 
 
 # ── list_jobs ─────────────────────────────────────────────────────────────────

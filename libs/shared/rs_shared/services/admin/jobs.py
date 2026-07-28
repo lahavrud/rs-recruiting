@@ -257,10 +257,27 @@ async def update_job(
     for field, value in payload.items():
         setattr(job, field, value)
     job.updated_at = datetime.now(timezone.utc)
+    # closed_at is not set here on purpose: the job_closed_at_stamp trigger
+    # maintains it for every writer, ORM or not. See models/jobs.py.
+
+    # Any entry into CLOSED sweeps, not just PUBLISHED → CLOSED. Gating on
+    # PUBLISHED assumed only a published job can hold active applications, which
+    # a PUBLISHED → PENDING_APPROVAL → CLOSED path breaks: the applications
+    # survive the first hop, then the close skips them with no second chance
+    # (re-closing an already-CLOSED job is a no-op). Re-closing stays a no-op
+    # because old_status is then CLOSED; a job with nothing active to sweep
+    # costs one empty SELECT.
+    is_closing = old_status != JobStatus.CLOSED and job.status == JobStatus.CLOSED
+
+    # The closure email tells the company the job left the public board and that
+    # active candidates were notified. Both are only true if it was actually
+    # PUBLISHED — for a job closed straight out of PENDING_APPROVAL neither is,
+    # and the company already hears about that transition through the generic
+    # "fields changed" mail (status is one of the labels). Sweeping is broader
+    # than announcing, so the two gates are deliberately different.
+    announce_closure = is_closing and old_status == JobStatus.PUBLISHED
 
     await session.flush()
-
-    is_closing = old_status == JobStatus.PUBLISHED and job.status == JobStatus.CLOSED
 
     await notify_company_of_update(
         session,
@@ -268,7 +285,7 @@ async def update_job(
         old_title=old_title,
         title_changed=title_changed,
         changed_labels=changed_labels,
-        is_closing=is_closing,
+        is_closing=announce_closure,
     )
 
     # When a published job is closed, notify all active applicants and

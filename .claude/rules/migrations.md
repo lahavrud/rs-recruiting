@@ -14,6 +14,38 @@ migration-only table is invisible to `create_all` and silently absent in dev
 (this bit us with `email_quota`, now modeled as `EmailQuota`). When you add a
 table via migration, add its model too.
 
+The same applies to any schema object that is not a table — indexes are handled
+by SQLModel, but triggers and functions are not. Attach them to the table's
+`after_create` event so `create_all` installs them, *and* emit them from the
+migration for production. `Job.closed_at`'s trigger (`models/jobs.py`) is the
+worked example, and `tests/test_migrations.py` asserts the two copies have not
+drifted.
+
+**`create_all` only creates what is missing — it never alters what exists.** So
+pulling a branch that adds a column or a trigger does nothing to a database you
+already have: you get `UndefinedColumn` errors until you recreate it.
+
+```bash
+docker compose down -v && make services   # drop the volume, rebuild the schema
+uv run python scripts/seed_mock_data.py   # optional: repopulate
+```
+
+If `docker compose ps` prints nothing while `docker ps` shows `rs-recruiting-*`
+containers running, they belong to a different compose project and `down -v`
+above is a silent no-op — you will recreate nothing and still see the old
+schema. The compose services set an explicit `container_name`, so containers
+started from another directory collide by name rather than coexisting, which
+also shows up as `make services` failing with "container name is already in
+use". Find where they came from and tear them down there:
+
+```bash
+docker inspect rs-recruiting-db \
+  --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+```
+
+Production is unaffected — it runs the migration chain, which does alter in
+place.
+
 ## Alembic safety
 
 **Always preview before applying:**
