@@ -246,6 +246,10 @@ frontend/dist/
 .claude/settings.local.json
 .claude/worktrees/
 
+# Playwright MCP scratch output — screenshots, console logs and page snapshots
+# written during agent browser sessions; never part of a change
+.playwright-mcp/
+
 # sigmap — generated context output stays local; the config IS committed
 # (gen-context.config.json pins srcDirs to the uv-workspace layout and keeps
 # the 'claude' adapter out of outputs so it can never overwrite CLAUDE.md)
