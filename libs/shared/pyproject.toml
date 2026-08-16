@@ -8,7 +8,7 @@ requires-python = ">=3.12"
 # service so the worker image (which depends only on this package) stays lean.
 dependencies = [
     "sqlmodel>=0.0.39",
-    "sqlalchemy>=2.0.51,<2.1",
+    "sqlalchemy>=2.0.52,<2.1",
     "asyncpg>=0.30.0",
     "pydantic[email]>=2.13.4",
     "pydantic-settings>=2.14.2",
