@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import FadeInImage from "@/components/ui/FadeInImage";
-import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_NAME, SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { getArticle } from "@/content/articles";
 import { useFetch } from "@/hooks/useFetch";
 import { getPublicJobs } from "@/services/jobs";

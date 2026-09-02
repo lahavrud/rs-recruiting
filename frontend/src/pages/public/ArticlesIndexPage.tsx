@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
 import FadeInImage from "@/components/ui/FadeInImage";
-import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_NAME, SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { ARTICLES } from "@/content/articles";
 import { formatDateLong as formatDate } from "@/utils/formatDate";
 

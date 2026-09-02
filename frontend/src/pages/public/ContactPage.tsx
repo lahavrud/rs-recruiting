@@ -2,7 +2,8 @@ import type { CSSProperties } from "react";
 
 import { useTranslation } from "react-i18next";
 
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_URL } from "@/components/ui/SeoHeadUtils";
 
 const EMAIL = "support@rs-recruiting.com";
 
