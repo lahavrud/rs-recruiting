@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import Eyebrow from "@/components/ui/Eyebrow";
-import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_NAME, SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { useFetch } from "@/hooks/useFetch";
 import { getPublicJob } from "@/services/jobs";
 import { errorAlertClsLg } from "@/styles/forms";

@@ -10,7 +10,8 @@ import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { useResetOnTrigger } from "@/hooks/useResetOnTrigger";

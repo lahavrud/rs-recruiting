@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 
-import SeoHead, { SITE_URL, SITE_NAME } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_NAME, SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import { getPublicJobs } from "@/services/jobs";
