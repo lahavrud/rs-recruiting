@@ -45,7 +45,7 @@ jobs:
     env:
       CLUSTER: rs-recruiting-${{ inputs.environment == 'production' && 'prod' || 'staging' }}
     steps:
-      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
+      - uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6
         with:
           role-to-assume: ${{ inputs.environment == 'production' && vars.AWS_ECS_DEPLOY_ROLE_ARN || secrets.AWS_STAGING_ECS_DEPLOY_ROLE_ARN }}
           aws-region: us-east-1
