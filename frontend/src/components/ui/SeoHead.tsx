@@ -1,7 +1,7 @@
 import { Helmet } from "react-helmet-async";
 
-const SITE_URL = import.meta.env.VITE_SITE_URL ?? "https://rs-recruiting.com";
-const SITE_NAME = "RS Recruiting";
+import { SITE_URL, SITE_NAME } from "./SeoHeadUtils";
+
 const DEFAULT_OG_IMAGE = `${SITE_URL}/hero-city.jpg`;
 
 interface SeoHeadProps {
@@ -65,5 +65,3 @@ export default function SeoHead({
     </Helmet>
   );
 }
-
-export { SITE_URL, SITE_NAME };
