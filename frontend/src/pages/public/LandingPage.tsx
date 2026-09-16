@@ -5,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import "lenis/dist/lenis.css";
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { useAuth } from "@/hooks/useAuth";
 import { useFetch } from "@/hooks/useFetch";
 import { getPublicJobs } from "@/services/jobs";

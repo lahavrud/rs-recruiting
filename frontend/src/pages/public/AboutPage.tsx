@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 
 import Button from "@/components/ui/Button";
 import Eyebrow from "@/components/ui/Eyebrow";
-import SeoHead, { SITE_URL } from "@/components/ui/SeoHead";
+import SeoHead from "@/components/ui/SeoHead";
+import { SITE_URL } from "@/components/ui/SeoHeadUtils";
 import { useImageLoaded } from "@/hooks/useImageLoaded";
 
 
