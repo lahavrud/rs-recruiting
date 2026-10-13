@@ -12,7 +12,7 @@
 # of alloy/config.alloy. The default grafana/alloy entrypoint runs
 # `/etc/alloy/config.alloy`.
 
-FROM grafana/alloy:v1.17.0
+FROM grafana/alloy:v1.20.1
 
 # config.alloy = OTLP pipeline (loaded by every sidecar).
 # cloudwatch.alloy = the AWS CloudWatch scrape, loaded only when Alloy runs
