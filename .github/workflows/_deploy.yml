@@ -129,8 +129,12 @@ jobs:
             | jq --arg img "$IMAGE" --arg fam "${CLUSTER}-migrate" '
                 del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)
                 | .family = $fam
+                # Only the web container is kept, so drop its dependsOn: it names
+                # the Alloy sidecar (infra #119), which this one-off task lacks,
+                # and ECS rejects a dependency on a missing container.
                 | .containerDefinitions = [ .containerDefinitions[] | select(.name=="web")
-                    | .image = $img | .command = ["alembic","upgrade","head"] | del(.portMappings) ]
+                    | .image = $img | .command = ["alembic","upgrade","head"]
+                    | del(.portMappings) | del(.dependsOn) ]
               ' > migrate-td.json
           TD=$(aws ecs register-task-definition --cli-input-json file://migrate-td.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
