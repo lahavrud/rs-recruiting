@@ -16,6 +16,10 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     environment: import.meta.env.MODE,
     release: import.meta.env.VITE_RELEASE,
     tracesSampleRate: 0.0,
+    // No `dataCollection` on purpose: left unset, Sentry keeps the legacy
+    // no-PII behaviour (no user info or bodies; PII headers/cookies/query
+    // params filtered). Setting it at all — even one field — switches every
+    // unset field to permissive defaults, so spell out all fields if added.
   });
 }
 
