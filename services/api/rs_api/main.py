@@ -99,7 +99,9 @@ if settings.sentry_dsn:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
+    # skip_dep_check: instrumentor still caps sqlalchemy<2.1 (it works via
+    # engine events, unchanged in 2.1). Without it, instrument() is a no-op.
+    SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine, skip_dep_check=True)
     validate_settings()
     await init_db()
     # Fill the connection pool up front so early requests don't each pay a
