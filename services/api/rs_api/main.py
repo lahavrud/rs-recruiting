@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from pythonjsonlogger import json as jsonlogger
+from sentry_sdk.integrations.logging import ignore_logger
 from slowapi.errors import RateLimitExceeded
 
 from rs_api.api import analytics, sentry_tunnel, seo
@@ -82,6 +83,11 @@ if settings.sentry_dsn:
             traces_sample_rate=0.0,
             send_default_pii=False,
         )
+        # The OTLP exporter logs ERROR when the Alloy sidecar is unreachable
+        # (each deploy's task shutdown emits a burst). That is a telemetry
+        # gap, not an app error — it still reaches stdout/CloudWatch, and a
+        # real sidecar outage shows up as missing data in Grafana.
+        ignore_logger("opentelemetry.exporter.otlp.proto.grpc.exporter")
     except Exception as _sentry_err:
         # A misconfigured DSN must never crash the server.
         import logging as _logging
