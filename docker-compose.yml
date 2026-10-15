@@ -55,7 +55,7 @@ services:
 
   localstack:
     # Local SQS so the producer -> queue -> worker path runs end-to-end in dev.
-    image: localstack/localstack:2026.06
+    image: localstack/localstack:2026.10
     container_name: rs-recruiting-localstack
     environment:
       - SERVICES=sqs

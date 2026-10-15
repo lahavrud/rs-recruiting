@@ -1,7 +1,7 @@
 # Multistage build: vite build → nginx:alpine with conf + dist baked in.
 # Build context is `frontend/`. TLS certs are bind-mounted at runtime
 # (./frontend/tls:/etc/nginx/tls) — never baked into the image.
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 ARG VITE_SENTRY_DSN
 ARG VITE_RELEASE
 ARG VITE_GTM_ID
@@ -17,7 +17,7 @@ RUN --mount=type=secret,id=sentry_auth_token \
     SENTRY_AUTH_TOKEN=$(cat /run/secrets/sentry_auth_token 2>/dev/null || true) \
     npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx_security_headers.conf /etc/nginx/security_headers.conf
 COPY --from=build /app/dist /usr/share/nginx/html
