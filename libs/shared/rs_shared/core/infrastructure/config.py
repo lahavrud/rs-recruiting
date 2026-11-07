@@ -146,6 +146,14 @@ class Settings(BaseSettings):
     # SENDING (worker crashed mid-send) before the sweeper acts on it. Well
     # clear of a normal send, which resolves in seconds.
     email_outbox_sweep_after_minutes: int = 15
+    # Retention for terminal (SENT / FAILED) outbox rows, enforced by the
+    # nightly cleanup. Rows hold the fully rendered email (names, job titles,
+    # contract PDFs), so they must not outlive the data the retention purge
+    # removes. After the redact window only delivery metadata remains (to,
+    # status, timestamps, provider id); after the delete window the row goes.
+    # Both are counted from created_at. Keep delete < CANDIDATE_RETENTION_DAYS.
+    email_outbox_redact_after_days: int = 30
+    email_outbox_delete_after_days: int = 90
 
     # Resume-matching embeddings.
     # A hosted multilingual model is required — CVs and jobs are Hebrew, English,

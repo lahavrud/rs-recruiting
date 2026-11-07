@@ -80,6 +80,16 @@ _activation_tokens_counter = _meter.create_counter(
     description="Stale ActivationToken rows deleted by the nightly cleanup",
     unit="1",
 )
+_outbox_redacted_counter = _meter.create_counter(
+    name="redacted_email_outbox",
+    description="Terminal email_outbox rows whose content the nightly cleanup cleared",
+    unit="1",
+)
+_outbox_purged_counter = _meter.create_counter(
+    name="purged_email_outbox",
+    description="Terminal email_outbox rows deleted by the nightly cleanup",
+    unit="1",
+)
 _last_purge_ran_gauge = _meter.create_gauge(
     name="last_purge_ran_at",
     description="Unix timestamp of the last successful nightly cleanup run",
@@ -319,7 +329,7 @@ async def build_data_export_task(user_id: int) -> None:
 async def nightly_cleanup_task() -> dict:
     """Nightly data-hygiene dispatcher.
 
-    Runs five independent sub-tasks in sequence; a failure in one does not
+    Runs seven independent sub-tasks in sequence; a failure in one does not
     abort the rest. Each sub-task is wrapped in its own transaction.
 
     Triggered nightly by EventBridge Scheduler → SQS (message task key:
@@ -333,7 +343,9 @@ async def nightly_cleanup_task() -> dict:
         purge_expired_account_deletion_tokens,
         purge_expired_activation_tokens,
         purge_expired_data_export_zips,
+        purge_expired_email_outbox,
         purge_unactivated_candidate_users,
+        redact_expired_email_outbox,
     )
 
     results: dict[str, int | None] = {}
@@ -362,6 +374,12 @@ async def nightly_cleanup_task() -> dict:
     results["purge_activation_tokens"] = await _run(
         "purge_activation_tokens", purge_expired_activation_tokens
     )
+    results["redact_email_outbox"] = await _run(
+        "redact_email_outbox", redact_expired_email_outbox
+    )
+    results["purge_email_outbox"] = await _run(
+        "purge_email_outbox", purge_expired_email_outbox
+    )
 
     attrs_env = {"environment": settings.environment}
     _purged_counter.add(results["purge_expired_candidates"] or 0, attrs_env)
@@ -369,6 +387,8 @@ async def nightly_cleanup_task() -> dict:
     _export_zips_counter.add(results["purge_export_zips"] or 0, attrs_env)
     _deletion_tokens_counter.add(results["purge_deletion_tokens"] or 0, attrs_env)
     _activation_tokens_counter.add(results["purge_activation_tokens"] or 0, attrs_env)
+    _outbox_redacted_counter.add(results["redact_email_outbox"] or 0, attrs_env)
+    _outbox_purged_counter.add(results["purge_email_outbox"] or 0, attrs_env)
     if any(v is not None for v in results.values()):
         _last_purge_ran_gauge.set(time.time(), attrs_env)
 

@@ -10,19 +10,22 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import hash_token
-from rs_shared.enums import UserRole
+from rs_shared.enums import EmailStatus, UserRole
 from rs_shared.models import (
     AccountDeletionToken,
     ActivationToken,
     CandidateProfile,
     DataExportRequest,
+    EmailOutbox,
     User,
 )
 from rs_shared.services.admin.maintenance import (
     purge_expired_account_deletion_tokens,
     purge_expired_activation_tokens,
     purge_expired_data_export_zips,
+    purge_expired_email_outbox,
     purge_unactivated_candidate_users,
+    redact_expired_email_outbox,
 )
 from tests.conftest import TestSessionLocal
 
@@ -491,3 +494,101 @@ async def test_purge_activation_tokens_deletes_old_used(session):
 
     assert count == 1
     assert await session.get(ActivationToken, token_id) is None
+
+
+# ---------------------------------------------------------------------------
+# email_outbox retention (#1079)
+# ---------------------------------------------------------------------------
+
+
+async def _make_outbox_row(
+    session: AsyncSession, *, status: EmailStatus, age_days: int
+) -> EmailOutbox:
+    created = _NOW - timedelta(days=age_days)
+    row = EmailOutbox(
+        to_addrs=["candidate@example.com"],
+        subject="עדכון בנוגע למועמדותך למשרת Backend Developer",
+        body="Hi Dana, about your application...",
+        html_body="<p>Hi Dana</p>",
+        attachments=[["contract.pdf", "SGVsbG8=", "application/pdf"]],
+        status=status,
+        last_error="smtp: 550 candidate@example.com"
+        if status == EmailStatus.FAILED
+        else None,
+        provider_message_id="ses-123" if status == EmailStatus.SENT else None,
+        created_at=created,
+        updated_at=created,
+    )
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def _reload(session: AsyncSession, row_id: int) -> EmailOutbox | None:
+    session.expunge_all()
+    return await session.get(EmailOutbox, row_id)
+
+
+@pytest.mark.parametrize("status", [EmailStatus.SENT, EmailStatus.FAILED])
+async def test_redact_outbox_clears_content_of_old_terminal_rows(session, status):
+    row = await _make_outbox_row(session, status=status, age_days=31)
+    row_id, created, updated = row.id, row.created_at, row.updated_at
+
+    assert await redact_expired_email_outbox(session) == 1
+
+    got = await _reload(session, row_id)
+    assert got is not None
+    assert (got.subject, got.body) == ("", "")
+    assert got.html_body is None and got.attachments is None
+    assert got.last_error is None
+    # The delivery record survives, and the sweeper's clock is untouched.
+    assert got.to_addrs == ["candidate@example.com"]
+    assert got.status == status
+    assert (got.created_at, got.updated_at) == (created, updated)
+
+
+async def test_redact_outbox_preserves_recent_rows(session):
+    row = await _make_outbox_row(session, status=EmailStatus.SENT, age_days=29)
+
+    assert await redact_expired_email_outbox(session) == 0
+    got = await _reload(session, row.id)
+    assert got is not None and got.body.startswith("Hi Dana")
+
+
+@pytest.mark.parametrize("status", [EmailStatus.PENDING, EmailStatus.SENDING])
+async def test_redact_outbox_never_touches_in_flight_rows(session, status):
+    row = await _make_outbox_row(session, status=status, age_days=365)
+
+    assert await redact_expired_email_outbox(session) == 0
+    got = await _reload(session, row.id)
+    assert got is not None and got.body.startswith("Hi Dana")
+
+
+async def test_redact_outbox_is_idempotent(session):
+    await _make_outbox_row(session, status=EmailStatus.SENT, age_days=40)
+
+    assert await redact_expired_email_outbox(session) == 1
+    assert await redact_expired_email_outbox(session) == 0
+
+
+@pytest.mark.parametrize("status", [EmailStatus.SENT, EmailStatus.FAILED])
+async def test_purge_outbox_deletes_old_terminal_rows(session, status):
+    row = await _make_outbox_row(session, status=status, age_days=91)
+
+    assert await purge_expired_email_outbox(session) == 1
+    assert await _reload(session, row.id) is None
+
+
+async def test_purge_outbox_preserves_rows_inside_window(session):
+    row = await _make_outbox_row(session, status=EmailStatus.SENT, age_days=89)
+
+    assert await purge_expired_email_outbox(session) == 0
+    assert await _reload(session, row.id) is not None
+
+
+@pytest.mark.parametrize("status", [EmailStatus.PENDING, EmailStatus.SENDING])
+async def test_purge_outbox_never_deletes_in_flight_rows(session, status):
+    row = await _make_outbox_row(session, status=status, age_days=365)
+
+    assert await purge_expired_email_outbox(session) == 0
+    assert await _reload(session, row.id) is not None
