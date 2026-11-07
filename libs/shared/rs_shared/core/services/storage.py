@@ -31,6 +31,14 @@ class StorageProvider(ABC):
         """Delete a file; returns True even if it did not exist (idempotent)."""
         pass
 
+    async def check_health(self) -> None:
+        """Raise if the backing store is unreachable. Used by ``/health``.
+
+        Default no-op so test doubles need not implement it; real providers
+        override it with the cheapest call that proves access.
+        """
+        return None
+
 
 def get_storage_provider() -> StorageProvider:
     """Factory: return the configured storage provider."""

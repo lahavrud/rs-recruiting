@@ -1,6 +1,7 @@
 """Local filesystem storage provider (development / testing)."""
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -18,6 +19,11 @@ class LocalStorageProvider(StorageProvider):
         self.storage_path.mkdir(parents=True, exist_ok=True)
         for subdir in self._SUBDIRS:
             (self.storage_path / subdir).mkdir(exist_ok=True)
+
+    async def check_health(self) -> None:
+        """The storage root must still exist and be writable."""
+        if not os.access(self.storage_path, os.W_OK):
+            raise OSError("local storage path is not writable")
 
     def _safe_path(self, file_identifier: str) -> Path:
         """Resolve and validate that the path stays strictly inside storage_path.
