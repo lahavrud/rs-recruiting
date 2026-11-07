@@ -7,7 +7,7 @@ the others.
 
 All functions:
 - Accept an open ``AsyncSession`` (caller supplies the transaction).
-- Return the count of rows deleted.
+- Return the count of rows deleted (or redacted).
 - Emit structured log lines at INFO level (no PII).
 """
 
@@ -16,15 +16,17 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.services.storage import get_storage_provider
-from rs_shared.enums import UserRole
+from rs_shared.enums import EmailStatus, UserRole
 from rs_shared.models import (
     AccountDeletionToken,
     ActivationToken,
     DataExportRequest,
+    EmailOutbox,
     User,
 )
 
@@ -35,6 +37,9 @@ _UNACTIVATED_USER_RETENTION_DAYS = 7
 _ACTIVATION_TOKEN_GRACE_DAYS = 30
 # Retain used data-export ZIPs this long before sweeping.
 _USED_EXPORT_GRACE_HOURS = 24
+# Only rows the send path is finished with. PENDING / SENDING rows are still
+# owned by the worker and the sweeper and must never be touched here.
+_TERMINAL_EMAIL_STATUSES = (EmailStatus.SENT, EmailStatus.FAILED)
 
 
 async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
@@ -193,4 +198,62 @@ async def purge_expired_activation_tokens(session: AsyncSession) -> int:
     count = result.rowcount
     if count:
         _logger.info("purge_expired_activation_tokens: removed %d rows", count)
+    return count
+
+
+async def redact_expired_email_outbox(session: AsyncSession) -> int:
+    """Strip the content from terminal outbox rows past the redact window.
+
+    Clears subject, body, html_body, attachments and last_error, which hold
+    the rendered email (candidate names, job titles, contract PDFs). Keeps
+    the delivery record (``to_addrs``, status, timestamps,
+    ``provider_message_id``) so "did they get it, and when?" stays answerable
+    until ``purge_expired_email_outbox`` deletes the row.
+
+    Eligibility: status SENT or FAILED, ``created_at`` older than
+    ``settings.email_outbox_redact_after_days``, and not already redacted
+    (``body != ''``) so re-runs count only new work. ``updated_at`` is left
+    alone: it is the sweeper's "time in this state" clock.
+
+    Returns count of rows redacted.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        days=settings.email_outbox_redact_after_days
+    )
+    result = await session.execute(
+        update(EmailOutbox)
+        .where(
+            EmailOutbox.status.in_(_TERMINAL_EMAIL_STATUSES),  # type: ignore[attr-defined]
+            EmailOutbox.created_at < cutoff,  # type: ignore[operator]
+            EmailOutbox.body != "",
+        )
+        .values(subject="", body="", html_body=None, attachments=None, last_error=None)
+        .execution_options(synchronize_session=False)
+    )
+    count = result.rowcount
+    if count:
+        _logger.info("redact_expired_email_outbox: redacted %d rows", count)
+    return count
+
+
+async def purge_expired_email_outbox(session: AsyncSession) -> int:
+    """Delete terminal outbox rows past the delete window.
+
+    Eligibility: status SENT or FAILED and ``created_at`` older than
+    ``settings.email_outbox_delete_after_days``.
+
+    Returns count of rows deleted.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        days=settings.email_outbox_delete_after_days
+    )
+    result = await session.execute(
+        delete(EmailOutbox).where(
+            EmailOutbox.status.in_(_TERMINAL_EMAIL_STATUSES),  # type: ignore[attr-defined]
+            EmailOutbox.created_at < cutoff,  # type: ignore[operator]
+        )
+    )
+    count = result.rowcount
+    if count:
+        _logger.info("purge_expired_email_outbox: removed %d rows", count)
     return count

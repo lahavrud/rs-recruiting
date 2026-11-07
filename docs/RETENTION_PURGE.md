@@ -1,6 +1,6 @@
 # Nightly Data-Hygiene — Runbook
 
-The nightly cleanup task runs five independent data-hygiene jobs, including the 12-month candidate retention purge required by our privacy policy. Each sub-task is separately transacted; a failure in one does not abort the others.
+The nightly cleanup task runs seven independent data-hygiene jobs, including the 12-month candidate retention purge required by our privacy policy. Each sub-task is separately transacted; a failure in one does not abort the others.
 
 ---
 
@@ -79,6 +79,33 @@ Deletes `ActivationToken` rows past the 30-day traceability window. Tokens are r
 
 ---
 
+### 6. `redact_expired_email_outbox` (30-day email content window)
+
+`email_outbox` rows hold the fully rendered email: subject (which can name the job), body, HTML, and base64 attachments such as contract PDFs. The table has no link back to the candidate, so the 12-month purge cannot follow it; it is bounded by age instead.
+
+Clears `subject`, `body`, `html_body`, `attachments` and `last_error`, keeping only the delivery record (`to_addrs`, status, timestamps, `provider_message_id`) so "did they get it, and when?" stays answerable.
+
+**Eligibility:**
+- `status IN (SENT, FAILED)`: in-flight rows (`PENDING` / `SENDING`) belong to the worker and the sweeper and are never touched
+- `created_at < now − EMAIL_OUTBOX_REDACT_AFTER_DAYS` (default 30)
+- not already redacted (`body != ''`)
+
+`updated_at` is not bumped: it is the sweeper's "time in this state" clock.
+
+---
+
+### 7. `purge_expired_email_outbox` (90-day email record window)
+
+Deletes terminal outbox rows outright.
+
+**Eligibility:**
+- `status IN (SENT, FAILED)`
+- `created_at < now − EMAIL_OUTBOX_DELETE_AFTER_DAYS` (default 90)
+
+Keep the delete window shorter than the 365-day candidate retention: an email sent to a candidate is gone well before their record could be purged, and a candidate who deletes their account has their emails stripped of content within 30 days and removed entirely within 90.
+
+---
+
 ## Observability
 
 ### Structured log lines (no PII)
@@ -98,6 +125,8 @@ INFO  nightly_cleanup_complete purge_expired_candidates=3 purge_unactivated_user
 | `purged_export_zips` | GDPR export cleanup |
 | `purged_deletion_tokens` | Deletion token sweep |
 | `purged_activation_tokens` | Activation token sweep |
+| `redacted_email_outbox` | Email outbox content redaction |
+| `purged_email_outbox` | Email outbox row deletion |
 | `last_purge_ran_at` | Unix timestamp of last successful run |
 
 All metrics carry an `environment` attribute. Query in Grafana Mimir.
@@ -146,5 +175,6 @@ asyncio.run(run())
 
 - Dispatcher: `libs/shared/rs_shared/core/tasks.py::nightly_cleanup_task`
 - Sub-task helpers: `libs/shared/rs_shared/services/admin/maintenance.py`
+- Outbox windows: `email_outbox_redact_after_days` / `email_outbox_delete_after_days` in `libs/shared/rs_shared/core/infrastructure/config.py`
 - Retention logic: `libs/shared/rs_shared/services/admin/_candidates_purge.py`
 - Tests: `tests/services/admin/test_maintenance.py`, `tests/core/test_tasks.py`
