@@ -246,15 +246,14 @@ app.include_router(analytics.router)
 app.include_router(seo.router)
 
 
+# Public readiness probe: 200 only when every dependency is reachable. Polled
+# by the ECS container health check, Route 53 and the deploy smoke check; a
+# 503 takes the task out of service discovery and, during a deploy, counts
+# toward the circuit breaker's rollback. Deliberately a comment, not a
+# docstring: FastAPI would publish a docstring in the public OpenAPI spec.
+# The body is safe to expose: see rs_shared.core.infrastructure.health.
 @app.get("/health")
 async def health_check() -> JSONResponse:
-    """Public readiness probe: 200 only when every dependency is reachable.
-
-    Polled by the ECS container health check, Route 53 and the deploy smoke
-    check. A 503 takes the task out of service discovery and, during a
-    deploy, counts toward the circuit breaker's rollback. The body is safe
-    to expose: see ``rs_shared.core.infrastructure.health``.
-    """
     checks = await run_health_checks()
     healthy = all(result != "fail" for result in checks.values())
     return JSONResponse(
