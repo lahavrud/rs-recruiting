@@ -50,6 +50,18 @@ _EMAIL_TASKS = frozenset({TaskName.SEND_EMAIL, TaskName.SEND_OUTBOX_EMAIL})
 _tracer = otel_trace.get_tracer("rs_worker.worker")
 
 
+class UnknownTaskError(Exception):
+    """The message names a task this worker image has no handler for.
+
+    Never acked. The usual cause is a rolling deploy: web rolls before worker,
+    so a new producer can enqueue a task name the old worker image predates.
+    Leaving the message on the queue lets the new worker pick it up after the
+    visibility timeout; if no worker ever learns the task (a typo, a removed
+    task), SQS moves it to the DLQ after maxReceiveCount, where it alerts —
+    instead of being silently deleted (#1078).
+    """
+
+
 def _configure_logging() -> None:
     handler = logging.StreamHandler()
     formatter = jsonlogger.JsonFormatter(
@@ -69,8 +81,7 @@ async def _process_message(raw_body: str) -> str:
 
     fn = TASK_REGISTRY.get(task_name)
     if fn is None:
-        logger.warning("unknown_task", extra={"task": task_name})
-        return task_name
+        raise UnknownTaskError(task_name)
 
     with _tracer.start_as_current_span(
         f"worker.task.{task_name}",
@@ -118,6 +129,13 @@ async def run(stop_event: asyncio.Event) -> None:
                     delay = settings.email_send_delay_seconds
                     if task_name in _EMAIL_TASKS and delay > 0:
                         await asyncio.sleep(delay)
+                except UnknownTaskError as exc:
+                    # Expected mid-deploy, so no traceback. Not deleted: see
+                    # UnknownTaskError.
+                    logger.warning(
+                        "unknown_task_left_for_redelivery",
+                        extra={"task": str(exc), "receipt_prefix": receipt[:20]},
+                    )
                 except Exception:
                     logger.exception(
                         "task_failed",

@@ -36,6 +36,14 @@ testing — they only exist with a real/localstack queue.
 3. `enqueue_*` producer function in `tasks.py`
 4. Tests for both producer and consumer sides (fake SQS lives in `tests/conftest.py`)
 
+**A new `TaskName` must reach the consumer one release before the producer.**
+`_deploy.yml` rolls web before worker, so a release that both registers and
+produces a task opens a window where the old worker receives a name it doesn't
+know. The worker never acks an unknown task (`UnknownTaskError`): it redelivers
+until a new worker handles it, or lands in the DLQ (alerted) after
+`maxReceiveCount` × visibility timeout (~15 min). That is a safety net, not a
+deploy plan: ship the `TASK_REGISTRY` entry first, the producer in the next PR.
+
 ## Boundaries
 
 `rs_worker` and `rs_shared` must stay web-stack-free (no fastapi/uvicorn/slowapi).
