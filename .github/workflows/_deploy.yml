@@ -82,6 +82,9 @@ on:
         required: false
       sentry_dsn:
         required: false
+      sentry_auth_token:
+        description: "Sentry token for frontend sourcemap upload (upload is skipped when unset)"
+        required: false
 
 # Serialize per environment. Staging takes latest-wins (newest main on staging
 # fast); production never cancels an in-flight deploy.
@@ -185,6 +188,7 @@ jobs:
           ref: ${{ inputs.image-tag }}
           release-version: ${{ inputs.image-tag }}
           sentry-dsn: ${{ secrets.sentry_dsn }}
+          sentry-auth-token: ${{ secrets.sentry_auth_token }}
           aws-role-arn: ${{ secrets.frontend_role_arn }}
           s3-bucket: ${{ secrets.frontend_bucket }}
           cloudfront-distribution-id: ${{ secrets.frontend_distribution_id }}
