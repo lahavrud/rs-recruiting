@@ -69,6 +69,7 @@ from rs_api.infrastructure.middleware import (
 )
 from rs_shared.core.infrastructure.config import settings, validate_settings
 from rs_shared.core.infrastructure.database import engine, init_db, warm_up_pool
+from rs_shared.core.infrastructure.health import run_health_checks
 from rs_shared.core.infrastructure.telemetry import (
     configure_telemetry,
     shutdown_telemetry,
@@ -246,8 +247,22 @@ app.include_router(seo.router)
 
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "environment": settings.environment,
-    }
+async def health_check() -> JSONResponse:
+    """Public readiness probe: 200 only when every dependency is reachable.
+
+    Polled by the ECS container health check, Route 53 and the deploy smoke
+    check. A 503 takes the task out of service discovery and, during a
+    deploy, counts toward the circuit breaker's rollback. The body is safe
+    to expose: see ``rs_shared.core.infrastructure.health``.
+    """
+    checks = await run_health_checks()
+    healthy = all(result != "fail" for result in checks.values())
+    return JSONResponse(
+        status_code=200 if healthy else 503,
+        content={
+            "status": "ok" if healthy else "fail",
+            "environment": settings.environment,
+            "checks": checks,
+        },
+        headers={"Cache-Control": "no-store"},
+    )

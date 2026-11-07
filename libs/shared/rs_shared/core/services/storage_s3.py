@@ -38,6 +38,11 @@ class S3StorageProvider(StorageProvider):
             kwargs["endpoint_url"] = self.endpoint_url
         return kwargs
 
+    async def check_health(self) -> None:
+        """HeadBucket: proves credentials, network path and bucket existence."""
+        async with self.session.client("s3", **self._client_kwargs()) as s3:  # type: ignore[attr-defined]  # aioboto3 session.client() is untyped; stubs incomplete
+            await s3.head_bucket(Bucket=self.bucket_name)
+
     async def upload_file(
         self, file_content: bytes, file_name: str, content_type: Optional[str] = None
     ) -> str:

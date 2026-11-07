@@ -334,6 +334,23 @@ TestSessionLocal = async_sessionmaker(
 )
 
 
+@pytest.fixture(autouse=True)
+def _health_checks_use_test_db(monkeypatch):
+    """Point /health's database probe at the per-run test DB, uncached.
+
+    The app's pooled ``engine`` was built before DATABASE_URL was pointed at
+    the test DB and its connections outlive each test's event loop. The
+    NullPool test engine has neither problem. The cache is cleared so one
+    test's result never leaks into the next.
+    """
+    from rs_shared.core.infrastructure import health
+
+    monkeypatch.setattr(health, "engine", test_engine)
+    health.reset_cache()
+    yield
+    health.reset_cache()
+
+
 async def _create_tables_once() -> None:
     """Create all tables on the per-worker DB. Called once per worker, not per test."""
     from sqlalchemy import text

@@ -91,6 +91,12 @@ Non-obvious constraints in `core/`:
   log correlation.
 - Storage and email are ABC + provider factories (`storage_local` for dev/test,
   `storage_s3` for prod) — code against the abstraction, never a provider.
+- `health.py` backs the public `/health`, which is the ECS container health
+  check, the Route 53 check and the deploy smoke check. It returns 503 if any
+  dependency a request needs (DB, storage, queue) fails, so a new dependency
+  belongs in its `CHECKS`. The body is public: only fixed `ok`/`fail`/`skipped`
+  values, never error text, hostnames or resource names. Results are cached
+  10s so the endpoint can't amplify load.
 
 ### Task queue
 

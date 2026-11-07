@@ -4,19 +4,40 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from rs_api.main import _HealthCheckLogFilter, app
+from rs_shared.core.infrastructure import health
 
 
 @pytest.mark.asyncio
-async def test_health_endpoint_returns_200_with_json_status():
-    """Test that the /health endpoint returns status 200 and correct JSON."""
+async def test_health_endpoint_returns_200_when_dependencies_are_up():
+    """Test env: real test DB, local storage, no queue (tasks run inline)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/health")
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {
         "status": "ok",
         "environment": "dev",
+        "checks": {"database": "ok", "storage": "ok", "queue": "skipped"},
     }
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint_returns_503_without_leaking_error_detail(monkeypatch):
+    async def broken_database():
+        raise ConnectionError("could not connect to db.internal:5432 as rs_app")
+
+    monkeypatch.setitem(health.CHECKS, "database", broken_database)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/health")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "fail"
+    assert body["checks"]["database"] == "fail"
+    assert "db.internal" not in response.text and "rs_app" not in response.text
 
 
 def _make_record(message: str) -> logging.LogRecord:
