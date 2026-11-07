@@ -126,6 +126,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pendingCompanies = overview?.inbox.pending_companies ?? null;
   const pendingJobs = overview?.inbox.pending_jobs ?? null;
   const newApplications = overview?.inbox.new_applications ?? null;
+  const pendingReview = overview
+    ? overview.inbox.pending_companies +
+      overview.inbox.pending_jobs +
+      overview.inbox.new_applications
+    : null;
 
   const adminGroups: NavGroupDef[] = [
     {
@@ -177,6 +182,10 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="space-y-1">
           <NavRow
             item={{ labelKey: "nav:dashboard", to: "/dashboard" }}
+            onClose={onClose}
+          />
+          <NavRow
+            item={{ labelKey: "nav:reviewQueue", to: "/admin/review", badge: pendingReview }}
             onClose={onClose}
           />
           <div className="my-2 border-t border-white/6" />

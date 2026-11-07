@@ -8,9 +8,9 @@ import { type RecentItem } from "@/services/adminOverview";
 import { formatTimeAgo } from "@/utils/formatDate";
 
 const RECENT_URL: Record<RecentItem["type"], string> = {
-  company: "/admin/companies?view=pending",
-  job: "/admin/jobs?status=PENDING_APPROVAL",
-  application: "/admin/applications?status=NEW",
+  company: "/admin/review?tab=companies",
+  job: "/admin/review?tab=jobs",
+  application: "/admin/review",
 };
 
 export default function AdminRecentFeed() {

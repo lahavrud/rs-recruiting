@@ -25,7 +25,9 @@ export default function SplitPaneLayout({
   hideListLabel,
   children,
 }: SplitPaneLayoutProps) {
-  const [collapsed, setCollapsed] = useState(true);
+  // Seed from the initial selection: a workspace that mounts with nothing
+  // selected (the review queue) must open with its list visible.
+  const [collapsed, setCollapsed] = useState(recordPresent);
   const [prevRecordPresent, setPrevRecordPresent] = useState(recordPresent);
 
   if (prevRecordPresent !== recordPresent) {
