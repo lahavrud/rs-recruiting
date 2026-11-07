@@ -131,9 +131,10 @@ logs it CRITICAL for a human instead. That is a deliberate trade of a possible
 lost email over a duplicate, and it is why the quota bump shares the mark-sent
 transaction — when it had its own, a failed quota write resent the email.
 
-The sweeper needs an EventBridge schedule, which lives in `rs-recruiting-infra`
-(`tofu/modules/sqs/main.tf`, next to the nightly purge). Until that exists it is
-manual-only, and the PENDING backstop is not actually running.
+The sweeper runs every 5 minutes on an EventBridge schedule that lives in
+`rs-recruiting-infra` (`tofu/modules/sqs/main.tf`, `outbox_sweep`, next to the
+nightly purge), so a PENDING row whose nudge was lost goes out within ~20
+minutes (15-minute staleness threshold + one tick).
 
 ---
 

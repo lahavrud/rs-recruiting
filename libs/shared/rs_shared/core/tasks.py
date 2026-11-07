@@ -204,8 +204,8 @@ async def sweep_email_outbox_task() -> dict:
       Ambiguous: it may already be in the recipient's inbox. Logged CRITICAL
       for a human rather than resent.
 
-    Scheduled by EventBridge → SQS, which lives in the infra repo. Until that
-    rule exists this is still runnable as a one-off ECS task.
+    Scheduled every 5 minutes by EventBridge → SQS (``outbox_sweep`` in the
+    infra repo's ``tofu/modules/sqs/main.tf``).
     """
     cutoff = email_outbox.sweep_cutoff()
     async with async_session() as session:
