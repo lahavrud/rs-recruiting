@@ -39,3 +39,11 @@ updates:
       python-all:
         patterns:
           - "*"
+    # aioboto3 pins an exact aiobotocore, which pins a narrow botocore range
+    # (e.g. aiobotocore 2.25.1 → botocore <1.40.62). Bumping boto3/botocore on
+    # their own makes the lock unresolvable, and the failed update job fails
+    # the whole "Dependabot Updates" run. They move only when aioboto3 is bumped
+    # (it pulls the matching boto3 via aiobotocore[boto3]), so let that drive.
+    ignore:
+      - dependency-name: "boto3"
+      - dependency-name: "botocore"

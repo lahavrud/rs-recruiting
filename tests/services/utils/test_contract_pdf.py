@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 async def test_generate_signed_contract_returns_pdf_bytes():
     """generate_signed_contract overlays text/images and returns valid PDF bytes."""
-    import fitz
+    import pymupdf as fitz
 
     fake_pdf = fitz.open()
     fake_pdf.new_page()

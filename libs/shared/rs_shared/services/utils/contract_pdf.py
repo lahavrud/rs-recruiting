@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 
 import aioboto3
-import fitz  # pymupdf
+import pymupdf as fitz
 
 from rs_shared.core.infrastructure.config import settings
 
