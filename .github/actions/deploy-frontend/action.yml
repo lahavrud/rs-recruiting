@@ -10,6 +10,10 @@ inputs:
     required: true
   sentry-dsn:
     required: true
+  sentry-auth-token:
+    description: "Enables sourcemap upload in vite.config.ts (the Sentry plugin is skipped when empty)"
+    required: false
+    default: ""
   aws-role-arn:
     required: true
   s3-bucket:
@@ -42,6 +46,7 @@ runs:
         VITE_SENTRY_DSN: ${{ inputs.sentry-dsn }}
         VITE_RELEASE: ${{ inputs.release-version }}
         VITE_GTM_ID: GTM-PRRX7D6L
+        SENTRY_AUTH_TOKEN: ${{ inputs.sentry-auth-token }}
 
     - uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
       with:
@@ -51,10 +56,14 @@ runs:
     - name: Sync to S3
       shell: bash
       run: |
-        # All other assets first (additive, immutable) — lifecycle rule expires stale bundles after 3 days
+        # All other assets first (additive, immutable). No lifecycle rule on this
+        # bucket, so stale hashed bundles stay until removed by hand.
+        # *.map is excluded: the Sentry plugin deletes maps only after a
+        # successful upload, so a missing/bad token would otherwise publish them.
         aws s3 sync frontend/dist/ \
           s3://${{ inputs.s3-bucket }}/ \
           --exclude "index.html" \
+          --exclude "*.map" \
           --cache-control "public, max-age=31536000, immutable"
         # index.html last — no-cache so browsers always fetch the latest bundle references,
         # and by now every chunk it points to already exists in S3

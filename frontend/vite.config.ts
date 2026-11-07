@@ -90,6 +90,13 @@ export default defineConfig({
             authToken: process.env.SENTRY_AUTH_TOKEN,
             release: { name: process.env.VITE_RELEASE },
             sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
+            // Default is to throw, failing the build. The prod frontend build
+            // runs after web + worker have rolled, so a bad token would leave
+            // a half-shipped release. Warn instead; the S3 sync excludes *.map
+            // so a skipped upload never publishes maps.
+            errorHandler: (err) => {
+              console.warn(`[sentry] sourcemap upload failed: ${err.message}`);
+            },
           }),
         ]
       : []),

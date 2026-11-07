@@ -135,6 +135,7 @@ jobs:
       frontend_bucket: ${{ secrets.S3_FRONTEND_BUCKET }}
       frontend_distribution_id: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
       sentry_dsn: ${{ secrets.VITE_SENTRY_DSN }}
+      sentry_auth_token: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
   # ── Tag the shipped commit + GitHub Release (after approval/deploy) ─────────
   tag-release:
