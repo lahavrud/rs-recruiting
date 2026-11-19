@@ -23,6 +23,7 @@ from rs_shared.models import (
     Job,
     User,
 )
+from rs_shared.services.admin._filters import candidate_not_deleted
 
 TOP_JOBS_LIMIT = 5
 RECENT_ITEMS_PER_TYPE = 2
@@ -111,11 +112,19 @@ async def _fetch_scalar_stats(session: AsyncSession) -> dict:
         )
         .scalar_subquery()
     )
+    # Inbox metrics drop tombstoned candidates so they match the lists they
+    # link to (``candidate_not_deleted`` there too). Account deletion keeps the
+    # Application rows and never moves their status, so without this a deleted
+    # candidate's pending application sits in the badge forever. The historical
+    # stats (status breakdown, 7d/30d application counts, top jobs) keep them:
+    # those applications did happen.
     new_applications = (
         select(func.count())
         .select_from(Application)
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
         .where(
-            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # pyright: ignore[reportArgumentType]
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW,  # pyright: ignore[reportArgumentType]
+            candidate_not_deleted(),
         )
         .scalar_subquery()
     )
@@ -140,7 +149,10 @@ async def _fetch_scalar_stats(session: AsyncSession) -> dict:
         .scalar_subquery()
     )
     total_candidates = (
-        select(func.count()).select_from(CandidateProfile).scalar_subquery()
+        select(func.count())
+        .select_from(CandidateProfile)
+        .where(candidate_not_deleted())
+        .scalar_subquery()
     )
     oldest_company_at = (
         select(func.min(CompanyProfile.created_at))
@@ -155,15 +167,17 @@ async def _fetch_scalar_stats(session: AsyncSession) -> dict:
     )
     oldest_application_at = (
         select(func.min(Application.created_at))
+        .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
         .where(
-            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # pyright: ignore[reportArgumentType]
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW,  # pyright: ignore[reportArgumentType]
+            candidate_not_deleted(),
         )
         .scalar_subquery()
     )
     new_candidates_7d = (
         select(func.count())
         .select_from(CandidateProfile)
-        .where(CandidateProfile.created_at >= cutoff_7d)
+        .where(CandidateProfile.created_at >= cutoff_7d, candidate_not_deleted())
         .scalar_subquery()
     )
     new_applications_7d = (
@@ -267,7 +281,10 @@ async def _fetch_recent_items(session: AsyncSession) -> list[dict]:
         )
         .join(CandidateProfile, Application.candidate_id == CandidateProfile.id)  # pyright: ignore[reportArgumentType]
         .join(Job, Application.job_id == Job.id)  # pyright: ignore[reportArgumentType]
-        .where(Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW)  # pyright: ignore[reportArgumentType]
+        .where(
+            Application.status == ApplicationStatus.PENDING_ADMIN_REVIEW,  # pyright: ignore[reportArgumentType]
+            candidate_not_deleted(),
+        )
         .order_by(Application.created_at.desc())
         .limit(RECENT_ITEMS_PER_TYPE)
     )

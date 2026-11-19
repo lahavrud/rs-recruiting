@@ -10,7 +10,8 @@ def candidate_not_deleted() -> ColumnElement[bool]:
 
     Both the candidates list and the applications list hide tombstoned
     candidates by default, and each has a separate ``sort="score"`` path that
-    builds its own statement — four call sites for one rule. Kept here so the
+    builds its own statement — four call sites for one rule, plus the admin
+    overview's inbox counts, which must agree with those lists. Kept here so the
     definition of "deleted" (and its pyright suppression) lives in one place.
     """
     return CandidateProfile.deleted_at.is_(None)  # pyright: ignore[reportArgumentType]
