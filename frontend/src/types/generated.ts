@@ -1796,6 +1796,22 @@ export interface components {
             status: components["schemas"]["ApplicationStatus"];
         };
         /**
+         * ApplicationSubmitted
+         * @description Public apply response.
+         *
+         *     Deliberately carries no profile data or ids: a guest apply is matched to
+         *     an existing profile by email, and echoing that profile (or even its id)
+         *     would tell an unauthenticated caller who has applied before.
+         */
+        ApplicationSubmitted: {
+            /**
+             * Status
+             * @default received
+             * @constant
+             */
+            status: "received";
+        };
+        /**
          * ApplicationWithDetails
          * @description Schema for application with related job and candidate details.
          */
@@ -4965,7 +4981,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CandidateProfileRead"];
+                    "application/json": components["schemas"]["ApplicationSubmitted"];
                 };
             };
             /** @description Validation Error */
@@ -5320,7 +5336,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CandidateProfileRead"];
+                    "application/json": components["schemas"]["ApplicationSubmitted"];
                 };
             };
             /** @description Validation Error */

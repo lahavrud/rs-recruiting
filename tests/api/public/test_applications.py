@@ -40,10 +40,27 @@ _SUCCESS_FORM_DATA = {
     "terms_accepted": "true",
 }
 
+# The apply endpoints never echo profile data (a guest apply may match an
+# existing profile by email); tests read the outcome from the DB instead.
+_SUBMITTED_BODY = {"status": "received"}
+
+
+async def _profile_id_by_email(email: str) -> int:
+    async with TestSessionLocal() as session:
+        profile = (
+            await session.execute(
+                select(CandidateProfile).where(
+                    CandidateProfile.email == email  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).scalar_one()
+        assert profile.id is not None
+        return profile.id
+
 
 @pytest.mark.asyncio
 @patch("rs_shared.services.public._application_helpers.queue_email")
-async def test_apply_endpoint_returns_201_with_candidate_data(
+async def test_apply_endpoint_returns_201_without_profile_data(
     mock_enqueue_email,
     public_client: AsyncClient,
     published_job: Job,
@@ -60,11 +77,18 @@ async def test_apply_endpoint_returns_201_with_candidate_data(
     )
 
     assert response.status_code == 201
-    data = response.json()
-    assert data["full_name"] == "John Doe"
-    assert data["email"] == "john@example.com"
-    assert data["phone"] == "050-123-4567"
-    assert data["id"] is not None
+    assert response.json() == _SUBMITTED_BODY
+
+    async with TestSessionLocal() as session:
+        profile = (
+            await session.execute(
+                select(CandidateProfile).where(
+                    CandidateProfile.email == "john@example.com"  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).scalar_one()
+        assert profile.full_name == "John Doe"
+        assert profile.phone == "050-123-4567"
 
 
 @pytest.mark.asyncio
@@ -181,10 +205,18 @@ async def test_apply_endpoint_with_resume(
     )
 
     assert response.status_code == 201
-    data = response.json()
-    assert data["full_name"] == "Jane Doe"
-    assert data["email"] == "jane@example.com"
-    assert data["resume_path"] == "resume-uuid-123.pdf"
+    assert response.json() == _SUBMITTED_BODY
+
+    async with TestSessionLocal() as session:
+        profile = (
+            await session.execute(
+                select(CandidateProfile).where(
+                    CandidateProfile.email == "jane@example.com"  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).scalar_one()
+        assert profile.full_name == "Jane Doe"
+        assert profile.resume_path == "resume-uuid-123.pdf"
 
     # Verify storage was called
     mock_storage.upload_file.assert_called_once()
@@ -313,8 +345,7 @@ async def test_apply_endpoint_creates_application_record(
     )
 
     assert response.status_code == 201
-    data = response.json()
-    candidate_id = data["id"]
+    candidate_id = await _profile_id_by_email("john@example.com")
 
     async with TestSessionLocal() as session:
         result = await session.execute(
@@ -351,8 +382,7 @@ async def test_apply_endpoint_application_not_linked_to_user(
     )
 
     assert response.status_code == 201
-    data = response.json()
-    candidate_id = data["id"]
+    candidate_id = await _profile_id_by_email("john@example.com")
 
     async with TestSessionLocal() as session:
         profile_result = await session.execute(
@@ -419,9 +449,7 @@ async def test_apply_endpoint_public_access(
     )
 
     assert response.status_code == 201
-    data = response.json()
-    assert data["full_name"] == "John Doe"
-    assert data["email"] == "john@example.com"
+    assert response.json() == _SUBMITTED_BODY
 
 
 @pytest.mark.asyncio
@@ -482,8 +510,7 @@ async def test_apply_endpoint_reuses_existing_profile(
         files=FAKE_RESUME,
     )
     assert response1.status_code == 201
-    data1 = response1.json()
-    candidate_id = data1["id"]
+    candidate_id = await _profile_id_by_email("john@example.com")
 
     # Second application with same email for different job
     form_data2 = {
@@ -500,11 +527,32 @@ async def test_apply_endpoint_reuses_existing_profile(
         files=FAKE_RESUME,
     )
     assert response2.status_code == 201  # Should succeed, not error
-    data2 = response2.json()
+    # Nothing about the matched (pre-existing) profile is echoed back.
+    assert response2.json() == _SUBMITTED_BODY
 
-    # Verify: Same candidate profile ID, name updated
-    assert data2["id"] == candidate_id
-    assert data2["full_name"] == "John Smith"
+    # Same profile reused (both applications on it), but an unauthenticated
+    # submitter can't rename it.
+    async with TestSessionLocal() as session:
+        profile = (
+            await session.execute(
+                select(CandidateProfile).where(
+                    CandidateProfile.id == candidate_id  # pyright: ignore[reportArgumentType]
+                )
+            )
+        ).scalar_one()
+        assert profile.full_name == "John Doe"
+        job_ids = (
+            (
+                await session.execute(
+                    select(Application.job_id).where(
+                        Application.candidate_id == candidate_id  # pyright: ignore[reportArgumentType]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert set(job_ids) == {published_job.id, job2_id}
 
 
 @pytest.mark.asyncio
@@ -604,7 +652,7 @@ async def test_apply_endpoint_writes_consent_audit_event(
         files=FAKE_RESUME,
     )
     assert response.status_code == 201
-    candidate_id = response.json()["id"]
+    candidate_id = await _profile_id_by_email("audit@example.com")
 
     async with TestSessionLocal() as session:
         result = await session.execute(
@@ -622,12 +670,13 @@ async def test_apply_endpoint_writes_consent_audit_event(
 
 @pytest.mark.asyncio
 @patch("rs_shared.services.public._application_helpers.queue_email")
-async def test_apply_endpoint_updates_consent_on_reapplication(
+async def test_apply_endpoint_reapplication_keeps_profile_consent(
     mock_enqueue_email,
     public_client: AsyncClient,
     published_job: Job,
 ):
-    """Test that consent fields are refreshed when an existing candidate re-applies."""
+    """A guest re-apply records its consent in the audit log but leaves the
+    profile's consent evidence as written by the first (original) apply."""
     mock_enqueue_email.return_value = "test-job-id"
 
     from rs_shared.models import CompanyProfile
@@ -675,7 +724,7 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         files=FAKE_RESUME,
     )
     assert resp1.status_code == 201
-    candidate_id = resp1.json()["id"]
+    candidate_id = await _profile_id_by_email("repeat@example.com")
 
     async with TestSessionLocal() as session:
         result = await session.execute(
@@ -710,8 +759,8 @@ async def test_apply_endpoint_updates_consent_on_reapplication(
         after_second = result.scalar_one()
         assert after_second.consent_given_at is not None
         assert after_second.consent_policy_version == CURRENT_PRIVACY_POLICY_VERSION
-        # Consent timestamp must be refreshed (>= first)
-        assert after_second.consent_given_at >= first_consent_at  # type: ignore[operator]
+        # Profile consent evidence is not rewritten by the second submission.
+        assert after_second.consent_given_at == first_consent_at
 
         # Two audit events — one per application
         audit_result = await session.execute(
@@ -778,7 +827,7 @@ async def test_apply_endpoint_persists_tos_acceptance(
         files=FAKE_RESUME,
     )
     assert response.status_code == 201
-    candidate_id = response.json()["id"]
+    candidate_id = await _profile_id_by_email("tos@example.com")
 
     async with TestSessionLocal() as session:
         result = await session.execute(
@@ -865,6 +914,65 @@ async def test_apply_with_password_creates_pending_candidate_user(
             )
         ).scalar_one()
         assert profile.user_id is None
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.public._application_helpers.queue_email")
+async def test_apply_with_password_keeps_pending_users_password(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+    test_db,
+):
+    """Claim path on an email that already has a *pending* candidate user:
+    the application lands, but the claim password must not replace the
+    pending account's password (same rule as re-registration)."""
+    from rs_shared.core.infrastructure.security import (
+        get_password_hash,
+        is_password_valid,
+    )
+    from rs_shared.enums import UserRole
+    from rs_shared.models import User
+
+    mock_enqueue_email.return_value = "test-job-id"
+    email = "pending-claim@example.com"
+    async with TestSessionLocal() as session:
+        session.add(
+            User(
+                email=email,
+                hashed_password=get_password_hash(
+                    "OldPass1!"
+                ),  # pragma: allowlist secret
+                role=UserRole.CANDIDATE,
+                is_active=False,
+            )
+        )
+        await session.commit()
+
+    resp = await public_client.post(
+        "/api/candidates/apply",
+        data={
+            "job_id": published_job.id,
+            "full_name": "Someone Else",
+            "email": email,
+            "phone": "050-100-1001",
+            "privacy_accepted": "true",
+            "terms_accepted": "true",
+            "password": "ClaimPass1!",  # pragma: allowlist secret
+            "password_confirm": "ClaimPass1!",  # pragma: allowlist secret
+        },
+        files=FAKE_RESUME,
+    )
+    assert resp.status_code == 201
+
+    async with TestSessionLocal() as session:
+        user = (
+            await session.execute(
+                select(User).where(User.email == email)  # type: ignore[arg-type]
+            )
+        ).scalar_one()
+        assert is_password_valid("OldPass1!", user.hashed_password)
+        assert not is_password_valid("ClaimPass1!", user.hashed_password)
 
 
 @pytest.mark.asyncio
@@ -1119,3 +1227,41 @@ async def test_apply_text_field_over_2000_chars_returns_422(
         files=FAKE_RESUME,
     )
     assert resp.status_code == 422
+
+
+# ── Per-IP throttle (shared across both apply paths) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_apply_endpoints_share_a_per_ip_rate_limit(
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Both apply paths draw from one 10/hour bucket per client IP; the
+    11th request is rejected with the app's generic 429 body. Requests that
+    fail validation still count, so these use a missing consent (400, no
+    writes) to keep the test cheap."""
+    from rs_api.infrastructure.limiter import limiter
+
+    form = {
+        "job_id": published_job.id,
+        "full_name": "Rate Limited",
+        "email": "rate@example.com",
+        "phone": "050-000-0099",
+        "privacy_accepted": "false",
+        "terms_accepted": "true",
+    }
+    paths = ["/api/candidates/apply", f"/api/jobs/{published_job.id}/apply"]
+    limiter.reset()
+    try:
+        with patch.object(limiter, "enabled", True):
+            for i in range(10):
+                resp = await public_client.post(
+                    paths[i % 2], data=form, files=FAKE_RESUME
+                )
+                assert resp.status_code == 400, i
+            resp = await public_client.post(paths[1], data=form, files=FAKE_RESUME)
+            assert resp.status_code == 429
+            assert resp.json() == {"detail": "too_many_requests"}
+    finally:
+        limiter.reset()

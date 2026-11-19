@@ -20,7 +20,7 @@ from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import UserRole
 from rs_shared.models import User
-from rs_shared.schemas import CandidateProfileCreate, CandidateProfileRead
+from rs_shared.schemas import ApplicationSubmitted, CandidateProfileCreate
 from rs_shared.schemas.auth import _validate_password_complexity
 from rs_shared.services.auth.candidate_registration import register_candidate
 from rs_shared.services.exceptions import (
@@ -85,7 +85,7 @@ async def apply_to_job(
     request: Request,
     session: AsyncSession,
     current_user: User | None,
-) -> CandidateProfileRead:
+) -> ApplicationSubmitted:
     """Dispatched apply: anonymous / anonymous-claim / logged-in candidate."""
     # Anonymous: both consent checkboxes are required. Logged-in candidates
     # already accepted at activation time.
@@ -147,7 +147,7 @@ async def apply_to_job(
 
     try:
         async with transactional(session):
-            candidate = await create_candidate_profile(
+            await create_candidate_profile(
                 candidate_data=candidate_data,
                 job_id=job_id,
                 resume_file=resume_file,
@@ -166,7 +166,9 @@ async def apply_to_job(
                 claim_password=effective_password,
                 provisioner=register_candidate,
             )
-        return candidate
+        # Never echo the profile: it may be a pre-existing one matched by
+        # email, and the caller hasn't proven they own that address.
+        return ApplicationSubmitted()
     except ApplicationAlreadyEditableError as e:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

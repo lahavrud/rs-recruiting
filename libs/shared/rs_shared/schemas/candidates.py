@@ -3,6 +3,7 @@
 import os
 import re
 from datetime import datetime
+from typing import Literal
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -288,6 +289,17 @@ class CandidateMeUpdate(BaseModel):
         if any(c in stripped for c in '<>:"|?*\x00'):
             raise ValueError("resume_filename contains unsafe characters")
         return stripped
+
+
+class ApplicationSubmitted(BaseModel):
+    """Public apply response.
+
+    Deliberately carries no profile data or ids: a guest apply is matched to
+    an existing profile by email, and echoing that profile (or even its id)
+    would tell an unauthenticated caller who has applied before.
+    """
+
+    status: Literal["received"] = "received"
 
 
 class ApplicationCreate(BaseModel):

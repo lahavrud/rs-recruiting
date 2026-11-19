@@ -19,10 +19,11 @@ profile lookup/update primitives live in the kernel (``services/utils``) so both
 the public and candidate apply flows share them without a cross-domain import.
 """
 
+import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.config import settings
@@ -48,6 +49,28 @@ from rs_shared.templates.email import (
     build_application_received_html,
     build_new_application_admin_html,
 )
+
+logger = logging.getLogger(__name__)
+
+# Guest apply is unauthenticated and the confirmation goes to whatever address
+# was typed, so cap how many confirmations one address can receive per day.
+# The application itself is always recorded; only the email is skipped.
+_CONFIRMATIONS_PER_ADDRESS_PER_DAY = 5
+_CONFIRMATION_WINDOW = timedelta(hours=24)
+
+
+async def _recent_application_count(session: AsyncSession, candidate_id: int) -> int:
+    """Applications on this profile in the last 24h (incl. the one just added)."""
+    since = datetime.now(timezone.utc) - _CONFIRMATION_WINDOW
+    result = await session.execute(
+        select(func.count())
+        .select_from(Application)
+        .where(
+            Application.candidate_id == candidate_id,  # pyright: ignore[reportArgumentType]
+            Application.created_at > since,  # pyright: ignore[reportArgumentType]
+        )
+    )
+    return result.scalar_one()
 
 
 async def check_no_blocking_application(
@@ -106,6 +129,14 @@ async def upsert_candidate_and_application(
 
     Order matters: pre-checks fire before any profile mutation so a 409
     doesn't leave the profile half-updated with the new request's values.
+
+    A guest (no ``candidate_user``) whose email matches an existing profile
+    gets the new Application attached to that profile, but the profile itself
+    is left untouched: nothing proves the submitter owns the address, so an
+    unauthenticated request must not rewrite someone's name, phone or consent
+    record. The application keeps its own resume snapshot, and the guest's
+    consent for this submission is recorded in the audit log by the caller.
+    Only a logged-in candidate (their own profile) updates profile fields.
     """
     if payload.candidate_user is None:
         user_result = await session.execute(
@@ -126,21 +157,18 @@ async def upsert_candidate_and_application(
     if existing and existing.id is not None:
         await check_no_blocking_application(session, job_id, existing.id)
 
-        candidate = await update_candidate_profile(
-            candidate=existing,
-            candidate_data=candidate_data,
-            resume_path=payload.resume_path,
-            resume_filename=payload.resume_filename,
-            resume_hash=payload.resume_hash,
-            session=session,
-        )
-        if not payload.skip_consent_write:
-            candidate.consent_given_at = now
-            candidate.consent_policy_version = CURRENT_PRIVACY_POLICY_VERSION
-            candidate.consent_ip = payload.consent_ip
-            candidate.consent_user_agent = payload.consent_ua
-            candidate.tos_accepted_at = now
-            candidate.tos_version = CURRENT_TERMS_OF_SERVICE_VERSION
+        candidate = existing
+        if payload.candidate_user is not None:
+            # Logged-in candidate: their own profile, so sync identity fields.
+            # (Consent was captured at activation; skip_consent_write is set.)
+            candidate = await update_candidate_profile(
+                candidate=existing,
+                candidate_data=candidate_data,
+                resume_path=payload.resume_path,
+                resume_filename=payload.resume_filename,
+                resume_hash=payload.resume_hash,
+                session=session,
+            )
         await session.flush()
     else:
         candidate = CandidateProfile(
@@ -193,7 +221,31 @@ async def send_application_emails(
     company_name: str,
     session: AsyncSession,
 ) -> None:
-    """Enqueue confirmation email to the candidate and notification to admins."""
+    """Enqueue confirmation email to the candidate and notification to admins.
+
+    The candidate confirmation is skipped once the address has received
+    ``_CONFIRMATIONS_PER_ADDRESS_PER_DAY`` in the window, so the public form
+    can't be used to flood someone's inbox. The admin notification is always
+    sent.
+    """
+    assert candidate.id is not None
+    if (
+        await _recent_application_count(session, candidate.id)
+        > _CONFIRMATIONS_PER_ADDRESS_PER_DAY
+    ):
+        logger.warning(
+            "apply_confirmation_suppressed",
+            extra={"candidate_id": candidate.id, "job_id": job.id},
+        )
+    else:
+        await _queue_candidate_confirmation(session, candidate, job)
+
+    await _notify_admins(session, candidate, job, company_name)
+
+
+async def _queue_candidate_confirmation(
+    session: AsyncSession, candidate: CandidateProfile, job: Job
+) -> None:
     await queue_email(
         session,
         to=candidate.email,
@@ -209,6 +261,10 @@ async def send_application_emails(
         ),
     )
 
+
+async def _notify_admins(
+    session: AsyncSession, candidate: CandidateProfile, job: Job, company_name: str
+) -> None:
     if settings.admin_notification_email:
         admin_recipients: list[str] | str = settings.admin_notification_email
     else:

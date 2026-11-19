@@ -7,6 +7,8 @@ type Schemas = components["schemas"];
 // in CI). Request bodies + client-only form shapes stay hand-written below.
 export type CandidateProfileRead = Schemas["CandidateProfileRead"];
 export type ApplicationRead = Schemas["ApplicationRead"];
+/** Public apply response — intentionally carries no profile data. */
+export type ApplicationSubmitted = Schemas["ApplicationSubmitted"];
 export type ApplicationWithDetails = Schemas["ApplicationWithDetails"];
 /** One ranked candidate match for the admin job view. score is cosine similarity in [0, 1]. */
 export type JobCandidateMatchRead = Schemas["JobCandidateMatchRead"];

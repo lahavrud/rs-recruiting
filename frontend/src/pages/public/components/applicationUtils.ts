@@ -103,6 +103,9 @@ export function describeServerError(t: TFunction, err: unknown): string {
   if (httpStatus === 404) {
     return t("publicJobs:application.errors.jobUnavailable");
   }
+  if (httpStatus === 429) {
+    return t("publicJobs:application.errors.tooManyAttempts");
+  }
   if (httpStatus === 400) {
     if (detail === "privacy_consent_required") {
       return t("publicJobs:application.validation.privacyRequired");

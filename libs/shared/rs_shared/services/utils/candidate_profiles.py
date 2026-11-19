@@ -67,6 +67,10 @@ async def update_candidate_profile(
 ) -> CandidateProfile:
     """Update an existing candidate profile with new information.
 
+    Only for a caller who has proven they own the profile (a logged-in
+    candidate). Guest applies must never call this on a profile matched by
+    email — see ``upsert_candidate_and_application``.
+
     Update strategy:
     - Always update: full_name (may have changed), phone (kept in sync with
       whatever the candidate submitted on the apply form so the next

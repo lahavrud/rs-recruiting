@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_candidate
+from rs_api.infrastructure.dependencies import client_ip, get_current_candidate
 from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_api.infrastructure.limiter import get_limiter
 from rs_shared.core.infrastructure.database import get_session
@@ -63,7 +63,7 @@ async def request_deletion_authenticated(
     Sends a confirmation email with a 24-hour link. Always 202.
     """
     user, profile = current
-    ip = request.client.host if request.client else None
+    ip = client_ip(request)
 
     async with transactional(session):
         await request_account_deletion(
@@ -86,7 +86,7 @@ async def request_deletion_anonymous(
     For candidates who applied via the public form without registering.
     Always 202 regardless of whether the email matches a profile.
     """
-    ip = request.client.host if request.client else None
+    ip = client_ip(request)
 
     async with transactional(session):
         await request_account_deletion(
@@ -129,7 +129,7 @@ async def confirm_deletion_endpoint(
     the token is invalid / expired / already used.
     """
     storage = get_storage_provider()
-    ip = request.client.host if request.client else None
+    ip = client_ip(request)
     try:
         async with transactional(session):
             await confirm_deletion(body.token, session, storage=storage, ip_address=ip)

@@ -470,3 +470,59 @@ class TestClientIp:
             s.trusted_proxy_ips = "10.0.0.0/8"
             req = _make_request("10.0.0.1", xff=None)
             assert client_ip(req) == "10.0.0.1"
+
+
+# ── client_ip behind CloudFront → API Gateway ────────────────────────────────
+
+
+def _make_cf_request(
+    viewer_address: str | None, peer: str = "10.0.1.57", xff: str | None = None
+) -> MagicMock:
+    req = _make_request(peer, xff=xff)
+    if viewer_address is not None:
+        req.headers["cloudfront-viewer-address"] = viewer_address
+    return req
+
+
+class TestClientIpCloudFrontViewerAddress:
+    """Prod peers are API Gateway VPC-link ENIs shared by every client, so the
+    CloudFront-set viewer address is the only per-client signal."""
+
+    def test_viewer_address_used_when_origin_verify_enforced(self):
+        with patch("rs_api.infrastructure.dependencies.settings") as s:
+            s.origin_verify_secret = "secret"  # pragma: allowlist secret
+            s.trusted_proxy_ips = ""
+            req = _make_cf_request("203.0.113.7:51234")
+            assert client_ip(req) == "203.0.113.7"
+
+    def test_viewer_address_ipv6(self):
+        with patch("rs_api.infrastructure.dependencies.settings") as s:
+            s.origin_verify_secret = "secret"  # pragma: allowlist secret
+            s.trusted_proxy_ips = ""
+            req = _make_cf_request("2001:db8::1:443")
+            assert client_ip(req) == "2001:db8::1"
+
+    def test_viewer_address_wins_over_spoofed_xff(self):
+        with patch("rs_api.infrastructure.dependencies.settings") as s:
+            s.origin_verify_secret = "secret"  # pragma: allowlist secret
+            s.trusted_proxy_ips = "10.0.0.0/16"
+            req = _make_cf_request("203.0.113.7:51234", xff="1.1.1.1, 203.0.113.7")
+            assert client_ip(req) == "203.0.113.7"
+
+    def test_viewer_address_ignored_without_origin_verify(self):
+        """Without CloudFront-only enforcement anyone could send the header."""
+        with patch("rs_api.infrastructure.dependencies.settings") as s:
+            s.origin_verify_secret = None
+            s.trusted_proxy_ips = ""
+            req = _make_cf_request("203.0.113.7:51234", peer="198.51.100.9")
+            assert client_ip(req) == "198.51.100.9"
+
+    @pytest.mark.parametrize(
+        "raw", ["", "not-an-ip:443", "203.0.113.7", "203.0.113.7:port", "2001:db8::1"]
+    )
+    def test_malformed_viewer_address_falls_back_to_peer(self, raw: str):
+        with patch("rs_api.infrastructure.dependencies.settings") as s:
+            s.origin_verify_secret = "secret"  # pragma: allowlist secret
+            s.trusted_proxy_ips = ""
+            req = _make_cf_request(raw, peer="10.0.1.57")
+            assert client_ip(req) == "10.0.1.57"

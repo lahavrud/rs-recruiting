@@ -2,7 +2,7 @@
 (Sprint 11 / issue #605)."""
 
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -11,7 +11,10 @@ from sqlalchemy import select
 
 from rs_api.main import app
 from rs_shared.core.infrastructure.database import get_session
-from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.core.infrastructure.security import (
+    get_password_hash,
+    is_password_valid,
+)
 from rs_shared.enums import UserRole
 from rs_shared.models import ActivationToken, AuditLog, User
 from tests.conftest import TestSessionLocal
@@ -194,17 +197,14 @@ async def test_register_rejects_pending_company_email_with_409(
         assert existing.is_active is False
 
 
-@pytest.mark.asyncio
-async def test_register_recycles_pending_candidate_and_kills_old_token(
-    test_db, _patch_enqueue_email
-):
-    """Submitting the same email twice while is_active=False updates the
-    password and replaces the old token — mirrors the locked Sprint 11 spec."""
-    email = _unique_email()
+async def _seed_pending_candidate(
+    email: str, *, token_age: timedelta, full_name: str = "Original Name"
+) -> int:
+    """A pending candidate (password ``OldPass1!``) with one unused token."""
     async with TestSessionLocal() as session:
         user = User(
             email=email,
-            hashed_password=get_password_hash("OldPass1!"),
+            hashed_password=get_password_hash("OldPass1!"),  # pragma: allowlist secret
             role=UserRole.CANDIDATE,
             is_active=False,
         )
@@ -215,43 +215,98 @@ async def test_register_recycles_pending_candidate_and_kills_old_token(
                 token_hash="old-hash",
                 user_id=user.id,
                 expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+                created_at=datetime.now(timezone.utc) - token_age,
+                full_name=full_name,
             )
         )
         await session.commit()
+        assert user.id is not None
+        return user.id
 
+
+async def _reregister(email: str, full_name: str = "Someone Else"):
     async with await _client() as client:
-        resp = await client.post(
+        return await client.post(
             "/auth/candidate/register",
             json={
                 "email": email,
                 "password": "FreshPass1!",  # pragma: allowlist secret
-                "full_name": "Fresh Reg",
+                "full_name": full_name,
                 "privacy_accepted": True,
                 "terms_accepted": True,
             },
         )
 
+
+@pytest.mark.asyncio
+async def test_register_pending_candidate_keeps_password_and_reissues_link(
+    test_db, _patch_enqueue_email
+):
+    """Re-registering a pending email re-sends a fresh link (old link dies)
+    but never replaces the password or the original name: the submitter of
+    the latest registration must not pick the password the inbox owner
+    then activates."""
+    email = _unique_email()
+    user_id = await _seed_pending_candidate(email, token_age=timedelta(hours=2))
+
+    resp = await _reregister(email)
+
     assert resp.status_code == 201
     async with TestSessionLocal() as session:
+        user = (
+            await session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
+        ).scalar_one()
+        assert is_password_valid("OldPass1!", user.hashed_password)
+        assert not is_password_valid("FreshPass1!", user.hashed_password)
+
         tokens = (
             (
                 await session.execute(
                     select(ActivationToken).where(
-                        ActivationToken.user_id
-                        == (
-                            await session.execute(
-                                select(User.id).where(User.email == email)  # type: ignore[arg-type]
-                            )
-                        ).scalar_one()
+                        ActivationToken.user_id == user_id  # type: ignore[arg-type]
                     )
                 )
             )
             .scalars()
             .all()
         )
-        # Old token deleted, new fresh one in its place.
+        # Old token deleted, new fresh one in its place, original name kept.
         assert len(tokens) == 1
         assert tokens[0].token_hash != "old-hash"
+        assert tokens[0].full_name == "Original Name"
+    _patch_enqueue_email.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_register_pending_candidate_within_throttle_window_is_silent(
+    test_db, _patch_enqueue_email
+):
+    """Inside the 1/hour per-email window a re-registration sends nothing and
+    keeps the existing link valid, but answers exactly like a fresh one."""
+    email = _unique_email()
+    user_id = await _seed_pending_candidate(email, token_age=timedelta(minutes=5))
+
+    resp = await _reregister(email)
+
+    assert resp.status_code == 201
+    async with TestSessionLocal() as session:
+        user = (
+            await session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
+        ).scalar_one()
+        assert is_password_valid("OldPass1!", user.hashed_password)
+        hashes = (
+            (
+                await session.execute(
+                    select(ActivationToken.token_hash).where(
+                        ActivationToken.user_id == user_id  # type: ignore[arg-type]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert hashes == ["old-hash"]
+    _patch_enqueue_email.assert_not_awaited()
 
 
 @pytest.mark.asyncio
