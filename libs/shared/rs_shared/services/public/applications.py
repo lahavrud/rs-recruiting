@@ -223,6 +223,8 @@ async def create_candidate_profile(
     ``claim_password``) combo:
 
     * Anonymous apply (no user, no password) — ``_apply_as_anonymous``.
+      If a profile already exists for the email, the application is attached
+      to it but the profile is not modified (the submitter is unverified).
     * Anonymous claim (no user, password supplied) — ``_apply_as_claim``:
       submit the application AND register a candidate User in the same
       request. If the email is already taken by an active candidate user

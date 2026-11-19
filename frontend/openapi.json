@@ -415,6 +415,19 @@
         "title": "ApplicationStatusUpdate",
         "type": "object"
       },
+      "ApplicationSubmitted": {
+        "description": "Public apply response.\n\nDeliberately carries no profile data or ids: a guest apply is matched to\nan existing profile by email, and echoing that profile (or even its id)\nwould tell an unauthenticated caller who has applied before.",
+        "properties": {
+          "status": {
+            "const": "received",
+            "default": "received",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "ApplicationSubmitted",
+        "type": "object"
+      },
       "ApplicationWithDetails": {
         "description": "Schema for application with related job and candidate details.",
         "properties": {
@@ -7310,7 +7323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CandidateProfileRead"
+                  "$ref": "#/components/schemas/ApplicationSubmitted"
                 }
               }
             },
@@ -7865,7 +7878,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CandidateProfileRead"
+                  "$ref": "#/components/schemas/ApplicationSubmitted"
                 }
               }
             },

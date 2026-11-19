@@ -106,6 +106,14 @@ async def upsert_candidate_and_application(
 
     Order matters: pre-checks fire before any profile mutation so a 409
     doesn't leave the profile half-updated with the new request's values.
+
+    A guest (no ``candidate_user``) whose email matches an existing profile
+    gets the new Application attached to that profile, but the profile itself
+    is left untouched: nothing proves the submitter owns the address, so an
+    unauthenticated request must not rewrite someone's name, phone or consent
+    record. The application keeps its own resume snapshot, and the guest's
+    consent for this submission is recorded in the audit log by the caller.
+    Only a logged-in candidate (their own profile) updates profile fields.
     """
     if payload.candidate_user is None:
         user_result = await session.execute(
@@ -126,21 +134,18 @@ async def upsert_candidate_and_application(
     if existing and existing.id is not None:
         await check_no_blocking_application(session, job_id, existing.id)
 
-        candidate = await update_candidate_profile(
-            candidate=existing,
-            candidate_data=candidate_data,
-            resume_path=payload.resume_path,
-            resume_filename=payload.resume_filename,
-            resume_hash=payload.resume_hash,
-            session=session,
-        )
-        if not payload.skip_consent_write:
-            candidate.consent_given_at = now
-            candidate.consent_policy_version = CURRENT_PRIVACY_POLICY_VERSION
-            candidate.consent_ip = payload.consent_ip
-            candidate.consent_user_agent = payload.consent_ua
-            candidate.tos_accepted_at = now
-            candidate.tos_version = CURRENT_TERMS_OF_SERVICE_VERSION
+        candidate = existing
+        if payload.candidate_user is not None:
+            # Logged-in candidate: their own profile, so sync identity fields.
+            # (Consent was captured at activation; skip_consent_write is set.)
+            candidate = await update_candidate_profile(
+                candidate=existing,
+                candidate_data=candidate_data,
+                resume_path=payload.resume_path,
+                resume_filename=payload.resume_filename,
+                resume_hash=payload.resume_hash,
+                session=session,
+            )
         await session.flush()
     else:
         candidate = CandidateProfile(

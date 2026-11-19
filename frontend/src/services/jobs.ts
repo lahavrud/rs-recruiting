@@ -1,6 +1,6 @@
 import type { CursorPage } from "@/hooks/useInfiniteList";
 import api from "@/services/api";
-import type { CandidateApplicationForm, CandidateProfileRead } from "@/types/candidates";
+import type { ApplicationSubmitted, CandidateApplicationForm } from "@/types/candidates";
 import type { JobPublicRead } from "@/types/jobs";
 /** Fetch one page of published jobs for the public job board. */
 export async function getPublicJobs(cursor: string | null = null): Promise<CursorPage<JobPublicRead>> {
@@ -25,7 +25,7 @@ export async function submitApplication(
   form: Omit<CandidateApplicationForm, "job_id">,
   resume: File | null,
   options?: { password?: string | null },
-): Promise<CandidateProfileRead> {
+): Promise<ApplicationSubmitted> {
   const data = new FormData();
 
   // Append all text fields
@@ -61,7 +61,7 @@ export async function submitApplication(
   // Explicit multipart Content-Type — the api instance defaults to
   // application/json, which would cause axios to JSON-stringify the
   // FormData and the backend's Form(...) parsers to see no fields.
-  const response = await api.post<CandidateProfileRead>(
+  const response = await api.post<ApplicationSubmitted>(
     `/api/jobs/${jobId}/apply`,
     data,
     { headers: { "Content-Type": "multipart/form-data" } },

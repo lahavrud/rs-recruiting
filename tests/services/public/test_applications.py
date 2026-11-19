@@ -346,7 +346,7 @@ async def test_create_candidate_profile_session_required():
         )
 
 
-# ── Re-apply behavior (parametrized over field-update rules) ──────────────────
+# ── Re-apply behavior (guest re-apply never modifies the matched profile) ────
 
 
 @pytest.mark.asyncio
@@ -355,23 +355,20 @@ async def test_create_candidate_profile_session_required():
     [
         # Same data twice — verifies profile reuse + 2 applications.
         ({}, {}, {"full_name": "John Doe", "linkedin_url": None}),
-        # full_name is always overwritten on re-apply.
+        # A guest can't rename someone else's profile by reusing their email.
         (
             {},
-            {"full_name": "John Smith"},
-            {"full_name": "John Smith", "linkedin_url": None},
+            {"full_name": "John Smith", "phone": "050-000-0002"},
+            {"full_name": "John Doe", "phone": "050-000-0001", "linkedin_url": None},
         ),
-        # Optional fields fill in when previously None.
+        # ...nor fill in fields the profile doesn't have yet.
         (
             {},
-            {"linkedin_url": "https://linkedin.com/in/johndoe"},
-            {
-                "full_name": "John Doe",
-                "linkedin_url": "https://linkedin.com/in/johndoe",
-            },
+            {"linkedin_url": "https://linkedin.com/in/someone-else"},
+            {"full_name": "John Doe", "linkedin_url": None},
         ),
     ],
-    ids=["same-data", "name-overwrites", "linkedin-fills"],
+    ids=["same-data", "name-phone-unchanged", "linkedin-not-filled"],
 )
 @patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_create_candidate_profile_reapply_updates_profile(
@@ -382,7 +379,7 @@ async def test_create_candidate_profile_reapply_updates_profile(
     session: AsyncSession,
     company_with_user,
 ):
-    """Re-applying with the same email reuses the profile + applies update rules."""
+    """A guest re-apply with the same email reuses the profile but leaves it as-is."""
     mock_enqueue_email.return_value = "test-job-id"
     job1 = await _make_published_job(session, company_with_user, title="Senior")
     job2 = await _make_published_job(session, company_with_user, title="Junior")
@@ -454,6 +451,50 @@ async def test_create_candidate_profile_does_not_overwrite_resume(
 
     assert second.id == first.id
     assert second.resume_path == "resume1.pdf"  # original kept
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.public._application_helpers.queue_email")
+async def test_guest_reapply_keeps_original_consent_record(
+    mock_enqueue_email,
+    session: AsyncSession,
+    company_with_user,
+):
+    """A second guest apply under the same email must not rewrite the
+    profile's consent evidence (IP / UA / timestamp) with its own values."""
+    mock_enqueue_email.return_value = "test-job-id"
+    job1 = await _make_published_job(session, company_with_user, title="Senior")
+    job2 = await _make_published_job(session, company_with_user, title="Junior")
+
+    await create_candidate_profile(
+        candidate_data=_default_candidate(),
+        job_id=job1.id,
+        session=session,
+        consent_ip="203.0.113.1",
+        consent_ua="first-ua",
+    )
+    profile = (
+        await session.execute(
+            select(CandidateProfile).where(
+                CandidateProfile.email == "john@example.com"  # pyright: ignore[reportArgumentType]
+            )
+        )
+    ).scalar_one()
+    first_consent_at = profile.consent_given_at
+
+    await create_candidate_profile(
+        candidate_data=_default_candidate(full_name="Someone Else"),
+        job_id=job2.id,
+        session=session,
+        consent_ip="198.51.100.66",
+        consent_ua="second-ua",
+    )
+    await session.refresh(profile)
+
+    assert profile.consent_ip == "203.0.113.1"
+    assert profile.consent_user_agent == "first-ua"
+    assert profile.consent_given_at == first_consent_at
+    assert profile.full_name == "John Doe"
 
 
 # ── Duplicate / fan-out invariants ────────────────────────────────────────────
