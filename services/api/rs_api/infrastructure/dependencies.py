@@ -297,10 +297,36 @@ def _is_trusted_proxy(peer_ip: str) -> bool:
         return False
 
 
+# Set by CloudFront from the viewer's TCP connection as ``ip:port`` (IPv6 is
+# not bracketed, e.g. ``2001:db8::1:443``). Forwarded to the API Gateway origin
+# by the managed AllViewerExceptHostHeader origin-request policy.
+_CLOUDFRONT_VIEWER_ADDRESS = "cloudfront-viewer-address"
+
+
+def _parse_viewer_address(raw: str) -> str | None:
+    """Return the IP from a ``CloudFront-Viewer-Address`` value, or None."""
+    host, sep, port = raw.strip().rpartition(":")
+    if not sep or not port.isdigit():
+        return None
+    try:
+        return str(ipaddress.ip_address(host.strip("[]")))
+    except ValueError:
+        return None
+
+
 def client_ip(request: Request) -> str | None:
     """Best-effort client IP.
 
-    Two-layer protection against XFF forgery:
+    **Behind CloudFront (prod):** when ``ORIGIN_VERIFY_SECRET`` is set,
+    ``OriginVerifyMiddleware`` rejects every request that didn't come through
+    CloudFront, so the CloudFront-set ``CloudFront-Viewer-Address`` header is
+    trustworthy and is used first. The TCP peer there is an API Gateway
+    VPC-link ENI shared by all clients, and API Gateway rewrites
+    ``X-Forwarded-For`` into a ``Forwarded`` header, so neither the peer nor
+    the leftmost XFF entry identifies the client. Without the secret (local
+    dev, tests) the header is ignored, since anyone could send it.
+
+    Otherwise, two-layer protection against XFF forgery:
 
     1. **Infrastructure layer (primary)**: set the `FORWARDED_ALLOW_IPS` env
        var to the load-balancer's private CIDR in production.  Uvicorn reads
@@ -316,6 +342,11 @@ def client_ip(request: Request) -> str | None:
     Falls back to `request.client.host` — which is the uvicorn-resolved peer
     address — when no trusted proxy is configured or the peer is untrusted.
     """
+    if settings.origin_verify_secret:
+        raw = request.headers.get(_CLOUDFRONT_VIEWER_ADDRESS)
+        viewer = _parse_viewer_address(raw) if raw else None
+        if viewer:
+            return viewer
     peer = request.client.host if request.client else None
     if peer and _is_trusted_proxy(peer):
         forwarded = request.headers.get("x-forwarded-for")
