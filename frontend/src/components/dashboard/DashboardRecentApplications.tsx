@@ -4,10 +4,12 @@ import { Link } from "react-router-dom";
 import Eyebrow from "@/components/ui/Eyebrow";
 import type { CandidateApplicationListItem } from "@/services/candidate";
 
+import type { TFunction } from "i18next";
+
 function formatRelative(
   iso: string,
   _locale: string,
-  t: (key: string, opts?: Record<string, unknown>) => string,
+  t: TFunction,
 ): string {
   const submitted = new Date(iso).getTime();
   const now = Date.now();

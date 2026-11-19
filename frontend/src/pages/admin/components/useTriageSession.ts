@@ -6,6 +6,8 @@ import { ApplicationStatus } from "@/types/enums";
 import { type Decision } from "./triageTypes";
 import { type TriageItem } from "./useTriageQueue";
 
+import type { TFunction } from "i18next";
+
 interface DecisionEntry {
   decision: Decision;
   prevIndex: number;
@@ -24,7 +26,7 @@ interface UseTriageSessionArgs {
   onCloseResume: () => void;
   onExit: () => void;
   toast: { error: (msg: string) => void };
-  t: (key: string, opts?: Record<string, unknown>) => string;
+  t: TFunction;
 }
 
 /**
