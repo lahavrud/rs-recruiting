@@ -364,10 +364,12 @@ jobs:
   # this job means docs-only PRs (where all real jobs are skipped via
   # detect-changes) still satisfy branch protection — skipped needs count as
   # passing here. Required checks in the branch ruleset: ["CI Gate"] only.
+  # detect-changes must be listed too (#1059): if it fails, the real jobs are
+  # skipped rather than failed, and without it here the gate would pass.
   ci-gate:
     name: CI Gate
     if: always()
-    needs: [backend-checks, frontend-checks, docker-build]
+    needs: [detect-changes, backend-checks, frontend-checks, docker-build]
     runs-on: ubuntu-latest
     steps:
       - name: All required jobs passed or were skipped
