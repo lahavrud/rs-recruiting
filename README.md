@@ -210,7 +210,7 @@ make check                                               # full CI-parity gate
 ```
 rs-recruiting/
 ├── libs/shared/rs_shared/     # framework-free domain (installed into both images)
-│   ├── models.py  enums.py  schemas/  templates/  assets/
+│   ├── models/  enums.py  schemas/  templates/  assets/
 │   ├── services/              # business logic, one package per actor:
 │   │                          #   auth/ admin/ company/ candidate/ public/ utils/
 │   └── core/

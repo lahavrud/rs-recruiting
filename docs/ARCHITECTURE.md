@@ -433,7 +433,7 @@ libs/shared/rs_shared/services/   # Business logic — mirrors the router layout
 **Decision:** Use SQLModel (SQLAlchemy + Pydantic) for database models with Alembic for migrations.
 
 **Implementation:**
-- **Models:** `libs/shared/rs_shared/models.py` with User, CompanyProfile, Job, CandidateProfile, Application
+- **Models:** the `libs/shared/rs_shared/models/` package (split by domain) with User, CompanyProfile, Job, CandidateProfile, Application
 - **Enums:** `libs/shared/rs_shared/enums.py` with UserRole, JobStatus, ApplicationStatus
 - **Schemas:** the `libs/shared/rs_shared/schemas/` package (split by domain) with Pydantic schemas for API validation
 - **Migrations:** Alembic for database schema versioning

@@ -136,7 +136,7 @@ Changes to these paths have non-obvious invariants. Read carefully before touchi
 |---|---|
 | `libs/shared/rs_shared/services/auth/` | JWT lifecycle, token rotation, lockout logic |
 | `alembic/` | Irreversible DB migrations. Never squash or delete applied migrations. |
-| `libs/shared/rs_shared/models.py` | Schema changes ripple everywhere |
+| `libs/shared/rs_shared/models/` | Schema changes ripple everywhere |
 | `.github/workflows/` | CI/CD — bad changes reach production |
 
 When in doubt, open a draft PR and ask for early review.

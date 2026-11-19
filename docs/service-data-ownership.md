@@ -38,7 +38,7 @@ writer. "Other writers" notes cross-service writes that exist today.
 | `refreshtoken` / `usedrefreshtoken` | api | — | Refresh-token rotation + replay guard. |
 | `audit_log` | api | — | Admin/audit events. |
 | `data_export_request` | api | **worker** | api creates the pending request; the worker's `build_data_export` task fills + finalises it. |
-| `email_quota` | **worker** | — | Daily send counter; the worker bumps it after each send (`increment_and_alert`, a raw-SQL upsert). Modeled as `EmailQuota` in `models.py` (so `create_all` builds it) and created by migration `e03b8aa073a3` in prod. |
+| `email_quota` | **worker** | — | Daily send counter; the worker bumps it after each send (`increment_and_alert`, a raw-SQL upsert). Modeled as `EmailQuota` in `models/quota.py` (so `create_all` builds it) and created by migration `e03b8aa073a3` in prod. |
 
 ## Cross-service contract
 
