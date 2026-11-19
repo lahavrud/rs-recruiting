@@ -199,7 +199,7 @@ Production-only vars (AWS, Sentry DSN, Resend SMTP, S3 bucket) aren't needed for
 
 ```bash
 uv run ruff check . && uv run ruff format --check .      # backend
-cd frontend && npx tsc --noEmit && npm run lint          # frontend
+cd frontend && npx tsc -b --noEmit && npm run lint          # frontend
 make check                                               # full CI-parity gate
 ```
 

@@ -121,7 +121,7 @@ Before opening a PR:
 uv run ruff check . && uv run ruff format --check .
 
 # Frontend
-cd frontend && npx tsc --noEmit && npm run lint
+cd frontend && npx tsc -b --noEmit && npm run lint
 ```
 
 CI must pass and **@lahavrud** must approve before merge (enforced by the branch ruleset + CODEOWNERS). Squash merge only — the PR title becomes the commit message, so make it a valid Conventional Commit.

@@ -259,7 +259,7 @@ Use matching template from `.github/ISSUE_TEMPLATE/` (`bug_report.md`, `feature_
 
 ```bash
 uv run ruff check . && uv run ruff format --check .   # backend lint
-cd frontend && npx tsc --noEmit && npm run lint        # frontend lint
+cd frontend && npx tsc -b --noEmit && npm run lint     # frontend lint (-b: the root tsconfig is solution-style; plain tsc checks 0 files)
 ```
 
 Before opening a PR, run the full CI-parity gate (adds import-linter, the
