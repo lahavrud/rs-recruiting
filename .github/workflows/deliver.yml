@@ -165,21 +165,62 @@ jobs:
         id: version
         run: echo "tag=$(bash scripts/compute_next_release_tag.sh)" >> "$GITHUB_OUTPUT"
 
-      # Create the tag through the Releases API (--target), not `git push`. The
-      # default GITHUB_TOKEN cannot push a ref whose `.github/workflows/` tree
-      # differs from a branch head — GitHub rejects it ("refusing to allow a
-      # GitHub App to create or update workflow … without workflows permission"),
-      # which fires whenever main has moved past the tagged SHA. There is no
-      # `workflows` scope for GITHUB_TOKEN to grant; the Releases API creates the
-      # tag server-side and sidesteps the git receive-pack hook entirely.
+      # GITHUB_TOKEN cannot create a ref whose `.github/workflows/` tree differs
+      # from main's HEAD: there is no `workflows` scope it can be granted, so
+      # GitHub refuses. That happens when a workflow-touching commit merges to
+      # main while this delivery is deploying. Through `git push` it read
+      # "refusing to allow a GitHub App to create or update workflow … without
+      # workflows permission" (#1016 moved to the Releases API for that). The
+      # Releases API enforces the same rule as `HTTP 403: Resource not accessible
+      # by integration` (v0.11.0 and v0.11.1, 2026-11-19). Every other release
+      # tagged HEAD or had no workflow diff to HEAD. A PAT/App token with
+      # `workflows` would avoid it, but #1016 rejected stored credentials, so
+      # this case fails with the manual recovery command in the job summary.
+      # Retrying can't succeed while HEAD differs, and tagging HEAD instead
+      # would tag code that was never deployed.
       - name: Tag & create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag }}
           SHA: ${{ needs.build.outputs.sha }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release create "$TAG" --target "$SHA" --generate-notes \
-            --repo "${{ github.repository }}"
+          if out=$(gh release create "$TAG" --target "$SHA" --generate-notes \
+            --repo "$REPO" 2>&1); then
+            printf '%s\n' "$out"
+            exit 0
+          fi
+          printf '%s\n' "$out"
+
+          # Best-effort diagnosis: a failed lookup must not mask the error above.
+          if grep -q 'HTTP 403' <<<"$out"; then
+            head=$(gh api "repos/$REPO/commits/main" --jq .sha 2>/dev/null || true)
+            wf=""
+            if [ -n "$head" ] && [ "$head" != "$SHA" ]; then
+              wf=$(gh api "repos/$REPO/compare/$SHA...$head" \
+                --jq '[.files[]?.filename | select(startswith(".github/workflows/"))] | join(", ")' \
+                2>/dev/null || true)
+            fi
+            if [ -n "$wf" ]; then
+              echo "::error title=Release tag not created::main moved past $SHA with workflow changes ($wf); GITHUB_TOKEN cannot create this tag. Production IS deployed. See the job summary to tag it manually."
+              {
+                echo "## ⚠️ Deployed, but not tagged"
+                echo
+                echo "Production is running \`$SHA\`. Only the \`$TAG\` tag and Release are missing."
+                echo
+                echo "main (\`$head\`) gained workflow changes during the deploy (\`$wf\`), and GITHUB_TOKEN cannot create a tag whose workflow files differ from main's HEAD."
+                echo
+                echo "Create it with your own credentials:"
+                echo
+                echo '```bash'
+                echo "gh release create $TAG --target $SHA --generate-notes --repo $REPO"
+                echo '```'
+                echo
+                echo "Don't use **Re-run failed jobs**: it re-queues the gated production deploy job too, and it would hit the same 403."
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+          exit 1
 
   # ── Failure notification ───────────────────────────────────────────────────
   notify-failure:
@@ -202,5 +243,7 @@ jobs:
             **Delivery pipeline failed** for commit [`${{ github.event.workflow_run.head_sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.event.workflow_run.head_sha }}).
 
             Check the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for which stage failed and the current environment state.
+
+            If only **Tag & release** failed, production is deployed and only the tag is missing: that job's summary has the command to create it.
 
             If production was affected, [run the rollback workflow](https://github.com/${{ github.repository }}/actions/workflows/rollback.yml).

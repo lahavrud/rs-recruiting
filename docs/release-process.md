@@ -37,7 +37,12 @@ merge to main → CI green → build image (by SHA)
 4. **Tag + Release are automatic.** After prod deploys, `tag-release` computes the
    next `vX.Y.Z` from Conventional Commits since the last final tag
    (`scripts/compute_next_release_tag.sh`), tags the shipped commit, and creates a
-   GitHub Release with generated notes.
+   GitHub Release with generated notes. One known failure: if a commit that
+   touches `.github/workflows/` merges to `main` during the deploy, the tag step
+   gets `HTTP 403` (GITHUB_TOKEN can't create a tag whose workflow files differ
+   from `main`'s HEAD). Prod is still deployed; the job summary gives the
+   `gh release create` command to run with your own credentials. Don't use
+   "Re-run failed jobs": it re-queues the gated deploy job too.
 
 ## Backing out a bad change
 
