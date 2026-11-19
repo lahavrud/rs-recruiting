@@ -233,9 +233,8 @@ narrowest member — keep the web stack out of `shared`/`worker`). No
 `requirements.txt`. Always commit `uv.lock` after touching any `pyproject.toml`.
 
 Per-member dependency boundaries are enforced by import-linter (contracts in the
-root `pyproject.toml`, run locally via `uv run lint-imports` / `make check`; CI
-enforces them via `scripts/validate_imports.py` and
-`tests/test_domain_is_framework_free.py`).
+root `pyproject.toml`, run via `uv run lint-imports` locally (`make check`) and
+in CI).
 
 ---
 
