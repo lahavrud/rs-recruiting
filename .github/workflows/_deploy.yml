@@ -134,10 +134,12 @@ jobs:
                 | .family = $fam
                 # Only the web container is kept, so drop its dependsOn: it names
                 # the Alloy sidecar (infra #119), which this one-off task lacks,
-                # and ECS rejects a dependency on a missing container.
+                # and ECS rejects a dependency on a missing container. Drop its
+                # healthCheck too (#1056): it probes the uvicorn /health, which
+                # never comes up when the command is alembic.
                 | .containerDefinitions = [ .containerDefinitions[] | select(.name=="web")
                     | .image = $img | .command = ["alembic","upgrade","head"]
-                    | del(.portMappings) | del(.dependsOn) ]
+                    | del(.portMappings) | del(.dependsOn) | del(.healthCheck) ]
               ' > migrate-td.json
           TD=$(aws ecs register-task-definition --cli-input-json file://migrate-td.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
