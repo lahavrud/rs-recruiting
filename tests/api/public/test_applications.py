@@ -1227,3 +1227,41 @@ async def test_apply_text_field_over_2000_chars_returns_422(
         files=FAKE_RESUME,
     )
     assert resp.status_code == 422
+
+
+# ── Per-IP throttle (shared across both apply paths) ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_apply_endpoints_share_a_per_ip_rate_limit(
+    public_client: AsyncClient,
+    published_job: Job,
+):
+    """Both apply paths draw from one 10/hour bucket per client IP; the
+    11th request is rejected with the app's generic 429 body. Requests that
+    fail validation still count, so these use a missing consent (400, no
+    writes) to keep the test cheap."""
+    from rs_api.infrastructure.limiter import limiter
+
+    form = {
+        "job_id": published_job.id,
+        "full_name": "Rate Limited",
+        "email": "rate@example.com",
+        "phone": "050-000-0099",
+        "privacy_accepted": "false",
+        "terms_accepted": "true",
+    }
+    paths = ["/api/candidates/apply", f"/api/jobs/{published_job.id}/apply"]
+    limiter.reset()
+    try:
+        with patch.object(limiter, "enabled", True):
+            for i in range(10):
+                resp = await public_client.post(
+                    paths[i % 2], data=form, files=FAKE_RESUME
+                )
+                assert resp.status_code == 400, i
+            resp = await public_client.post(paths[1], data=form, files=FAKE_RESUME)
+            assert resp.status_code == 429
+            assert resp.json() == {"detail": "too_many_requests"}
+    finally:
+        limiter.reset()

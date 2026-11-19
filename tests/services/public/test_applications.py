@@ -866,3 +866,48 @@ async def test_apply_commits_its_outbox_rows(
     assert "outbox@example.com" in recipients, (
         "the candidate's confirmation email was never committed to the outbox"
     )
+
+
+# ── Per-address confirmation cap ──────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.public._application_helpers.queue_email")
+async def test_confirmation_emails_capped_per_address_per_day(
+    mock_enqueue_email,
+    session: AsyncSession,
+    company_with_user,
+):
+    """The public form can't be used to flood one inbox: after 5
+    confirmations in 24h the candidate email is skipped, while the
+    application is still recorded."""
+    jobs = [
+        await _make_published_job(session, company_with_user, title=f"Role {i}")
+        for i in range(6)
+    ]
+    for job in jobs:
+        await create_candidate_profile(
+            candidate_data=_default_candidate(),
+            job_id=job.id,
+            session=session,
+        )
+
+    to_candidate = [
+        c
+        for c in mock_enqueue_email.await_args_list
+        if c.kwargs.get("to") == "john@example.com"
+    ]
+    assert len(to_candidate) == 5
+
+    applications = (
+        (
+            await session.execute(
+                select(Application)
+                .join(CandidateProfile)
+                .where(CandidateProfile.email == "john@example.com")  # pyright: ignore[reportArgumentType]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(applications) == 6

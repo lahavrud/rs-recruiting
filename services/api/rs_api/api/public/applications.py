@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_api.api.public._apply_handler import apply_to_job
 from rs_api.infrastructure.dependencies import get_current_user_optional
+from rs_api.infrastructure.limiter import limiter
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.models import User
 from rs_shared.schemas import ApplicationSubmitted
@@ -12,12 +13,19 @@ from rs_shared.schemas import ApplicationSubmitted
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 jobs_apply_router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
+# Unauthenticated, and each submission sends an email, stores a file and runs
+# resume embedding/summary, so throttle per client IP. Both paths share one
+# bucket; a real candidate applies to a handful of jobs at most.
+_APPLY_RATE = "10/hour"
+_APPLY_SCOPE = "public_apply"
+
 
 @router.post(
     "/apply",
     response_model=ApplicationSubmitted,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.shared_limit(_APPLY_RATE, scope=_APPLY_SCOPE)
 async def apply_to_job_endpoint(
     request: Request,
     job_id: int = Form(...),
@@ -63,6 +71,7 @@ async def apply_to_job_endpoint(
     response_model=ApplicationSubmitted,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.shared_limit(_APPLY_RATE, scope=_APPLY_SCOPE)
 async def apply_to_job_by_path(
     job_id: int,
     request: Request,
