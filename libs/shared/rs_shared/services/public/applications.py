@@ -248,7 +248,6 @@ async def create_candidate_profile(
         raise ValueError("Database session is required")
 
     job = await _get_published_job(session, job_id)
-    company_name = job.company.name if job.company else "Unknown Company"
 
     # Logged-in candidates ignore the form's email field (it could mismatch
     # their session email and would let one user spoof another's submission).
@@ -300,7 +299,7 @@ async def create_candidate_profile(
     # the commit — the insert would land in a transaction nobody commits and
     # the email would vanish, which is the exact loss this outbox exists to
     # stop. Only the SQS nudge is deferred, from inside queue_email.
-    await send_application_emails(candidate, job, company_name, session)
+    await send_application_emails(candidate, job, session)
 
     # Score this candidate against all jobs off the resume they applied with
     # (only if one is on file; the task no-ops otherwise). After commit so the

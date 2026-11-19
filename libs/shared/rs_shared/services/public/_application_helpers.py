@@ -7,10 +7,12 @@ Carved out of ``applications.py`` to keep the main module under the
   the editable / locked variants.
 * ``upsert_candidate_and_application`` — the find-or-create profile +
   Application row pair, with consent-write and resume-snapshot semantics.
-* ``send_application_emails`` — the candidate-confirmation + admin-
-  notification fan-out. Call it **inside** the apply transaction, never from a
-  ``defer_after_commit`` hook: it queues via ``queue_email``, which writes an
-  outbox row on the caller's session, and a hook runs after that session has
+* ``send_application_emails`` — the candidate-confirmation email. (Admins
+  are no longer emailed per application; they get the daily digest from
+  ``services/admin/application_digest.py``, #1159.) Call it **inside** the
+  apply transaction, never from a ``defer_after_commit`` hook: it queues via
+  ``queue_email``, which writes an outbox row on the caller's session, and a
+  hook runs after that session has
   already committed — the row would land in a transaction nobody commits and
   the email would be silently dropped.
 
@@ -26,7 +28,6 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.tasks import queue_email
 from rs_shared.enums import ApplicationStatus, UserRole
 from rs_shared.models import Application, CandidateProfile, Job, User
@@ -44,11 +45,7 @@ from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
     CURRENT_TERMS_OF_SERVICE_VERSION,
 )
-from rs_shared.services.utils.recipients import get_all_admin_emails
-from rs_shared.templates.email import (
-    build_application_received_html,
-    build_new_application_admin_html,
-)
+from rs_shared.templates.email import build_application_received_html
 
 logger = logging.getLogger(__name__)
 
@@ -218,15 +215,15 @@ async def upsert_candidate_and_application(
 async def send_application_emails(
     candidate: CandidateProfile,
     job: Job,
-    company_name: str,
     session: AsyncSession,
 ) -> None:
-    """Enqueue confirmation email to the candidate and notification to admins.
+    """Enqueue the confirmation email to the candidate.
 
-    The candidate confirmation is skipped once the address has received
+    The confirmation is skipped once the address has received
     ``_CONFIRMATIONS_PER_ADDRESS_PER_DAY`` in the window, so the public form
-    can't be used to flood someone's inbox. The admin notification is always
-    sent.
+    can't be used to flood someone's inbox. Admins are not emailed here: every
+    application, suppressed confirmation or not, appears in the next daily
+    digest (``services/admin/application_digest.py``).
     """
     assert candidate.id is not None
     if (
@@ -239,8 +236,6 @@ async def send_application_emails(
         )
     else:
         await _queue_candidate_confirmation(session, candidate, job)
-
-    await _notify_admins(session, candidate, job, company_name)
 
 
 async def _queue_candidate_confirmation(
@@ -260,38 +255,3 @@ async def _queue_candidate_confirmation(
             job_title=job.title,
         ),
     )
-
-
-async def _notify_admins(
-    session: AsyncSession, candidate: CandidateProfile, job: Job, company_name: str
-) -> None:
-    if settings.admin_notification_email:
-        admin_recipients: list[str] | str = settings.admin_notification_email
-    else:
-        admin_recipients = await get_all_admin_emails(session)
-
-    if admin_recipients:
-        admin_url = f"{settings.frontend_base_url}/login?redirect=/admin/applications"
-        await queue_email(
-            session,
-            to=admin_recipients,
-            subject=f"מועמדות חדשה למשרת '{job.title}' — {candidate.full_name}",
-            body=(
-                f"מועמדות חדשה התקבלה:\n\n"
-                f"שם: {candidate.full_name}\n"
-                f'דוא"ל: {candidate.email}\n'
-                f"טלפון: {candidate.phone or 'לא צויין'}\n"
-                f"משרה: {job.title}\n"
-                f"חברה: {company_name}\n\n"
-                f"מעבר לניהול: {admin_url}"
-            ),
-            html_body=build_new_application_admin_html(
-                candidate_name=candidate.full_name,
-                candidate_email=candidate.email,
-                candidate_phone=candidate.phone,
-                candidate_linkedin=candidate.linkedin_url,
-                job_title=job.title,
-                company_name=company_name,
-                admin_url=admin_url,
-            ),
-        )

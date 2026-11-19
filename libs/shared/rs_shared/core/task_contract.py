@@ -49,6 +49,9 @@ class TaskName:
     PURGE_EXPIRED_CANDIDATES = "purge_expired_candidates"
     EMBED_JOB = "embed_job"
     MATCH_CANDIDATE = "match_candidate"
+    # Daily admin digest of new applications. Sent only by the EventBridge
+    # schedule in rs-recruiting-infra (modules/sqs), which hardcodes the body.
+    SEND_ADMIN_DIGEST = "send_admin_digest"
 
 
 # --- Typed message shapes (producer/consumer convenience; not on the wire) ---
@@ -89,6 +92,10 @@ class MatchCandidateMessage(TypedDict):
 
 
 class PurgeMessage(TypedDict):
+    task: str
+
+
+class SendAdminDigestMessage(TypedDict):
     task: str
 
 
@@ -167,6 +174,10 @@ def build_match_candidate_message(candidate_id: int) -> MatchCandidateMessage:
 
 def build_purge_message() -> PurgeMessage:
     return {"task": TaskName.PURGE_EXPIRED_CANDIDATES}
+
+
+def build_send_admin_digest_message() -> SendAdminDigestMessage:
+    return {"task": TaskName.SEND_ADMIN_DIGEST}
 
 
 # --- Consumer decode ------------------------------------------------------

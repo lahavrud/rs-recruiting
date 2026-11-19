@@ -127,6 +127,7 @@ ignore_imports = [
     "rs_shared.core.tasks -> rs_shared.services.candidate.data_export",
     "rs_shared.core.tasks -> rs_shared.services.admin._candidates_purge",
     "rs_shared.core.tasks -> rs_shared.services.admin.maintenance",
+    "rs_shared.core.tasks -> rs_shared.services.admin.application_digest",
     "rs_shared.templates.email -> rs_shared.services.auth.password_reset",
 ]
 
