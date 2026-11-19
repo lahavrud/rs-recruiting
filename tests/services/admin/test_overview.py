@@ -1,9 +1,11 @@
 """Unit tests for the admin overview service."""
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.models import Application, Job, User
+from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.services.admin.overview import get_overview
 
 
@@ -86,3 +88,45 @@ async def test_get_overview_recent_items_all_types_newest_first(
     assert jobs[0]["label"] == "Senior Python Developer"
     assert jobs[0]["sublabel"] == "Approved Company"  # its company's name
     assert applications[0]["sublabel"] == "Senior Python Developer"  # job title
+
+
+async def _tombstone(session: AsyncSession, candidate_id: int) -> None:
+    candidate = await session.get(CandidateProfile, candidate_id)
+    assert candidate is not None
+    candidate.deleted_at = datetime.now(timezone.utc)
+    await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_get_overview_excludes_tombstoned_candidates(
+    session: AsyncSession, application: Application
+):
+    """Overview counts match the lists, which hide tombstoned candidates.
+
+    Regression: account deletion keeps the candidate's Application rows and
+    never moves their status, so a deleted candidate's PENDING_ADMIN_REVIEW
+    application stayed in the sidebar badge, the oldest-pending age and the
+    recent feed, while /admin/applications (candidate_not_deleted) hid it.
+    """
+    await _tombstone(session, application.candidate_id)
+
+    result = await get_overview(session)
+
+    assert result["inbox"]["new_applications"] == 0
+    assert result["inbox"]["oldest_new_application_days"] is None
+    assert result["stats"]["total_candidates"] == 0
+    assert result["pulse"]["new_candidates_7d"] == 0
+    assert all(i["type"] != "application" for i in result["pulse"]["recent_items"])
+
+
+@pytest.mark.asyncio
+async def test_get_overview_counts_live_candidates(
+    session: AsyncSession, application: Application
+):
+    """The tombstone filter must not drop live candidates."""
+    result = await get_overview(session)
+
+    assert result["inbox"]["new_applications"] == 1
+    assert result["inbox"]["oldest_new_application_days"] == 0
+    assert result["stats"]["total_candidates"] == 1
+    assert any(i["type"] == "application" for i in result["pulse"]["recent_items"])
