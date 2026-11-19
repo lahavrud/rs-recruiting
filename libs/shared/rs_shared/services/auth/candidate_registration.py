@@ -3,10 +3,11 @@
 Two entry points:
 
 * ``register_candidate`` — handles the public POST /auth/candidate/register
-  form. Creates `User(role=CANDIDATE, is_active=False)` (or re-uses an
-  existing unactivated row, replacing its password), kills any stale
-  unused activation tokens, mints a fresh 2-hour token, and enqueues the
-  activation email. The `CandidateProfile` itself is created at activation
+  form. Creates `User(role=CANDIDATE, is_active=False)` and mints a 2-hour
+  activation token + email. If the email already has an unactivated
+  candidate user, it behaves exactly like a resend: the existing password
+  is **kept** (never replaced by an unauthenticated request) and a fresh
+  link goes to the inbox owner. The `CandidateProfile` itself is created at activation
   time (see `activate_user`), so failed registrations do not litter the
   admin candidate list.
 
@@ -120,9 +121,8 @@ async def _latest_unused_full_name(user_id: int, session: AsyncSession) -> str |
 async def _delete_stale_tokens(user_id: int, session: AsyncSession) -> None:
     """Drop any prior unused ActivationToken rows for a user.
 
-    Used by both re-registration (so the old link in the candidate's inbox
-    stops working when they submit a new password) and resend-activation
-    (mint-fresh semantics — only one valid token at a time).
+    Used when re-issuing an activation link (resend, or re-registration of
+    a pending email): mint-fresh semantics — only one valid token at a time.
     """
     stale_result = await session.execute(
         select(ActivationToken).where(
@@ -181,8 +181,14 @@ async def register_candidate(
     Behavior:
     * No matching user → create ``is_active=False`` row + mint a token,
       stash full_name on the token, email it, write the audit row.
-    * Email matches an ``is_active=False`` candidate → recycle: update
-      password, drop stale tokens, mint fresh, email it, audit it.
+    * Email matches an ``is_active=False`` candidate → re-issue the
+      activation link exactly like ``resend_candidate_activation`` (same
+      1/hour per-email throttle, original full_name carried forward) and
+      **keep the existing password**. Whoever submits the latest
+      registration must not choose the password the inbox owner then
+      activates — that let anyone who knew a pending email take over the
+      account once its owner clicked the (expected) activation email. A
+      user who mistyped their password resets it after activating.
     * Email matches an ``is_active=True`` user → raise
       ``EmailAlreadyExistsError`` (router maps to 409). This explicit
       signal is the user-facing UX choice — we prefer to tell the user
@@ -214,19 +220,25 @@ async def register_candidate(
         # Pending company / admin slot — don't let candidate flow hijack it.
         raise EmailAlreadyExistsError(normalized_email)
 
-    if existing is None:
-        user = User(
-            email=normalized_email,
-            hashed_password=get_password_hash(password),
-            role=UserRole.CANDIDATE,
-            is_active=False,
+    if existing is not None:
+        # Pending candidate: never touch the password (see docstring).
+        await _reissue_activation(
+            existing,
+            normalized_email,
+            session,
+            ip_address=ip_address,
+            audit_action="candidate_register_repeated",
         )
-        session.add(user)
-        await session.flush()
-    else:
-        user = existing
-        user.hashed_password = get_password_hash(password)
-        await _delete_stale_tokens(user.id, session)
+        return
+
+    user = User(
+        email=normalized_email,
+        hashed_password=get_password_hash(password),
+        role=UserRole.CANDIDATE,
+        is_active=False,
+    )
+    session.add(user)
+    await session.flush()
 
     assert user.id is not None
     raw_token, activation = _mint_activation_token(
@@ -277,6 +289,29 @@ async def resend_candidate_activation(
     if user is None or user.role != UserRole.CANDIDATE or user.is_active:
         return
 
+    await _reissue_activation(
+        user,
+        normalized_email,
+        session,
+        ip_address=ip_address,
+        audit_action="candidate_resend_activation_requested",
+    )
+
+
+async def _reissue_activation(
+    user: User,
+    normalized_email: str,
+    session: AsyncSession,
+    *,
+    ip_address: str | None,
+    audit_action: str,
+) -> None:
+    """Mint a fresh activation link for a pending candidate (password untouched).
+
+    Shared by resend-activation and re-registration so the two can't drift.
+    Silent no-op when the per-email throttle (1/hour) is exhausted — the
+    prior link stays valid.
+    """
     assert user.id is not None
     if not await _check_resend_rate_limit(user.id, session):
         logger.warning(
@@ -301,7 +336,7 @@ async def resend_candidate_activation(
     await record_audit_event(
         session,
         actor_user_id=user.id,
-        action="candidate_resend_activation_requested",
+        action=audit_action,
         target_type="User",
         target_id=user.id,
         ip_address=ip_address,

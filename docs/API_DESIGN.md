@@ -128,8 +128,13 @@ later at activation time.
     rules failed.
   * `429 Too Many Requests` — IP rate limit exceeded.
 * **Re-registration semantics:** if the email matches an `is_active=False`
-  candidate user, the existing user's password is updated, prior unused
-  activation tokens are deleted, and a new token is minted. Old links die.
+  candidate user, the request behaves like
+  `POST /api/auth/candidate/resend-activation`: the existing password is
+  **kept** (an unauthenticated request never sets the password of a pending
+  account), the original `full_name` carries over, and a fresh token replaces
+  prior unused ones, subject to the same 1/hour per-email throttle. The
+  response is the same `201` either way. A user who mistyped their password
+  resets it after activating.
 
 ### `POST /api/auth/candidate/resend-activation`
 Resend the candidate activation email (Sprint 11 / #605). Silent in all

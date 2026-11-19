@@ -142,7 +142,8 @@ async def _apply_as_claim(
     flow doesn't import ``auth``). The User starts ``is_active=False``; the
     candidate's ``CandidateProfile.user_id`` stays NULL until activation links
     them. If the email belongs to an already-pending user the provisioner
-    updates the password + replaces the token (re-registration semantics).
+    keeps that user's existing password and only re-issues the activation
+    link (resend semantics) — the claim password is ignored.
     """
     candidate = await _apply_as_anonymous(session, candidate_data, job_id, payload)
 

@@ -918,6 +918,65 @@ async def test_apply_with_password_creates_pending_candidate_user(
 
 @pytest.mark.asyncio
 @patch("rs_shared.services.public._application_helpers.queue_email")
+async def test_apply_with_password_keeps_pending_users_password(
+    mock_enqueue_email,
+    public_client: AsyncClient,
+    published_job: Job,
+    test_db,
+):
+    """Claim path on an email that already has a *pending* candidate user:
+    the application lands, but the claim password must not replace the
+    pending account's password (same rule as re-registration)."""
+    from rs_shared.core.infrastructure.security import (
+        get_password_hash,
+        is_password_valid,
+    )
+    from rs_shared.enums import UserRole
+    from rs_shared.models import User
+
+    mock_enqueue_email.return_value = "test-job-id"
+    email = "pending-claim@example.com"
+    async with TestSessionLocal() as session:
+        session.add(
+            User(
+                email=email,
+                hashed_password=get_password_hash(
+                    "OldPass1!"
+                ),  # pragma: allowlist secret
+                role=UserRole.CANDIDATE,
+                is_active=False,
+            )
+        )
+        await session.commit()
+
+    resp = await public_client.post(
+        "/api/candidates/apply",
+        data={
+            "job_id": published_job.id,
+            "full_name": "Someone Else",
+            "email": email,
+            "phone": "050-100-1001",
+            "privacy_accepted": "true",
+            "terms_accepted": "true",
+            "password": "ClaimPass1!",  # pragma: allowlist secret
+            "password_confirm": "ClaimPass1!",  # pragma: allowlist secret
+        },
+        files=FAKE_RESUME,
+    )
+    assert resp.status_code == 201
+
+    async with TestSessionLocal() as session:
+        user = (
+            await session.execute(
+                select(User).where(User.email == email)  # type: ignore[arg-type]
+            )
+        ).scalar_one()
+        assert is_password_valid("OldPass1!", user.hashed_password)
+        assert not is_password_valid("ClaimPass1!", user.hashed_password)
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.public._application_helpers.queue_email")
 async def test_apply_password_mismatch_rejected(
     mock_enqueue_email,
     public_client: AsyncClient,
