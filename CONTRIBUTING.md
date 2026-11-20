@@ -121,7 +121,7 @@ Before opening a PR:
 uv run ruff check . && uv run ruff format --check .
 
 # Frontend
-cd frontend && npx tsc --noEmit && npm run lint
+cd frontend && npx tsc -b --noEmit && npm run lint
 ```
 
 CI must pass and **@lahavrud** must approve before merge (enforced by the branch ruleset + CODEOWNERS). Squash merge only — the PR title becomes the commit message, so make it a valid Conventional Commit.
@@ -136,7 +136,7 @@ Changes to these paths have non-obvious invariants. Read carefully before touchi
 |---|---|
 | `libs/shared/rs_shared/services/auth/` | JWT lifecycle, token rotation, lockout logic |
 | `alembic/` | Irreversible DB migrations. Never squash or delete applied migrations. |
-| `libs/shared/rs_shared/models.py` | Schema changes ripple everywhere |
+| `libs/shared/rs_shared/models/` | Schema changes ripple everywhere |
 | `.github/workflows/` | CI/CD — bad changes reach production |
 
 When in doubt, open a draft PR and ask for early review.

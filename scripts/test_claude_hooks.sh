@@ -87,6 +87,12 @@ out3=$(printf '%s' "{\"session_id\":\"$sid\",\"tool_input\":{\"file_path\":\"$pr
 if [ -n "$out3" ]; then
   echo "FAIL: inject_rules fired for an unmapped path"; fail=1
 fi
+# models became a package; a stale models.py glob silently stopped this (#1059).
+out4=$(printf '%s' "{\"session_id\":\"$sid\",\"tool_input\":{\"file_path\":\"$proj/libs/shared/rs_shared/models/identity.py\"}}" \
+  | CLAUDE_PROJECT_DIR="$proj" bash "$hooks/inject_rules.sh" 2>/dev/null)
+if ! grep -q 'migrations.md' <<<"$out4"; then
+  echo "FAIL: inject_rules did not inject migrations.md for a models/ edit"; fail=1
+fi
 rm -f "${TMPDIR:-/tmp}/claude-rule-${sid}-"*
 
 # --- prune_worktrees.sh: safe no-op outside a repo with agent worktrees -------

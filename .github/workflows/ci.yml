@@ -161,6 +161,12 @@ jobs:
         if: needs.detect-changes.outputs.backend == 'true'
         run: uv run python scripts/validate_imports.py
 
+      # All import-linter contracts (root pyproject.toml). validate_imports and
+      # test_domain_is_framework_free only cover the two web-stack ones.
+      - name: lint-imports
+        if: needs.detect-changes.outputs.backend == 'true'
+        run: uv run lint-imports
+
       - name: check_file_sizes
         if: needs.detect-changes.outputs.backend == 'true'
         run: uv run python scripts/check_file_sizes.py

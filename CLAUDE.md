@@ -15,7 +15,7 @@ a git hook that keeps it fresh).
 
 ## Plan mode
 
-Use plan mode before starting any change that touches `alembic/`, `libs/shared/rs_shared/services/auth/`, `.github/workflows/`, `libs/shared/rs_shared/models.py`, or `libs/shared/rs_shared/core/task_contract.py`. These areas have non-obvious invariants and hard-to-reverse consequences.
+Use plan mode before starting any change that touches `alembic/`, `libs/shared/rs_shared/services/auth/`, `.github/workflows/`, `libs/shared/rs_shared/models/`, or `libs/shared/rs_shared/core/task_contract.py`. These areas have non-obvious invariants and hard-to-reverse consequences.
 
 > **Backend layout (uv workspace).** The backend is split into three workspace
 > members: `libs/shared` (`rs_shared` — the framework-free domain), `services/api`
@@ -35,7 +35,7 @@ path map, so keep the two in sync. Still load rules up front when planning.)
 - **Auth** (JWT, sessions, activation flows, rate limiting): `.claude/rules/auth.md`  
   → any change touching `libs/shared/rs_shared/services/auth/` or `services/api/rs_api/api/auth/`
 - **Migrations & data model** (alembic, SQLModel, N+1): `.claude/rules/migrations.md`  
-  → any change touching `alembic/` or `libs/shared/rs_shared/models.py`
+  → any change touching `alembic/` or `libs/shared/rs_shared/models/`
 - **Task queue & worker** (wire contract, idempotency, boundaries): `.claude/rules/worker.md`  
   → any change touching `libs/shared/rs_shared/core/tasks.py`, `task_contract.py`, `matching.py`, or `services/worker/`
 - **Tests** (conventions, fixtures, CI): `.claude/rules/tests.md`  
@@ -57,7 +57,7 @@ path map, so keep the two in sync. Still load rules up front when planning.)
 
 ```
 libs/shared/rs_shared/           # framework-free domain (installed into BOTH images)
-├── models.py  enums.py  schemas/  templates/  assets/
+├── models/  enums.py  schemas/  templates/  assets/
 ├── services/                    # business logic — one package per actor:
 │   │                            #   auth/ admin/ company/ candidate/ public/ utils/
 │   │                            #   (underscore-prefixed modules are package-private helpers)
@@ -236,9 +236,8 @@ narrowest member — keep the web stack out of `shared`/`worker`). No
 `requirements.txt`. Always commit `uv.lock` after touching any `pyproject.toml`.
 
 Per-member dependency boundaries are enforced by import-linter (contracts in the
-root `pyproject.toml`, run locally via `uv run lint-imports` / `make check`; CI
-enforces them via `scripts/validate_imports.py` and
-`tests/test_domain_is_framework_free.py`).
+root `pyproject.toml`, run via `uv run lint-imports` locally (`make check`) and
+in CI).
 
 ---
 
@@ -262,7 +261,7 @@ Use matching template from `.github/ISSUE_TEMPLATE/` (`bug_report.md`, `feature_
 
 ```bash
 uv run ruff check . && uv run ruff format --check .   # backend lint
-cd frontend && npx tsc --noEmit && npm run lint        # frontend lint
+cd frontend && npx tsc -b --noEmit && npm run lint     # frontend lint (-b: the root tsconfig is solution-style; plain tsc checks 0 files)
 ```
 
 Before opening a PR, run the full CI-parity gate (adds import-linter, the

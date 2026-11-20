@@ -16,7 +16,7 @@ rule=""
 case "$rel" in
   frontend/*)                                        rule=frontend ;;
   libs/shared/rs_shared/services/auth/*|services/api/rs_api/api/auth/*) rule=auth ;;
-  alembic/*|libs/shared/rs_shared/models.py)         rule=migrations ;;
+  alembic/*|libs/shared/rs_shared/models/*)          rule=migrations ;;
   libs/shared/rs_shared/core/tasks.py|libs/shared/rs_shared/core/task_contract.py|libs/shared/rs_shared/core/matching.py|services/worker/*) rule=worker ;;
   tests/*)                                           rule=tests ;;
   .github/workflows/*|scripts/*)                     rule=infra ;;
