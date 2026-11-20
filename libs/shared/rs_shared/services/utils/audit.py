@@ -92,3 +92,18 @@ async def list_audit_events(
         cursor_key=lambda a: (a.created_at, a.id),
         limit=page_size,
     )
+
+
+def changed_fields(target: object, updates: dict[str, object]) -> list[str]:
+    """Sorted names of the ``updates`` keys whose value differs on ``target``.
+
+    For update audits: call it *before* applying the changes, and record
+    ``fields_detail(...)``. Names only, never values: the fields being edited
+    (application answers, contact details) can hold personal data, and the
+    audit log outlives the data it describes.
+    """
+    return sorted(k for k, v in updates.items() if getattr(target, k, None) != v)
+
+
+def fields_detail(fields: list[str]) -> str:
+    return "fields=" + ",".join(fields)

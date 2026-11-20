@@ -49,3 +49,35 @@ async def test_export_company_data_includes_jobs(
     assert payload.user.id == approved_company_user.id
     assert payload.company_profile.id == company_profile.id
     assert any(j.id == pending_job.id for j in payload.jobs)
+
+
+@pytest.mark.asyncio
+async def test_update_company_profile_audits_changed_field_names(
+    session: AsyncSession, approved_company_user: User, company_profile: CompanyProfile
+):
+    from sqlalchemy import select
+
+    from rs_shared.models import AuditLog
+    from rs_shared.schemas import CompanyProfileSelfUpdate
+    from rs_shared.services.company.profile import update_company_profile
+
+    await update_company_profile(
+        company_profile,
+        CompanyProfileSelfUpdate(address="רחוב חדש 5", name=company_profile.name),
+        session,
+        actor_user_id=approved_company_user.id,
+        ip_address="203.0.113.4",
+    )
+
+    [row] = (
+        (
+            await session.execute(
+                select(AuditLog).where(AuditLog.action == "company.profile_update")  # pyright: ignore[reportArgumentType]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert (row.target_type, row.target_id) == ("CompanyProfile", company_profile.id)
+    assert row.detail == "fields=address"
+    assert row.actor_user_id == approved_company_user.id

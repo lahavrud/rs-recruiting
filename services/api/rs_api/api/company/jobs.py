@@ -1,9 +1,9 @@
 """Company job endpoints — list, get, create, update, delete."""
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_company
+from rs_api.infrastructure.dependencies import client_ip, get_current_company
 from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.pagination import DEFAULT_LIMIT, CursorPage
@@ -72,14 +72,21 @@ async def get_job_posting(
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
 async def create_job_posting(
     job_data: JobCreate,
+    request: Request,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> JobRead:
     """Create a new job posting (PENDING_APPROVAL). Requires company auth."""
-    _, company_profile = current_company
+    user, company_profile = current_company
     try:
         async with transactional(session):
-            return await create_job(job_data, company_profile.id, session)
+            return await create_job(
+                job_data,
+                company_profile.id,
+                session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
+            )
     except (CompanyNotFoundError, JobNotFoundError) as e:
         raise service_exception_to_http(e) from e
 
@@ -88,14 +95,22 @@ async def create_job_posting(
 async def update_job_posting(
     job_id: int,
     job_data: JobUpdate,
+    request: Request,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> JobRead:
     """Update a job posting. Company owner only; PENDING_APPROVAL or PUBLISHED."""
-    _, company_profile = current_company
+    user, company_profile = current_company
     try:
         async with transactional(session):
-            return await update_job(job_id, job_data, company_profile.id, session)
+            return await update_job(
+                job_id,
+                job_data,
+                company_profile.id,
+                session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
+            )
     except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeUpdatedError) as e:
         raise service_exception_to_http(e) from e
 
@@ -103,14 +118,21 @@ async def update_job_posting(
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_job_posting(
     job_id: int,
+    request: Request,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete a job posting. Company owner only; PENDING_APPROVAL only."""
-    _, company_profile = current_company
+    user, company_profile = current_company
     try:
         async with transactional(session):
-            await delete_job(job_id, company_profile.id, session)
+            await delete_job(
+                job_id,
+                company_profile.id,
+                session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
+            )
     except (JobNotFoundError, JobNotOwnedByCompanyError, JobCannotBeDeletedError) as e:
         raise service_exception_to_http(e) from e
 
@@ -137,15 +159,22 @@ async def update_job_application_status(
     job_id: int,
     app_id: int,
     body: CompanyApplicationStatusUpdate,
+    request: Request,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> CompanyApplicationRead:
     """Update an application's status (HIRED or REJECTED only). Company owner only."""
-    _, company_profile = current_company
+    user, company_profile = current_company
     try:
         async with transactional(session):
             return await update_application_status(
-                job_id, app_id, body.status, company_profile.id, session
+                job_id,
+                app_id,
+                body.status,
+                company_profile.id,
+                session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
             )
     except InvalidApplicationStatusTransitionError as e:
         raise service_exception_to_http(e) from e
