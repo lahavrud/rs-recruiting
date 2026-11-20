@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { registerCandidate } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { isPasswordTooLong } from "@/utils/passwordComplexity";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
@@ -86,6 +87,8 @@ export default function RegisterCandidatePage() {
         return t("auth:register.validation.passwordRequired");
       if (value.length < 8)
         return t("auth:register.validation.passwordMin");
+      if (isPasswordTooLong(value))
+        return t("auth:register.validation.passwordTooLong");
       if (
         !PASSWORD_RE.upper.test(value) ||
         !PASSWORD_RE.lower.test(value) ||

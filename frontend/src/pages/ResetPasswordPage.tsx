@@ -11,6 +11,7 @@ import { useFetch } from "@/hooks/useFetch";
 import { resetPassword, validateResetToken } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { isPasswordTooLong } from "@/utils/passwordComplexity";
 
 import AuthShell from "./components/AuthShell";
 
@@ -42,6 +43,7 @@ export default function ResetPasswordPage() {
   function validatePassword(v: string): string {
     if (!v) return t("auth:resetPassword.validation.passwordRequired");
     if (v.length < 8) return t("auth:resetPassword.validation.passwordMin");
+    if (isPasswordTooLong(v)) return t("auth:resetPassword.validation.passwordTooLong");
     if (!/[A-Z]/.test(v)) return t("auth:resetPassword.validation.passwordUppercase");
     if (!/[a-z]/.test(v)) return t("auth:resetPassword.validation.passwordLowercase");
     if (!/\d/.test(v)) return t("auth:resetPassword.validation.passwordDigit");

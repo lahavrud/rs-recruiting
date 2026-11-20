@@ -143,6 +143,19 @@ async def test_login_inactive_user(client: AsyncClient):
 # ==================== Refresh Token Tests ====================
 
 
+@pytest.mark.asyncio
+async def test_login_over_72_byte_password_is_401_not_500(client: AsyncClient):
+    """bcrypt>=5 raises above 72 bytes; login must answer like any wrong
+    password, for both an existing and an unknown email (#1167)."""
+    await _create_active_user(client, "longpw@example.com")
+    over_limit = "Aa1!" + "x" * 96  # 100 bytes
+    for email in ("longpw@example.com", "nobody-longpw@example.com"):
+        response = await client.post(
+            "/auth/login", json={"email": email, "password": over_limit}
+        )
+        assert response.status_code == 401, email
+
+
 async def _create_active_user(client: AsyncClient, email: str) -> dict:
     """Helper: register + activate + login.
 
