@@ -71,6 +71,10 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     "libs/shared/rs_shared/services/admin/_candidates_purge.py",
     "libs/shared/rs_shared/services/admin/_application_status.py",
     "libs/shared/rs_shared/services/admin/_job_close.py",
+    # Split out of overview.py and candidates.py for the 300-line cap; exercised
+    # end-to-end via tests/services/admin/test_overview.py and test_candidates.py.
+    "libs/shared/rs_shared/services/admin/_overview_scalars.py",
+    "libs/shared/rs_shared/services/admin/_candidate_reads.py",
     # Helper modules split out of src/services/company/jobs.py to satisfy the
     # 300-line file cap. Exercised end-to-end via tests/services/company/test_jobs.py.
     "libs/shared/rs_shared/services/company/_jobs_applications.py",

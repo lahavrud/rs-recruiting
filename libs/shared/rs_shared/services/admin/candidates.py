@@ -5,9 +5,7 @@ from typing import Literal
 
 from sqlalchemy import and_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database_helpers import get_by_id_or_raise
 from rs_shared.core.infrastructure.pagination import (
     CursorPage,
@@ -15,15 +13,19 @@ from rs_shared.core.infrastructure.pagination import (
     build_cursor_page,
     clamp_limit,
 )
-from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.core.services.storage import StorageProvider, get_storage_provider
-from rs_shared.enums import JobStatus
 from rs_shared.models import Application, AuditLog, CandidateProfile, Job, User
 from rs_shared.schemas import (
     CandidateActivityEvent,
     CandidateAdminRead,
-    CandidateJobMatchRead,
-    JobRead,
+)
+from rs_shared.services.admin._candidate_reads import (
+    SELECTIN_USER,
+    list_candidates_by_score,
+    to_admin_read,
+)
+from rs_shared.services.admin._candidate_reads import (
+    get_candidate_job_matches as get_candidate_job_matches,
 )
 from rs_shared.services.admin._candidates_purge import (
     CANDIDATE_RETENTION_DAYS as CANDIDATE_RETENTION_DAYS,
@@ -40,40 +42,6 @@ from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
 
 _logger = logging.getLogger(__name__)
-
-
-_SCORE_SORT_LIMIT = 200
-_SELECTIN_USER = selectinload(CandidateProfile.user)  # type: ignore[arg-type]
-
-
-def _to_admin_read(
-    profile: CandidateProfile, *, ai_score: float | None = None
-) -> CandidateAdminRead:
-    """Build a ``CandidateAdminRead`` from an eagerly-loaded profile.
-
-    Requires ``CandidateProfile.user`` to have been loaded via selectinload.
-    """
-    user = getattr(profile, "user", None)
-    return CandidateAdminRead(
-        id=profile.id,
-        full_name=profile.full_name,
-        email=profile.email,
-        phone=profile.phone,
-        resume_path=profile.resume_path,
-        resume_summary=profile.resume_summary,
-        linkedin_url=profile.linkedin_url,
-        consent_given_at=profile.consent_given_at,
-        consent_policy_version=profile.consent_policy_version,
-        tos_accepted_at=profile.tos_accepted_at,
-        tos_version=profile.tos_version,
-        created_at=profile.created_at,
-        deleted_at=profile.deleted_at,
-        ai_score=ai_score,
-        has_account=profile.user_id is not None,
-        is_deleted=profile.deleted_at is not None,
-        user_email=user.email if user else None,
-        user_is_active=user.is_active if user else None,
-    )
 
 
 async def list_candidates(
@@ -97,18 +65,20 @@ async def list_candidates(
     `include_deleted`, when False (default), excludes tombstoned profiles.
     """
     if sort == "score":
-        return await _list_candidates_by_score(
+        ranked = await list_candidates_by_score(
             session,
             q=q,
             job_id=job_id,
-            limit=limit,
-            cursor=cursor,
             has_account=has_account,
             include_deleted=include_deleted,
         )
+        if ranked is not None:
+            return ranked
+        # No job, or it has no embedding yet: fall back to recency.
+        sort, order = "created_at", "desc"
 
     page_size = clamp_limit(limit)
-    base = select(CandidateProfile).options(_SELECTIN_USER)
+    base = select(CandidateProfile).options(SELECTIN_USER)
     if not include_deleted:
         base = base.where(candidate_not_deleted())
     if has_account is True:
@@ -143,74 +113,11 @@ async def list_candidates(
     rows = list((await session.execute(query)).scalars().all())
     return build_cursor_page(
         rows,
-        serializer=_to_admin_read,
+        serializer=to_admin_read,
         cursor_key=lambda c: (c.full_name if sort == "name" else c.created_at, c.id),
         limit=page_size,
         sort_key=sort,
     )
-
-
-async def _list_candidates_by_score(
-    session: AsyncSession,
-    *,
-    q: str | None = None,
-    job_id: int | None = None,
-    limit: int | None = None,
-    cursor: str | None = None,
-    has_account: bool | None = None,
-    include_deleted: bool = False,
-) -> CursorPage[CandidateAdminRead]:
-    """Return candidates ranked by cosine similarity to a job, best first.
-
-    Only includes candidates with embeddings. Falls back to recency sort when
-    no `job_id` is given or the job has no embedding.
-    Returns a single non-paginated page (next_cursor=None).
-    """
-    job = await session.get(Job, job_id) if job_id is not None else None
-    if job is None or job.embedding is None:
-        return await list_candidates(
-            session,
-            sort="created_at",
-            order="desc",
-            q=q,
-            limit=limit,
-            cursor=cursor,
-            has_account=has_account,
-            include_deleted=include_deleted,
-        )
-
-    distance_expr = CandidateProfile.embedding.cosine_distance(job.embedding)
-    stmt = select(CandidateProfile, distance_expr.label("dist")).options(_SELECTIN_USER)
-    stmt = stmt.where(
-        CandidateProfile.embedding.is_not(None)  # pyright: ignore[reportArgumentType]
-    )
-    if not include_deleted:
-        stmt = stmt.where(candidate_not_deleted())
-    if has_account is True:
-        stmt = stmt.where(
-            CandidateProfile.user_id.is_not(None)  # pyright: ignore[reportArgumentType]
-        )
-    elif has_account is False:
-        stmt = stmt.where(
-            CandidateProfile.user_id.is_(None)  # pyright: ignore[reportArgumentType]
-        )
-    if q and q.strip():
-        term = f"%{q.strip()}%"
-        stmt = stmt.where(
-            or_(
-                CandidateProfile.full_name.ilike(term),  # pyright: ignore[reportArgumentType]
-                CandidateProfile.email.ilike(term),  # pyright: ignore[reportArgumentType]
-                CandidateProfile.phone.ilike(term),  # pyright: ignore[reportArgumentType]
-            )
-        )
-    stmt = stmt.order_by(distance_expr.asc()).limit(_SCORE_SORT_LIMIT)
-
-    rows = (await session.execute(stmt)).all()
-    items = [
-        _to_admin_read(candidate, ai_score=cosine_similarity_score(dist))
-        for candidate, dist in rows
-    ]
-    return CursorPage(items=items, next_cursor=None)
 
 
 async def get_candidate(candidate_id: int, session: AsyncSession) -> CandidateAdminRead:
@@ -219,49 +126,9 @@ async def get_candidate(candidate_id: int, session: AsyncSession) -> CandidateAd
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
-        options=[_SELECTIN_USER],
+        options=[SELECTIN_USER],
     )
-    return _to_admin_read(candidate)
-
-
-async def get_candidate_job_matches(
-    candidate_id: int, session: AsyncSession
-) -> list[CandidateJobMatchRead]:
-    """Live-ranked jobs for a candidate, best score first.
-
-    Computed on demand (cosine distance) against every PUBLISHED, embedded
-    job — mirrors ``services.admin.jobs.get_job_candidate_matches``, the
-    reverse direction.
-
-    Raises ``CandidateNotFoundError`` if the candidate doesn't exist. Returns
-    an empty list if the candidate has no embedding yet (e.g. no resume).
-    """
-    candidate = await get_by_id_or_raise(
-        session,
-        CandidateProfile,
-        candidate_id,
-        lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
-    )
-    if candidate.embedding is None:
-        return []
-
-    distance = Job.embedding.cosine_distance(candidate.embedding)
-    rows = (
-        await session.execute(
-            select(Job, distance.label("distance"))
-            .options(selectinload(Job.company))
-            .where(Job.status == JobStatus.PUBLISHED, Job.embedding.is_not(None))
-            .order_by(distance)
-            .limit(settings.embedding_top_matches)
-        )
-    ).all()
-    return [
-        CandidateJobMatchRead(
-            job=JobRead.model_validate(job),
-            score=cosine_similarity_score(dist),
-        )
-        for job, dist in rows
-    ]
+    return to_admin_read(candidate)
 
 
 async def list_candidate_activity(
@@ -370,7 +237,7 @@ async def admin_tombstone_candidate(
         CandidateProfile,
         candidate_id,
         lambda pk: CandidateNotFoundError(f"Candidate {pk} not found"),
-        options=[_SELECTIN_USER],
+        options=[SELECTIN_USER],
     )
 
     if candidate.deleted_at is not None:
