@@ -13,15 +13,20 @@ import sys
 from pathlib import Path
 
 # Mapping of source directories to test directories. Sources live in the uv
-# workspace members (libs/shared, services/api); tests stay in a single
-# top-level tests/ tree. Order matters: the API's infrastructure mapping must
-# precede the broader rs_api/api mapping so it wins for that subtree.
+# workspace members (libs/shared, services/api, services/worker); tests stay in
+# a single top-level tests/ tree. Mappings nest (core/ contains
+# core/infrastructure/), so a file maps through its LONGEST matching source dir,
+# not the first one listed, and each file is checked once.
 SOURCE_TO_TEST_MAPPING = {
-    "libs/shared/rs_shared/services": "tests/services",
+    "libs/shared/rs_shared/core": "tests/core",
     "libs/shared/rs_shared/core/infrastructure": "tests/core/infrastructure",
+    "libs/shared/rs_shared/core/services": "tests/core/services",
+    "libs/shared/rs_shared/models": "tests/models",
+    "libs/shared/rs_shared/services": "tests/services",
     "libs/shared/rs_shared/templates": "tests/templates",
     "services/api/rs_api/infrastructure": "tests/api/infrastructure",
     "services/api/rs_api/api": "tests/api",
+    "services/worker/rs_worker": "tests/worker",
 }
 
 # Source files that don't require tests (exceptions, simple factories, etc.)
@@ -74,6 +79,16 @@ EXCLUDED_SOURCE_FILES: set[str] = {
     # MeterProvider, and LoggerProvider. No domain logic; exercised
     # end-to-end by every request/task that emits telemetry in prod.
     "libs/shared/rs_shared/core/infrastructure/telemetry.py",
+    # SQLModel table declarations with no functions. A per-module test would
+    # restate the declarations; they are exercised by the service tests that
+    # read and write them (a model-vs-migration drift check is #1057). Remove
+    # an entry here as soon as its module gains a function.
+    "libs/shared/rs_shared/models/_embedding.py",
+    "libs/shared/rs_shared/models/audit.py",
+    "libs/shared/rs_shared/models/auth_tokens.py",
+    "libs/shared/rs_shared/models/email_outbox.py",
+    "libs/shared/rs_shared/models/matching.py",
+    "libs/shared/rs_shared/models/quota.py",
 }
 
 # Test files allowed to exist without a matching source file.
@@ -94,58 +109,60 @@ EXCLUDED_TEST_FILES: set[str] = {
 }
 
 
+def _longest_match(path: Path, roots: list[str]) -> str | None:
+    """The most specific mapped root that contains ``path``, if any."""
+    matches = [r for r in roots if path.is_relative_to(r)]
+    return max(matches, key=len) if matches else None
+
+
 def get_expected_test_file(source_file: Path) -> Path | None:
     """Get the expected test file path for a source file."""
-    source_str = str(source_file)
-
-    for source_dir, test_dir in SOURCE_TO_TEST_MAPPING.items():
-        if source_str.startswith(source_dir):
-            relative_path = source_file.relative_to(source_dir)
-            test_file_name = f"test_{relative_path.name}"
-            return Path(test_dir) / relative_path.parent / test_file_name
-
-    return None
+    source_dir = _longest_match(source_file, list(SOURCE_TO_TEST_MAPPING))
+    if source_dir is None:
+        return None
+    relative_path = source_file.relative_to(source_dir)
+    test_dir = SOURCE_TO_TEST_MAPPING[source_dir]
+    return Path(test_dir) / relative_path.parent / f"test_{relative_path.name}"
 
 
 def get_expected_source_file(test_file: Path) -> Path | None:
     """Get the expected source file path for a test file."""
-    test_str = str(test_file)
+    test_to_source = {t: s for s, t in SOURCE_TO_TEST_MAPPING.items()}
+    test_dir = _longest_match(test_file, list(test_to_source))
+    if test_dir is None:
+        return None
+    relative_path = test_file.relative_to(test_dir)
+    # test_X.py -> X.py
+    if not relative_path.name.startswith("test_"):
+        return None
+    source_file_name = relative_path.name[len("test_") :]
+    return Path(test_to_source[test_dir]) / relative_path.parent / source_file_name
 
-    for source_dir, test_dir in SOURCE_TO_TEST_MAPPING.items():
-        if test_str.startswith(test_dir):
-            relative_path = test_file.relative_to(test_dir)
-            # test_X.py -> X.py
-            if not relative_path.name.startswith("test_"):
-                return None
-            source_file_name = relative_path.name[len("test_") :]
-            return Path(source_dir) / relative_path.parent / source_file_name
 
-    return None
+def _files_under(dirs: list[str], pattern: str) -> list[Path]:
+    """Unique files matching ``pattern`` under any of ``dirs`` (they nest)."""
+    found = {f for d in dirs if Path(d).exists() for f in Path(d).rglob(pattern)}
+    return sorted(found)
 
 
 def check_missing_test_files() -> list[str]:
     """Find source files without a matching test file."""
     violations: list[str] = []
 
-    for source_dir in SOURCE_TO_TEST_MAPPING:
-        dir_path = Path(source_dir)
-        if not dir_path.exists():
+    for py_file in _files_under(list(SOURCE_TO_TEST_MAPPING), "*.py"):
+        if py_file.name == "__init__.py":
             continue
 
-        for py_file in dir_path.rglob("*.py"):
-            if py_file.name == "__init__.py":
-                continue
+        file_str = str(py_file).replace("\\", "/")
+        if file_str in EXCLUDED_SOURCE_FILES:
+            continue
 
-            file_str = str(py_file).replace("\\", "/")
-            if file_str in EXCLUDED_SOURCE_FILES:
-                continue
+        expected_test = get_expected_test_file(py_file)
+        if expected_test is None:
+            continue
 
-            expected_test = get_expected_test_file(py_file)
-            if expected_test is None:
-                continue
-
-            if not expected_test.exists():
-                violations.append(f"{py_file}: Missing test file '{expected_test}'")
+        if not expected_test.exists():
+            violations.append(f"{py_file}: Missing test file '{expected_test}'")
 
     return violations
 
@@ -154,24 +171,19 @@ def check_orphan_test_files() -> list[str]:
     """Find test files without a matching source file."""
     violations: list[str] = []
 
-    for test_dir in SOURCE_TO_TEST_MAPPING.values():
-        dir_path = Path(test_dir)
-        if not dir_path.exists():
+    for py_file in _files_under(list(SOURCE_TO_TEST_MAPPING.values()), "test_*.py"):
+        file_str = str(py_file).replace("\\", "/")
+        if file_str in EXCLUDED_TEST_FILES:
             continue
 
-        for py_file in dir_path.rglob("test_*.py"):
-            file_str = str(py_file).replace("\\", "/")
-            if file_str in EXCLUDED_TEST_FILES:
-                continue
+        expected_source = get_expected_source_file(py_file)
+        if expected_source is None:
+            continue
 
-            expected_source = get_expected_source_file(py_file)
-            if expected_source is None:
-                continue
-
-            if not expected_source.exists():
-                violations.append(
-                    f"{py_file}: Orphan test file — no matching '{expected_source}'"
-                )
+        if not expected_source.exists():
+            violations.append(
+                f"{py_file}: Orphan test file — no matching '{expected_source}'"
+            )
 
     return violations
 
