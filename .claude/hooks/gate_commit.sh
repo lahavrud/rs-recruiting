@@ -22,6 +22,6 @@ cd "${root:-${CLAUDE_PROJECT_DIR:?}}"
 {
   uv run ruff check . &&
   uv run ruff format --check . &&
-  (cd frontend && npx tsc --noEmit && npm run lint)
+  (cd frontend && npx tsc -b --noEmit && npm run lint)
 } 1>&2 || { echo "BLOCKED: linters failed — fix the issues above before committing." >&2; exit 2; }
 exit 0

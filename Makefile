@@ -30,7 +30,7 @@ check:
 	uv run python scripts/validate_type_hints.py
 	uv run python scripts/validate_blocking_io.py
 	uv run python scripts/validate_test_files.py
-	cd frontend && npx tsc --noEmit && npm run lint && npm test
+	cd frontend && npx tsc -b --noEmit && npm run lint && npm test
 	uv run pytest -n auto -q
 
 # Build every service image (base first).
