@@ -1,4 +1,4 @@
-"""Security tests for storage providers."""
+"""Tests for LocalStorageProvider, including path-traversal security."""
 
 import tempfile
 from pathlib import Path
@@ -6,6 +6,98 @@ from pathlib import Path
 import pytest
 
 from rs_shared.core.services.storage_local import LocalStorageProvider
+
+
+class TestLocalStorageProvider:
+    """Tests for LocalStorageProvider."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create a temporary directory for testing."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    @pytest.fixture
+    def provider(self, temp_dir):
+        """Create a LocalStorageProvider instance."""
+        return LocalStorageProvider(storage_path=temp_dir)
+
+    @pytest.mark.asyncio
+    async def test_upload_file_persists_with_uuid_key(
+        self, provider: LocalStorageProvider
+    ):
+        """Test file upload."""
+        file_content = b"test file content"
+        file_name = "test.txt"
+
+        file_key = await provider.upload_file(file_content, file_name)
+
+        assert file_key is not None
+        assert file_key.endswith(".txt")
+        # Verify file exists
+        file_path = provider.storage_path / file_key
+        assert file_path.exists()
+        assert file_path.read_bytes() == file_content
+
+    @pytest.mark.asyncio
+    async def test_get_file_url_returns_http_path(self, provider: LocalStorageProvider):
+        """Test getting file URL."""
+        file_content = b"test content"
+        file_name = "test.txt"
+
+        file_key = await provider.upload_file(file_content, file_name)
+        url = await provider.get_file_url(file_key)
+
+        assert url is not None
+        # Should return HTTP URL path, not filesystem path
+        assert url.startswith("/static/")
+        assert file_key in url
+        # Verify file exists on filesystem
+        file_path = provider.storage_path / file_key
+        assert file_path.exists()
+        assert file_path.read_bytes() == file_content
+
+    @pytest.mark.asyncio
+    async def test_get_file_url_not_found(self, provider: LocalStorageProvider):
+        """Test getting URL for non-existent file."""
+        with pytest.raises(ValueError, match="File not found"):
+            await provider.get_file_url("nonexistent.txt")
+
+    @pytest.mark.asyncio
+    async def test_delete_file_removes_filesystem_entry(
+        self, provider: LocalStorageProvider
+    ):
+        """Test file deletion."""
+        file_content = b"test content"
+        file_name = "test.txt"
+
+        file_key = await provider.upload_file(file_content, file_name)
+        file_path = provider.storage_path / file_key
+        assert file_path.exists()
+
+        result = await provider.delete_file(file_key)
+        assert result is True
+        assert not file_path.exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_file_not_found(self, provider: LocalStorageProvider):
+        """Test deleting non-existent file (idempotent - returns True)."""
+        result = await provider.delete_file("nonexistent.txt")
+        # Both S3 and Local providers return True for non-existent files (idempotent)
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_upload_with_content_type(self, provider: LocalStorageProvider):
+        """Test file upload with content type."""
+        file_content = b"<html><body>Test</body></html>"
+        file_name = "test.html"
+
+        file_key = await provider.upload_file(
+            file_content, file_name, content_type="text/html"
+        )
+
+        assert file_key is not None
+        assert file_key.endswith(".html")
 
 
 class TestLocalStorageProviderSecurity:

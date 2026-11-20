@@ -1,13 +1,114 @@
-"""Tests for CandidateProfile model."""
+"""Tests for the identity models: User, CompanyProfile and CandidateProfile."""
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlmodel import select
 
 from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.enums import UserRole
-from rs_shared.models import CandidateProfile, User
+from rs_shared.models import CandidateProfile, CompanyProfile, User
+
+
+@pytest.mark.asyncio
+async def test_admin_user_company_profile_is_none(session: AsyncSession):
+    """ADMIN users have no CompanyProfile — relationship resolves to None.
+
+    Pins the type annotation: User.company_profile is Optional, not required.
+    """
+    admin = User(
+        email="admin@example.com",
+        hashed_password=get_password_hash("password"),
+        role=UserRole.ADMIN,
+    )
+    session.add(admin)
+    await session.commit()
+
+    result = await session.execute(
+        select(User)
+        .options(selectinload(User.company_profile))
+        .where(User.email == "admin@example.com")
+    )
+    fetched = result.scalar_one()
+    assert fetched.company_profile is None
+
+
+@pytest.mark.asyncio
+async def test_admin_user_candidate_profile_is_none(session: AsyncSession):
+    """ADMIN users have no CandidateProfile — relationship resolves to None.
+
+    Pins the type annotation: User.candidate_profile is Optional, not required
+    (mirrors `test_admin_user_company_profile_is_none`).
+    """
+    admin = User(
+        email="admin-no-cand@example.com",
+        hashed_password=get_password_hash("password"),
+        role=UserRole.ADMIN,
+    )
+    session.add(admin)
+    await session.commit()
+
+    result = await session.execute(
+        select(User)
+        .options(selectinload(User.candidate_profile))
+        .where(User.email == "admin-no-cand@example.com")
+    )
+    fetched = result.scalar_one()
+    assert fetched.candidate_profile is None
+
+
+@pytest.mark.asyncio
+async def test_orphan_company_profile_user_is_none(session: AsyncSession):
+    """CompanyProfile created without a User (admin pre-invite flow) has user=None.
+
+    Pins the type annotation: CompanyProfile.user is Optional since user_id is
+    nullable.
+    """
+    orphan = CompanyProfile(
+        name="Pre-Invite Co",
+        user_id=None,
+        company_id="999999999",
+        address="כתובת לדוגמה",
+        contact_email="pre-invite@example.com",
+        contact_first_name="א",
+        contact_last_name="ב",
+        contact_mobile_phone="0500000000",
+    )
+    session.add(orphan)
+    await session.commit()
+
+    result = await session.execute(
+        select(CompanyProfile)
+        .options(selectinload(CompanyProfile.user))
+        .where(CompanyProfile.name == "Pre-Invite Co")
+    )
+    fetched = result.scalar_one()
+    assert fetched.user is None
+
+
+def _required_fields() -> dict:
+    return {
+        "name": "Test Company",
+        "company_id": "123456789",
+        "address": "רח׳ הדוגמה 1, תל אביב",
+        "contact_email": "test-company@example.com",
+        "contact_first_name": "ישראל",
+        "contact_last_name": "ישראלי",
+        "contact_mobile_phone": "0501234567",
+    }
+
+
+@pytest.mark.asyncio
+async def test_company_profile_allows_null_user_id(session: AsyncSession):
+    """Admin-created companies can exist without a linked user."""
+    company = CompanyProfile(**_required_fields() | {"name": "Admin-Only Company"})
+    session.add(company)
+    await session.commit()
+    await session.refresh(company)
+
+    assert company.id is not None
+    assert company.user_id is None
+    assert company.name == "Admin-Only Company"
 
 
 @pytest.mark.asyncio
