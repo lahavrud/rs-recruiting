@@ -1,7 +1,8 @@
 # Task Queue & Worker Rules
 
 Applies to `libs/shared/rs_shared/core/tasks.py`, `.../core/task_contract.py`,
-`.../core/matching.py`, and `services/worker/rs_worker/`.
+`.../core/matching.py`, `.../core/email_tasks.py`,
+`.../core/scheduled_tasks.py`, and `services/worker/rs_worker/`.
 
 ## Wire contract
 
@@ -32,7 +33,8 @@ testing — they only exist with a real/localstack queue.
 ## Adding a task
 
 1. `TaskName` constant + `build_*_message` in `task_contract.py`
-2. Task function + `TASK_REGISTRY` entry in `tasks.py` (or `matching.py`)
+2. Task function in the module that fits (`email_tasks.py`, `scheduled_tasks.py`,
+   `matching.py`, or `tasks.py`) + its `TASK_REGISTRY` entry in `tasks.py`
 3. `enqueue_*` producer function in `tasks.py`
 4. Tests for both producer and consumer sides (fake SQS lives in `tests/conftest.py`)
 

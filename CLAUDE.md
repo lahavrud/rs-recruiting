@@ -37,7 +37,7 @@ path map, so keep the two in sync. Still load rules up front when planning.)
 - **Migrations & data model** (alembic, SQLModel, N+1): `.claude/rules/migrations.md`  
   → any change touching `alembic/` or `libs/shared/rs_shared/models/`
 - **Task queue & worker** (wire contract, idempotency, boundaries): `.claude/rules/worker.md`  
-  → any change touching `libs/shared/rs_shared/core/tasks.py`, `task_contract.py`, `matching.py`, or `services/worker/`
+  → any change touching `libs/shared/rs_shared/core/tasks.py`, `task_contract.py`, `matching.py`, `email_tasks.py`, `scheduled_tasks.py`, or `services/worker/`
 - **Tests** (conventions, fixtures, CI): `.claude/rules/tests.md`  
   → any change touching `tests/`
 - **Infrastructure & CI/CD** (OIDC, SSM, CI workflows, deploy safety): `.claude/rules/infra.md`  
@@ -64,6 +64,7 @@ libs/shared/rs_shared/           # framework-free domain (installed into BOTH im
 │   └── exceptions.py            # flat — imported by 15+ files
 └── core/
     ├── tasks.py  task_contract.py  matching.py   # task queue (see rules/worker.md)
+    ├── email_tasks.py  scheduled_tasks.py        # task implementations split out of tasks.py
     ├── infrastructure/          # config, database, security, pagination, telemetry, …
     └── services/                # provider abstractions: email, storage, file
                                  # validation, embeddings, cv_extraction, generation
@@ -108,13 +109,14 @@ consumer so they can't drift. The worker deletes a message on success and leaves
 it for redelivery (eventually the DLQ) on failure; SQS is at-least-once, so tasks
 must be idempotent. Full rules: `.claude/rules/worker.md`.
 
-Current tasks: `send_outbox_email_task`, `sweep_email_outbox_task`,
-`build_data_export_task` (GDPR export ZIP), `purge_expired_candidate_data_task`
-(nightly retention purge via EventBridge Scheduler → SQS), `send_admin_digest_task`
+Current tasks: `send_outbox_email_task` (in `core/email_tasks.py`),
+`sweep_email_outbox_task`, `build_data_export_task` (GDPR export ZIP),
+`nightly_cleanup_task` (registry key `purge_expired_candidates`: the nightly
+retention purge via EventBridge Scheduler → SQS) and `send_admin_digest_task`
 (08:00 Israel admin digest of new applications, also EventBridge → SQS; the only
-admin email about applications — there is no per-application one), and
-`embed_job_task` / `match_candidate_task` (resume-matching embeddings, in
-`core/matching.py`).
+admin email about applications — there is no per-application one), both in
+`core/scheduled_tasks.py`, and `embed_job_task` / `match_candidate_task`
+(resume-matching embeddings, in `core/matching.py`).
 
 ### Email goes through the outbox
 

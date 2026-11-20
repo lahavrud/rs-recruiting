@@ -25,7 +25,11 @@ def outbox_db(session_local_factory):
     send_outbox_email_task opens its own sessions (it runs in the worker, not a
     request), so the test DB has to be injected at that seam.
     """
-    with patch("rs_shared.core.tasks.async_session", session_local_factory):
+    # The sender lives in email_tasks; the sweeper stays in tasks. Patch both.
+    with (
+        patch("rs_shared.core.email_tasks.async_session", session_local_factory),
+        patch("rs_shared.core.tasks.async_session", session_local_factory),
+    ):
         yield
 
 
@@ -34,7 +38,7 @@ def fake_provider():
     """A provider that reports success without touching the network."""
     provider = AsyncMock()
     provider.send_email.return_value = True
-    with patch("rs_shared.core.tasks.get_email_provider", return_value=provider):
+    with patch("rs_shared.core.email_tasks.get_email_provider", return_value=provider):
         yield provider
 
 
@@ -174,7 +178,7 @@ async def test_transient_failure_returns_row_to_pending_and_raises(session, outb
     provider = AsyncMock()
     provider.send_email.side_effect = RuntimeError("SES throttled")
 
-    with patch("rs_shared.core.tasks.get_email_provider", return_value=provider):
+    with patch("rs_shared.core.email_tasks.get_email_provider", return_value=provider):
         with pytest.raises(RuntimeError, match="SES throttled"):
             await send_outbox_email_task(outbox_id)
 
@@ -189,7 +193,7 @@ async def test_provider_returning_false_is_treated_as_a_failure(session, outbox_
     provider = AsyncMock()
     provider.send_email.return_value = False
 
-    with patch("rs_shared.core.tasks.get_email_provider", return_value=provider):
+    with patch("rs_shared.core.email_tasks.get_email_provider", return_value=provider):
         with pytest.raises(RuntimeError, match="returned False"):
             await send_outbox_email_task(outbox_id)
 
@@ -206,7 +210,7 @@ async def test_row_is_parked_as_failed_once_attempts_are_exhausted(session, outb
     provider = AsyncMock()
     provider.send_email.side_effect = RuntimeError("still failing")
 
-    with patch("rs_shared.core.tasks.get_email_provider", return_value=provider):
+    with patch("rs_shared.core.email_tasks.get_email_provider", return_value=provider):
         # No raise — the message is done being retried.
         result = await send_outbox_email_task(outbox_id)
 
