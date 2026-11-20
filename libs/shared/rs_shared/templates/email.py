@@ -339,25 +339,23 @@ def build_application_received_html(
     )
 
 
-def build_new_application_admin_html(
-    candidate_name: str,
-    candidate_email: str,
-    candidate_phone: str | None,
-    candidate_linkedin: str | None,
-    job_title: str,
-    company_name: str,
+def build_admin_application_digest_html(
+    total: int,
+    jobs: list[dict],
     admin_url: str,
+    others: str | None = None,
 ) -> str:
+    """Daily admin digest. ``jobs``: dicts with title, company_name, count,
+    applicants (``[{name, status_label}]``) and more (names not listed).
+    ``others``: optional summary line for jobs not listed."""
+    count = "מועמדות חדשה אחת" if total == 1 else f"{total} מועמדויות חדשות"
     return _render(
-        "new_application_admin.html",
-        subject=f"מועמדות חדשה — {job_title} / {company_name}",
-        preheader=f"{candidate_name} הגיש/ה מועמדות למשרת {job_title}.",
-        candidate_name=candidate_name,
-        candidate_email=candidate_email,
-        candidate_phone=candidate_phone,
-        candidate_linkedin=candidate_linkedin,
-        job_title=job_title,
-        company_name=company_name,
+        "admin_application_digest.html",
+        subject=f"סיכום מועמדויות יומי — {count}",
+        preheader=f"{count} מאז הסיכום הקודם.",
+        total=total,
+        jobs=jobs,
+        others=others,
         admin_url=admin_url,
     )
 

@@ -110,8 +110,11 @@ must be idempotent. Full rules: `.claude/rules/worker.md`.
 
 Current tasks: `send_outbox_email_task`, `sweep_email_outbox_task`,
 `build_data_export_task` (GDPR export ZIP), `purge_expired_candidate_data_task`
-(nightly retention purge via EventBridge Scheduler → SQS), and `embed_job_task` /
-`match_candidate_task` (resume-matching embeddings, in `core/matching.py`).
+(nightly retention purge via EventBridge Scheduler → SQS), `send_admin_digest_task`
+(08:00 Israel admin digest of new applications, also EventBridge → SQS; the only
+admin email about applications — there is no per-application one), and
+`embed_job_task` / `match_candidate_task` (resume-matching embeddings, in
+`core/matching.py`).
 
 ### Email goes through the outbox
 

@@ -243,7 +243,6 @@ async def test_create_candidate_profile_sends_candidate_confirmation_email(
             session=session,
         )
 
-    # First call is the candidate confirmation; second is the admin notification.
     candidate_call = mock_enqueue_email.call_args_list[0].kwargs
     assert candidate_call["to"] == "john@example.com"
     assert "John Doe" in candidate_call["body"]
@@ -254,21 +253,26 @@ async def test_create_candidate_profile_sends_candidate_confirmation_email(
 
 @pytest.mark.asyncio
 @patch("rs_shared.services.public._application_helpers.queue_email")
-async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
+async def test_create_candidate_profile_does_not_email_admins(
     mock_enqueue_email,
     session: AsyncSession,
     company_with_user,
     monkeypatch,
 ):
-    """When ADMIN_NOTIFICATION_EMAIL is unset, every active admin is notified."""
+    """Admins hear about applications in the daily digest, not one email each.
+
+    Regression for #1159: every application used to email every admin
+    immediately. Only the candidate's own confirmation is queued now.
+    """
     from rs_shared.core.infrastructure.config import settings as runtime_settings
     from rs_shared.core.infrastructure.security import get_password_hash
     from rs_shared.enums import UserRole
     from rs_shared.models import User
 
-    monkeypatch.setattr(runtime_settings, "admin_notification_email", None)
+    monkeypatch.setattr(
+        runtime_settings, "admin_notification_email", "ops@rsrecruit.test"
+    )
     mock_enqueue_email.return_value = "test-job-id"
-
     session.add(
         User(
             email="admin@test.com",
@@ -278,7 +282,6 @@ async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
         )
     )
     await session.commit()
-
     job = await _make_published_job(session, company_with_user)
 
     async with transactional(session):
@@ -288,39 +291,8 @@ async def test_create_candidate_profile_admin_email_falls_back_to_all_admins(
             session=session,
         )
 
-    assert mock_enqueue_email.call_count == 2  # candidate + admin
-    admin_call = mock_enqueue_email.call_args_list[1].kwargs
-    assert admin_call["to"] == ["admin@test.com"]
-    assert "John Doe" in admin_call["html_body"]
-    assert job.title in admin_call["html_body"]
-
-
-@pytest.mark.asyncio
-@patch("rs_shared.services.public._application_helpers.queue_email")
-async def test_create_candidate_profile_admin_email_uses_env_var_when_set(
-    mock_enqueue_email,
-    session: AsyncSession,
-    company_with_user,
-    monkeypatch,
-):
-    """ADMIN_NOTIFICATION_EMAIL routes the admin notification to a single recipient."""
-    from rs_shared.core.infrastructure.config import settings as runtime_settings
-
-    monkeypatch.setattr(
-        runtime_settings, "admin_notification_email", "ops@rsrecruit.test"
-    )
-    mock_enqueue_email.return_value = "test-job-id"
-    job = await _make_published_job(session, company_with_user)
-
-    async with transactional(session):
-        await create_candidate_profile(
-            candidate_data=_default_candidate(phone="050-123-4567"),
-            job_id=job.id,
-            session=session,
-        )
-
-    admin_call = mock_enqueue_email.call_args_list[1].kwargs
-    assert admin_call["to"] == "ops@rsrecruit.test"
+    recipients = [call.kwargs["to"] for call in mock_enqueue_email.call_args_list]
+    assert recipients == ["john@example.com"]
 
 
 # ── Argument validation ───────────────────────────────────────────────────────

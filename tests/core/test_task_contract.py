@@ -9,6 +9,7 @@ from rs_shared.core.task_contract import (
     build_embed_job_message,
     build_match_candidate_message,
     build_purge_message,
+    build_send_admin_digest_message,
     decode_message,
 )
 
@@ -40,6 +41,11 @@ def test_embed_and_match_and_purge_shapes():
         "candidate_id": 9,
     }
     assert build_purge_message() == {"task": "purge_expired_candidates"}
+
+
+def test_admin_digest_shape_is_stable():
+    """rs-recruiting-infra's EventBridge schedule hardcodes this exact body."""
+    assert build_send_admin_digest_message() == {"task": "send_admin_digest"}
 
 
 def test_email_attachments_round_trip_through_json():

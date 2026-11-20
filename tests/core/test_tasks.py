@@ -15,6 +15,7 @@ from rs_shared.core.tasks import (
     enqueue_email_task,
     match_candidate_task,
     nightly_cleanup_task,
+    send_admin_digest_task,
     send_email_task,
 )
 from rs_shared.enums import EmailStatus, UserRole
@@ -381,6 +382,44 @@ def test_task_registry_contains_expected_tasks():
     # Still registered under the old key for EventBridge backward compat.
     assert "purge_expired_candidates" in TASK_REGISTRY
     assert TASK_REGISTRY["purge_expired_candidates"] is nightly_cleanup_task
+    # EventBridge Scheduler (rs-recruiting-infra, modules/sqs) sends this key.
+    assert TASK_REGISTRY["send_admin_digest"] is send_admin_digest_task
+
+
+# ---------------------------------------------------------------------------
+# send_admin_digest_task — scheduled daily digest
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_admin_digest_task_runs_the_digest_in_its_own_transaction(
+    session_local_factory,
+):
+    digest = AsyncMock(return_value=3)
+    with (
+        patch("rs_shared.core.tasks.async_session", session_local_factory),
+        patch(
+            "rs_shared.services.admin.application_digest.send_application_digest",
+            digest,
+        ),
+    ):
+        assert await send_admin_digest_task() == 3
+
+    digest.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_admin_digest_task_propagates_failures(session_local_factory):
+    """A swallowed error would ack the SQS message and silently skip the day."""
+    with (
+        patch("rs_shared.core.tasks.async_session", session_local_factory),
+        patch(
+            "rs_shared.services.admin.application_digest.send_application_digest",
+            AsyncMock(side_effect=RuntimeError("db down")),
+        ),
+        pytest.raises(RuntimeError, match="db down"),
+    ):
+        await send_admin_digest_task()
 
 
 # ---------------------------------------------------------------------------

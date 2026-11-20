@@ -396,6 +396,25 @@ async def nightly_cleanup_task() -> dict:
     return results
 
 
+async def send_admin_digest_task() -> int:
+    """Daily digest of new applications to the admins.
+
+    Triggered at 08:00 Asia/Jerusalem by EventBridge Scheduler → SQS (task key
+    ``send_admin_digest``; the schedule lives in rs-recruiting-infra). Replaces
+    the per-application admin email. Idempotent per Israel calendar day via the
+    outbox ``dedup_key``, so an SQS redelivery cannot send a second digest.
+
+    Failures propagate on purpose: the message goes back to SQS for retry
+    (eventually the DLQ, which alerts), instead of being acked and the day's
+    digest silently skipped. Returns the number of applications in the digest.
+    """
+    from rs_shared.services.admin.application_digest import send_application_digest
+
+    async with async_session() as session:
+        async with transactional(session):
+            return await send_application_digest(session)
+
+
 # ---------------------------------------------------------------------------
 # Producer — enqueue into SQS (or run inline when SQS_QUEUE_URL is not set)
 # ---------------------------------------------------------------------------
@@ -574,4 +593,5 @@ TASK_REGISTRY: dict = {
     TaskName.PURGE_EXPIRED_CANDIDATES: nightly_cleanup_task,
     TaskName.EMBED_JOB: embed_job_task,
     TaskName.MATCH_CANDIDATE: match_candidate_task,
+    TaskName.SEND_ADMIN_DIGEST: send_admin_digest_task,
 }

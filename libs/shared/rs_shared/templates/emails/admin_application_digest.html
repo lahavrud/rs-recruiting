@@ -1,0 +1,68 @@
+{% extends "_base.html" %}
+
+{% block content %}
+{% set sans = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif" %}
+<h2 class="thi"
+    style="margin:0 0 8px;font-size:22px;font-weight:300;line-height:1.3;
+           color:{{ c_text }};font-family:{{ sans }};">
+  סיכום מועמדויות יומי
+</h2>
+
+<p class="thi"
+   style="margin:0 0 20px;font-size:14px;line-height:1.7;color:{{ c_text }};font-family:{{ sans }};">
+  {% if total == 1 %}התקבלה <strong>מועמדות חדשה אחת</strong>{% else %}התקבלו <strong>{{ total }} מועמדויות חדשות</strong>{% endif %}
+  מאז הסיכום הקודם.
+</p>
+
+<div class="hr" style="border:0;border-top:1px solid {{ c_border }};margin:0 0 20px;"></div>
+
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin:0 0 28px;">
+  {% for job in jobs %}
+  <tr>
+    <td style="padding:12px 0;{% if not loop.last %}border-bottom:1px solid {{ c_border }};{% endif %}">
+      <p class="thi" style="margin:0;font-size:15px;color:{{ c_text }};font-family:{{ sans }};">
+        <strong>{{ job.title }}</strong> ·
+        <span style="color:{{ c_copper }};font-weight:500;">{{ job.company_name }}</span>
+        <span class="tmi" style="color:{{ c_muted }};font-size:13px;">({{ job.count }})</span>
+      </p>
+      {% for applicant in job.applicants %}
+      <p class="thi" style="margin:6px 0 0;font-size:14px;color:{{ c_text }};font-family:{{ sans }};">
+        {{ applicant.name }}
+        {% if applicant.status_label %}
+        <span class="tmi" style="color:{{ c_muted }};font-size:12px;font-family:Arial,sans-serif;">— {{ applicant.status_label }}</span>
+        {% endif %}
+      </p>
+      {% endfor %}
+      {% if job.more %}
+      <p class="tmi" style="margin:6px 0 0;font-size:13px;color:{{ c_muted }};font-family:Arial,sans-serif;">
+        ועוד {{ job.more }}
+      </p>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  {% if others %}
+  <tr>
+    <td style="padding:12px 0;border-top:1px solid {{ c_border }};">
+      <p class="tmi" style="margin:0;font-size:14px;color:{{ c_muted }};font-family:{{ sans }};">
+        {{ others }}
+      </p>
+    </td>
+  </tr>
+  {% endif %}
+</table>
+
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%">
+  <tr>
+    <td align="center">
+      <a href="{{ admin_url }}" target="_blank"
+         style="display:inline-block;background:{{ c_copper }};color:{{ c_copper_text }};
+                text-decoration:none;font-family:Arial,sans-serif;
+                font-size:13px;font-weight:700;letter-spacing:1px;
+                padding:16px 36px;border-radius:4px;">
+        מעבר לניהול מועמדויות
+      </a>
+    </td>
+  </tr>
+</table>
+{% endblock %}
