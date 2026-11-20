@@ -49,6 +49,9 @@ DIGEST_TZ = ZoneInfo("Asia/Jerusalem")
 FIRST_DIGEST_WINDOW = timedelta(hours=24)
 MAX_LOOKBACK = timedelta(days=7)
 NAMES_PER_JOB = 10
+# Busiest jobs listed in full; the rest collapse into one summary line so a
+# busy day doesn't produce a wall of names. The total still counts them all.
+JOBS_LIMIT = 5
 
 # Mirrors frontend/src/locales/he/admin.json → applications.statusLabels.
 STATUS_LABELS: dict[ApplicationStatus, str] = {
@@ -85,7 +88,8 @@ async def send_application_digest(
         logger.warning("admin_digest_no_recipients", extra={"applications": len(rows)})
         return 0
 
-    jobs = _group_by_job(rows)
+    all_jobs = _group_by_job(rows)
+    jobs, others = all_jobs[:JOBS_LIMIT], _others_phrase(all_jobs[JOBS_LIMIT:])
     total = len(rows)
     admin_url = f"{settings.frontend_base_url}/login?redirect=/admin/applications"
     day = now.astimezone(DIGEST_TZ).date().isoformat()
@@ -94,9 +98,9 @@ async def send_application_digest(
         session,
         to=recipients,
         subject=f"סיכום מועמדויות יומי — {_count_phrase(total)}",
-        body=_plain_text(jobs, total, admin_url),
+        body=_plain_text(jobs, others, total, admin_url),
         html_body=build_admin_application_digest_html(
-            total=total, jobs=jobs, admin_url=admin_url
+            total=total, jobs=jobs, others=others, admin_url=admin_url
         ),
         dedup_key=f"{DIGEST_KEY_PREFIX}{day}",
     )
@@ -106,7 +110,7 @@ async def send_application_digest(
 
     logger.info(
         "admin_digest_sent",
-        extra={"applications": total, "jobs": len(jobs), "outbox_id": outbox_id},
+        extra={"applications": total, "jobs": len(all_jobs), "outbox_id": outbox_id},
     )
     return total
 
@@ -178,7 +182,19 @@ def _count_phrase(total: int) -> str:
     return "מועמדות חדשה אחת" if total == 1 else f"{total} מועמדויות חדשות"
 
 
-def _plain_text(jobs: list[dict], total: int, admin_url: str) -> str:
+def _others_phrase(rest: list[dict]) -> str | None:
+    """Summary line for jobs past JOBS_LIMIT, e.g. "ועוד 2 משרות עם 3 מועמדויות"."""
+    if not rest:
+        return None
+    jobs = "משרה אחת" if len(rest) == 1 else f"{len(rest)} משרות"
+    count = sum(j["count"] for j in rest)
+    applications = "מועמדות אחת" if count == 1 else f"{count} מועמדויות"
+    return f"ועוד {jobs} עם {applications}"
+
+
+def _plain_text(
+    jobs: list[dict], others: str | None, total: int, admin_url: str
+) -> str:
     lines = [f"סיכום מועמדויות יומי — {_count_phrase(total)}", ""]
     for job in jobs:
         lines.append(f"{job['title']} ({job['company_name']}) — {job['count']}")
@@ -188,5 +204,7 @@ def _plain_text(jobs: list[dict], total: int, admin_url: str) -> str:
         if job["more"]:
             lines.append(f"  ועוד {job['more']}")
         lines.append("")
+    if others:
+        lines.extend([others, ""])
     lines.append(f"מעבר לניהול: {admin_url}")
     return "\n".join(lines)

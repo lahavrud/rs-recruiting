@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.enums import ApplicationStatus, UserRole
+from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
 from rs_shared.models import Application, CandidateProfile, EmailOutbox, Job, User
 from rs_shared.services.admin.application_digest import (
     DIGEST_KEY_PREFIX,
+    JOBS_LIMIT,
     NAMES_PER_JOB,
     send_application_digest,
 )
@@ -262,3 +263,62 @@ async def test_no_recipients_sends_nothing(session: AsyncSession, published_job:
 
     assert await _run(session) == 0
     assert await _digests(session) == []
+
+
+@pytest.mark.asyncio
+async def test_lists_only_the_busiest_jobs_and_summarises_the_rest(
+    session: AsyncSession, admin: User, company_profile
+):
+    """Past JOBS_LIMIT jobs the rest collapse into one line, so the email stays
+    short on a busy day; the total still counts every application."""
+    jobs = []
+    for i in range(JOBS_LIMIT + 2):
+        job = Job(
+            company_id=company_profile.id,
+            title=f"Role {i}",
+            short_description="-",
+            description="-",
+            requirements=[],
+            tags=[],
+            location="Tel Aviv",
+            salary_min=1,
+            salary_max=2,
+            status=JobStatus.PUBLISHED,
+        )
+        session.add(job)
+        jobs.append(job)
+    await session.flush()
+    # Role i gets (7 - i) applications: Role 0 is busiest, and the two
+    # quietest (Role 5 with 2, Role 6 with 1) fall past the limit.
+    for i, job in enumerate(jobs):
+        for n in range(len(jobs) - i):
+            await _apply(session, job, f"Applicant {i}-{n}", NOW - timedelta(hours=1))
+
+    total = sum(range(1, len(jobs) + 1))
+    assert await _run(session) == total
+
+    [digest] = await _digests(session)
+    html = digest.html_body or ""
+    for i in range(JOBS_LIMIT):
+        assert f"Role {i}" in html
+        assert f"Role {i}" in digest.body
+    for i in (JOBS_LIMIT, JOBS_LIMIT + 1):
+        assert f"Role {i}" not in html
+        assert f"Role {i}" not in digest.body
+    # Role 5 has 2 applications and Role 6 has 1.
+    assert "ועוד 2 משרות עם 3 מועמדויות" in html
+    assert "ועוד 2 משרות עם 3 מועמדויות" in digest.body
+    assert str(total) in digest.subject
+
+
+@pytest.mark.asyncio
+async def test_no_summary_line_when_jobs_fit(
+    session: AsyncSession, admin: User, published_job: Job
+):
+    await _apply(session, published_job, "Solo", NOW - timedelta(hours=1))
+
+    await _run(session)
+
+    [digest] = await _digests(session)
+    assert "משרות עם" not in (digest.html_body or "")
+    assert "משרות עם" not in digest.body

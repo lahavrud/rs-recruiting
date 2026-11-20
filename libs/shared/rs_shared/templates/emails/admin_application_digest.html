@@ -41,6 +41,15 @@
     </td>
   </tr>
   {% endfor %}
+  {% if others %}
+  <tr>
+    <td style="padding:12px 0;border-top:1px solid {{ c_border }};">
+      <p class="tmi" style="margin:0;font-size:14px;color:{{ c_muted }};font-family:{{ sans }};">
+        {{ others }}
+      </p>
+    </td>
+  </tr>
+  {% endif %}
 </table>
 
 <table cellpadding="0" cellspacing="0" role="presentation" width="100%">

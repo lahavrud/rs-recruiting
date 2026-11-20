@@ -343,9 +343,11 @@ def build_admin_application_digest_html(
     total: int,
     jobs: list[dict],
     admin_url: str,
+    others: str | None = None,
 ) -> str:
     """Daily admin digest. ``jobs``: dicts with title, company_name, count,
-    applicants (``[{name, status_label}]``) and more (names not listed)."""
+    applicants (``[{name, status_label}]``) and more (names not listed).
+    ``others``: optional summary line for jobs not listed."""
     count = "מועמדות חדשה אחת" if total == 1 else f"{total} מועמדויות חדשות"
     return _render(
         "admin_application_digest.html",
@@ -353,6 +355,7 @@ def build_admin_application_digest_html(
         preheader=f"{count} מאז הסיכום הקודם.",
         total=total,
         jobs=jobs,
+        others=others,
         admin_url=admin_url,
     )
 
