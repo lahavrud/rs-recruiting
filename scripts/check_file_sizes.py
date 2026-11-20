@@ -10,10 +10,15 @@ This script enforces file size limits to prevent "fat" files:
 import sys
 from pathlib import Path
 
+# Paths are the uv-workspace homes of the old src/api, src/services and src/core
+# (split in a7798668; until this was fixed the map still pointed at src/, so the
+# check scanned nothing). A missing directory is an error, not a skip, so a
+# future move can't silently disable it again.
 MAX_LINES = {
-    "src/api": 200,
-    "src/services": 300,
-    "src/core": 300,
+    "services/api/rs_api/api": 200,
+    "libs/shared/rs_shared/services": 300,
+    "libs/shared/rs_shared/core": 300,
+    "services/api/rs_api/infrastructure": 300,
 }
 
 
@@ -33,7 +38,8 @@ def check_file_sizes():
 
     for directory, max_lines in MAX_LINES.items():
         dir_path = Path(directory)
-        if not dir_path.exists():
+        if not dir_path.is_dir():
+            violations.append(f"{directory}: configured directory does not exist")
             continue
 
         for py_file in dir_path.rglob("*.py"):

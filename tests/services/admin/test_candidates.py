@@ -1029,3 +1029,93 @@ async def test_get_candidate_job_matches_unknown_candidate_raises(
 
     with pytest.raises(CandidateNotFoundError):
         await get_candidate_job_matches(999999, session)
+
+
+# ---------------------------------------------------------------------------
+# list_candidates(sort="score") — AI ranking and its recency fallback
+# ---------------------------------------------------------------------------
+
+
+def _scoring_job(company_id: int, embedding: list[float] | None) -> Job:
+    return Job(
+        company_id=company_id,
+        title="Scored",
+        short_description="x",
+        description="y",
+        requirements=[{"text": "a"}, {"text": "b"}, {"text": "c"}],
+        tags=[],
+        location="Tel Aviv",
+        salary_min=1,
+        salary_max=2,
+        status=JobStatus.PUBLISHED,
+        embedding=embedding,
+    )
+
+
+async def _seed_scored_candidates(session: AsyncSession) -> None:
+    """Three candidates: oldest matches the job axis exactly, middle is
+    orthogonal, newest has no embedding."""
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    session.add_all(
+        [
+            CandidateProfile(
+                full_name="Best",
+                email="best@example.com",
+                embedding=_basis_vec(0),
+                created_at=base,
+            ),
+            CandidateProfile(
+                full_name="Worst",
+                email="worst@example.com",
+                embedding=_basis_vec(1),
+                created_at=base + timedelta(minutes=1),
+            ),
+            CandidateProfile(
+                full_name="Unembedded",
+                email="none@example.com",
+                created_at=base + timedelta(minutes=2),
+            ),
+        ]
+    )
+    await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_score_sort_ranks_embedded_candidates_by_similarity(
+    session: AsyncSession, company_profile
+):
+    await _seed_scored_candidates(session)
+    job = _scoring_job(company_profile.id, _basis_vec(0))
+    session.add(job)
+    await session.flush()
+
+    page = await list_candidates(session, sort="score", job_id=job.id)
+
+    assert [c.full_name for c in page.items] == ["Best", "Worst"]
+    assert [c.ai_score for c in page.items] == [1.0, 0.0]
+    assert page.next_cursor is None
+
+
+@pytest.mark.asyncio
+async def test_score_sort_falls_back_to_recency_when_job_has_no_embedding(
+    session: AsyncSession, company_profile
+):
+    await _seed_scored_candidates(session)
+    job = _scoring_job(company_profile.id, None)
+    session.add(job)
+    await session.flush()
+
+    page = await list_candidates(session, sort="score", job_id=job.id)
+
+    assert [c.full_name for c in page.items] == ["Unembedded", "Worst", "Best"]
+    assert all(c.ai_score is None for c in page.items)
+
+
+@pytest.mark.asyncio
+async def test_score_sort_without_job_falls_back_to_recency(session: AsyncSession):
+    await _seed_scored_candidates(session)
+
+    page = await list_candidates(session, sort="score", order="asc")
+
+    # The fallback is always newest-first, whatever order was asked for.
+    assert [c.full_name for c in page.items] == ["Unembedded", "Worst", "Best"]

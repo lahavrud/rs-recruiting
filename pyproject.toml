@@ -120,14 +120,15 @@ modules = [
 # other, so ignoring them keeps this contract testing direct domain coupling
 # rather than laundering a false violation. (The shared-layer-imports-domain
 # smell is a separate, pre-existing layering concern, out of scope here.)
-#   - core.tasks lazily dispatches to the task functions that implement each
-#     job, which live in their owning domain.
+#   - core.tasks and core.scheduled_tasks (split out of it) lazily dispatch to
+#     the task functions that implement each job, which live in their owning
+#     domain.
 #   - templates.email reads one password-reset TTL constant to render the email.
 ignore_imports = [
     "rs_shared.core.tasks -> rs_shared.services.candidate.data_export",
-    "rs_shared.core.tasks -> rs_shared.services.admin._candidates_purge",
-    "rs_shared.core.tasks -> rs_shared.services.admin.maintenance",
-    "rs_shared.core.tasks -> rs_shared.services.admin.application_digest",
+    "rs_shared.core.scheduled_tasks -> rs_shared.services.admin._candidates_purge",
+    "rs_shared.core.scheduled_tasks -> rs_shared.services.admin.maintenance",
+    "rs_shared.core.scheduled_tasks -> rs_shared.services.admin.application_digest",
     "rs_shared.templates.email -> rs_shared.services.auth.password_reset",
 ]
 

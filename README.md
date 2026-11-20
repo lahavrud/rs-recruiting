@@ -215,6 +215,7 @@ rs-recruiting/
 │   │                          #   auth/ admin/ company/ candidate/ public/ utils/
 │   └── core/
 │       ├── tasks.py  task_contract.py  matching.py   # SQS task queue + résumé matching
+│       ├── email_tasks.py  scheduled_tasks.py        # task implementations
 │       ├── infrastructure/    # config, database, security, pagination, telemetry
 │       └── services/          # provider ABCs: email, storage, embeddings, cv_extraction
 ├── services/api/rs_api/       # FastAPI service
