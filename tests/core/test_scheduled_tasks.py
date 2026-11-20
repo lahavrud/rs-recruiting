@@ -79,6 +79,10 @@ def _patch_all_subtasks_returning(counts: dict[str, int]):
             f"{base}.maintenance.purge_expired_email_outbox",
             new=AsyncMock(return_value=counts.get("purge_email_outbox", 0)),
         ),
+        patch(
+            f"{base}.maintenance.purge_expired_login_throttle",
+            new=AsyncMock(return_value=counts.get("purge_login_throttle", 0)),
+        ),
     ]
 
 
@@ -106,6 +110,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     activation_counter = MagicMock()
     outbox_redacted_counter = MagicMock()
     outbox_purged_counter = MagicMock()
+    login_throttle_counter = MagicMock()
     gauge = MagicMock()
 
     counts = {
@@ -116,9 +121,10 @@ async def test_nightly_cleanup_records_otel_metrics():
         "purge_activation_tokens": 4,
         "redact_email_outbox": 6,
         "purge_email_outbox": 8,
+        "purge_login_throttle": 9,
     }
     s_patch, t_patch = _patch_session_noop()
-    p0, p1, p2, p3, p4, p5, p6 = _patch_all_subtasks_returning(counts)
+    p0, p1, p2, p3, p4, p5, p6, p7 = _patch_all_subtasks_returning(counts)
     with (
         p0,
         p1,
@@ -127,6 +133,7 @@ async def test_nightly_cleanup_records_otel_metrics():
         p4,
         p5,
         p6,
+        p7,
         s_patch,
         t_patch,
         patch("rs_shared.core.scheduled_tasks._purged_counter", purged_counter),
@@ -150,6 +157,10 @@ async def test_nightly_cleanup_records_otel_metrics():
             "rs_shared.core.scheduled_tasks._outbox_purged_counter",
             outbox_purged_counter,
         ),
+        patch(
+            "rs_shared.core.scheduled_tasks._login_throttle_purged_counter",
+            login_throttle_counter,
+        ),
         patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge", gauge),
         patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
     ):
@@ -166,6 +177,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     activation_counter.add.assert_called_once_with(4, attrs)
     outbox_redacted_counter.add.assert_called_once_with(6, attrs)
     outbox_purged_counter.add.assert_called_once_with(8, attrs)
+    login_throttle_counter.add.assert_called_once_with(9, attrs)
     gauge.set.assert_called_once()
 
 
@@ -206,6 +218,10 @@ async def test_nightly_cleanup_continues_after_subtask_failure():
             "rs_shared.services.admin.maintenance.purge_expired_email_outbox",
             new=AsyncMock(return_value=0),
         ),
+        patch(
+            "rs_shared.services.admin.maintenance.purge_expired_login_throttle",
+            new=AsyncMock(return_value=0),
+        ),
         s_patch,
         t_patch,
         patch("rs_shared.core.scheduled_tasks._purged_counter"),
@@ -215,6 +231,7 @@ async def test_nightly_cleanup_continues_after_subtask_failure():
         patch("rs_shared.core.scheduled_tasks._activation_tokens_counter"),
         patch("rs_shared.core.scheduled_tasks._outbox_redacted_counter"),
         patch("rs_shared.core.scheduled_tasks._outbox_purged_counter"),
+        patch("rs_shared.core.scheduled_tasks._login_throttle_purged_counter"),
         patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge"),
         patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
     ):

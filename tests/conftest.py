@@ -230,25 +230,44 @@ def mock_password_reset_rate_limit():
         yield
 
 
-@pytest.fixture(autouse=True)
-def _mock_lockout_db_writes():
-    """Prevent _record_failed_attempt and _clear_failed_attempts from writing
-    to the test DB via independent sessions, which bypass test-transaction rollback.
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "real_login_throttle: record/clear login-throttle rows for real "
+        "(default: stubbed; see _login_throttle_uses_test_db)",
+    )
 
-    Tests that specifically test lockout or failed-attempt accounting should
-    override these mocks locally.
+
+@pytest.fixture(autouse=True)
+def _login_throttle_uses_test_db(request):
+    """Point login throttling at the per-run test DB, writes stubbed by default.
+
+    ``login_throttle`` opens its own sessions (a failed login rolls back the
+    request's session), and the app's own session factory is bound to the base
+    DB, not the per-run test DB — so it is redirected here for every test.
+    Reads (``check_login_allowed``) always run for real. Writes are stubbed so
+    unrelated tests that fail a login can't throttle later ones; tests about
+    throttling itself opt in with ``@pytest.mark.real_login_throttle`` (rows
+    are wiped by the ``test_db`` TRUNCATE).
     """
-    with (
-        patch(
-            "rs_shared.services.auth.login._record_failed_attempt",
-            new_callable=AsyncMock,
-        ),
-        patch(
-            "rs_shared.services.auth.login._clear_failed_attempts",
-            new_callable=AsyncMock,
-        ),
-    ):
-        yield
+    from rs_shared.services.auth import login_throttle
+
+    with patch.object(login_throttle, "_session_factory", lambda: TestSessionLocal):
+        if request.node.get_closest_marker("real_login_throttle"):
+            yield
+            return
+        with (
+            patch.object(
+                login_throttle, "record_login_failure", new_callable=AsyncMock
+            ),
+            patch.object(
+                login_throttle, "clear_login_failures", new_callable=AsyncMock
+            ),
+            patch.object(
+                login_throttle, "clear_all_login_failures", new_callable=AsyncMock
+            ),
+        ):
+            yield
 
 
 @pytest.fixture(autouse=True)

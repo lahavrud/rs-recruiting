@@ -209,3 +209,28 @@ class TestJWTTokenDecoding:
     def test_decode_access_token_none(self):
         """Test decoding with None returns None."""
         assert decode_access_token(None) is None  # type: ignore[arg-type]
+
+
+class TestBcryptByteLimit:
+    """bcrypt>=5 raises above 72 bytes; is_password_valid must not (#1167)."""
+
+    def test_over_limit_returns_false_instead_of_raising(self):
+        hashed = get_password_hash("Short1!pw")
+        assert is_password_valid("a" * 73, hashed) is False
+        assert is_password_valid("א" * 40, hashed) is False  # 80 bytes
+
+    def test_over_limit_never_matches_its_own_72_byte_prefix(self):
+        """Comparing only the first 72 bytes must not turn a too-long password
+        into a match for a hash of its prefix."""
+        prefix = "P1!" + "x" * 69  # exactly 72 bytes
+        hashed = get_password_hash(prefix)
+        assert is_password_valid(prefix, hashed) is True
+        assert is_password_valid(prefix + "y", hashed) is False
+
+    def test_limit_matches_schema_constant(self):
+        from rs_shared.core.infrastructure.security import BCRYPT_MAX_PASSWORD_BYTES
+        from rs_shared.schemas.auth import (
+            BCRYPT_MAX_PASSWORD_BYTES as SCHEMA_LIMIT,
+        )
+
+        assert BCRYPT_MAX_PASSWORD_BYTES == SCHEMA_LIMIT == 72
