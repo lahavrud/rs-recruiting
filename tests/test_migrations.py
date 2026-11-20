@@ -13,6 +13,7 @@ so the DDL those migrations emit is verified by the model tests instead.
 """
 
 import importlib.util
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -285,3 +286,131 @@ async def test_swept_rows_become_purgeable_again(
         await session.commit()
 
         assert await purge_expired_candidates(session) == 1
+
+
+# ---------------------------------------------------------------------------
+# Every model table must be created by some migration (#1058)
+# ---------------------------------------------------------------------------
+
+_CREATE_TABLE_PATTERNS = (
+    re.compile(r"""create_table\(\s*["']([a-z_]+)["']"""),
+    re.compile(r"""CREATE TABLE (?:IF NOT EXISTS )?"?([a-z_]+)"?""", re.IGNORECASE),
+)
+
+
+def _tables_created_by_migrations() -> set[str]:
+    created: set[str] = set()
+    for path in _VERSIONS.glob("*.py"):
+        source = path.read_text()
+        for pattern in _CREATE_TABLE_PATTERNS:
+            created.update(pattern.findall(source))
+    return created
+
+
+def test_every_model_table_is_created_by_a_migration():
+    """A model without a migration exists in dev and test (create_all) but not
+    on a database built from the chain. That is how activationtoken,
+    refreshtoken and audit_log existed on prod only thanks to a one-time
+    create_all, and why the chain could not run from empty (#1058).
+
+    The mirror case, a migration-only table, is the email_quota lesson in
+    .claude/rules/migrations.md: add the model too.
+    """
+    from sqlmodel import SQLModel
+
+    import rs_shared.models  # noqa: F401  (registers every table)
+
+    missing = set(SQLModel.metadata.tables) - _tables_created_by_migrations()
+    assert not missing, (
+        f"model tables no migration creates: {sorted(missing)}. Add a "
+        "migration that creates them (see d84645c6404c for one inserted "
+        "mid-chain)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# d84645c6404c: tables that were only ever built by create_all
+# ---------------------------------------------------------------------------
+
+_BOOTSTRAP_SCHEMA = "bootstrap_check"
+
+
+async def _columns(session: AsyncSession, schema: str, table: str) -> set[str]:
+    rows = await session.execute(
+        text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = :s AND table_name = :t"
+        ),
+        {"s": schema, "t": table},
+    )
+    return set(rows.scalars())
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_tables_are_created_in_their_mid_chain_shape(
+    session: AsyncSession,
+):
+    """On an empty schema the migration creates the three tables as they were
+    when c4d2a8f1e9b7 first needed them, with the constraint and index names
+    later migrations refer to."""
+    migration = _load_migration("d84645c6404c")
+    try:
+        await session.execute(text(f"CREATE SCHEMA {_BOOTSTRAP_SCHEMA}"))
+        # Only this schema on the path, so to_regclass can't see the test DB's
+        # create_all tables and the FK resolves to this schema's "user".
+        await session.execute(text(f"SET LOCAL search_path TO {_BOOTSTRAP_SCHEMA}"))
+        await session.execute(text('CREATE TABLE "user" (id SERIAL PRIMARY KEY)'))
+        for statement in migration.ALL_DDL:
+            await session.execute(text(statement))
+
+        s = _BOOTSTRAP_SCHEMA
+        assert await _columns(session, s, "activationtoken") == {
+            "id", "token", "company_user_id", "created_at", "expires_at", "used",
+        }  # fmt: skip
+        assert await _columns(session, s, "refreshtoken") == {
+            "id", "token_hash", "user_id", "expires_at", "is_revoked", "created_at",
+        }  # fmt: skip
+        assert await _columns(session, s, "audit_log") == {
+            "id", "actor_user_id", "action", "target_type", "target_id",
+            "detail", "ip_address", "created_at",
+        }  # fmt: skip
+
+        names = set(
+            (
+                await session.execute(
+                    text(
+                        "SELECT indexname FROM pg_indexes WHERE schemaname = :s "
+                        "UNION SELECT conname FROM pg_constraint c "
+                        "JOIN pg_namespace n ON n.oid = c.connamespace "
+                        "WHERE n.nspname = :s"
+                    ),
+                    {"s": s},
+                )
+            ).scalars()
+        )
+        assert {
+            "ix_activationtoken_token",  # dropped by c57f61e2f435
+            "ix_activationtoken_company_user_id",  # renamed by 8dbec9f8ada3
+            "activationtoken_company_user_id_fkey",  # recreated by c4d2a8f1e9b7
+            "refreshtoken_user_id_fkey",  # recreated by c4d2a8f1e9b7
+            "ix_refreshtoken_token_hash",
+            "ix_audit_log_created_at",
+        } <= names
+    finally:
+        await session.rollback()  # DDL is transactional: the schema goes too
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_migration_leaves_existing_tables_untouched(
+    session: AsyncSession,
+):
+    """A database that already has the tables (here: today's create_all shape,
+    where the old token/company_user_id columns no longer exist) is left alone
+    rather than failing on the mid-May index statements."""
+    migration = _load_migration("d84645c6404c")
+    for statement in migration.ALL_DDL:
+        await session.execute(text(statement))
+
+    columns = await _columns(session, "public", "activationtoken")
+    assert {"token_hash", "user_id"} <= columns
+    assert "token" not in columns and "company_user_id" not in columns
