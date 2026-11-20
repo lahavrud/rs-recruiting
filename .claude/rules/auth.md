@@ -8,8 +8,13 @@
 - No blacklist — short access TTL is the post-logout tolerance window
 - Refresh rotation: delete consumed token, issue new pair; replay of a consumed token nukes all the user's refresh tokens
 
-## Account lockout
-5 failed login attempts → locked for 15 minutes. Tracked on `User.locked_until` column.
+## Login throttling (not account lockout)
+Failed logins are throttled per **(email, client IP)** in the `login_throttle` table (`services/auth/login_throttle.py`): 5 free failures, then that pair alone is blocked 1 → 2 → 4 → 8 → 15 min (capped), even for the correct password. The same account from any other address is never blocked. Never reintroduce a per-account lock — it let anyone who knew an email lock its owner out.
+- Unknown emails are throttled identically (a 429 must not reveal account existence); the email is stored only as an HMAC.
+- Counters reset on success from the pair, on password reset (all pairs), and after 24h quiet; the nightly cleanup deletes stale rows.
+- Cross-IP backstop is **alert-only** (`login_account_under_attack` at ≥100 failures/hour), by design.
+- The throttle writes through its own session; in tests its writes are stubbed unless the test is marked `@pytest.mark.real_login_throttle`.
+- `User.failed_login_attempts` / `locked_until` are unused (to be dropped in a later release).
 
 ## Rate limiting (slowapi)
 The `@limiter.limit` decorators in `services/api/rs_api/api/auth/` are the source of truth. Current limits:
