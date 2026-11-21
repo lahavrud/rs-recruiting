@@ -41,7 +41,12 @@ export default function AdminCandidatesPage() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 200);
 
-  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
+  const {
+    sort,
+    order,
+    toggle,
+    set: setSort,
+  } = useColumnSort<"name" | "created_at">({
     column: "created_at",
     order: "desc",
   });
@@ -273,7 +278,7 @@ export default function AdminCandidatesPage() {
           <SortControl
             ariaLabel={t("admin:candidates.sort.label")}
             value={`${sort}:${order}`}
-            onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+            onChange={(col, ord) => setSort(col as "name" | "created_at", ord)}
             options={[
               { value: "created_at:desc", label: t("admin:candidates.sort.dateDesc") },
               { value: "created_at:asc", label: t("admin:candidates.sort.dateAsc") },

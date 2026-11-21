@@ -23,5 +23,14 @@ export function useColumnSort<TColumn extends string>(initial: {
     );
   }, []);
 
-  return { sort: state.column, order: state.order, toggle };
+  /**
+   * Apply an explicit column + direction — for the mobile `SortControl`, whose
+   * options each name a full sort. Unlike `toggle`, re-selecting the active
+   * option is a no-op instead of flipping the direction (#1181).
+   */
+  const set = useCallback((column: TColumn, order: SortOrder) => {
+    setState({ column, order });
+  }, []);
+
+  return { sort: state.column, order: state.order, toggle, set };
 }

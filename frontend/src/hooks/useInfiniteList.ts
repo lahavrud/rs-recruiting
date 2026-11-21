@@ -66,6 +66,11 @@ export function useInfiniteList<T>(
 
   const fetcherRef = useRef(fetcher);
   const inFlight = useRef(false);
+  // Bumped by every first-page (replace) fetch. A response whose generation is
+  // no longer current belongs to a superseded sort/filter: it is dropped, so
+  // neither its items nor its cursor (minted under the old sort key — the
+  // backend rejects it as `invalid_cursor`) leak into the new list.
+  const generation = useRef(0);
   const stateRef = useRef(state);
 
   useEffect(() => {
@@ -81,7 +86,11 @@ export function useInfiniteList<T>(
       replace: boolean,
       showLoading = true,
     ): Promise<void> => {
-      if (inFlight.current) return;
+      // Only load-more is deduplicated. A first-page fetch must never be
+      // skipped: it supersedes whatever is in flight (#1180).
+      if (!replace && inFlight.current) return;
+      if (replace) generation.current += 1;
+      const gen = generation.current;
       inFlight.current = true;
       setState((prev) =>
         replace
@@ -90,6 +99,7 @@ export function useInfiniteList<T>(
       );
       try {
         const page = await fetcherRef.current(nextCursor);
+        if (gen !== generation.current) return;
         setState((prev) => ({
           ...prev,
           items: replace ? page.items : [...prev.items, ...page.items],
@@ -100,6 +110,7 @@ export function useInfiniteList<T>(
           error: null,
         }));
       } catch (err) {
+        if (gen !== generation.current) return;
         const wrapped = err instanceof Error ? err : new Error(String(err));
         setState((prev) => ({
           ...prev,
@@ -108,7 +119,8 @@ export function useInfiniteList<T>(
           error: wrapped,
         }));
       } finally {
-        inFlight.current = false;
+        // A superseded request must not release the current one's slot.
+        if (gen === generation.current) inFlight.current = false;
       }
     },
     [],

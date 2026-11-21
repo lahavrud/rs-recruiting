@@ -51,9 +51,14 @@ export function useSortChain<TColumn extends string>(
     });
   }, []);
 
-  /** Collapse to a single-column sort — used by the mobile dropdown. */
-  const replace = useCallback((column: TColumn, order: SortOrder) => {
-    setChain([{ column, order }]);
+  /**
+   * Replace the whole chain — used by the mobile dropdown, whose options name
+   * a full sort (one key, or a primary + secondary like "status, newest
+   * first"). Capped at 2 keys like `click`; an empty chain is ignored.
+   */
+  const replace = useCallback((keys: readonly SortKey<TColumn>[]) => {
+    if (keys.length === 0) return;
+    setChain(keys.slice(0, 2));
   }, []);
 
   return { chain, click, replace };
