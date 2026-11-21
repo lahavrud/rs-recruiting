@@ -322,3 +322,50 @@ async def test_update_job_salary(
     assert response.status_code == 200
     assert response.json()["salary_min"] == 12000
     assert response.json()["salary_max"] == 15000
+
+
+@pytest.mark.asyncio
+async def test_company_status_change_via_api_is_audited_with_actor(
+    company_client: AsyncClient,
+    approved_company_user,
+    pending_job: Job,
+    candidate_profile,
+):
+    """End to end: the router must pass the company user through, or the audit
+    row exists but nobody can tell who hired the candidate."""
+    from sqlalchemy import select
+
+    from rs_shared.enums import ApplicationStatus
+    from rs_shared.models import Application, AuditLog
+
+    async with TestSessionLocal() as session:
+        app_row = Application(
+            job_id=pending_job.id,  # type: ignore[arg-type]
+            candidate_id=candidate_profile.id,
+            status=ApplicationStatus.APPROVED_BY_ADMIN,
+        )
+        session.add(app_row)
+        await session.commit()
+        await session.refresh(app_row)
+
+    response = await company_client.patch(
+        f"/api/jobs/{pending_job.id}/applications/{app_row.id}/status",
+        json={"status": "HIRED"},
+    )
+    assert response.status_code == 200
+
+    async with TestSessionLocal() as session:
+        [row] = (
+            (
+                await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.action == "application.status_change",  # pyright: ignore[reportArgumentType]
+                        AuditLog.target_id == app_row.id,  # pyright: ignore[reportArgumentType]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert row.detail == "APPROVED_BY_ADMIN->HIRED"
+    assert row.actor_user_id == approved_company_user.id

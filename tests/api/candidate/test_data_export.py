@@ -197,3 +197,40 @@ async def test_get_export_unknown_token_returns_404(test_db):
         resp = await client.get("/api/candidate/me/export/does-not-exist-token")
     assert resp.status_code == 404
     assert resp.json()["detail"] == "export_not_found"
+
+
+@pytest.mark.asyncio
+async def test_post_export_is_audited(test_db):
+    """A GDPR export request starts a legal clock; it must leave a trace."""
+    from sqlalchemy import select
+
+    from rs_shared.models import AuditLog
+
+    async with TestSessionLocal() as session:
+        user, profile = await _seed_candidate(session, "audit-export@test.com")
+    _override_candidate(user, profile)
+
+    with patch(
+        "rs_api.api.candidate.data_export.enqueue_data_export_task",
+        new_callable=AsyncMock,
+        return_value="inline",
+    ):
+        async with await _client() as client:
+            resp = await client.post("/api/candidate/me/export")
+    assert resp.status_code == 202
+
+    async with TestSessionLocal() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(AuditLog).where(
+                        AuditLog.action == "candidate.data_export_request"  # pyright: ignore[reportArgumentType]
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    [row] = rows
+    assert (row.target_type, row.target_id) == ("CandidateProfile", profile.id)
+    assert row.actor_user_id == user.id

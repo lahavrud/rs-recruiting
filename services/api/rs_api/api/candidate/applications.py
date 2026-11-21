@@ -110,6 +110,8 @@ async def edit_application(
     strength: str | None = Form(None, max_length=2000),
     growth_area: str | None = Form(None, max_length=2000),
     resume: UploadFile | None = File(None),
+    *,
+    request: Request,
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
 ) -> CandidateApplicationDetail:
@@ -135,7 +137,7 @@ async def edit_application(
     )
     resume_filename = resume.filename if resume else None
 
-    _, profile = current
+    user, profile = current
     try:
         return await edit_my_application(
             session,
@@ -149,6 +151,8 @@ async def edit_application(
                 resume_bytes=resume_bytes,
                 resume_filename=resume_filename,
             ),
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
             storage=get_storage_provider(),
         )
     except ApplicationNotFoundError as exc:

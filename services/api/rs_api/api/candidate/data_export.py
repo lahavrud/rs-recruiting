@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_candidate
+from rs_api.infrastructure.dependencies import client_ip, get_current_candidate
 from rs_api.infrastructure.limiter import get_limiter
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import hash_token
@@ -31,6 +31,7 @@ from rs_shared.services.candidate.data_export import (
     get_export_request_by_token_hash,
     has_pending_export,
 )
+from rs_shared.services.utils.audit import record_audit_event
 
 router = APIRouter(prefix="/api/candidate", tags=["candidate"])
 limiter = get_limiter()
@@ -49,7 +50,7 @@ async def request_export(
     Existing unused request → 429 (one active export at a time per
     user — the row itself acts as the rate limit, no Redis needed).
     """
-    user, _profile = current
+    user, profile = current
     assert user.id is not None
 
     if await has_pending_export(user.id, session):
@@ -61,6 +62,16 @@ async def request_export(
     user_id = user.id
 
     async with transactional(session):
+        # A GDPR access request starts a legal response clock, so it is
+        # audited here (the build itself runs later, in the worker).
+        await record_audit_event(
+            session,
+            actor_user_id=user_id,
+            action="candidate.data_export_request",
+            target_type="CandidateProfile",
+            target_id=profile.id,  # type: ignore[arg-type]
+            ip_address=client_ip(request),
+        )
         defer_after_commit(lambda: enqueue_data_export_task(user_id))
 
     return {"message": "אנו מכינים את הקובץ ונשלח אליכם קישור להורדה."}

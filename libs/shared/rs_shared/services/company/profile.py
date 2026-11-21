@@ -17,6 +17,11 @@ from rs_shared.schemas import (
     JobRead,
     UserRead,
 )
+from rs_shared.services.utils.audit import (
+    changed_fields,
+    fields_detail,
+    record_audit_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +34,15 @@ async def update_company_profile(
     profile: CompanyProfile,
     data: CompanyProfileSelfUpdate,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> CompanyProfileRead:
+    updates = data.model_dump(exclude_none=True)
+    if "contact_landline_phone" in data.model_fields_set:
+        updates["contact_landline_phone"] = data.contact_landline_phone
+    changed = changed_fields(profile, updates)
+
     if data.name is not None:
         profile.name = data.name
     if data.address is not None:
@@ -43,6 +56,16 @@ async def update_company_profile(
     if "contact_landline_phone" in data.model_fields_set:
         profile.contact_landline_phone = data.contact_landline_phone
     await session.flush()
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="company.profile_update",
+            target_type="CompanyProfile",
+            target_id=profile.id,  # pyright: ignore[reportArgumentType]
+            detail=fields_detail(changed),
+            ip_address=ip_address,
+        )
     return CompanyProfileRead.model_validate(profile)
 
 
