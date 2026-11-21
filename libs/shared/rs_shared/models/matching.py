@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import Enum as SAEnum
 from sqlmodel import Column, Field, SQLModel
 
 from rs_shared.enums import MatchSuggestionStatus
@@ -39,7 +40,14 @@ class MatchSuggestion(SQLModel, table=True):
         )
     )
     score: float = Field(sa_column=Column(Float, nullable=False))
-    status: MatchSuggestionStatus
+    # VARCHAR, as migration b9b3da440b29 created it (and prod has it); the
+    # model used to make create_all build a native PG enum instead. Storage is
+    # unchanged: SQLAlchemy writes the member name, which equals its value here.
+    status: MatchSuggestionStatus = Field(
+        sa_column=Column(
+            SAEnum(MatchSuggestionStatus, native_enum=False), nullable=False
+        )
+    )
     acted_by_admin_id: int | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
