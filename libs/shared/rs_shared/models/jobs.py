@@ -10,6 +10,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     event,
     inspect,
@@ -33,6 +34,11 @@ class Job(SQLModel, table=True):
             "salary_min <= salary_max",
             name="ck_job_salary_range",
         ),
+        # Created by migration a7f9c3d2b1e5; declared here so create_all (dev,
+        # tests) has them too. Covers the public board / admin pending list
+        # (status + date) and a company's own job list (company + date).
+        Index("ix_job_status_created_at", "status", "created_at"),
+        Index("ix_job_company_id_created_at", "company_id", "created_at"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -45,7 +51,7 @@ class Job(SQLModel, table=True):
         )
     )
     title: str
-    short_description: str
+    short_description: str = Field(max_length=140)  # as the migrations created it
     description: str
     requirements: list[dict] = Field(
         default_factory=list,
