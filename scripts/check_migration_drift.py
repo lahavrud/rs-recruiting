@@ -33,7 +33,14 @@ import rs_shared.models  # noqa: F401  (registers every table on SQLModel.metada
 from rs_shared.core.infrastructure.config import settings
 
 # "<kind>:<table>[.<column or index>]" -> why this difference is accepted.
-KNOWN_DRIFT: dict[str, str] = {}
+KNOWN_DRIFT: dict[str, str] = {
+    # The old per-account lockout columns (replaced by login_throttle, #1185)
+    # are unmapped one release before they are dropped, because the deploy
+    # migrates before it rolls: old tasks still select them. Remove both
+    # entries with the migration that drops the columns (#1186).
+    "remove_column:user.failed_login_attempts": "unmapped ahead of the drop (#1186)",
+    "remove_column:user.locked_until": "unmapped ahead of the drop (#1186)",
+}
 
 
 def _include_object(

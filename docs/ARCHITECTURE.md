@@ -48,7 +48,7 @@ These principles guide all architectural decisions:
 **Auth mechanics:**
 - JWT access token in `localStorage`; HttpOnly refresh-token cookie set by backend
 - `AuthContext` resolves initial state synchronously from `localStorage`, then verifies via `/api/auth/me` on mount
-- Failed-login throttling per (email, client IP) with capped exponential backoff (`login_throttle` table); never a per-account lock, so an attacker can't lock the owner out. `User.failed_login_attempts` / `locked_until` are deprecated and unused
+- Failed-login throttling per (email, client IP) with capped exponential backoff (`login_throttle` table); never a per-account lock, so an attacker can't lock the owner out. (the old `User` lockout columns are gone, #1186)
 - Password reset: `POST /api/auth/forgot-password` → email link → `POST /api/auth/reset-password`
 
 **Related Issues:**
@@ -485,8 +485,6 @@ erDiagram
         string hashed_password
         enum role "ADMIN, COMPANY, CANDIDATE"
         bool is_active "False until activated"
-        int failed_login_attempts
-        datetime locked_until
         datetime created_at
     }
 
