@@ -277,6 +277,13 @@ async def test_delete_job_cascades_applications_keeps_candidate(
     )
     assert candidate_row.scalar_one() is not None  # candidate survives
 
+    # Each cascaded application leaves its own delete row, tied to the candidate.
+    [row] = await _audit_rows(session, "application.delete")
+    assert row.detail == (
+        f"job_id={job_id},candidate_id={candidate.id},"
+        "status=PENDING_ADMIN_REVIEW,cause=job_delete"
+    )
+
 
 @pytest.mark.asyncio
 async def test_delete_job_not_found(session: AsyncSession):

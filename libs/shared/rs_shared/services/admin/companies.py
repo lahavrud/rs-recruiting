@@ -18,7 +18,9 @@ from rs_shared.core.tasks import queue_email
 from rs_shared.enums import UserRole
 from rs_shared.models import (
     ActivationToken,
+    Application,
     CompanyProfile,
+    Job,
     User,
 )
 from rs_shared.schemas import (
@@ -30,6 +32,7 @@ from rs_shared.schemas import (
 from rs_shared.services.admin._helpers import validate_company_user_pending
 from rs_shared.services.admin.company_approval import approve_company  # re-exported
 from rs_shared.services.exceptions import CompanyNotFoundError
+from rs_shared.services.utils.application_audit import audit_application_deletes
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_rejection_html
 
@@ -217,6 +220,13 @@ async def delete_active_company(
 
     await _delete_company_files(cp)
 
+    await audit_application_deletes(
+        session,
+        Application.job_id.in_(select(Job.id).where(Job.company_id == cp_id)),  # pyright: ignore[reportAttributeAccessIssue,reportArgumentType]
+        actor_user_id=actor_user_id,
+        ip_address=ip_address,
+        cause="company_delete",
+    )
     await session.delete(user)
     await session.flush()
 

@@ -27,6 +27,14 @@ def _make_profile(**overrides) -> CandidateProfile:
     return CandidateProfile(**base)
 
 
+async def _run_post_commit_hooks() -> None:
+    """Run what the service deferred, as transactional() does after its commit."""
+    from rs_shared.core.infrastructure.transactions import _post_commit_hooks
+
+    for hook in _post_commit_hooks.get() or []:
+        await hook()
+
+
 def _make_session() -> AsyncMock:
     session = AsyncMock()
     # ``add`` is synchronous on a real AsyncSession (the audit helper calls it).
@@ -148,6 +156,10 @@ async def test_replace_resume_uploads_and_deletes_old_file():
     # The user's original filename is captured as the display label.
     assert profile.resume_filename == "new.pdf"
     storage.upload_file.assert_awaited_once()
+    # The old file goes only after the commit, so a rollback can't leave the
+    # profile pointing at a deleted file.
+    storage.delete_file.assert_not_called()
+    await _run_post_commit_hooks()
     storage.delete_file.assert_awaited_once_with("resumes/old.pdf")
 
 
@@ -235,6 +247,8 @@ async def test_remove_resume_clears_path_and_deletes_file():
 
     await remove_resume(profile, storage, _make_session())
     assert profile.resume_path is None
+    storage.delete_file.assert_not_called()  # deferred until after commit
+    await _run_post_commit_hooks()
     storage.delete_file.assert_awaited_once_with("resumes/keep.pdf")
 
 

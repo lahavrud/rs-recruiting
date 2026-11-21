@@ -22,6 +22,7 @@ from rs_shared.core.infrastructure.pagination import (
     clamp_limit,
 )
 from rs_shared.core.infrastructure.storage_helpers import delete_file_best_effort
+from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import StorageProvider
 from rs_shared.enums import ApplicationStatus, JobStatus
 from rs_shared.models import Application, Job
@@ -278,11 +279,14 @@ async def edit_my_application(
             ip_address=ip_address,
         )
 
-    await session.commit()
+    await session.flush()
 
     if old_resume_key and old_resume_key != app.resume_path:
-        await delete_file_best_effort(
-            storage, old_resume_key, logger, context="old resume snapshot"
+        stale_key = old_resume_key
+        defer_after_commit(
+            lambda: delete_file_best_effort(
+                storage, stale_key, logger, context="old resume snapshot"
+            )
         )
 
     return _build_detail(app)
@@ -327,5 +331,3 @@ async def withdraw_my_application(
         detail=f"{old_status.value}->{ApplicationStatus.WITHDRAWN.value}",
         ip_address=ip_address,
     )
-
-    await session.commit()

@@ -121,7 +121,7 @@ async def delete_orphan_company(
     """Delete an admin-created CompanyProfile that has no user account."""
     try:
         async with transactional(session):
-            await delete_orphan_company_profile(profile_id, session)
+            await delete_orphan_company_profile(profile_id, session, current_admin.id)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
         raise service_exception_to_http(e) from e
 

@@ -15,7 +15,7 @@ from rs_shared.core.infrastructure.pagination import (
 )
 from rs_shared.core.tasks import queue_email
 from rs_shared.enums import JobStatus
-from rs_shared.models import CompanyProfile, Job
+from rs_shared.models import Application, CompanyProfile, Job
 from rs_shared.schemas import JobCreate, JobRead, JobUpdate
 from rs_shared.services.company._jobs_applications import (
     list_job_applications,
@@ -29,6 +29,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
+from rs_shared.services.utils.application_audit import audit_application_deletes
 from rs_shared.services.utils.audit import (
     changed_fields,
     fields_detail,
@@ -282,6 +283,15 @@ async def delete_job(
             "Only jobs with PENDING_APPROVAL status can be deleted."
         )
 
+    # A job sent back to PENDING_APPROVAL by an admin edit can still have
+    # applications, which the DB cascade removes with it.
+    await audit_application_deletes(
+        session,
+        Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
+        actor_user_id=actor_user_id,
+        ip_address=ip_address,
+        cause="job_delete",
+    )
     await session.delete(job)
     await session.flush()
     # Audit rows carry no FK, so this one outlives the deleted job.
