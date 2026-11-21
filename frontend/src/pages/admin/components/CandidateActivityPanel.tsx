@@ -81,6 +81,8 @@ export default function CandidateActivityPanel({ candidateId }: Props) {
           : t("admin:candidates.activity.actions.applicationCreated");
       case "application.edit":
         return t("admin:candidates.activity.actions.applicationEdited");
+      case "application.delete":
+        return t("admin:candidates.activity.actions.applicationDeleted");
       default:
         return t("admin:candidates.activity.actions.unknown");
     }

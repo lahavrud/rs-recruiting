@@ -32,6 +32,7 @@ from rs_shared.schemas import (
 from rs_shared.services.admin._job_close import close_active_applications
 from rs_shared.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from rs_shared.services.exceptions import CompanyNotFoundError, JobNotFoundError
+from rs_shared.services.utils.application_audit import audit_application_deletes
 from rs_shared.services.utils.audit import (
     changed_fields,
     fields_detail,
@@ -300,6 +301,12 @@ async def delete_job(
     )
 
     title = job.title
+    await audit_application_deletes(
+        session,
+        Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
+        actor_user_id=actor_user_id,
+        cause="job_delete",
+    )
     await session.execute(
         delete(Application).where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
     )
