@@ -51,6 +51,9 @@ merge to main → CI green → build image (by SHA)
   build forward.
 - **Already in production:** run **`rollback.yml`** (manual) — it re-points the
   ECS service(s) to the previous task-definition revision (seconds, no rebuild).
+  It runs under the `production` environment, so dispatch it from `main` and
+  approve the run like a deploy: the AWS deploy role trusts only that
+  environment.
   Then `git revert` on `main` so git matches the deployed state and the next
   delivery doesn't re-ship the bad commit. Note that `rollback.yml` moves **ECS
   only** — it does not move git tags, so the newest `vX.Y.Z` still points at the
