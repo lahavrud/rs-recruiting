@@ -1,9 +1,9 @@
 """Company self-service endpoints."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_company
+from rs_api.infrastructure.dependencies import client_ip, get_current_company
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.core.services.storage import get_storage_provider
@@ -36,13 +36,16 @@ async def get_my_company_profile(
 @router.patch("/me", response_model=CompanyProfileRead)
 async def update_my_company_profile(
     data: CompanyProfileSelfUpdate,
+    request: Request,
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> CompanyProfileRead:
     """Update mutable fields on the authenticated company's profile."""
-    _, profile = current_company
+    user, profile = current_company
     async with transactional(session):
-        return await update_company_profile(profile, data, session)
+        return await update_company_profile(
+            profile, data, session, actor_user_id=user.id, ip_address=client_ip(request)
+        )
 
 
 @router.get("/me/stats", response_model=CompanyStats)

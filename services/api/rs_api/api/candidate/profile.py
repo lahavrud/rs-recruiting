@@ -2,12 +2,12 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_api.api.uploads import validate_upload
-from rs_api.infrastructure.dependencies import get_current_candidate
+from rs_api.infrastructure.dependencies import client_ip, get_current_candidate
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.core.services.storage import get_storage_provider
@@ -99,6 +99,7 @@ async def patch_me(
 
 @router.post("/me/resume", response_model=CandidateMeRead)
 async def upload_resume(
+    request: Request,
     resume: UploadFile = File(...),
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
@@ -116,6 +117,8 @@ async def upload_resume(
                 resume.content_type,
                 get_storage_provider(),
                 session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
             )
     except ValueError as e:
         raise HTTPException(
@@ -127,11 +130,18 @@ async def upload_resume(
 
 @router.delete("/me/resume", response_model=CandidateMeRead)
 async def delete_resume(
+    request: Request,
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
 ) -> CandidateMeRead:
     """Idempotent resume removal."""
     user, profile = current
     async with transactional(session):
-        await remove_resume(profile, get_storage_provider(), session)
+        await remove_resume(
+            profile,
+            get_storage_provider(),
+            session,
+            actor_user_id=user.id,
+            ip_address=client_ip(request),
+        )
     return _to_me_read(user, profile)

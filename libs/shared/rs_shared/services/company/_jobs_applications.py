@@ -20,6 +20,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
+from rs_shared.services.utils.audit import record_audit_event
 
 # Source of truth lives on the enum (see rs_shared.enums.ApplicationStatus):
 # what an employer can see, and which statuses it may move an application into.
@@ -109,6 +110,9 @@ async def update_application_status(
     new_status: str,
     company_id: int,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> CompanyApplicationRead:
     """Update the status of an application on a job owned by this company.
 
@@ -157,9 +161,24 @@ async def update_application_status(
             f"Application {application_id} not found for job {job_id}"
         )
 
+    old_status = app.status
     app.status = target
     app.updated_at = datetime.now(timezone.utc)
     await session.flush()
+
+    # Same shape as the admin path (services/admin/_application_status.py), so
+    # the activity panes and admin notifications read both alike; the actor's
+    # role tells them apart.
+    if old_status != target:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="application.status_change",
+            target_type="Application",
+            target_id=application_id,
+            detail=f"{old_status.value}->{target.value}",
+            ip_address=ip_address,
+        )
 
     score: float | None = None
     if job.embedding is not None and app.candidate.embedding is not None:

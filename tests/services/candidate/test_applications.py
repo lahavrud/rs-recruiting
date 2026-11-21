@@ -227,3 +227,57 @@ async def test_get_application_resume_key_404_when_no_snapshot(test_db):
             await get_application_resume_key(
                 session, candidate_id=cand.id, application_id=a.id
             )
+
+
+@pytest.mark.asyncio
+async def test_edit_my_application_audits_changed_field_names(test_db):
+    """The admin should see that answers changed after they may have read them.
+    Only field names go in the log; answers can hold personal details."""
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import select
+
+    from rs_shared.models import AuditLog
+    from rs_shared.services.candidate.applications import (
+        ApplicationEditData,
+        edit_my_application,
+    )
+
+    async with TestSessionLocal() as session:
+        job = await _company_and_job(session)
+        cand = await _candidate(session, "edit@test.com")
+        app = await _app(session, candidate_id=cand.id, job_id=job.id)
+        await session.commit()
+
+        await edit_my_application(
+            session,
+            candidate_id=cand.id,  # type: ignore[arg-type]
+            application_id=app.id,  # type: ignore[arg-type]
+            data=ApplicationEditData(
+                service_concept=None,
+                salary_expectations="גמיש, 15-18 אלף",
+                strength=None,
+                growth_area=None,
+                resume_bytes=None,
+                resume_filename=None,
+            ),
+            storage=AsyncMock(),
+            actor_user_id=cand.user_id,
+            ip_address="203.0.113.9",
+        )
+
+        rows = (
+            (
+                await session.execute(
+                    select(AuditLog).where(AuditLog.action == "application.edit")  # pyright: ignore[reportArgumentType]
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    [row] = rows
+    assert (row.target_type, row.target_id) == ("Application", app.id)
+    assert row.detail == "fields=salary_expectations"
+    assert row.actor_user_id == cand.user_id
+    assert "15-18" not in (row.detail or "")

@@ -507,3 +507,145 @@ async def test_company_rejects_unknown_status(
         await update_application_status(
             job.id, app.id, "NONSENSE", company_with_user.id, session
         )
+
+
+# ── Audit trail for company actions ───────────────────────────────────────────
+
+
+async def _audit_rows(session: AsyncSession, action: str) -> list:
+    from sqlalchemy import select
+
+    from rs_shared.models import AuditLog
+
+    result = await session.execute(
+        select(AuditLog).where(AuditLog.action == action)  # pyright: ignore[reportArgumentType]
+    )
+    return list(result.scalars().all())
+
+
+@pytest.mark.asyncio
+async def test_company_status_change_is_audited(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile
+):
+    """Regression: a company could move a candidate to HIRED with no audit row,
+    so neither the admin nor the activity panes ever saw it."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+
+    await update_application_status(
+        job.id,
+        app.id,
+        ApplicationStatus.HIRED.value,
+        company_with_user.id,
+        session,
+        actor_user_id=company_with_user.user_id,
+        ip_address="203.0.113.7",
+    )
+
+    [row] = await _audit_rows(session, "application.status_change")
+    assert row.target_type == "Application"
+    assert row.target_id == app.id
+    assert row.detail == "APPROVED_BY_ADMIN->HIRED"
+    assert row.actor_user_id == company_with_user.user_id
+    assert row.ip_address == "203.0.113.7"
+
+
+@pytest.mark.asyncio
+async def test_company_status_noop_is_not_audited(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile
+):
+    """Same as the admin path: re-saving the current status records nothing."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+    app.status = ApplicationStatus.INTERVIEWING
+    await session.flush()
+
+    await update_application_status(
+        job.id,
+        app.id,
+        ApplicationStatus.INTERVIEWING.value,
+        company_with_user.id,
+        session,
+        actor_user_id=company_with_user.user_id,
+    )
+
+    assert await _audit_rows(session, "application.status_change") == []
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.company.jobs.queue_email")
+async def test_create_job_is_audited(
+    mock_enqueue_email: AsyncMock,
+    session: AsyncSession,
+    company_with_user: CompanyProfile,
+):
+    assert company_with_user.id is not None
+    job_data = JobCreate(
+        title="Audited Role",
+        short_description="Short.",
+        description="Long description.",
+        requirements=[{"text": "Req 1"}, {"text": "Req 2"}, {"text": "Req 3"}],
+        location="Tel Aviv",
+        salary_min=1,
+        salary_max=2,
+    )
+
+    async with transactional(session):
+        created = await create_job(
+            job_data,
+            company_with_user.id,
+            session,
+            actor_user_id=company_with_user.user_id,
+        )
+
+    [row] = await _audit_rows(session, "job.create")
+    assert (row.target_type, row.target_id) == ("job", created.id)
+    assert row.actor_user_id == company_with_user.user_id
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.company.jobs.queue_email")
+@patch("rs_shared.services.company.jobs.get_all_admin_emails")
+async def test_update_job_audits_changed_field_names_only(
+    mock_get_admin_emails: AsyncMock,
+    mock_enqueue_email: AsyncMock,
+    session: AsyncSession,
+    job: Job,
+    company_with_user: CompanyProfile,
+):
+    """Field names, never values; unchanged fields are left out."""
+    mock_get_admin_emails.return_value = []
+    assert job.id is not None and company_with_user.id is not None
+
+    async with transactional(session):
+        await update_job(
+            job.id,
+            JobUpdate(title="Brand New Title", location=job.location),
+            company_with_user.id,
+            session,
+            actor_user_id=company_with_user.user_id,
+        )
+
+    [row] = await _audit_rows(session, "job.update")
+    assert (row.target_type, row.target_id) == ("job", job.id)
+    assert row.detail == "fields=title"
+    assert "Brand New Title" not in (row.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_delete_job_is_audited(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile
+):
+    assert job.id is not None and company_with_user.id is not None
+    job_id = job.id
+
+    async with transactional(session):
+        await delete_job(
+            job_id,
+            company_with_user.id,
+            session,
+            actor_user_id=company_with_user.user_id,
+        )
+
+    [row] = await _audit_rows(session, "job.delete")
+    assert (row.target_type, row.target_id) == ("job", job_id)

@@ -29,6 +29,11 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
 )
+from rs_shared.services.utils.audit import (
+    changed_fields,
+    fields_detail,
+    record_audit_event,
+)
 from rs_shared.services.utils.recipients import get_all_admin_emails
 from rs_shared.templates.email import build_job_updated_html, build_new_job_html
 
@@ -45,7 +50,12 @@ __all__ = [
 
 
 async def create_job(
-    job_data: JobCreate, company_id: int, session: AsyncSession
+    job_data: JobCreate,
+    company_id: int,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> JobRead:
     """Always starts in PENDING_APPROVAL — companies cannot publish directly,
     so every posting goes through admin review first. Notifies all admins
@@ -75,6 +85,14 @@ async def create_job(
     )
     session.add(new_job)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="job.create",
+        target_type="job",
+        target_id=new_job.id,  # pyright: ignore[reportArgumentType]
+        ip_address=ip_address,
+    )
 
     admin_emails = await get_all_admin_emails(session)
     if admin_emails:
@@ -134,6 +152,9 @@ async def update_job(
     job_data: JobUpdate,
     company_id: int,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> JobRead:
     """Blocked once a job is CLOSED — a closed posting is final and shouldn't
     be reanimated by an edit. `status` itself is excluded from the patch
@@ -168,6 +189,11 @@ async def update_job(
     if job_data.status is not None and job_data.status != job.status:
         raise JobCannotBeUpdatedError("Companies cannot change job status")
 
+    updates = job_data.model_dump(exclude_none=True, exclude={"status"})
+    if job_data.requirements is not None:
+        updates["requirements"] = [r.model_dump() for r in job_data.requirements]
+    changed = changed_fields(job, updates)
+
     if job_data.title is not None:
         job.title = job_data.title
     if job_data.short_description is not None:
@@ -187,6 +213,17 @@ async def update_job(
 
     job.updated_at = datetime.now(timezone.utc)
     await session.flush()
+
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="job.update",
+            target_type="job",
+            target_id=job_id,
+            detail=fields_detail(changed),
+            ip_address=ip_address,
+        )
 
     company = job.company
     admin_emails = await get_all_admin_emails(session)
@@ -212,7 +249,14 @@ async def update_job(
     return JobRead.model_validate(job)
 
 
-async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> None:
+async def delete_job(
+    job_id: int,
+    company_id: int,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
+) -> None:
     """Restricted to PENDING_APPROVAL: once a job is PUBLISHED it has been
     admin-reviewed and may already be visible to candidates, so removing it
     goes through the admin-driven close/reject flow instead of a company
@@ -240,3 +284,13 @@ async def delete_job(job_id: int, company_id: int, session: AsyncSession) -> Non
 
     await session.delete(job)
     await session.flush()
+    # Audit rows carry no FK, so this one outlives the deleted job.
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="job.delete",
+        target_type="job",
+        target_id=job_id,
+        detail=f"title={job.title}",
+        ip_address=ip_address,
+    )

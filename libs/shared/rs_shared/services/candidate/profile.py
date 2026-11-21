@@ -20,6 +20,7 @@ from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import StorageProvider
 from rs_shared.models import CandidateProfile
 from rs_shared.schemas import CandidateMeUpdate
+from rs_shared.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,9 @@ async def replace_resume(
     content_type: str | None,
     storage: StorageProvider,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> str:
     """Replace the candidate's profile-level resume, deleting the prior file.
 
@@ -169,6 +173,14 @@ async def replace_resume(
         # to blocking the candidate's update on a storage outage.
         await delete_file_best_effort(storage, old_key, logger)
 
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="candidate.resume_replace",
+        target_type="CandidateProfile",
+        target_id=profile.id,  # pyright: ignore[reportArgumentType]
+        ip_address=ip_address,
+    )
     await session.flush()
     await session.refresh(profile)
     # Re-extract and re-embed the new resume, but only after the row is
@@ -183,7 +195,12 @@ async def replace_resume(
 
 
 async def remove_resume(
-    profile: CandidateProfile, storage: StorageProvider, session: AsyncSession
+    profile: CandidateProfile,
+    storage: StorageProvider,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> None:
     """Idempotent resume removal: delete the file (best-effort) + null the path.
 
@@ -200,5 +217,13 @@ async def remove_resume(
     profile.embedding = None
     if old_key:
         await delete_file_best_effort(storage, old_key, logger, context="remove_resume")
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="candidate.resume_remove",
+        target_type="CandidateProfile",
+        target_id=profile.id,  # pyright: ignore[reportArgumentType]
+        ip_address=ip_address,
+    )
     await session.flush()
     await session.refresh(profile)

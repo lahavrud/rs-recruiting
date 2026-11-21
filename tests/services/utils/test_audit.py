@@ -119,3 +119,22 @@ async def test_list_audit_events_filters_by_date_range(session: AsyncSession):
         to_dt=base + timedelta(days=3),
     )
     assert [r.target_id for r in page.items] == [3, 2, 1]
+
+
+def test_changed_fields_lists_only_differing_names_sorted():
+    from types import SimpleNamespace
+
+    from rs_shared.services.utils.audit import changed_fields
+
+    target = SimpleNamespace(title="Old", location="Haifa", tags=["a"])
+    updates = {"title": "New", "location": "Haifa", "tags": ["a", "b"]}
+
+    assert changed_fields(target, updates) == ["tags", "title"]
+
+
+def test_changed_fields_empty_when_nothing_differs():
+    from types import SimpleNamespace
+
+    from rs_shared.services.utils.audit import changed_fields
+
+    assert changed_fields(SimpleNamespace(title="Same"), {"title": "Same"}) == []

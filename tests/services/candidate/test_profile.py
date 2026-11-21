@@ -1,6 +1,6 @@
 """Service-level tests for candidate self-service profile (Sprint 11 / #608)."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -29,6 +29,8 @@ def _make_profile(**overrides) -> CandidateProfile:
 
 def _make_session() -> AsyncMock:
     session = AsyncMock()
+    # ``add`` is synchronous on a real AsyncSession (the audit helper calls it).
+    session.add = MagicMock()
     session.flush = AsyncMock(return_value=None)
     session.refresh = AsyncMock(return_value=None)
     return session
@@ -234,3 +236,58 @@ async def test_remove_resume_clears_path_and_deletes_file():
     await remove_resume(profile, storage, _make_session())
     assert profile.resume_path is None
     storage.delete_file.assert_awaited_once_with("resumes/keep.pdf")
+
+
+def _audit_rows_added(session: AsyncMock) -> list:
+    from rs_shared.models import AuditLog
+
+    return [
+        c.args[0] for c in session.add.call_args_list if isinstance(c.args[0], AuditLog)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_replace_resume_is_audited():
+    profile = _make_profile(resume_path="resumes/old.pdf")
+    profile.id = 7
+    storage = AsyncMock()
+    storage.upload_file = AsyncMock(return_value="resumes/new.pdf")
+    storage.delete_file = AsyncMock(return_value=True)
+    session = _make_session()
+
+    await replace_resume(
+        profile,
+        _PDF_BYTES,
+        "new.pdf",
+        "application/pdf",
+        storage,
+        session,
+        actor_user_id=3,
+        ip_address="203.0.113.1",
+    )
+
+    [row] = _audit_rows_added(session)
+    assert (row.action, row.target_type, row.target_id) == (
+        "candidate.resume_replace",
+        "CandidateProfile",
+        7,
+    )
+    assert (row.actor_user_id, row.ip_address) == (3, "203.0.113.1")
+
+
+@pytest.mark.asyncio
+async def test_remove_resume_is_audited():
+    profile = _make_profile(resume_path="resumes/old.pdf")
+    profile.id = 7
+    storage = AsyncMock()
+    storage.delete_file = AsyncMock(return_value=True)
+    session = _make_session()
+
+    await remove_resume(profile, storage, session, actor_user_id=3)
+
+    [row] = _audit_rows_added(session)
+    assert (row.action, row.target_id, row.actor_user_id) == (
+        "candidate.resume_remove",
+        7,
+        3,
+    )

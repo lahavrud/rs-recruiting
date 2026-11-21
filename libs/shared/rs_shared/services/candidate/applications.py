@@ -37,7 +37,11 @@ from rs_shared.services.exceptions import (
     ApplicationNotEditableError,
     ApplicationNotFoundError,
 )
-from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.audit import (
+    changed_fields,
+    fields_detail,
+    record_audit_event,
+)
 from rs_shared.services.utils.resume_upload import validate_and_upload_resume
 
 logger = logging.getLogger(__name__)
@@ -197,6 +201,8 @@ async def edit_my_application(
     application_id: int,
     data: ApplicationEditData,
     storage: StorageProvider,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> CandidateApplicationDetail:
     """Partially update text answers and/or replace the resume snapshot.
 
@@ -232,6 +238,16 @@ async def edit_my_application(
     if not has_text and data.resume_bytes is None:
         raise ValueError("empty_body")
 
+    answers = {
+        "service_concept": data.service_concept,
+        "salary_expectations": data.salary_expectations,
+        "strength": data.strength,
+        "growth_area": data.growth_area,
+    }
+    changed = changed_fields(app, {k: v for k, v in answers.items() if v is not None})
+    if data.resume_bytes is not None:
+        changed.append("resume")
+
     if data.service_concept is not None:
         app.service_concept = data.service_concept
     if data.salary_expectations is not None:
@@ -250,6 +266,17 @@ async def edit_my_application(
         app.resume_path = new_key
         app.resume_filename = data.resume_filename
         app.resume_hash = new_hash
+
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="application.edit",
+            target_type="Application",
+            target_id=application_id,
+            detail=fields_detail(changed),
+            ip_address=ip_address,
+        )
 
     await session.commit()
 
