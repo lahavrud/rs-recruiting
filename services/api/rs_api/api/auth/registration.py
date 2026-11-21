@@ -69,12 +69,12 @@ async def register(
     """Register a new company user with a valid single-use invite token."""
     if not privacy_accepted:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="יש לאשר את מדיניות הפרטיות",
         )
     if not terms_accepted:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="יש לאשר את תנאי השימוש",
         )
     try:
@@ -92,7 +92,7 @@ async def register(
         )
     except PydanticValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=json.loads(exc.json()),
         ) from exc
 

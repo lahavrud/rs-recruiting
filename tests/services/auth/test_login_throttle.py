@@ -23,7 +23,9 @@ from rs_shared.services.auth.login_throttle import (
 from rs_shared.services.exceptions import AccountLockedError
 from tests.conftest import TestSessionLocal
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.real_login_throttle]
+# asyncio_mode = "auto" picks up the async tests; a module-wide asyncio mark
+# would also land on the sync ones, which pytest warns about.
+pytestmark = pytest.mark.real_login_throttle
 
 EMAIL = "victim@example.com"
 ATTACKER = "203.0.113.10"

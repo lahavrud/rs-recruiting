@@ -13,8 +13,8 @@ Two entry points:
 
 * ``resend_candidate_activation`` — handles POST /auth/candidate/resend-activation.
   Silent 202 either way; mints a fresh token only when a candidate user
-  exists with `is_active=False`. Both per-email and per-IP throttling are
-  Redis-backed to prevent inbox flooding.
+  exists with `is_active=False`. Throttled per IP (slowapi) and per email
+  (a count of recent activation-token rows) to prevent inbox flooding.
 
 All audit + email enqueue calls go through the existing app infrastructure;
 the rate-limit constants are colocated below so future tuning is one read.

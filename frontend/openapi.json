@@ -8269,7 +8269,7 @@
     },
     "/auth/forgot-password": {
       "post": {
-        "description": "Always returns the same response \u2014 never reveals whether the email exists.\n\nThe IP-level rate limit (`5/hour`) covers enumeration-via-many-emails;\na per-email Redis limit inside `request_password_reset` protects a single\nvictim's inbox from spam.",
+        "description": "Always returns the same response \u2014 never reveals whether the email exists.\n\nThe IP-level rate limit (`5/hour`) covers enumeration-via-many-emails;\na per-email limit (a DB row count) inside `request_password_reset`\nprotects a single victim's inbox from spam.",
         "operationId": "forgot_password_auth_forgot_password_post",
         "requestBody": {
           "content": {

@@ -76,7 +76,7 @@ async def patch_me(
         patch = CandidateMeUpdate.model_validate(body)
     except PydanticValidationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             # Stringify each error: Pydantic's raw errors() can contain
             # non-JSON-serializable values (URL objects, etc.) that crash
             # FastAPI's response serialization.
@@ -91,7 +91,7 @@ async def patch_me(
         # Extension-lock on resume_filename rename + the "rename without
         # a stored resume" guard both raise here.
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=str(e),
         ) from e
     return _to_me_read(user, profile)
@@ -122,7 +122,7 @@ async def upload_resume(
             )
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="invalid_resume",
         ) from e
     return _to_me_read(user, profile)

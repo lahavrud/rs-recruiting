@@ -1,52 +1,33 @@
-"""Tests for public invite token endpoints."""
+"""Tests for public invite token endpoints.
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+Validation runs for real against invite rows (``real_invite_tokens``), not
+through the suite-wide ``mock_invite_tokens`` stub.
+"""
+
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
 
-from rs_shared.core.infrastructure.security import hash_token
 from rs_shared.enums import InviteTokenStatus
-from rs_shared.models import InviteToken, User
-from rs_shared.services.exceptions import InvalidInviteTokenError
-from tests.conftest import TestSessionLocal
+from rs_shared.models import InviteToken
 
-_EXPIRES_FAR_FUTURE = datetime(2099, 1, 1, tzinfo=timezone.utc)
+pytestmark = [pytest.mark.asyncio, pytest.mark.real_invite_tokens]
 
-
-async def _create_invite_record(
-    token: str,
-    admin_id: int,
-    email: str = "company@example.com",
-    company_name: str | None = "Test Co",
-    contact_first_name: str | None = "ישראל",
-    contact_last_name: str | None = "ישראלי",
-) -> InviteToken:
-    async with TestSessionLocal() as session:
-        record = InviteToken(
-            token_hash=hash_token(token),
-            email=email,
-            company_name=company_name,
-            contact_first_name=contact_first_name,
-            contact_last_name=contact_last_name,
-            status=InviteTokenStatus.PENDING,
-            created_by_admin_id=admin_id,
-            expires_at=_EXPIRES_FAR_FUTURE,
-        )
-        session.add(record)
-        await session.commit()
-        await session.refresh(record)
-        return record
+MakeInvite = Callable[..., Awaitable[InviteToken]]
 
 
-@pytest.mark.asyncio
 async def test_get_invite_metadata_returns_fields(
-    public_client: AsyncClient, admin_user: User
+    public_client: AsyncClient, make_invite: MakeInvite
 ):
     """Valid token returns email and company pre-fill data."""
-    assert admin_user.id is not None
-    await _create_invite_record("valid-token-abc", admin_user.id)
+    await make_invite(
+        "valid-token-abc",
+        company_name="Test Co",
+        contact_first_name="ישראל",
+        contact_last_name="ישראלי",
+    )
 
     response = await public_client.get("/auth/invite/valid-token-abc")
 
@@ -56,19 +37,11 @@ async def test_get_invite_metadata_returns_fields(
     # InviteMetadataPublic only exposes email — no pre-fill fields
 
 
-@pytest.mark.asyncio
 async def test_get_invite_metadata_null_optional_fields(
-    public_client: AsyncClient, admin_user: User
+    public_client: AsyncClient, make_invite: MakeInvite
 ):
     """Invite with no company/contact info still returns email only."""
-    assert admin_user.id is not None
-    await _create_invite_record(
-        "sparse-token",
-        admin_user.id,
-        company_name=None,
-        contact_first_name=None,
-        contact_last_name=None,
-    )
+    await make_invite("sparse-token")
 
     response = await public_client.get("/auth/invite/sparse-token")
 
@@ -77,26 +50,31 @@ async def test_get_invite_metadata_null_optional_fields(
     assert "email" in data
 
 
-@pytest.mark.asyncio
-async def test_get_invite_metadata_invalid_token_returns_error(
+async def test_get_invite_metadata_token_not_in_db_returns_400(
     public_client: AsyncClient,
 ):
-    """Expired or invalid token returns 400."""
-    with patch(
-        "rs_api.api.auth.invites.validate_invite_token",
-        new_callable=AsyncMock,
-        side_effect=InvalidInviteTokenError(),
-    ):
-        response = await public_client.get("/auth/invite/bad-token")
+    response = await public_client.get("/auth/invite/no-db-record")
 
     assert response.status_code == 400
 
 
-@pytest.mark.asyncio
-async def test_get_invite_metadata_token_not_in_db_returns_400(
-    public_client: AsyncClient,
+@pytest.mark.parametrize(
+    "fields",
+    [
+        pytest.param({"status": InviteTokenStatus.USED}, id="used"),
+        pytest.param({"status": InviteTokenStatus.REVOKED}, id="revoked"),
+        pytest.param(
+            {"expires_at": datetime.now(timezone.utc) - timedelta(minutes=1)},
+            id="expired",
+        ),
+    ],
+)
+async def test_get_invite_metadata_unusable_token_returns_400(
+    public_client: AsyncClient, make_invite: MakeInvite, fields: dict
 ):
-    """Token passes Redis validation but has no DB record → 400."""
-    response = await public_client.get("/auth/invite/no-db-record")
+    """A row that exists but can no longer be used must not pre-fill the form."""
+    await make_invite("unusable-token", **fields)
+
+    response = await public_client.get("/auth/invite/unusable-token")
 
     assert response.status_code == 400

@@ -71,7 +71,18 @@ asyncio_default_fixture_loop_scope = "function"
 # tests/api/admin/test_invites.py). Also avoids asyncio event-loop issues
 # that occur with __init__.py-based package imports in xdist workers.
 addopts = "--durations=20"
-filterwarnings = []
+# Every warning fails the run (#1065): "coroutine was never awaited" and
+# "unclosed connection" are real bugs that sat unnoticed while warnings were
+# only printed. Fix a new warning at its source; if it comes from a library and
+# can't be fixed here, add a narrow "ignore:<message>:<Category>" entry with a
+# comment saying why and when it can go.
+filterwarnings = ["error"]
+
+[tool.coverage.report]
+# CI's --cov run fails below this (#1065). Total was 88% on 2026-11-21; the
+# margin absorbs normal swings, so a drop below 85% means a real regression
+# (a big untested module, or tests silently no longer collected).
+fail_under = 85
 
 # import-linter — structural guard behind the lean images. Run with
 # `uv run lint-imports`. Keeps the web stack out of the shared domain and the

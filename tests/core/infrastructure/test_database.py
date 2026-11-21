@@ -5,7 +5,12 @@ import os
 
 import pytest
 from sqlalchemy import event, inspect, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 import rs_shared.core.infrastructure.database as database_module
 from rs_shared.core.infrastructure.database import engine, init_db
@@ -17,13 +22,25 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 
+@pytest.fixture
+async def test_engine():
+    """A fresh engine on this run's test DB, disposed afterwards.
+
+    Disposing matters: an engine dropped with pooled connections still open
+    leaks them until garbage collection, which surfaces as ResourceWarnings
+    (now errors) on whichever test happens to be running at the time.
+    """
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+    yield engine
+    await engine.dispose()
+
+
 class TestInitDB:
     """Tests for init_db() function."""
 
     @pytest.mark.asyncio
-    async def test_init_db_creates_tables(self):
+    async def test_init_db_creates_tables(self, test_engine: AsyncEngine):
         """Test that init_db creates database tables."""
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
 
         # Initialize database
         async with test_engine.begin() as conn:
@@ -45,9 +62,10 @@ class TestInitDB:
         assert "application" in table_names
 
     @pytest.mark.asyncio
-    async def test_init_db_all_models_registered(self, test_db):
+    async def test_init_db_all_models_registered(
+        self, test_db, test_engine: AsyncEngine
+    ):
         """Test that all models are registered with SQLModel.metadata."""
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
 
         # Initialize database
         async with test_engine.begin() as conn:
@@ -77,9 +95,10 @@ class TestInitDB:
             assert isinstance(applications, list)
 
     @pytest.mark.asyncio
-    async def test_init_db_tables_can_be_queried(self, test_db):
+    async def test_init_db_tables_can_be_queried(
+        self, test_db, test_engine: AsyncEngine
+    ):
         """Test that tables can be queried after initialization."""
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
         test_session_factory = async_sessionmaker(
             test_engine, class_=AsyncSession, expire_on_commit=False
         )
@@ -115,12 +134,13 @@ class TestInitDbMigrationFailure:
     """A failing ad-hoc migration must be logged and re-raised, never swallowed."""
 
     @pytest.mark.asyncio
-    async def test_failed_migration_is_logged_and_raised(self, monkeypatch, caplog):
+    async def test_failed_migration_is_logged_and_raised(
+        self, monkeypatch, caplog, test_engine: AsyncEngine
+    ):
         # Use a fresh engine bound to this worker's isolated test database —
         # the module-level `engine` is bound to the unsuffixed base DATABASE_URL
         # (read before conftest rewrites it per-worker) and is shared, unmanaged
         # infrastructure that other tests in this file deliberately avoid.
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
         monkeypatch.setattr(database_module, "engine", test_engine)
         monkeypatch.setattr(
             database_module, "_MIGRATIONS", ["SELECT * FROM nonexistent_table_xyz"]
@@ -210,11 +230,12 @@ class TestWarmUpPool:
     """warm_up_pool() fills the pool up front and never crashes startup."""
 
     @pytest.mark.asyncio
-    async def test_warm_up_pool_opens_connections(self, monkeypatch, caplog):
+    async def test_warm_up_pool_opens_connections(
+        self, monkeypatch, caplog, test_engine: AsyncEngine
+    ):
         """Happy path: pre-warm succeeds against a live DB and logs the count."""
         from rs_shared.core.infrastructure.config import settings
 
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
         monkeypatch.setattr(database_module, "engine", test_engine)
         monkeypatch.setattr(settings, "db_pool_size", 3)
 
@@ -222,7 +243,6 @@ class TestWarmUpPool:
             await database_module.warm_up_pool()
 
         assert any("pre-warmed with 3" in r.message for r in caplog.records)
-        await test_engine.dispose()
 
     @pytest.mark.asyncio
     async def test_warm_up_pool_no_op_when_size_zero(self, monkeypatch):
@@ -269,8 +289,9 @@ class TestTcpKeepalive:
     """
 
     @pytest.mark.asyncio
-    async def test_no_keepalive_warning_on_real_asyncpg_connect(self, caplog):
-        test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
+    async def test_no_keepalive_warning_on_real_asyncpg_connect(
+        self, caplog, test_engine: AsyncEngine
+    ):
         event.listen(
             test_engine.sync_engine, "connect", database_module._set_tcp_keepalive
         )
@@ -283,7 +304,6 @@ class TestTcpKeepalive:
             r for r in caplog.records if "keepalive" in r.message.lower()
         ]
         assert not keepalive_warnings, keepalive_warnings[0].message
-        await test_engine.dispose()
 
 
 class TestSessionFactory:

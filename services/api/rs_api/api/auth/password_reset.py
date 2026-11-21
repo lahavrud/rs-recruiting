@@ -33,8 +33,8 @@ async def forgot_password(
     """Always returns the same response — never reveals whether the email exists.
 
     The IP-level rate limit (`5/hour`) covers enumeration-via-many-emails;
-    a per-email Redis limit inside `request_password_reset` protects a single
-    victim's inbox from spam.
+    a per-email limit (a DB row count) inside `request_password_reset`
+    protects a single victim's inbox from spam.
     """
     async with transactional(session):
         await request_password_reset(body.email, session)

@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import ApplicationStatus, JobStatus
 from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job
 from rs_shared.schemas import JobAdminCreate, JobAdminUpdate
@@ -57,8 +58,10 @@ async def test_admin_create_job_unknown_company(session: AsyncSession):
         await admin_create_job(_payload(company_id=99999), session)
 
 
+# Only the SQS enqueue is patched: defer_after_commit and transactional() run
+# for real, so these tests also prove the embed is dispatched after the commit
+# and never for a rolled-back write.
 _PATCH_EMBED = "rs_shared.services.admin.jobs.enqueue_embed_job_task"
-_PATCH_EMBED_DEFER = "rs_shared.services.admin.jobs.defer_after_commit"
 
 
 @pytest.mark.asyncio
@@ -66,12 +69,26 @@ async def test_admin_create_job_embeds_published_job(
     session: AsyncSession, company_with_user: CompanyProfile
 ):
     """Admin-created jobs skip approval, so creation is the only embed trigger."""
-    with patch(_PATCH_EMBED) as mock_embed:
-        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_EMBED, new_callable=AsyncMock) as mock_embed:
+        async with transactional(session):
             job = await admin_create_job(_payload(company_with_user.id), session)
-            await session.commit()
+            mock_embed.assert_not_awaited()  # not before the commit
 
-    mock_embed.assert_called_once_with(job.id)
+    mock_embed.assert_awaited_once_with(job.id)
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_rolled_back_is_never_embedded(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """A hook registered inside a transaction that rolls back is discarded."""
+    with patch(_PATCH_EMBED, new_callable=AsyncMock) as mock_embed:
+        with pytest.raises(RuntimeError, match="boom"):
+            async with transactional(session):
+                await admin_create_job(_payload(company_with_user.id), session)
+                raise RuntimeError("boom")
+
+    mock_embed.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -81,12 +98,11 @@ async def test_admin_create_job_skips_embed_when_not_published(
     payload = _payload(company_with_user.id)
     payload.status = JobStatus.PENDING_APPROVAL
 
-    with patch(_PATCH_EMBED) as mock_embed:
-        with patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()):
+    with patch(_PATCH_EMBED, new_callable=AsyncMock) as mock_embed:
+        async with transactional(session):
             await admin_create_job(payload, session)
-            await session.commit()
 
-    mock_embed.assert_not_called()
+    mock_embed.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -101,21 +117,20 @@ async def test_update_job_embeds_on_transition_to_published(
     await session.commit()
 
     with (
-        patch(_PATCH_EMBED) as mock_embed,
-        patch(_PATCH_EMBED_DEFER, side_effect=lambda fn: fn()),
+        patch(_PATCH_EMBED, new_callable=AsyncMock) as mock_embed,
         # Silence the company notification this edit also triggers. It used to
         # be a defer_after_commit hook; it is now a queue_email call, so the
         # email itself is what gets patched out (see _PATCH_NOTIFY_EMAIL).
         patch(_PATCH_NOTIFY_EMAIL, new_callable=AsyncMock),
     ):
-        await update_job(
-            created.id,
-            JobAdminUpdate(status=JobStatus.PUBLISHED),
-            session,
-        )
-        await session.commit()
+        async with transactional(session):
+            await update_job(
+                created.id,
+                JobAdminUpdate(status=JobStatus.PUBLISHED),
+                session,
+            )
 
-    mock_embed.assert_called_once_with(created.id)
+    mock_embed.assert_awaited_once_with(created.id)
 
 
 # ── update_job ────────────────────────────────────────────────────────────────

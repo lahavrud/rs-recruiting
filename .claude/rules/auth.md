@@ -34,6 +34,8 @@ Never surface the raw slowapi detail string (`"5 per 1 minute"`) in the UI — m
 
 **Company:** admin approves invite → activation email → `/activate?token=` → 48h TTL → user activated + company profile linked
 
+Company registration requires a pending, unexpired invite (`validate_invite_token`, then `mark_invite_used` in the same transaction). In tests both endpoints' validation is stubbed (any token is valid) unless the test is marked `@pytest.mark.real_invite_tokens`; build the rows with the `make_invite` fixture.
+
 **Candidate:** `/register-candidate` → activation email (2h TTL) → `/activate?token=` → `CandidateProfile` created + consent (timestamp, policy version, IP, UA) written from the activation request, not the registration request
 
 - Unactivated login (any role): `401 detail=account_pending_activation`
