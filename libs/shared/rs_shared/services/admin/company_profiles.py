@@ -23,6 +23,11 @@ from rs_shared.services.exceptions import (
     CompanyNotPendingError,
     EmailAlreadyExistsError,
 )
+from rs_shared.services.utils.audit import (
+    changed_fields,
+    fields_detail,
+    record_audit_event,
+)
 
 
 async def get_company_profile(
@@ -97,6 +102,8 @@ async def update_company_profile(
     profile_id: int,
     data: CompanyProfileAdminUpdate,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
 ) -> CompanyProfileRead:
     """Apply a partial update to a CompanyProfile.
 
@@ -116,6 +123,7 @@ async def update_company_profile(
         raise CompanyNotFoundError(f"Company profile {profile_id} not found")
 
     payload = data.model_dump(exclude_unset=True)
+    changed = changed_fields(profile, payload)
 
     # contact_email is the canonical invariant: when a user is attached, it
     # must equal user.email. So an admin edit that changes contact_email on an
@@ -132,10 +140,30 @@ async def update_company_profile(
                 # user.email has UNIQUE — another account already uses this
                 # address. Surface as a domain exception, not a 500.
                 raise EmailAlreadyExistsError(new_email) from e
+            # The login identity changed, so record it against the user, not
+            # only the profile: it is what an account-takeover review looks
+            # for. No addresses in the detail (see changed_fields).
+            await record_audit_event(
+                session,
+                actor_user_id=actor_user_id,
+                action="user.email_change",
+                target_type="user",
+                target_id=user.id,  # pyright: ignore[reportArgumentType]
+                detail="source=admin_company_profile",
+            )
 
     for field, value in payload.items():
         setattr(profile, field, value)
 
     await session.flush()
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="company.profile_update",
+            target_type="CompanyProfile",
+            target_id=profile.id,  # pyright: ignore[reportArgumentType]
+            detail=fields_detail(changed),
+        )
     await session.refresh(profile)
     return CompanyProfileRead.model_validate(profile)

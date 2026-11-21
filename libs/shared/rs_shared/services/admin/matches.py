@@ -1,9 +1,12 @@
-"""Admin global match feed — ranked (candidate, job) pairs with no application."""
+"""Admin match views: the global feed of ranked (candidate, job) pairs with no
+application, and the live-ranked candidates for one job."""
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from rs_shared.core.infrastructure.config import settings
+from rs_shared.core.infrastructure.database_helpers import get_by_id_or_raise
 from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.enums import ApplicationStatus, JobStatus, MatchSuggestionStatus
 from rs_shared.models import Application, CandidateProfile, Job, MatchSuggestion
@@ -12,6 +15,7 @@ from rs_shared.schemas import (
     ApplicationWithDetails,
     CandidateProfileRead,
     GlobalMatchRead,
+    JobCandidateMatchRead,
 )
 from rs_shared.schemas.jobs import JobRead
 from rs_shared.services.exceptions import (
@@ -19,6 +23,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotPublishedError,
 )
+from rs_shared.services.utils.audit import record_audit_event
 
 _CANDIDATE_POOL = 30
 _JOBS_PER_CANDIDATE = 3
@@ -179,6 +184,14 @@ async def push_match(
     )
     session.add(application)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=admin_id,
+        action="application.create",
+        target_type="Application",
+        target_id=application.id,  # type: ignore[arg-type]  # set by the flush above
+        detail=f"source=push_match,job_id={job_id}",
+    )
     return ApplicationRead.model_validate(application)
 
 
@@ -254,3 +267,39 @@ async def get_hot_applications(
         if len(results) >= limit:
             break
     return results
+
+
+async def get_job_candidate_matches(
+    job_id: int, session: AsyncSession
+) -> list[JobCandidateMatchRead]:
+    """Live-ranked candidates for a job, best score first.
+
+    Computed on demand (cosine distance) against every embedded candidate —
+    mirrors ``services.admin.candidates.get_candidate_job_matches``, the
+    reverse direction.
+
+    Raises ``JobNotFoundError`` if the job doesn't exist. Returns an empty
+    list if the job isn't PUBLISHED or has no embedding yet.
+    """
+    job = await get_by_id_or_raise(
+        session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
+    )
+    if job.status != JobStatus.PUBLISHED or job.embedding is None:
+        return []
+
+    distance = CandidateProfile.embedding.cosine_distance(job.embedding)
+    rows = (
+        await session.execute(
+            select(CandidateProfile, distance.label("distance"))
+            .where(CandidateProfile.embedding.is_not(None))
+            .order_by(distance)
+            .limit(settings.embedding_top_matches)
+        )
+    ).all()
+    return [
+        JobCandidateMatchRead(
+            candidate=CandidateProfileRead.model_validate(candidate),
+            score=cosine_similarity_score(dist),
+        )
+        for candidate, dist in rows
+    ]
