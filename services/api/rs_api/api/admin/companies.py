@@ -103,7 +103,9 @@ async def update_company_profile_endpoint(
     """Partially update a CompanyProfile."""
     try:
         async with transactional(session):
-            return await update_company_profile(profile_id, data, session)
+            return await update_company_profile(
+                profile_id, data, session, actor_user_id=current_admin.id
+            )
     except (CompanyNotFoundError, EmailAlreadyExistsError) as e:
         raise service_exception_to_http(e) from e
 

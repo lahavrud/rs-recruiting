@@ -178,11 +178,18 @@ async def update_application_notes_endpoint(
 @router.delete("/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_application_endpoint(
     application_id: int,
+    request: Request,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
 ) -> None:
     """Delete an application record. The candidate profile is preserved."""
     try:
-        await delete_application(application_id, session)
+        async with transactional(session):
+            await delete_application(
+                application_id,
+                session,
+                actor_user_id=current_admin.id,
+                ip_address=client_ip(request),
+            )
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e

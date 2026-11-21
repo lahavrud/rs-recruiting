@@ -110,7 +110,7 @@ async def get_candidate_job_matches(
     """Live-ranked jobs for a candidate, best score first.
 
     Computed on demand (cosine distance) against every PUBLISHED, embedded
-    job — mirrors ``services.admin.jobs.get_job_candidate_matches``, the
+    job — mirrors ``services.admin.matches.get_job_candidate_matches``, the
     reverse direction.
 
     Raises ``CandidateNotFoundError`` if the candidate doesn't exist. Returns
