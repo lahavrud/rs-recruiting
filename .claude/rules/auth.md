@@ -17,13 +17,16 @@ Failed logins are throttled per **(email, client IP)** in the `login_throttle` t
 - The old `user.failed_login_attempts` / `locked_until` columns are no longer mapped on `User`; the migration that drops them ships one release later (#1186), because the deploy migrates before old tasks stop selecting them.
 
 ## Two-factor auth (TOTP, admins)
-Admins must have TOTP (#1177): `services/auth/mfa.py` (flows) + `_mfa_codes.py` (code checks, recovery codes), tables `user_mfa`, `mfa_recovery_code`, `mfa_challenge`.
-- `get_current_admin` reads `user_mfa` on every request and 403s `mfa_enrollment_required` until enrolment is confirmed. Only the enrolment endpoints use `get_current_admin_pre_mfa`. The token's `mfa` claim is a UI hint only; never enforce on it.
-- Login for an MFA user returns `mfa_required` + a 5-minute single-use challenge and **no** token or cookie; `/auth/mfa/verify` issues them. All token issuance for a login goes through `issue_session` (login.py), so `login_success` and the `admin_login` audit mean "got in".
-- Confirming enrolment revokes every other session; that is what lets enforcement trust "MFA user ⇒ tokens came through the code step".
+Admins must have TOTP (#1177): `services/auth/mfa.py` (enrolment, status), `mfa_challenge.py` (the login code step), `_mfa_codes.py` (code checks, recovery codes), `_mfa_lockout.py` (per-account lock), `_mfa_notify.py` (owner emails); tables `user_mfa`, `mfa_recovery_code`, `mfa_challenge`, plus `refreshtoken.mfa_verified`.
+- **Two checks, both from the DB, never a token claim.** `get_current_user` refuses (401 `session_revoked`) any session of an MFA user whose refresh row isn't `mfa_verified`, and `refresh_user_tokens` won't rotate one. `get_current_admin` 403s `mfa_enrollment_required` until enrolment is confirmed; only the enrolment endpoints use `get_current_admin_pre_mfa`. The JWT `mfa` claim mirrors the session flag for the SPA's routing only.
+- Only the code step (`issue_session(..., mfa_verified=True)` from `/auth/mfa/verify`) and the enrolment (its own session) set `mfa_verified`; rotation carries it. Login for an MFA user returns `mfa_required` + a 5-minute challenge and **no** token or cookie. All login token issuance goes through `issue_session`, so `login_success` and the `admin_login` audit mean "got in".
+- Confirming enrolment revokes every other session.
+- Challenge attempts are reserved with one conditional UPDATE in their own session *before* the code is checked (cap 5, no concurrent overrun); success consumes the challenge with a conditional DELETE (two right answers can't both log in).
 - Replay: a code's time-step must be greater than `last_used_step`, claimed atomically. ±1 step skew.
-- A bad code counts toward the login throttle for the (email, IP) pair and is audited through its own session (tests point `mfa._session_factory` at the test DB).
-- Secrets are Fernet-encrypted with a key derived from `MFA_ENCRYPTION_KEY` (SSM, required in prod). Rotating it forces every user to re-enrol.
+- A wrong code counts per account (5 free, then the code step is locked 5 → 10 → 20 → 40 → 60 min, cleared only by a right code or the reset) and per (email, IP) in the login throttle. The per-IP throttle alone isn't enough: a correct password clears its pair. Writes go through their own sessions (tests point `mfa_challenge._session_factory` and `_mfa_lockout._session_factory` at the test DB).
+- The owner is emailed on enrolment, recovery-code use (with codes left), regeneration, the first lock of a run, and a break-glass reset.
+- Secrets are Fernet-encrypted and recovery codes HMAC-hashed, with per-purpose keys derived from `MFA_ENCRYPTION_KEY` (SSM, required in prod, not in the DB). Rotating it forces every user to re-enrol.
+- MFA responses and token-issuing responses are `Cache-Control: no-store`.
 - No self-disable. Break-glass is `scripts/reset_mfa.py`: `docs/runbooks/mfa-reset.md`.
 
 ## Rate limiting (slowapi)
@@ -40,6 +43,7 @@ The `@limiter.limit` decorators in `services/api/rs_api/api/auth/` are the sourc
 | mfa verify | 10/minute |
 | mfa enrol start / confirm | 10/hour |
 | mfa recovery-codes | 5/hour |
+| mfa status | 60/minute |
 
 Never surface the raw slowapi detail string (`"5 per 1 minute"`) in the UI — map to a Hebrew error key.
 
@@ -62,6 +66,6 @@ Resolves initial state synchronously from `localStorage`, then verifies via `/ap
 - Registration: `libs/shared/rs_shared/services/auth/registration.py` (company) + `.../candidate_registration.py`
 - Activation: `libs/shared/rs_shared/services/auth/activation.py`
 - Password reset / change: `libs/shared/rs_shared/services/auth/password_reset.py` + `.../password_change.py`
-- MFA: `libs/shared/rs_shared/services/auth/mfa.py`, `_mfa_codes.py`, `mfa_reset.py` (break-glass); router `services/api/rs_api/api/auth/mfa.py`; setup page `frontend/src/pages/admin/MfaSetupPage.tsx`
+- MFA: `libs/shared/rs_shared/services/auth/mfa.py`, `mfa_challenge.py`, `_mfa_codes.py`, `_mfa_lockout.py`, `_mfa_notify.py`, `mfa_reset.py` (break-glass); router `services/api/rs_api/api/auth/mfa.py`; setup page `frontend/src/pages/admin/MfaSetupPage.tsx`
 - Auth API routers: `services/api/rs_api/api/auth/` (incl. `sessions.py` — list/revoke sessions); web infra (auth deps, slowapi limiter): `services/api/rs_api/infrastructure/`
 - Route guards: `frontend/src/components/guards/`

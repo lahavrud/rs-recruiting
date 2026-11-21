@@ -4,15 +4,21 @@ Admin accounts require TOTP (#1177). Use this runbook only when the admin has
 **lost both** the authenticator and every recovery code, or after
 `MFA_ENCRYPTION_KEY` was rotated (which makes every stored secret unreadable).
 With one recovery code left, log in with it and regenerate codes on the profile
-page instead.
+page instead. A **locked** code step (`mfa_locked`, after 5+ wrong codes) is not
+a reason to reset: it lifts by itself within an hour at most, and it means
+someone else has the password, so change the password (forgot-password) first.
+After `MFA_ENCRYPTION_KEY` rotation the recovery codes stop working too (they
+are hashed with a key derived from it).
 
 ## What the reset does
 
 `scripts/reset_mfa.py` → `rs_shared.services.auth.mfa_reset.reset_user_mfa`:
 
-- deletes the user's `user_mfa` row, recovery codes and pending challenges;
+- deletes the user's `user_mfa` row (secret, failure count, lock), recovery
+  codes and pending challenges;
 - deletes **all** their refresh tokens (every session ends);
-- writes an `mfa_reset_break_glass` audit row (actor empty, `detail` = your reason).
+- writes an `mfa_reset_break_glass` audit row (actor empty, `detail` = your reason);
+- emails the owner that their MFA was reset.
 
 The next login is password-only, and the admin is sent straight to
 `/admin/mfa-setup` to enrol again. There is no endpoint for this on purpose.
