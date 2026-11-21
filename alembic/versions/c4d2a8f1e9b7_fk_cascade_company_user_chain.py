@@ -1,7 +1,7 @@
 """FK ON DELETE CASCADE on user / company / job chain
 
 Revision ID: c4d2a8f1e9b7
-Revises: b00a63289dff
+Revises: d84645c6404c
 Create Date: 2026-05-12 10:00:00.000000
 
 Before this change, deleting a User that had a PasswordResetToken (added in
@@ -31,7 +31,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "c4d2a8f1e9b7"
-down_revision: Union[str, Sequence[str], None] = "b00a63289dff"
+down_revision: Union[str, Sequence[str], None] = "d84645c6404c"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

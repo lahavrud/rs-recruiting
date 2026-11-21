@@ -28,7 +28,7 @@ from rs_shared.core.infrastructure.security import (
 from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.tasks import queue_email
 from rs_shared.models import PasswordResetToken, RefreshToken, User
-from rs_shared.services.auth.login import _clear_failed_attempts
+from rs_shared.services.auth.login_throttle import clear_all_login_failures
 from rs_shared.services.exceptions import InvalidPasswordResetTokenError
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.templates.email import build_password_reset_html
@@ -187,6 +187,8 @@ async def reset_password(
         target_id=user.id,
     )
 
-    user_id = user.id
-    defer_after_commit(lambda: _clear_failed_attempts(user_id))
+    # A reset proves inbox ownership: lift every login throttle on the email,
+    # from any address, so the owner isn't stuck behind an attacker's block.
+    user_email = user.email
+    defer_after_commit(lambda: clear_all_login_failures(user_email))
     return user

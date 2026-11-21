@@ -35,7 +35,7 @@ async def _delete_refresh_token(token_id: int) -> None:
     Must be used instead of ``session.delete()`` on the main request session
     when an exception is raised afterwards inside a ``transactional()`` block,
     because ``transactional()`` rolls back ALL pending changes on any exception.
-    Using a separate session here (same pattern as ``_record_failed_attempt``)
+    Using a separate session here (same pattern as ``login_throttle``)
     ensures the row is actually removed regardless of the outer transaction fate.
 
     Uses a direct DELETE statement (no prior SELECT) — idempotent if the row

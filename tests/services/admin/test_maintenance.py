@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import hash_token
@@ -17,6 +18,7 @@ from rs_shared.models import (
     CandidateProfile,
     DataExportRequest,
     EmailOutbox,
+    LoginThrottle,
     User,
 )
 from rs_shared.services.admin.maintenance import (
@@ -24,6 +26,7 @@ from rs_shared.services.admin.maintenance import (
     purge_expired_activation_tokens,
     purge_expired_data_export_zips,
     purge_expired_email_outbox,
+    purge_expired_login_throttle,
     purge_unactivated_candidate_users,
     redact_expired_email_outbox,
 )
@@ -592,3 +595,37 @@ async def test_purge_outbox_never_deletes_in_flight_rows(session, status):
 
     assert await purge_expired_email_outbox(session) == 0
     assert await _reload(session, row.id) is not None
+
+
+# ── purge_expired_login_throttle ─────────────────────────────────────────────
+
+
+async def _throttle_row(
+    session, ip: str, last_failure_ago: timedelta, blocked_for=None
+):
+    now = datetime.now(timezone.utc)
+    session.add(
+        LoginThrottle(
+            email_hash="f" * 64,
+            client_ip=ip,
+            failures=3,
+            last_failure_at=now - last_failure_ago,
+            blocked_until=(now + blocked_for) if blocked_for else None,
+        )
+    )
+    await session.flush()
+
+
+@pytest.mark.asyncio
+async def test_purge_login_throttle_removes_only_stale_rows(session):
+    await _throttle_row(session, "203.0.113.1", timedelta(hours=25))
+    await _throttle_row(session, "203.0.113.2", timedelta(hours=1))
+    await _throttle_row(
+        session, "203.0.113.3", timedelta(hours=25), blocked_for=timedelta(minutes=5)
+    )
+
+    assert await purge_expired_login_throttle(session) == 1
+    remaining = {
+        r.client_ip for r in (await session.execute(select(LoginThrottle))).scalars()
+    }
+    assert remaining == {"203.0.113.2", "203.0.113.3"}

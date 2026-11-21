@@ -10,12 +10,26 @@ from jwt import InvalidTokenError
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key, settings
 
+# bcrypt only uses the first 72 bytes of a password, and bcrypt>=5 raises
+# ValueError instead of truncating. Registration rejects longer passwords
+# (`_validate_password_complexity`), so no stored hash can come from one.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
 
 def is_password_valid(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
+    """Check a password against a bcrypt hash; never raises on long input.
+
+    A password over 72 bytes can't match any hash we issued, but it still runs
+    a full ``checkpw`` (on the first 72 bytes) so its response takes the same
+    time as any other wrong password, and the result is always ``False``.
+    """
+    password_bytes = plain_password.encode("utf-8")
+    too_long = len(password_bytes) > BCRYPT_MAX_PASSWORD_BYTES
+    matched = bcrypt.checkpw(
+        password_bytes[:BCRYPT_MAX_PASSWORD_BYTES],
         hashed_password.encode("utf-8"),
     )
+    return matched and not too_long
 
 
 def get_password_hash(password: str) -> str:
