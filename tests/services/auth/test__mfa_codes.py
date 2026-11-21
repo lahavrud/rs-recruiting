@@ -1,0 +1,52 @@
+"""Tests for the TOTP code primitives (skew window, format, recovery codes)."""
+
+import re
+from datetime import datetime, timezone
+
+import pyotp
+import pytest
+
+from rs_shared.services.auth._mfa_codes import (
+    _matching_step,
+    _new_recovery_code,
+    _normalize_recovery_code,
+)
+
+# ── step matching (explicit clock, so no boundary flakiness) ─────────────────
+
+
+def test_matching_step_accepts_one_step_of_skew_only():
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    now = datetime(2026, 11, 21, 12, 0, 10, tzinfo=timezone.utc)
+    current = totp.timecode(now)
+
+    for offset in (-1, 0, 1):
+        code = totp.generate_otp(current + offset)
+        assert _matching_step(secret, code, now) == current + offset
+    for offset in (-2, 2):
+        assert _matching_step(secret, totp.generate_otp(current + offset), now) is None
+
+
+@pytest.mark.parametrize("bad", ["", "12345", "1234567", "abcdef", "12 34 5x"])
+def test_matching_step_rejects_malformed_codes(bad: str):
+    assert (
+        _matching_step(pyotp.random_base32(), bad, datetime.now(timezone.utc)) is None
+    )
+
+
+def test_matching_step_tolerates_spaces():
+    secret = pyotp.random_base32()
+    now = datetime.now(timezone.utc)
+    code = pyotp.TOTP(secret).at(now)
+    assert _matching_step(secret, f"{code[:3]} {code[3:]}", now) is not None
+
+
+def test_recovery_codes_are_grouped_and_unambiguous():
+    code = _new_recovery_code()
+    assert re.fullmatch(r"[a-z2-9]{5}-[a-z2-9]{5}", code)
+    assert not set(code) & set("01loi")
+
+
+def test_recovery_code_normalisation_ignores_case_dashes_and_spaces():
+    assert _normalize_recovery_code(" ABCDE-fghjk ") == "abcdefghjk"

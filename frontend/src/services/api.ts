@@ -42,14 +42,33 @@ function clearSession() {
   }
 }
 
+/** Where an admin without MFA must go; the guards route there too. */
+export const MFA_SETUP_PATH = "/admin/mfa-setup";
+
+// 401s that are an answer about a code, not an expired session: refreshing
+// and retrying would only bounce the user to /login mid-step.
+const MFA_CODE_ERRORS = new Set(["invalid_mfa_code", "mfa_challenge_expired"]);
+
 // Response interceptor: on 401, attempt token refresh before giving up
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const detail = axios.isAxiosError(error) ? error.response?.data?.detail : undefined;
+    // Backstop for the route guards: the API refuses admin calls until MFA is
+    // set up (403 mfa_enrollment_required), wherever the call came from.
+    if (
+      error.response?.status === 403 &&
+      detail === "mfa_enrollment_required" &&
+      window.location.pathname !== MFA_SETUP_PATH
+    ) {
+      window.location.href = MFA_SETUP_PATH;
+      return Promise.reject(error);
+    }
     if (
       !axios.isAxiosError(error) ||
       error.response?.status !== 401 ||
+      MFA_CODE_ERRORS.has(detail) ||
       originalRequest._retry ||
       originalRequest.url?.includes("/auth/refresh") ||
       originalRequest.url?.includes("/auth/login") ||

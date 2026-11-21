@@ -23,6 +23,7 @@ from rs_shared.models import (
     UsedRefreshToken,
     User,
 )
+from rs_shared.services.auth.mfa import is_mfa_enabled
 from rs_shared.services.exceptions import InvalidCredentialsError
 from rs_shared.services.utils.audit import record_audit_event
 
@@ -98,12 +99,15 @@ async def create_user_tokens(
     # The caller's transactional() context still controls the commit.
     await session.flush()
 
+    # `mfa` is a UI hint only (the SPA routes an unenrolled admin to setup);
+    # enforcement reads user_mfa on every admin request, never this claim.
     access_token = create_access_token(
         data={
             "sub": str(user.id),
             "email": user.email,
             "role": user.role.value,
             "sid": db_token.id,
+            "mfa": await is_mfa_enabled(session, user.id),
         }
     )
 

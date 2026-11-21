@@ -1,5 +1,6 @@
 """Tests for authentication dependencies."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +11,7 @@ from rs_api.infrastructure.dependencies import (
     _is_trusted_proxy,
     client_ip,
     get_current_admin,
+    get_current_admin_pre_mfa,
     get_current_candidate,
     get_current_user,
     get_token_payload,
@@ -19,7 +21,7 @@ from rs_shared.core.infrastructure.security import (
     decode_access_token,
 )
 from rs_shared.enums import UserRole
-from rs_shared.models import CandidateProfile, User
+from rs_shared.models import CandidateProfile, User, UserMfa
 
 
 @pytest.fixture
@@ -198,10 +200,48 @@ class TestGetCurrentAdmin:
         )
         payload = _make_payload(token)
         current_user = await get_current_user(payload=payload, session=session)
-        admin = await get_current_admin(current_user=current_user)
+        session.add(
+            UserMfa(
+                user_id=admin_user.id,
+                secret_encrypted="x",
+                enabled_at=datetime.now(timezone.utc),
+            )
+        )
+        await session.commit()
+
+        admin = await get_current_admin(current_user=current_user, session=session)
 
         assert admin.id == admin_user.id
         assert admin.role == UserRole.ADMIN
+
+    @pytest.mark.asyncio
+    async def test_get_current_admin_without_mfa_must_enrol(
+        self, session: AsyncSession, admin_user: User
+    ):
+        """An admin with no confirmed MFA is sent to enrol (#1177)."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_admin(current_user=admin_user, session=session)
+
+        assert exc_info.value.status_code == 403
+        assert exc_info.value.detail == "mfa_enrollment_required"
+
+    @pytest.mark.asyncio
+    async def test_get_current_admin_pending_enrolment_must_enrol(
+        self, session: AsyncSession, admin_user: User
+    ):
+        """A secret issued but never confirmed is not MFA."""
+        session.add(UserMfa(user_id=admin_user.id, secret_encrypted="x"))
+        await session.commit()
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_admin(current_user=admin_user, session=session)
+
+        assert exc_info.value.detail == "mfa_enrollment_required"
+
+    @pytest.mark.asyncio
+    async def test_pre_mfa_admin_passes_without_mfa(self, admin_user: User):
+        """Enrolment endpoints accept an admin before MFA exists."""
+        assert await get_current_admin_pre_mfa(current_user=admin_user) is admin_user
 
     @pytest.mark.asyncio
     async def test_get_current_admin_non_admin_user_rejection(
@@ -219,7 +259,7 @@ class TestGetCurrentAdmin:
         current_user = await get_current_user(payload=payload, session=session)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_admin(current_user=current_user)
+            await get_current_admin_pre_mfa(current_user=current_user)
 
         assert exc_info.value.status_code == 403
         assert "admin" in exc_info.value.detail.lower()

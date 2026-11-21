@@ -1477,6 +1477,10 @@ export interface paths {
         /**
          * Login
          * @description Login — access token in body, refresh token in HttpOnly cookie.
+         *
+         *     For a user with MFA on, a correct password returns ``mfa_required`` and a
+         *     5-minute ``mfa_token`` instead (no cookie); ``POST /auth/mfa/verify``
+         *     finishes the login.
          */
         post: operations["login_auth_login_post"];
         delete?: never;
@@ -1524,6 +1528,89 @@ export interface paths {
          *     continues working.
          */
         post: operations["change_password_auth_me_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/enrol/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrol Confirm
+         * @description Confirm enrolment with a code: MFA on, recovery codes, other sessions out.
+         *
+         *     Returns a fresh access token for the same session (same ``sid``) so the
+         *     SPA's ``mfa`` claim flips without a re-login.
+         */
+        post: operations["enrol_confirm_auth_mfa_enrol_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/enrol/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enrol Start
+         * @description Issue a pending TOTP secret (QR rendered client-side from the URI).
+         */
+        post: operations["enrol_start_auth_mfa_enrol_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New Recovery Codes
+         * @description Replace the recovery codes (requires a current code).
+         */
+        post: operations["new_recovery_codes_auth_mfa_recovery_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify
+         * @description Finish a login: challenge + TOTP (or a recovery code) → tokens.
+         */
+        post: operations["verify_auth_mfa_verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2934,6 +3021,30 @@ export interface components {
             remember_me: boolean;
         };
         /**
+         * LoginResponse
+         * @description Login response: tokens, or the start of the second-factor step.
+         *
+         *     For a user with MFA on, a correct password returns ``mfa_required=True``
+         *     and a short-lived ``mfa_token`` instead of an access token, and no refresh
+         *     cookie is set; ``POST /auth/mfa/verify`` completes the login.
+         */
+        LoginResponse: {
+            /** Access Token */
+            access_token?: string | null;
+            /**
+             * Mfa Required
+             * @default false
+             */
+            mfa_required: boolean;
+            /** Mfa Token */
+            mfa_token?: string | null;
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+        };
+        /**
          * MatchSuggestionActionRequest
          * @description Request body for push/dismiss actions on an AI match suggestion.
          */
@@ -2944,6 +3055,60 @@ export interface components {
             job_id: number;
             /** Score */
             score: number;
+        };
+        /**
+         * MfaCodeRequest
+         * @description A current 6-digit TOTP code.
+         */
+        MfaCodeRequest: {
+            /** Code */
+            code: string;
+        };
+        /**
+         * MfaEnrolmentConfirmResponse
+         * @description MFA is on: recovery codes (shown once) + an access token whose
+         *     ``mfa`` claim reflects it.
+         */
+        MfaEnrolmentConfirmResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Recovery Codes */
+            recovery_codes: string[];
+            /**
+             * Token Type
+             * @default bearer
+             */
+            token_type: string;
+        };
+        /**
+         * MfaEnrolmentStartResponse
+         * @description A pending TOTP secret: the QR is rendered client-side from the URI.
+         */
+        MfaEnrolmentStartResponse: {
+            /** Otpauth Uri */
+            otpauth_uri: string;
+            /** Secret */
+            secret: string;
+        };
+        /**
+         * MfaRecoveryCodesResponse
+         * @description A fresh set of recovery codes; the old ones no longer work.
+         */
+        MfaRecoveryCodesResponse: {
+            /** Recovery Codes */
+            recovery_codes: string[];
+        };
+        /**
+         * MfaVerifyRequest
+         * @description The code step of a login: the challenge plus one of the two codes.
+         */
+        MfaVerifyRequest: {
+            /** Code */
+            code?: string | null;
+            /** Mfa Token */
+            mfa_token: string;
+            /** Recovery Code */
+            recovery_code?: string | null;
         };
         /**
          * MyApplicationInfo
@@ -5687,7 +5852,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AccessTokenResponse"];
+                    "application/json": components["schemas"]["LoginResponse"];
                 };
             };
             /** @description Validation Error */
@@ -5738,6 +5903,125 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enrol_confirm_auth_mfa_enrol_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaEnrolmentConfirmResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enrol_start_auth_mfa_enrol_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaEnrolmentStartResponse"];
+                };
+            };
+        };
+    };
+    new_recovery_codes_auth_mfa_recovery_codes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaCodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaRecoveryCodesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_auth_mfa_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

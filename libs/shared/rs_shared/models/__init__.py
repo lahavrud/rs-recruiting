@@ -31,6 +31,7 @@ from rs_shared.models.identity import CandidateProfile, CompanyProfile, User
 from rs_shared.models.jobs import Job
 from rs_shared.models.login_throttle import LoginThrottle
 from rs_shared.models.matching import MatchSuggestion
+from rs_shared.models.mfa import MfaChallenge, MfaRecoveryCode, UserMfa
 from rs_shared.models.quota import EmailQuota
 
 __all__ = [
@@ -52,6 +53,9 @@ __all__ = [
     "DataExportRequest",
     "AccountDeletionToken",
     "LoginThrottle",
+    "UserMfa",
+    "MfaRecoveryCode",
+    "MfaChallenge",
     # audit / quota / email
     "AuditLog",
     "EmailQuota",

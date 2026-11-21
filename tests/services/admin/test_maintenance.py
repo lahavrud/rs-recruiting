@@ -19,6 +19,7 @@ from rs_shared.models import (
     DataExportRequest,
     EmailOutbox,
     LoginThrottle,
+    MfaChallenge,
     User,
 )
 from rs_shared.services.admin.maintenance import (
@@ -27,6 +28,7 @@ from rs_shared.services.admin.maintenance import (
     purge_expired_data_export_zips,
     purge_expired_email_outbox,
     purge_expired_login_throttle,
+    purge_expired_mfa_challenges,
     purge_unactivated_candidate_users,
     redact_expired_email_outbox,
 )
@@ -629,3 +631,27 @@ async def test_purge_login_throttle_removes_only_stale_rows(session):
         r.client_ip for r in (await session.execute(select(LoginThrottle))).scalars()
     }
     assert remaining == {"203.0.113.2", "203.0.113.3"}
+
+
+# ── purge_expired_mfa_challenges ─────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_purge_mfa_challenges_removes_only_expired(session, admin_user):
+    now = datetime.now(timezone.utc)
+    for token_hash, expires_at in (
+        ("d" * 64, now - timedelta(seconds=1)),
+        ("e" * 64, now + timedelta(minutes=4)),
+    ):
+        session.add(
+            MfaChallenge(
+                token_hash=token_hash, user_id=admin_user.id, expires_at=expires_at
+            )
+        )
+    await session.flush()
+
+    assert await purge_expired_mfa_challenges(session) == 1
+    remaining = [
+        c.token_hash for c in (await session.execute(select(MfaChallenge))).scalars()
+    ]
+    assert remaining == ["e" * 64]

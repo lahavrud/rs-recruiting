@@ -1,11 +1,13 @@
 """Security utilities for password hashing and JWT tokens."""
 
+import base64
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 from jwt import InvalidTokenError
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key, settings
@@ -84,3 +86,36 @@ def create_refresh_token(*, remember_me: bool = False) -> tuple[str, str, dateti
     ttl = REFRESH_TTL_LONG if remember_me else _REFRESH_TTL_SHORT
     expires_at = datetime.now(timezone.utc) + ttl
     return raw, hash_token(raw), expires_at
+
+
+# ── MFA secret encryption ────────────────────────────────────────────────────
+
+
+def _mfa_fernet() -> Fernet:
+    """Fernet keyed from MFA_ENCRYPTION_KEY (any 32+ char string).
+
+    SHA-256 turns the setting into the 32 bytes Fernet needs, so the key can be
+    a plain random string (Tofu's random_password). Outside prod/staging
+    (validate_settings requires the real key there) an unset key falls back to
+    one derived from the JWT secret, labelled so the two never coincide.
+    """
+    raw = settings.mfa_encryption_key or f"mfa-dev-fallback:{get_jwt_secret_key()}"
+    digest = hashlib.sha256(raw.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def encrypt_mfa_secret(secret: str) -> str:
+    """Encrypt a TOTP secret for storage (authenticated, so tampering fails)."""
+    return _mfa_fernet().encrypt(secret.encode("utf-8")).decode("ascii")
+
+
+def decrypt_mfa_secret(token: str) -> str:
+    """Decrypt a stored TOTP secret.
+
+    Raises ``ValueError`` if the ciphertext was written under another key (the
+    key was rotated) or altered: the user must be reset and re-enrol.
+    """
+    try:
+        return _mfa_fernet().decrypt(token.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise ValueError("mfa_secret_undecryptable") from exc

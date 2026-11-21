@@ -64,6 +64,7 @@ const AdminCandidatesPage = lazyWithRetry(
 const AdminProfilePage = lazyWithRetry(
   () => import("@/pages/admin/AdminProfilePage"),
 );
+const MfaSetupPage = lazyWithRetry(() => import("@/pages/admin/MfaSetupPage"));
 const CompanyJobsPage = lazyWithRetry(() => import("@/pages/company/CompanyJobsPage"));
 const CompanyPostJobPage = lazyWithRetry(() => import("@/pages/company/CompanyPostJobPage"));
 const CompanyEditJobPage = lazyWithRetry(() => import("@/pages/company/CompanyEditJobPage"));
@@ -297,6 +298,14 @@ export default function App() {
                   element={
                     <AdminRoute>
                       <AdminProfilePage />
+                    </AdminRoute>
+                  }
+                />
+                <Route
+                  path="/admin/mfa-setup"
+                  element={
+                    <AdminRoute>
+                      <MfaSetupPage />
                     </AdminRoute>
                   }
                 />

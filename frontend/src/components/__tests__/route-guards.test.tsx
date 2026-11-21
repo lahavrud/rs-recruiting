@@ -19,16 +19,20 @@ function makeCtx(user: AuthUser | null): AuthContextType {
   };
 }
 
-function makeUser(role: string): AuthUser {
-  return { id: "1", email: "test@example.com", role: role as AuthUser["role"] };
+function makeUser(role: string, mfaEnabled = true): AuthUser {
+  return { id: "1", email: "test@example.com", role: role as AuthUser["role"], mfaEnabled };
 }
 
-function renderGuard(guard: ReactNode, ctx: AuthContextType) {
+function renderGuard(guard: ReactNode, ctx: AuthContextType, at = "/guarded") {
   return render(
-    <MemoryRouter initialEntries={["/guarded"]}>
+    <MemoryRouter initialEntries={[at]}>
       <AuthContext.Provider value={ctx}>
         <Routes>
           <Route path="/guarded" element={guard} />
+          <Route
+            path="/admin/mfa-setup"
+            element={at === "/admin/mfa-setup" ? guard : <div data-testid="mfa-setup" />}
+          />
           <Route path="/login" element={<div data-testid="login-page" />} />
           <Route path="/dashboard" element={<div data-testid="dashboard-page" />} />
         </Routes>
@@ -167,6 +171,52 @@ describe("route guards — correct role renders children", () => {
         <div data-testid="child" />
       </ProtectedRoute>,
       makeCtx(makeUser(UserRole.COMPANY)),
+    );
+    expect(screen.getByTestId("child")).toBeDefined();
+  });
+});
+
+describe("route guards — admin without MFA must enrol (#1177)", () => {
+  const unenrolled = makeCtx(makeUser(UserRole.ADMIN, false));
+
+  it("AdminRoute sends an unenrolled admin to setup", () => {
+    renderGuard(
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
+      unenrolled,
+    );
+    expect(screen.getByTestId("mfa-setup")).toBeDefined();
+    expect(screen.queryByTestId("child")).toBeNull();
+  });
+
+  it("AdminRoute lets an unenrolled admin reach the setup page itself", () => {
+    renderGuard(
+      <AdminRoute>
+        <div data-testid="child" />
+      </AdminRoute>,
+      unenrolled,
+      "/admin/mfa-setup",
+    );
+    expect(screen.getByTestId("child")).toBeDefined();
+  });
+
+  it("ProtectedRoute sends an unenrolled admin to setup", () => {
+    renderGuard(
+      <ProtectedRoute>
+        <div data-testid="child" />
+      </ProtectedRoute>,
+      unenrolled,
+    );
+    expect(screen.getByTestId("mfa-setup")).toBeDefined();
+  });
+
+  it("ProtectedRoute ignores MFA for non-admins", () => {
+    renderGuard(
+      <ProtectedRoute>
+        <div data-testid="child" />
+      </ProtectedRoute>,
+      makeCtx(makeUser(UserRole.CANDIDATE, false)),
     );
     expect(screen.getByTestId("child")).toBeDefined();
   });

@@ -12,6 +12,7 @@ import { apiErrorKey } from "@/utils/apiError";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
+import MfaCodeStep from "./components/MfaCodeStep";
 
 export default function LoginPage() {
   const { t } = useTranslation('auth');
@@ -35,6 +36,8 @@ export default function LoginPage() {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
   );
+  // Set after a correct password for an MFA user: the code step replaces the form.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
 
   async function handleResendActivation() {
     if (!pendingActivationEmail || resendState === "sending") return;
@@ -94,7 +97,11 @@ export default function LoginPage() {
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
-      await login({ email, password, remember_me: isRememberMeChecked });
+      const outcome = await login({ email, password, remember_me: isRememberMeChecked });
+      if (outcome) {
+        setMfaToken(outcome.mfaToken);
+        return;
+      }
       navigate(from, { replace: true });
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
@@ -134,95 +141,107 @@ export default function LoginPage() {
           </h1>
         </div>
 
-        <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
-          {error && (
-            <div className={errorAlertCls}>
-              {error}
-              {pendingActivationEmail && (
-                <div className="mt-2 text-xs text-white/60">
-                  {resendState === "sent" ? (
-                    <span>{t("auth:login.resendActivation.sent")}</span>
-                  ) : resendState === "error" ? (
-                    <span>{t("auth:login.resendActivation.error")}</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleResendActivation}
-                      disabled={resendState === "sending"}
-                      className="text-copper underline transition hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {resendState === "sending"
-                        ? t("auth:login.resendActivation.sending")
-                        : t("auth:login.resendActivation.cta")}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        {mfaToken ? (
+          <MfaCodeStep
+            mfaToken={mfaToken}
+            onDone={() => navigate(from, { replace: true })}
+            onRestart={() => {
+              setMfaToken(null);
+              setPassword("");
+              setError(t("auth:login.mfa.errors.expired"));
+            }}
+          />
+        ) : (
+          <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
+            {error && (
+              <div className={errorAlertCls}>
+                {error}
+                {pendingActivationEmail && (
+                  <div className="mt-2 text-xs text-white/60">
+                    {resendState === "sent" ? (
+                      <span>{t("auth:login.resendActivation.sent")}</span>
+                    ) : resendState === "error" ? (
+                      <span>{t("auth:login.resendActivation.error")}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendActivation}
+                        disabled={resendState === "sending"}
+                        className="text-copper underline transition hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendState === "sending"
+                          ? t("auth:login.resendActivation.sending")
+                          : t("auth:login.resendActivation.cta")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm text-white/50">
-                {t("auth:login.emailLabel")}
-              </label>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm text-white/50">
+                  {t("auth:login.emailLabel")}
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={handleEmailChange}
+                  onBlur={handleBlur}
+                  className={`mt-1 ${INPUT_CLS}`}
+                  placeholder={t("auth:login.emailPlaceholder")}
+                  autoComplete="email"
+                />
+                {fieldErrors.email && (
+                  <p className="mt-1 text-xs text-danger">{fieldErrors.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm text-white/50">
+                  {t("auth:login.passwordLabel")}
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={handlePasswordChange}
+                  onBlur={handleBlur}
+                  className={`mt-1 ${INPUT_CLS}`}
+                  placeholder={t("auth:login.passwordPlaceholder")}
+                  autoComplete="current-password"
+                />
+                {fieldErrors.password && (
+                  <p className="mt-1 text-xs text-danger">{fieldErrors.password}</p>
+                )}
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-white/50">
               <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={handleEmailChange}
-                onBlur={handleBlur}
-                className={`mt-1 ${INPUT_CLS}`}
-                placeholder={t("auth:login.emailPlaceholder")}
-                autoComplete="email"
+                type="checkbox"
+                checked={isRememberMeChecked}
+                onChange={(e) => setIsRememberMeChecked(e.target.checked)}
+                className="h-4 w-4 cursor-pointer rounded border-white/20 bg-well accent-copper"
               />
-              {fieldErrors.email && (
-                <p className="mt-1 text-xs text-danger">{fieldErrors.email}</p>
-              )}
-            </div>
+              {t("auth:login.rememberMe")}
+            </label>
 
-            <div>
-              <label htmlFor="password" className="block text-sm text-white/50">
-                {t("auth:login.passwordLabel")}
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={handlePasswordChange}
-                onBlur={handleBlur}
-                className={`mt-1 ${INPUT_CLS}`}
-                placeholder={t("auth:login.passwordPlaceholder")}
-                autoComplete="current-password"
-              />
-              {fieldErrors.password && (
-                <p className="mt-1 text-xs text-danger">{fieldErrors.password}</p>
-              )}
-            </div>
-          </div>
-
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-white/50">
-            <input
-              type="checkbox"
-              checked={isRememberMeChecked}
-              onChange={(e) => setIsRememberMeChecked(e.target.checked)}
-              className="h-4 w-4 cursor-pointer rounded border-white/20 bg-well accent-copper"
-            />
-            {t("auth:login.rememberMe")}
-          </label>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isSubmitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isSubmitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
+            </button>
+          </form>
+        )}
 
         <div className="space-y-2 px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
           <p>
