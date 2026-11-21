@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 
+import Button from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 
@@ -13,8 +14,8 @@ interface MfaCodeStepProps {
   mfaToken: string;
   /** Logged in. */
   onDone: () => void;
-  /** The challenge is dead (expired / too many tries): back to the password. */
-  onRestart: (reason: "expired") => void;
+  /** Back to the password: the challenge died, or the user went back. */
+  onRestart: (reason: "expired" | "cancel") => void;
 }
 
 /** Second step of an MFA login: an authenticator code or a recovery code. */
@@ -49,6 +50,8 @@ export default function MfaCodeStep({ mfaToken, onDone, onRestart }: MfaCodeStep
       } else if (status === 401) {
         setError(t("auth:login.mfa.errors.invalidCode"));
         setValue("");
+      } else if (status === 429 && detail === "mfa_locked") {
+        setError(t("auth:login.mfa.errors.locked"));
       } else if (status === 429) {
         setError(t("auth:login.errors.tooManyAttempts"));
       } else {
@@ -100,20 +103,25 @@ export default function MfaCodeStep({ mfaToken, onDone, onRestart }: MfaCodeStep
               })}
         />
       </div>
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
         {isSubmitting ? t("auth:login.submittingText") : t("auth:login.mfa.submit")}
-      </button>
-      <button
-        type="button"
-        onClick={toggleMode}
-        className="w-full text-center text-sm text-copper transition hover:text-gold"
-      >
-        {isRecovery ? t("auth:login.mfa.useCode") : t("auth:login.mfa.useRecovery")}
-      </button>
+      </Button>
+      <div className="flex flex-col items-center gap-2 text-sm">
+        <button
+          type="button"
+          onClick={toggleMode}
+          className="text-copper transition hover:text-gold"
+        >
+          {isRecovery ? t("auth:login.mfa.useCode") : t("auth:login.mfa.useRecovery")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onRestart("cancel")}
+          className="text-white/50 transition hover:text-white/80"
+        >
+          {t("auth:login.mfa.back")}
+        </button>
+      </div>
     </form>
   );
 }

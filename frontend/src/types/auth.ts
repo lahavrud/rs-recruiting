@@ -16,6 +16,7 @@ export type LoginResponse = Schemas["LoginResponse"];
 export type MfaEnrolmentStart = Schemas["MfaEnrolmentStartResponse"];
 export type MfaEnrolmentConfirm = Schemas["MfaEnrolmentConfirmResponse"];
 export type MfaRecoveryCodes = Schemas["MfaRecoveryCodesResponse"];
+export type MfaStatus = Schemas["MfaStatusResponse"];
 
 /** The second factor for a login: a TOTP code or a recovery code. */
 export type MfaSecondFactor = { code: string } | { recovery_code: string };

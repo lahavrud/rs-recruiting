@@ -6,6 +6,7 @@ import type {
   MfaEnrolmentStart,
   MfaRecoveryCodes,
   MfaSecondFactor,
+  MfaStatus,
   TokenResponse,
   UserWithCompanyRead,
 } from "@/types/auth";
@@ -53,6 +54,11 @@ export async function confirmMfaEnrolment(code: string): Promise<MfaEnrolmentCon
 
 export async function regenerateRecoveryCodes(code: string): Promise<MfaRecoveryCodes> {
   const response = await api.post<MfaRecoveryCodes>("/auth/mfa/recovery-codes", { code });
+  return response.data;
+}
+
+export async function getMfaStatus(): Promise<MfaStatus> {
+  const response = await api.get<MfaStatus>("/auth/mfa/status");
   return response.data;
 }
 

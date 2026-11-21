@@ -61,7 +61,9 @@ describe("MfaCodeStep", () => {
     submit("abcde-fghjk");
 
     await waitFor(() =>
-      expect(complete).toHaveBeenCalledWith("challenge", { recovery_code: "abcde-fghjk" }),
+      expect(complete).toHaveBeenCalledWith("challenge", {
+        recovery_code: "abcde-fghjk",
+      }),
     );
   });
 
@@ -83,5 +85,22 @@ describe("MfaCodeStep", () => {
     submit("123456");
 
     await waitFor(() => expect(onRestart).toHaveBeenCalledWith("expired"));
+  });
+
+  it("explains an account lock instead of a generic rate limit", async () => {
+    const complete = vi.fn().mockRejectedValue(apiError(429, "mfa_locked"));
+    renderStep(complete);
+
+    submit("123456");
+
+    expect(await screen.findByText(/נעולה לכמה דקות/)).toBeDefined();
+  });
+
+  it("lets the user go back to the password step", () => {
+    const { onRestart } = renderStep(vi.fn());
+
+    fireEvent.click(screen.getByRole("button", { name: /חזרה להתחברות/ }));
+
+    expect(onRestart).toHaveBeenCalledWith("cancel");
   });
 });

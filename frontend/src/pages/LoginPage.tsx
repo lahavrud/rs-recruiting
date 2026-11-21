@@ -145,10 +145,10 @@ export default function LoginPage() {
           <MfaCodeStep
             mfaToken={mfaToken}
             onDone={() => navigate(from, { replace: true })}
-            onRestart={() => {
+            onRestart={(reason) => {
               setMfaToken(null);
               setPassword("");
-              setError(t("auth:login.mfa.errors.expired"));
+              setError(reason === "expired" ? t("auth:login.mfa.errors.expired") : null);
             }}
           />
         ) : (
