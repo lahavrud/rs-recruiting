@@ -4,11 +4,22 @@
 
 Dev/test/local-compose build the schema from **`SQLModel.metadata.create_all`**
 (`init_db`), NOT by running migrations. Production applies migrations on top of
-an existing schema. The chain *does* run from an empty database (verified
-2026-11-20, after d84645c6404c, #1058), but no CI job runs it yet (#1057), and
-the result still drifts from `create_all` in places (some VARCHAR lengths,
-`matchsuggestion.status`, three composite indexes), so don't wire it into local
-startup.
+an existing schema. The two must agree, and CI checks that they do (#1057): the
+"Migration chain" step in `ci.yml` builds a database with `alembic upgrade head`
+from empty, round-trips the newest migration (`downgrade -1`, `upgrade head`),
+then runs `scripts/check_migration_drift.py`, which fails on any difference
+between that schema and the models.
+
+When the drift check fails, one side changed without the other: add the missing
+migration, or change the model to match what the chain (and so prod) has. Put a
+difference in the script's `KNOWN_DRIFT` only if it is deliberate, with the
+reason. Blind spots: server defaults, triggers/functions (see below), and a
+VARCHAR with no length in the model compares equal to any length, so give
+string columns the `max_length` the migration uses.
+
+An irreversible downgrade must warn and do nothing, not raise (see
+`b8d1f04e37a2`): CI round-trips the newest migration, and an operator rolling
+back the schema underneath it must not be blocked.
 
 Consequence: **every table needs both a SQLModel model AND a migration.** A
 migration-only table is invisible to `create_all` and silently absent in dev
