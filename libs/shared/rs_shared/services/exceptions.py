@@ -67,6 +67,36 @@ class AccountLockedError(AuthError):
         )
 
 
+class InvalidMfaCodeError(AuthError):
+    """A TOTP or recovery code was wrong, replayed, or malformed."""
+
+    pass
+
+
+class MfaChallengeExpiredError(AuthError):
+    """The login's code step is unknown, expired or used up; start over."""
+
+    pass
+
+
+class MfaAlreadyEnabledError(AuthError):
+    """Enrolment was requested for a user who already has MFA on."""
+
+    pass
+
+
+class MfaNotEnrolledError(AuthError):
+    """An MFA action needs an enrolment (pending or enabled) that isn't there."""
+
+    pass
+
+
+class MfaEnrollmentRequiredError(AuthError):
+    """An admin without MFA tried to use an admin-only endpoint."""
+
+    pass
+
+
 class CompanyNotFoundError(Exception):
     """Raised when a company user is not found."""
 

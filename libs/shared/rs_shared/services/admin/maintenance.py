@@ -28,6 +28,7 @@ from rs_shared.models import (
     DataExportRequest,
     EmailOutbox,
     LoginThrottle,
+    MfaChallenge,
     User,
 )
 
@@ -283,4 +284,23 @@ async def purge_expired_login_throttle(session: AsyncSession) -> int:
     count = result.rowcount
     if count:
         _logger.info("purge_expired_login_throttle: removed %d rows", count)
+    return count
+
+
+async def purge_expired_mfa_challenges(session: AsyncSession) -> int:
+    """Delete MFA login challenges past their expiry.
+
+    A challenge lives 5 minutes; an expired one can never be completed, so
+    the row is dead weight (an abandoned or failed second step).
+
+    Returns count of rows deleted.
+    """
+    result = await session.execute(
+        delete(MfaChallenge).where(
+            MfaChallenge.expires_at < datetime.now(timezone.utc)  # type: ignore[arg-type]
+        )
+    )
+    count = result.rowcount
+    if count:
+        _logger.info("purge_expired_mfa_challenges: removed %d rows", count)
     return count
