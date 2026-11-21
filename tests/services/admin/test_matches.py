@@ -82,3 +82,26 @@ async def test_push_match_onto_published_job_succeeds(
 
     assert result.status == ApplicationStatus.PENDING_ADMIN_REVIEW
     assert await _application_count(session, published_job.id) == 1
+
+
+@pytest.mark.asyncio
+async def test_push_match_audits_application_create(
+    session: AsyncSession, published_job: Job, candidate_profile: CandidateProfile
+):
+    from rs_shared.models import AuditLog
+
+    result = await push_match(candidate_profile.id, published_job.id, 0.9, 1, session)
+    await session.commit()
+
+    [row] = (
+        (
+            await session.execute(
+                select(AuditLog).where(AuditLog.action == "application.create")  # pyright: ignore[reportArgumentType]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert (row.target_type, row.target_id) == ("Application", result.id)
+    assert row.actor_user_id == 1
+    assert row.detail == f"source=push_match,job_id={published_job.id}"
