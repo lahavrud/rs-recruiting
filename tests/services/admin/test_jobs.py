@@ -406,7 +406,9 @@ async def test_close_published_job_records_audit_events(
     await session.flush()
 
     app1 = await make_application(session, job_id, "audit1@test.com")
-    app2 = await make_application(session, job_id, "audit2@test.com")
+    app2 = await make_application(
+        session, job_id, "audit2@test.com", ApplicationStatus.APPROVED_BY_ADMIN
+    )
     await session.commit()
 
     with (
@@ -438,7 +440,11 @@ async def test_close_published_job_records_audit_events(
     assert app1.id in target_ids
     assert app2.id in target_ids
     assert all(r.actor_user_id == 42 for r in rows)
-    assert all("JOB_CLOSED" in r.detail for r in rows)
+    # "FROM->TO" like every other status change, so the timeline badges parse it.
+    assert {r.target_id: r.detail for r in rows} == {
+        app1.id: "PENDING_ADMIN_REVIEW->JOB_CLOSED",
+        app2.id: "APPROVED_BY_ADMIN->JOB_CLOSED",
+    }
 
 
 @pytest.mark.asyncio

@@ -42,6 +42,10 @@ async def close_active_applications(
     )
     apps = list(apps_result.scalars().all())
 
+    # The audit detail is "FROM->TO", like every other status change: the admin
+    # timelines parse it into two badges. The job is the application's own, so
+    # the cascade needs no extra marker.
+    old_statuses = {app.id: app.status for app in apps}
     now = datetime.now(timezone.utc)
     for app in apps:
         app.status = ApplicationStatus.JOB_CLOSED
@@ -56,7 +60,7 @@ async def close_active_applications(
             action="application.status_change",
             target_type="Application",
             target_id=app.id,
-            detail=f"JOB_CLOSED (cascade, job {job_id})",
+            detail=f"{old_statuses[app.id].value}->{ApplicationStatus.JOB_CLOSED.value}",
         )
 
     for app in apps:
