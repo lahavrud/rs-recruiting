@@ -19,7 +19,7 @@ import { JOB_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useSortChain } from "@/hooks/useSortChain";
+import { type SortKey, useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
 import {
   approveJob,
@@ -306,7 +306,7 @@ export default function AdminJobsPage() {
     <SortControl
       ariaLabel={t("admin:jobs.sort.label")}
       value={`${sort}:${order}`}
-      onChange={(col, ord) => replace(col as JobSortColumn, ord)}
+      onChange={(_col, _ord, keys) => replace(keys as SortKey<JobSortColumn>[])}
       options={[
         { value: "status:asc", label: t("admin:jobs.sort.statusAsc") },
         { value: "status:desc", label: t("admin:jobs.sort.statusDesc") },

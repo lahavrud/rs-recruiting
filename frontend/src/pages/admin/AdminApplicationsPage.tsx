@@ -7,6 +7,7 @@ import FunnelIcon from "@/components/admin/FunnelIcon";
 import ListStateSwitch from "@/components/admin/ListStateSwitch";
 import MobileListSkeleton from "@/components/admin/MobileListSkeleton";
 import SortControl from "@/components/admin/SortControl";
+import { formatSortValue } from "@/components/admin/sortControlUtils";
 import SplitPaneLayout from "@/components/admin/SplitPaneLayout";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import InfiniteScrollFooter from "@/components/ui/InfiniteScrollFooter";
@@ -17,7 +18,7 @@ import { APPLICATION_STATUS_COLORS } from "@/constants/statusColors";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useInfiniteList, type CursorPage } from "@/hooks/useInfiniteList";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useSortChain } from "@/hooks/useSortChain";
+import { type SortKey, useSortChain } from "@/hooks/useSortChain";
 import { useToast } from "@/hooks/useToast";
 import {
   deleteApplication,
@@ -275,11 +276,19 @@ export default function AdminApplicationsPage() {
   const sortControl = (
     <SortControl
       ariaLabel={t("admin:applications.sort.label")}
-      value={`${sort}:${order}`}
-      onChange={(col, ord) => replace(col as AppSortColumn, ord)}
+      value={formatSortValue(chain)}
+      onChange={(_col, _ord, keys) => replace(keys as SortKey<AppSortColumn>[])}
       options={[
-        { value: "status:desc", label: t("admin:applications.sort.statusDesc") },
-        { value: "status:asc", label: t("admin:applications.sort.statusAsc") },
+        // Both status options keep "needs attention" first (status asc) and
+        // differ only in date order within each status — #1182.
+        {
+          value: "status:asc,created_at:desc",
+          label: t("admin:applications.sort.statusNewest"),
+        },
+        {
+          value: "status:asc,created_at:asc",
+          label: t("admin:applications.sort.statusOldest"),
+        },
         { value: "created_at:desc", label: t("admin:applications.sort.dateDesc") },
         { value: "created_at:asc", label: t("admin:applications.sort.dateAsc") },
         { value: "name:asc", label: t("admin:applications.sort.nameAsc") },

@@ -2,9 +2,19 @@ import DropdownMenu, { DropdownMenuItem } from "@/components/ui/DropdownMenu";
 import type { SortOrder } from "@/hooks/useColumnSort";
 import { SELECT_CLS } from "@/styles/forms";
 
+import {
+  findActiveOption,
+  type ParsedSortKey,
+  parseSortValue,
+} from "./sortControlUtils";
+
 interface SortControlProps {
   value: string;
-  onChange: (sort: string, order: SortOrder) => void;
+  /**
+   * `sort`/`order` are the option's primary key; `keys` is its full chain,
+   * for options that also set a secondary sort (see `parseSortValue`).
+   */
+  onChange: (sort: string, order: SortOrder, keys: ParsedSortKey[]) => void;
   options: { value: string; label: string }[];
   ariaLabel: string;
 }
@@ -13,7 +23,8 @@ interface SortControlProps {
  * Compact mobile/rail equivalent of `SortableColumnHeader` — a themed
  * dropdown menu rather than a native `<select>`, whose OS-rendered picker
  * chrome breaks the dark UI on mobile. `value`/each option's `value` is the
- * combined `"<sort>:<order>"` key.
+ * combined `"<sort>:<order>"` key, or a comma-separated chain of them
+ * (`"status:asc,created_at:desc"`) for an option with a secondary sort.
  */
 export default function SortControl({
   value,
@@ -21,7 +32,7 @@ export default function SortControl({
   options,
   ariaLabel,
 }: SortControlProps) {
-  const active = options.find((option) => option.value === value);
+  const active = findActiveOption(options, value);
 
   return (
     <DropdownMenu
@@ -55,12 +66,12 @@ export default function SortControl({
         <DropdownMenuItem
           key={option.value}
           onSelect={() => {
-            const [sort, order] = option.value.split(":");
-            onChange(sort, order as SortOrder);
+            const keys = parseSortValue(option.value);
+            onChange(keys[0].column, keys[0].order, keys);
           }}
         >
           <span
-            className={option.value === value ? "font-medium text-copper" : ""}
+            className={option === active ? "font-medium text-copper" : ""}
           >
             {option.label}
           </span>
