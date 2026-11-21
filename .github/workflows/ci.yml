@@ -188,6 +188,23 @@ jobs:
       # are generated from this file, so a stale spec would silently break the
       # frontend/backend contract. Regenerate locally with
       # `uv run python scripts/export_openapi.py` and commit frontend/openapi.json.
+      # Build the schema the way prod does (the Alembic chain, from empty) on a
+      # separate database of the same service, round-trip the newest migration,
+      # then fail if the result disagrees with the models that create_all (dev,
+      # tests) uses. Before this, the deploy's migrate gate against prod was the
+      # first place a migration ever ran (#1057).
+      - name: Migration chain
+        if: needs.detect-changes.outputs.backend == 'true'
+        env:
+          DATABASE_URL: "postgresql+asyncpg://test:test@localhost:5432/rs_migration_check" # pragma: allowlist secret
+          PGPASSWORD: test # pragma: allowlist secret
+        run: |
+          psql -h localhost -U test -d rs_recruitment_test -c 'CREATE DATABASE rs_migration_check'
+          uv run alembic upgrade head
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+          uv run python scripts/check_migration_drift.py
+
       - name: OpenAPI spec up to date
         if: needs.detect-changes.outputs.backend == 'true'
         run: |
