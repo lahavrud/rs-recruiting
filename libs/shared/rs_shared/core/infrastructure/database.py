@@ -33,6 +33,10 @@ engine = create_async_engine(
     DATABASE_URL,
     # Log SQL queries (configurable via DATABASE_ECHO env var)
     echo=settings.database_echo,
+    # Keep bound values out of DBAPIError messages and echo logs. Those
+    # messages reach Loki and Sentry, and the values are user data: a failed
+    # candidateprofile write once logged a CV's name, phone and email.
+    hide_parameters=True,
     future=True,
     pool_size=settings.db_pool_size,
     max_overflow=settings.db_max_overflow,

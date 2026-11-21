@@ -149,6 +149,37 @@ class TestEngineConfiguration:
         assert engine is not None
         # The echo setting is set during engine creation based on settings.database_echo
 
+    @pytest.mark.asyncio
+    async def test_db_errors_do_not_leak_bound_parameters(self):
+        """A failed statement's error text must not carry its bound values.
+
+        SQLAlchemy appends ``[parameters: (...)]`` to DBAPIError messages by
+        default, and the worker logs that message to Loki and Sentry — which
+        leaked a candidate's CV text (name, phone, email) on a failed write.
+        The NUL byte reproduces that incident's error, whose Postgres message
+        does not itself echo the value.
+        """
+        from sqlalchemy import text
+        from sqlalchemy.exc import DBAPIError
+
+        # The app engine targets the base DB, which doesn't exist under
+        # xdist; carry its setting onto an engine for this worker's DB.
+        test_engine = create_async_engine(
+            TEST_DATABASE_URL, hide_parameters=engine.sync_engine.hide_parameters
+        )
+        try:
+            with pytest.raises(DBAPIError) as exc_info:
+                async with test_engine.connect() as conn:
+                    await conn.execute(
+                        text("SELECT CAST(:v AS text)"), {"v": "pii-marker\x00"}
+                    )
+        finally:
+            await test_engine.dispose()
+
+        message = str(exc_info.value)
+        assert "0x00" in message  # it is the error we meant to trigger
+        assert "pii-marker" not in message
+
     def test_engine_pool_uses_configured_settings(self):
         """Engine pool reflects db_pool_* settings, not SQLAlchemy defaults (5+10)."""
         from rs_shared.core.infrastructure.config import settings
