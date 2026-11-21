@@ -14,7 +14,13 @@ from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import decode_access_token
 from rs_shared.enums import UserRole
-from rs_shared.models import CandidateProfile, CompanyProfile, RefreshToken, User
+from rs_shared.models import (
+    CandidateProfile,
+    CompanyProfile,
+    RefreshToken,
+    User,
+    UserMfa,
+)
 
 security = HTTPBearer()
 
@@ -147,28 +153,31 @@ async def get_current_user_optional(
     return user
 
 
-async def get_current_admin(
+async def get_current_admin_pre_mfa(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Get current authenticated admin user.
-
-    This dependency ensures the current user has ADMIN role.
-    Use this for admin-only endpoints.
-
-    Args:
-        current_user: Current authenticated user (from get_current_user)
-
-    Returns:
-        User with ADMIN role
-
-    Raises:
-        HTTPException: If user is not an admin
-    """
+    """Admin role check only: for the MFA enrolment endpoints, nothing else."""
     if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin access required")
+    return current_user
+
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_admin_pre_mfa),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """Current admin, who must have MFA enabled (#1177).
+
+    Read from ``user_mfa`` on every request, never a token claim, so an admin
+    without a confirmed enrolment is sent to enrol whatever token they hold.
+    """
+    result = await session.execute(
+        select(UserMfa.enabled_at).where(  # pyright: ignore[reportArgumentType]
+            UserMfa.user_id == current_user.id  # pyright: ignore[reportArgumentType]
         )
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "mfa_enrollment_required")
     return current_user
 
 

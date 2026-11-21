@@ -68,6 +68,56 @@ class AccessTokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginResponse(BaseModel):
+    """Login response: tokens, or the start of the second-factor step.
+
+    For a user with MFA on, a correct password returns ``mfa_required=True``
+    and a short-lived ``mfa_token`` instead of an access token, and no refresh
+    cookie is set; ``POST /auth/mfa/verify`` completes the login.
+    """
+
+    access_token: str | None = None
+    token_type: str = "bearer"
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaEnrolmentStartResponse(BaseModel):
+    """A pending TOTP secret: the QR is rendered client-side from the URI."""
+
+    secret: str
+    otpauth_uri: str
+
+
+class MfaCodeRequest(BaseModel):
+    """A current 6-digit TOTP code."""
+
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaEnrolmentConfirmResponse(BaseModel):
+    """MFA is on: recovery codes (shown once) + an access token whose
+    ``mfa`` claim reflects it."""
+
+    recovery_codes: list[str]
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MfaRecoveryCodesResponse(BaseModel):
+    """A fresh set of recovery codes; the old ones no longer work."""
+
+    recovery_codes: list[str]
+
+
+class MfaVerifyRequest(BaseModel):
+    """The code step of a login: the challenge plus one of the two codes."""
+
+    mfa_token: str = Field(min_length=1, max_length=128)
+    code: str | None = Field(default=None, max_length=8)
+    recovery_code: str | None = Field(default=None, max_length=16)
+
+
 class TokenResponse(BaseModel):
     """Schema for token response."""
 
