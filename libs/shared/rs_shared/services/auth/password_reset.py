@@ -183,7 +183,7 @@ async def reset_password(
         session,
         actor_user_id=user.id,
         action="password_reset",
-        target_type="user",
+        target_type="User",
         target_id=user.id,
     )
 

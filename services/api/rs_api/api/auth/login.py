@@ -123,7 +123,7 @@ async def login(
                 session,
                 actor_user_id=user.id,
                 action="admin_login",
-                target_type="user",
+                target_type="User",
                 target_id=user.id,
             )
 

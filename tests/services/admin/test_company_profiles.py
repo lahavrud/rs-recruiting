@@ -153,7 +153,7 @@ async def test_update_company_contact_email_audits_login_email_change(
 
     [email_row] = await _audit_rows(session, "user.email_change")
     assert (email_row.target_type, email_row.target_id) == (
-        "user",
+        "User",
         company_with_user.user_id,
     )
     assert email_row.actor_user_id == 4242
