@@ -163,7 +163,11 @@ async def update_job_application_status(
     current_company: tuple[User, CompanyProfile] = Depends(get_current_company),
     session: AsyncSession = Depends(get_session),
 ) -> CompanyApplicationRead:
-    """Update an application's status (HIRED or REJECTED only). Company owner only."""
+    """Move a visible application through the company's pipeline.
+
+    Targets: INTERVIEWING, OFFER, HIRED, REJECTED_BY_COMPANY. Company owner
+    only; an application the company cannot see in its list is a 404.
+    """
     user, company_profile = current_company
     try:
         async with transactional(session):

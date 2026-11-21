@@ -18,6 +18,7 @@ from rs_shared.services.company.jobs import (
     update_job,
 )
 from rs_shared.services.exceptions import (
+    ApplicationNotFoundError,
     CompanyNotFoundError,
     InvalidApplicationStatusTransitionError,
     JobCannotBeDeletedError,
@@ -649,3 +650,65 @@ async def test_delete_job_is_audited(
 
     [row] = await _audit_rows(session, "job.delete")
     assert (row.target_type, row.target_id) == ("job", job_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "hidden_status",
+    [
+        ApplicationStatus.PENDING_ADMIN_REVIEW,
+        ApplicationStatus.REJECTED_BY_ADMIN,
+        ApplicationStatus.WITHDRAWN,
+        ApplicationStatus.JOB_CLOSED,
+    ],
+)
+async def test_company_cannot_move_an_application_it_cannot_see(
+    session: AsyncSession,
+    job: Job,
+    company_with_user: CompanyProfile,
+    hidden_status: ApplicationStatus,
+):
+    """Regression: only the *target* status was checked, so a company could
+    PATCH an application id it never saw in its list (still awaiting RS
+    screening, screened out, withdrawn or closed) straight to HIRED,
+    bypassing the admin screen. It must behave exactly like a missing row."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+    app.status = hidden_status
+    await session.flush()
+
+    with pytest.raises(ApplicationNotFoundError):
+        await update_application_status(
+            job.id,
+            app.id,
+            ApplicationStatus.HIRED.value,
+            company_with_user.id,
+            session,
+            actor_user_id=company_with_user.user_id,
+        )
+
+    await session.refresh(app)
+    assert app.status == hidden_status
+    assert await _audit_rows(session, "application.status_change") == []
+
+
+@pytest.mark.asyncio
+async def test_company_can_still_correct_its_own_decision(
+    session: AsyncSession, job: Job, company_with_user: CompanyProfile
+):
+    """Statuses the company can see stay editable, e.g. undoing a mistaken
+    rejection: the guard is about visibility, not about terminal states."""
+    assert company_with_user.id is not None
+    app = await _make_approved_application(session, job)
+    app.status = ApplicationStatus.REJECTED_BY_COMPANY
+    await session.flush()
+
+    result = await update_application_status(
+        job.id,
+        app.id,
+        ApplicationStatus.INTERVIEWING.value,
+        company_with_user.id,
+        session,
+    )
+
+    assert result.status == ApplicationStatus.INTERVIEWING.value

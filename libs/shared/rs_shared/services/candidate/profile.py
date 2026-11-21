@@ -217,13 +217,13 @@ async def remove_resume(
     profile.embedding = None
     if old_key:
         await delete_file_best_effort(storage, old_key, logger, context="remove_resume")
-    await record_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="candidate.resume_remove",
-        target_type="CandidateProfile",
-        target_id=profile.id,  # pyright: ignore[reportArgumentType]
-        ip_address=ip_address,
-    )
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="candidate.resume_remove",
+            target_type="CandidateProfile",
+            target_id=profile.id,  # pyright: ignore[reportArgumentType]
+            ip_address=ip_address,
+        )
     await session.flush()
     await session.refresh(profile)

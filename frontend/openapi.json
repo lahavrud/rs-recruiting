@@ -7784,7 +7784,7 @@
     },
     "/api/jobs/{job_id}/applications/{app_id}/status": {
       "patch": {
-        "description": "Update an application's status (HIRED or REJECTED only). Company owner only.",
+        "description": "Move a visible application through the company's pipeline.\n\nTargets: INTERVIEWING, OFFER, HIRED, REJECTED_BY_COMPANY. Company owner\nonly; an application the company cannot see in its list is a 404.",
         "operationId": "update_job_application_status_api_jobs__job_id__applications__app_id__status_patch",
         "parameters": [
           {
