@@ -291,3 +291,16 @@ async def test_remove_resume_is_audited():
         7,
         3,
     )
+
+
+@pytest.mark.asyncio
+async def test_remove_resume_without_a_resume_is_not_audited():
+    """The endpoint is idempotent and unthrottled; a no-op must not write
+    "resume removed" rows for a resume that never existed."""
+    profile = _make_profile(resume_path=None)
+    profile.id = 7
+    session = _make_session()
+
+    await remove_resume(profile, AsyncMock(), session, actor_user_id=3)
+
+    assert _audit_rows_added(session) == []

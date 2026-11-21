@@ -369,3 +369,34 @@ async def test_company_status_change_via_api_is_audited_with_actor(
         )
     assert row.detail == "APPROVED_BY_ADMIN->HIRED"
     assert row.actor_user_id == approved_company_user.id
+
+
+@pytest.mark.asyncio
+async def test_company_status_change_on_unscreened_application_is_404(
+    company_client: AsyncClient, pending_job: Job, candidate_profile
+):
+    """An application still awaiting RS screening is invisible to the company,
+    so PATCHing it by id must not reach HIRED (or reveal that it exists)."""
+    from rs_shared.enums import ApplicationStatus
+    from rs_shared.models import Application
+
+    async with TestSessionLocal() as session:
+        app_row = Application(
+            job_id=pending_job.id,  # type: ignore[arg-type]
+            candidate_id=candidate_profile.id,
+            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        )
+        session.add(app_row)
+        await session.commit()
+        await session.refresh(app_row)
+
+    response = await company_client.patch(
+        f"/api/jobs/{pending_job.id}/applications/{app_row.id}/status",
+        json={"status": "HIRED"},
+    )
+    assert response.status_code == 404
+
+    async with TestSessionLocal() as session:
+        stored = await session.get(Application, app_row.id)
+        assert stored is not None
+        assert stored.status == ApplicationStatus.PENDING_ADMIN_REVIEW

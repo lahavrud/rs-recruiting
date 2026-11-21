@@ -153,6 +153,12 @@ async def update_application_status(
             .where(
                 Application.id == application_id,  # pyright: ignore[reportArgumentType]
                 Application.job_id == job_id,  # pyright: ignore[reportArgumentType]
+                # Same visibility rule as the company's application list. Without
+                # it a company could PATCH an id it never saw (awaiting RS
+                # screening, screened out, withdrawn, closed) straight to HIRED
+                # and bypass the admin screen. Hidden rows look missing (404),
+                # so the response also doesn't confirm they exist.
+                Application.status.in_(_COMPANY_VISIBLE_STATUSES),  # pyright: ignore[reportAttributeAccessIssue]
             )
         )
     ).scalar_one_or_none()
