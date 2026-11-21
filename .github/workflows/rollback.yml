@@ -39,6 +39,10 @@ jobs:
   rollback:
     name: Roll back ${{ inputs.environment }} (${{ inputs.service }})
     runs-on: ubuntu-latest
+    # The AWS deploy roles trust only `environment:<name>` OIDC subjects (infra
+    # #124), so the job must run under the environment to assume them. That
+    # also applies production's gates: dispatch from main, approve the run.
+    environment: ${{ inputs.environment }}
     permissions:
       id-token: write
       contents: read

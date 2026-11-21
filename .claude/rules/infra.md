@@ -22,7 +22,7 @@ Trunk-based **continuous delivery**: merge to `main` → CI green → build (by 
 - `ci.yml` — lint, test, docker-build (change-aware: docs-only PRs skip backend). A green run on a `push` to `main` is what triggers delivery.
 - `deliver.yml` — triggered by `ci.yml` **completion** (`workflow_run`) for a `push` to `main` with `conclusion == success`. Builds base + api + worker + alloy (tagged by SHA, pushed to ops ECR), gates prod behind the approval, then tags + creates the GitHub Release. Triggering off CI completion (not raw push) means a commit only ships after its own tests pass. **Staging is retired for cost** — the `deploy-staging` job is commented out (kept in-file for later re-enable); the build promotes straight to `deploy-prod`.
 - `_deploy.yml` — reusable (`workflow_call`), environment-agnostic. Currently called by `deliver.yml` once (the production deploy); it was designed to be called once per environment, so re-enabling staging is just uncommenting `deploy-staging` and adding it to `deploy-prod`'s `needs`. Runs under `environment: <env>` (the production gate lives here — one job so there's one approval prompt). Steps: migrate gate (`alembic upgrade head` as a one-off ECS task derived from the live web task-def) → roll web → roll worker (both via the `ecs-roll` action) → frontend (S3 + CloudFront) → smoke check.
-- `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild.
+- `rollback.yml` — manual. Re-points an ECS service to its previous (or a pinned) task-def revision — break-glass, no rebuild. Its job runs under `environment: <env>` (dispatch from `main`, approve like a deploy): the AWS deploy roles trust only `environment:production` OIDC subjects, so a job without `environment:` cannot assume them.
 - `security-audit.yml` — weekly pip-audit for CVEs.
 - `stale.yml` — weekly stale-issue sweep (60d stale → 14d close; `P1`/`security`/`icebox` labels exempt).
 
@@ -30,7 +30,7 @@ Composite actions: `build-images` (base + api + worker + alloy → ops ECR), `ec
 
 When editing workflows:
 - Preserve the `detect-changes` job in `ci.yml` — it prevents unnecessary rebuilds
-- OIDC permissions block must stay on any job that calls AWS (`id-token: write`, `contents: read`)
+- OIDC permissions block must stay on any job that calls AWS (`id-token: write`, `contents: read`). Prod roles trust only `repo:lahavrud/rs-recruiting:environment:production` and the ops ECR push role only `ref:refs/heads/main` (infra #124): a new prod-AWS job must run under `environment: production`.
 - The production approval is a **GitHub Environment required reviewer** (`production` env, `main`-only), configured in repo settings — not in YAML. Don't try to encode it as a workflow step.
 - Reusable-workflow secret names must be alphanumeric + underscore (no hyphens) — `_deploy.yml`'s `secrets:` use `ecs_role_arn`, `ops_ecr_registry`, etc.
 - Keep the prod approval on a **single** job in `_deploy.yml` — multiple jobs referencing a protected environment each prompt for approval.
