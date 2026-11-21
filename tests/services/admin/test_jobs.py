@@ -869,3 +869,66 @@ async def test_list_jobs_cursor_rejects_sort_change(
 
     with pytest.raises(InvalidCursorError):
         await list_jobs(session, cursor=page.next_cursor, sort="name")
+
+
+# ── audit ─────────────────────────────────────────────────────────────────────
+
+
+async def _audit_rows(session: AsyncSession, action: str) -> list:
+    from rs_shared.models import AuditLog
+
+    rows = await session.execute(
+        select(AuditLog).where(AuditLog.action == action)  # pyright: ignore[reportArgumentType]
+    )
+    return list(rows.scalars().all())
+
+
+@pytest.mark.asyncio
+async def test_update_job_audits_changed_field_names(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    created = await admin_create_job(_payload(company_with_user.id), session)
+    await session.commit()
+
+    await update_job(
+        created.id,
+        # location is unchanged, so only title is recorded.
+        JobAdminUpdate(title="Staff Engineer", location=created.location),
+        session,
+        actor_user_id=company_with_user.user_id,
+    )
+    await session.commit()
+
+    [row] = await _audit_rows(session, "job.update")
+    assert (row.target_type, row.target_id) == ("job", created.id)
+    assert row.detail == "fields=title"
+    assert row.actor_user_id == company_with_user.user_id
+
+
+@pytest.mark.asyncio
+async def test_update_job_noop_writes_no_audit(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    created = await admin_create_job(_payload(company_with_user.id), session)
+    await session.commit()
+
+    await update_job(created.id, JobAdminUpdate(title=created.title), session)
+    await session.commit()
+
+    assert await _audit_rows(session, "job.update") == []
+
+
+@pytest.mark.asyncio
+async def test_delete_job_audits_with_title(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    created = await admin_create_job(_payload(company_with_user.id), session)
+    await session.commit()
+
+    await delete_job(created.id, session, actor_user_id=company_with_user.user_id)
+    await session.commit()
+
+    [row] = await _audit_rows(session, "job.delete")
+    assert (row.target_type, row.target_id) == ("job", created.id)
+    assert row.detail == f"title={created.title}"
+    assert row.actor_user_id == company_with_user.user_id

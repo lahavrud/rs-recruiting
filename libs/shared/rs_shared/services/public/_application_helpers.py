@@ -37,6 +37,7 @@ from rs_shared.services.exceptions import (
     ApplicationAlreadyLockedError,
     EmailAlreadyExistsError,
 )
+from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.services.utils.candidate_profiles import (
     find_candidate_by_email,
     update_candidate_profile,
@@ -195,19 +196,30 @@ async def upsert_candidate_and_application(
     # Resume snapshot per Application — independent of profile's "latest"
     # resume; fixes a missing snapshot write that previously let a
     # candidate's profile resume change retroactively for past applications.
-    session.add(
-        Application(
-            job_id=job_id,
-            candidate_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
-            status=ApplicationStatus.PENDING_ADMIN_REVIEW,
-            service_concept=payload.service_concept,
-            salary_expectations=payload.salary_expectations,
-            strength=payload.strength,
-            growth_area=payload.growth_area,
-            resume_path=payload.resume_path,
-            resume_filename=payload.resume_filename,
-            resume_hash=payload.resume_hash,
-        )
+    application = Application(
+        job_id=job_id,
+        candidate_id=candidate.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
+        status=ApplicationStatus.PENDING_ADMIN_REVIEW,
+        service_concept=payload.service_concept,
+        salary_expectations=payload.salary_expectations,
+        strength=payload.strength,
+        growth_area=payload.growth_area,
+        resume_path=payload.resume_path,
+        resume_filename=payload.resume_filename,
+        resume_hash=payload.resume_hash,
+    )
+    session.add(application)
+    await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=(
+            payload.candidate_user.id if payload.candidate_user is not None else None
+        ),
+        action="application.create",
+        target_type="Application",
+        target_id=application.id,  # type: ignore[arg-type]  # set by the flush above
+        detail=f"source=apply,job_id={job_id}",
+        ip_address=payload.consent_ip,
     )
     return candidate
 

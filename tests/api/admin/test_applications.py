@@ -533,6 +533,38 @@ async def test_delete_application_success(
 
 
 @pytest.mark.asyncio
+async def test_delete_application_is_audited(
+    admin_client: AsyncClient,
+    admin_user,
+    application: Application,
+):
+    """The delete leaves an audit row with ids only, committed with the delete."""
+    from sqlalchemy import select
+
+    from rs_shared.models import AuditLog
+
+    response = await admin_client.delete(f"/api/admin/applications/{application.id}")
+    assert response.status_code == 204
+
+    async with TestSessionLocal() as session:
+        [row] = (
+            (
+                await session.execute(
+                    select(AuditLog).where(AuditLog.action == "application.delete")  # pyright: ignore[reportArgumentType]
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert (row.target_type, row.target_id) == ("Application", application.id)
+    assert row.actor_user_id == admin_user.id
+    assert row.detail == (
+        f"job_id={application.job_id},candidate_id={application.candidate_id},"
+        "status=PENDING_ADMIN_REVIEW"
+    )
+
+
+@pytest.mark.asyncio
 async def test_delete_application_not_found(admin_client: AsyncClient):
     """Returns 404 when application does not exist."""
     response = await admin_client.delete("/api/admin/applications/99999")

@@ -24,7 +24,7 @@ from rs_shared.services.admin._application_status import (
 )
 from rs_shared.services.admin._filters import candidate_not_deleted
 from rs_shared.services.exceptions import ApplicationNotFoundError
-from rs_shared.services.utils.audit import list_audit_events
+from rs_shared.services.utils.audit import list_audit_events, record_audit_event
 
 ApplicationSortColumn = Literal["name", "created_at", "status", "score"]
 
@@ -310,6 +310,9 @@ async def update_application_notes(
 async def delete_application(
     application_id: int,
     session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> None:
     """Removes only the job <-> candidate link; candidate profile and job are untouched.
 
@@ -321,5 +324,16 @@ async def delete_application(
         raise ApplicationNotFoundError(
             f"Application with ID {application_id} not found"
         )
+    # Ids only: the audit outlives the row and possibly the candidate.
+    detail = f"job_id={application.job_id},candidate_id={application.candidate_id}"
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="application.delete",
+        target_type="Application",
+        target_id=application_id,
+        detail=f"{detail},status={application.status.value}",
+        ip_address=ip_address,
+    )
     await session.delete(application)
-    await session.commit()
+    await session.flush()
