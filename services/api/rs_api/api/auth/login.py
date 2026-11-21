@@ -18,7 +18,8 @@ from rs_shared.models import User
 from rs_shared.schemas import AccessTokenResponse, LoginRequest
 from rs_shared.schemas.auth import LoginResponse
 from rs_shared.services.auth.login import authenticate_user
-from rs_shared.services.auth.mfa import create_challenge, is_mfa_enabled
+from rs_shared.services.auth.mfa import is_mfa_enabled
+from rs_shared.services.auth.mfa_challenge import create_challenge
 from rs_shared.services.auth.session import (
     create_user_tokens,
     logout_user,
@@ -93,12 +94,14 @@ async def issue_session(
     user: User,
     *,
     remember_me: bool,
+    mfa_verified: bool = False,
 ) -> str:
     """Issue the access token + refresh cookie for a fully authenticated user.
 
     The only place a login (password, plus the code step for MFA users) turns
     into tokens, so ``login_success`` and the ``admin_login`` audit always mean
-    "got in", never "passed the password step".
+    "got in", never "passed the password step". ``mfa_verified`` only from the
+    code step: an MFA user's session without it is refused everywhere.
     """
     ip = client_ip(request)
     logger.info(
@@ -111,7 +114,11 @@ async def issue_session(
 
     async with transactional(session):
         access_token, refresh_token = await create_user_tokens(
-            user, session, remember_me=remember_me, user_agent=ua
+            user,
+            session,
+            remember_me=remember_me,
+            user_agent=ua,
+            mfa_verified=mfa_verified,
         )
         if user.role == UserRole.ADMIN:
             await record_audit_event(
@@ -124,6 +131,7 @@ async def issue_session(
             )
 
     _set_refresh_cookie(response, refresh_token, remember_me=remember_me)
+    response.headers["Cache-Control"] = "no-store"
     return access_token
 
 
@@ -164,6 +172,7 @@ async def login(
         logger.info(
             "login_mfa_challenge_issued", extra={"user_id": str(user.id), "ip": ip}
         )
+        response.headers["Cache-Control"] = "no-store"
         return LoginResponse(mfa_required=True, mfa_token=mfa_token)
 
     access_token = await issue_session(

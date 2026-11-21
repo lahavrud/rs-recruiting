@@ -10,9 +10,19 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.core.infrastructure.security import get_password_hash, hash_token
+from rs_shared.core.infrastructure.security import (
+    decode_access_token,
+    get_password_hash,
+    hash_token,
+)
 from rs_shared.enums import InviteTokenStatus, UserRole
-from rs_shared.models import InviteToken, RefreshToken, UsedRefreshToken, User
+from rs_shared.models import (
+    InviteToken,
+    RefreshToken,
+    UsedRefreshToken,
+    User,
+    UserMfa,
+)
 from rs_shared.services.auth.session import (
     create_user_tokens,
     get_invite_by_hash,
@@ -162,6 +172,65 @@ async def test_refresh_user_tokens_carries_remember_me(session: AsyncSession):
         )
     )
     assert result.scalar_one().remember_me is True
+
+
+@pytest.mark.asyncio
+async def test_mfa_verified_session_keeps_the_flag_across_rotation(
+    session: AsyncSession,
+):
+    """The second factor is a property of the session: rotation carries it."""
+    user = _active_user("mfarotate@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    session.add(
+        UserMfa(
+            user_id=user.id,
+            secret_encrypted="ct",
+            enabled_at=datetime.now(timezone.utc),
+        )
+    )
+    access, old_raw = await create_user_tokens(user, session, mfa_verified=True)
+    await session.commit()
+    assert (decode_access_token(access) or {})["mfa"] is True
+
+    new_access, new_raw, _ = await refresh_user_tokens(old_raw, session)
+    await session.commit()
+
+    assert (decode_access_token(new_access) or {})["mfa"] is True
+    row = (
+        await session.execute(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == hash_token(new_raw)  # pyright: ignore[reportArgumentType]
+            )
+        )
+    ).scalar_one()
+    assert row.mfa_verified is True
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.auth.session._delete_refresh_token", new_callable=AsyncMock)
+async def test_refresh_refuses_unverified_session_of_mfa_user(
+    mock_delete: AsyncMock, session: AsyncSession
+):
+    """A password-only session that outlived the enrolment can't be renewed."""
+    user = _active_user("mfastale@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    _, raw = await create_user_tokens(user, session)  # not MFA-verified
+    session.add(
+        UserMfa(
+            user_id=user.id,
+            secret_encrypted="ct",
+            enabled_at=datetime.now(timezone.utc),
+        )
+    )
+    await session.commit()
+
+    with pytest.raises(InvalidCredentialsError):
+        await refresh_user_tokens(raw, session)
+    mock_delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio

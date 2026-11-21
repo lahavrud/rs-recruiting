@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Text, false
 from sqlmodel import Column, Field, SQLModel
 
 from rs_shared.enums import InviteTokenStatus
@@ -114,6 +114,13 @@ class RefreshToken(SQLModel, table=True):
     )
     remember_me: bool = Field(default=False)
     user_agent: str | None = Field(default=None, max_length=512)
+    # True once this session passed the second factor (login code step, or
+    # the enrolment that switched MFA on). Carried across rotation. For a user
+    # with MFA on, a session without it is refused (#1177).
+    mfa_verified: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=false()),
+    )
     # Refresh tokens are deleted on use / logout / password change instead
     # of being marked revoked. A boolean revoked flag provided no security
     # benefit (revoked + missing were treated identically) and let dead

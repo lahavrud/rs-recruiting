@@ -3763,13 +3763,33 @@
         "title": "MfaRecoveryCodesResponse",
         "type": "object"
       },
+      "MfaStatusResponse": {
+        "description": "The caller's MFA state, for the profile page.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "recovery_codes_remaining": {
+            "title": "Recovery Codes Remaining",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "recovery_codes_remaining"
+        ],
+        "title": "MfaStatusResponse",
+        "type": "object"
+      },
       "MfaVerifyRequest": {
-        "description": "The code step of a login: the challenge plus one of the two codes.",
+        "description": "The code step of a login: the challenge plus exactly one of the codes.",
         "properties": {
           "code": {
             "anyOf": [
               {
                 "maxLength": 8,
+                "minLength": 6,
                 "type": "string"
               },
               {
@@ -3788,6 +3808,7 @@
             "anyOf": [
               {
                 "maxLength": 16,
+                "minLength": 10,
                 "type": "string"
               },
               {
@@ -8616,7 +8637,7 @@
     },
     "/auth/mfa/enrol/confirm": {
       "post": {
-        "description": "Confirm enrolment with a code: MFA on, recovery codes, other sessions out.\n\nReturns a fresh access token for the same session (same ``sid``) so the\nSPA's ``mfa`` claim flips without a re-login.",
+        "description": "Confirm enrolment with a code: MFA on, recovery codes, other sessions out.\n\nReturns a fresh access token for the same session, no re-login needed.",
         "operationId": "enrol_confirm_auth_mfa_enrol_confirm_post",
         "requestBody": {
           "content": {
@@ -8730,6 +8751,33 @@
           }
         ],
         "summary": "New Recovery Codes",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/status": {
+      "get": {
+        "description": "MFA on/off and how many recovery codes are left.",
+        "operationId": "get_status_auth_mfa_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Status",
         "tags": [
           "auth"
         ]

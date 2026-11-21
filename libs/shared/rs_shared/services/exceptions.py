@@ -79,6 +79,14 @@ class MfaChallengeExpiredError(AuthError):
     pass
 
 
+class MfaLockedError(AuthError):
+    """Too many wrong login codes for this account (from any address)."""
+
+    def __init__(self, minutes_remaining: int) -> None:
+        self.minutes_remaining = minutes_remaining
+        super().__init__(f"Too many wrong codes. Try again in {minutes_remaining} min.")
+
+
 class MfaAlreadyEnabledError(AuthError):
     """Enrolment was requested for a user who already has MFA on."""
 

@@ -50,3 +50,17 @@ def test_recovery_codes_are_grouped_and_unambiguous():
 
 def test_recovery_code_normalisation_ignores_case_dashes_and_spaces():
     assert _normalize_recovery_code(" ABCDE-fghjk ") == "abcdefghjk"
+
+
+def test_recovery_code_hash_is_keyed_not_plain_sha256():
+    import hashlib
+    from unittest.mock import patch
+
+    from rs_shared.core.infrastructure import security
+
+    plain = hashlib.sha256(b"abcdefghjk").hexdigest()
+    with patch.object(security.settings, "mfa_encryption_key", "k" * 40):
+        first = security.hash_mfa_recovery_code("abcdefghjk")
+    with patch.object(security.settings, "mfa_encryption_key", "z" * 40):
+        second = security.hash_mfa_recovery_code("abcdefghjk")
+    assert len(first) == 64 and first != plain and first != second

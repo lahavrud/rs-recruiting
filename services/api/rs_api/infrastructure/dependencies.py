@@ -14,13 +14,8 @@ from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import decode_access_token
 from rs_shared.enums import UserRole
-from rs_shared.models import (
-    CandidateProfile,
-    CompanyProfile,
-    RefreshToken,
-    User,
-    UserMfa,
-)
+from rs_shared.models import CandidateProfile, CompanyProfile, RefreshToken, User
+from rs_shared.services.auth.mfa import is_mfa_enabled
 
 security = HTTPBearer()
 
@@ -47,6 +42,14 @@ async def get_token_payload(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload
+
+
+def _session_revoked() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="session_revoked",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_current_user(
@@ -92,19 +95,23 @@ async def get_current_user(
     # If the session was revoked its row is gone → 401 forces the browser out.
     # Tokens without `sid` (pre-feature) are allowed — they expire within 10 min.
     sid = payload.get("sid")
+    mfa_verified = False
     if sid is not None:
         sid_result = await session.execute(
-            select(RefreshToken.id).where(
+            select(RefreshToken.mfa_verified).where(  # pyright: ignore[reportArgumentType]
                 RefreshToken.id == sid,  # type: ignore[arg-type]
                 RefreshToken.user_id == user.id,  # type: ignore[arg-type]
             )
         )
-        if sid_result.scalar_one_or_none() is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="session_revoked",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+        row = sid_result.first()
+        if row is None:
+            raise _session_revoked()
+        mfa_verified = row[0]
+
+    # Second factor (#1177): a user with MFA on is served only by a session
+    # that passed it. Read from the session row, never from a token claim.
+    if not mfa_verified and await is_mfa_enabled(session, user_id_int):
+        raise _session_revoked()
 
     # Attach user to the current Sentry scope so any exception raised later
     # in this request gets tagged with them. No-op when Sentry isn't init'd.
@@ -166,17 +173,12 @@ async def get_current_admin(
     current_user: User = Depends(get_current_admin_pre_mfa),
     session: AsyncSession = Depends(get_session),
 ) -> User:
-    """Current admin, who must have MFA enabled (#1177).
-
-    Read from ``user_mfa`` on every request, never a token claim, so an admin
-    without a confirmed enrolment is sent to enrol whatever token they hold.
+    """Current admin, who must have MFA enabled (#1177): read from
+    ``user_mfa`` on every request, so an unenrolled admin is sent to enrol
+    whatever token they hold. ``get_current_user`` checks the session passed it.
     """
-    result = await session.execute(
-        select(UserMfa.enabled_at).where(  # pyright: ignore[reportArgumentType]
-            UserMfa.user_id == current_user.id  # pyright: ignore[reportArgumentType]
-        )
-    )
-    if result.scalar_one_or_none() is None:
+    assert current_user.id is not None
+    if not await is_mfa_enabled(session, current_user.id):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "mfa_enrollment_required")
     return current_user
 

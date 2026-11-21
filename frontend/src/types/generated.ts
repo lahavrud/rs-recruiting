@@ -1547,8 +1547,7 @@ export interface paths {
          * Enrol Confirm
          * @description Confirm enrolment with a code: MFA on, recovery codes, other sessions out.
          *
-         *     Returns a fresh access token for the same session (same ``sid``) so the
-         *     SPA's ``mfa`` claim flips without a re-login.
+         *     Returns a fresh access token for the same session, no re-login needed.
          */
         post: operations["enrol_confirm_auth_mfa_enrol_confirm_post"];
         delete?: never;
@@ -1591,6 +1590,26 @@ export interface paths {
          * @description Replace the recovery codes (requires a current code).
          */
         post: operations["new_recovery_codes_auth_mfa_recovery_codes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description MFA on/off and how many recovery codes are left.
+         */
+        get: operations["get_status_auth_mfa_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3099,8 +3118,18 @@ export interface components {
             recovery_codes: string[];
         };
         /**
+         * MfaStatusResponse
+         * @description The caller's MFA state, for the profile page.
+         */
+        MfaStatusResponse: {
+            /** Enabled */
+            enabled: boolean;
+            /** Recovery Codes Remaining */
+            recovery_codes_remaining: number;
+        };
+        /**
          * MfaVerifyRequest
-         * @description The code step of a login: the challenge plus one of the two codes.
+         * @description The code step of a login: the challenge plus exactly one of the codes.
          */
         MfaVerifyRequest: {
             /** Code */
@@ -5997,6 +6026,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_auth_mfa_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatusResponse"];
                 };
             };
         };

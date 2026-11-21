@@ -44,6 +44,7 @@ from rs_shared.services.exceptions import (
     MfaAlreadyEnabledError,
     MfaChallengeExpiredError,
     MfaEnrollmentRequiredError,
+    MfaLockedError,
     MfaNotEnrolledError,
     PendingActivationError,
     PendingApprovalError,
@@ -85,6 +86,7 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     # Second factor
     InvalidMfaCodeError: status.HTTP_401_UNAUTHORIZED,
     MfaChallengeExpiredError: status.HTTP_401_UNAUTHORIZED,
+    MfaLockedError: status.HTTP_429_TOO_MANY_REQUESTS,
     MfaAlreadyEnabledError: status.HTTP_409_CONFLICT,
     MfaNotEnrolledError: status.HTTP_409_CONFLICT,
     MfaEnrollmentRequiredError: status.HTTP_403_FORBIDDEN,
@@ -139,6 +141,7 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     # Second factor
     InvalidMfaCodeError: "invalid_mfa_code",
     MfaChallengeExpiredError: "mfa_challenge_expired",
+    MfaLockedError: "mfa_locked",
     MfaAlreadyEnabledError: "mfa_already_enabled",
     MfaNotEnrolledError: "mfa_not_enrolled",
     MfaEnrollmentRequiredError: "mfa_enrollment_required",

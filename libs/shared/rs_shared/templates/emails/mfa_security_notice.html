@@ -1,0 +1,29 @@
+{% extends "_base.html" %}
+
+{% block content %}
+<h2 class="thi"
+    style="margin:0 0 20px;font-size:22px;font-weight:300;line-height:1.3;
+           color:{{ c_text }};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  {{ title }}
+</h2>
+
+<p class="thi"
+   style="margin:0 0 14px;font-size:14px;line-height:1.7;color:{{ c_text }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  {{ message }}
+</p>
+
+<p class="tmi"
+   style="margin:0 0 8px;font-size:12px;line-height:1.6;color:{{ c_muted }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  {{ occurred_at }}{% if ip %} · {{ ip }}{% endif %}
+</p>
+
+<div class="hr" style="border:0;border-top:1px solid {{ c_border }};margin:28px 0;"></div>
+
+<p class="tmi"
+   style="margin:0;font-size:12px;line-height:1.6;color:{{ c_muted }};
+          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+  לא אתם? החליפו מיד את הסיסמה ופנו אלינו: {{ footer_support_email }}
+</p>
+{% endblock %}

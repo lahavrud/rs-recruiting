@@ -1,17 +1,17 @@
 """API tests for the TOTP second factor (#1177), with real tokens end to end."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pyotp
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from rs_api.api.auth import mfa as mfa_router
 from rs_shared.core.infrastructure.security import (
     create_access_token,
     decode_access_token,
 )
-from rs_shared.models import AuditLog, MfaChallenge, RefreshToken, User
+from rs_shared.models import AuditLog, MfaChallenge, RefreshToken, User, UserMfa
 
 ADMIN_PASSWORD = "adminpassword"  # noqa: S105 -- the admin_user fixture's  # pragma: allowlist secret
 
@@ -114,8 +114,15 @@ async def test_login_with_mfa_needs_code_before_any_token(
         json={"mfa_token": body["mfa_token"], "code": _code(secret, 1)},
     )
     assert good.status_code == 200, good.text
-    assert good.json()["access_token"]
+    assert good.headers["cache-control"] == "no-store"
     assert "refresh_token=" in good.headers.get("set-cookie", "")
+    # The session the code step opened is MFA-verified: admin routes serve it.
+    token = good.json()["access_token"]
+    assert decode_access_token(token)["mfa"] is True  # pyright: ignore[reportOptionalSubscript]
+    overview = await unauthenticated_client.get(
+        "/api/admin/overview", headers=_bearer(token)
+    )
+    assert overview.status_code == 200
     assert "mfa_verify_failed" in await _audit_actions(session_local_factory)
     assert "admin_login" in await _audit_actions(session_local_factory)
 
@@ -213,3 +220,75 @@ async def test_expired_challenge_rows_are_not_left_usable(
     )
     async with session_local_factory() as s:
         assert (await s.execute(select(MfaChallenge))).first() is None
+
+
+async def test_enrolled_session_survives_refresh(
+    unauthenticated_client: AsyncClient, admin_user: User
+):
+    """The enrolling session was marked verified, so rotation keeps it usable."""
+    await _enrol(unauthenticated_client, admin_user)
+    refreshed = await unauthenticated_client.post("/auth/refresh")
+    assert refreshed.status_code == 200, refreshed.text
+    token = refreshed.json()["access_token"]
+    assert decode_access_token(token)["mfa"] is True  # pyright: ignore[reportOptionalSubscript]
+    ok = await unauthenticated_client.get("/api/admin/overview", headers=_bearer(token))
+    assert ok.status_code == 200
+
+
+async def test_mfa_responses_are_never_cached(
+    unauthenticated_client: AsyncClient, admin_user: User
+):
+    token = (await _login(unauthenticated_client, admin_user.email)).json()[
+        "access_token"
+    ]
+    start = await unauthenticated_client.post(
+        "/auth/mfa/enrol/start", headers=_bearer(token)
+    )
+    assert start.headers["cache-control"] == "no-store"
+
+
+async def test_status_reports_codes_left(
+    unauthenticated_client: AsyncClient, admin_user: User
+):
+    _, token, codes = await _enrol(unauthenticated_client, admin_user)
+    challenge = (await _login(unauthenticated_client, admin_user.email)).json()
+    used = await unauthenticated_client.post(
+        "/auth/mfa/verify",
+        json={"mfa_token": challenge["mfa_token"], "recovery_code": codes[0]},
+    )
+    resp = await unauthenticated_client.get(
+        "/auth/mfa/status", headers=_bearer(used.json()["access_token"])
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"enabled": True, "recovery_codes_remaining": 9}
+
+
+async def test_verify_needs_exactly_one_kind_of_code(
+    unauthenticated_client: AsyncClient,
+):
+    for body in (
+        {"mfa_token": "x"},
+        {"mfa_token": "x", "code": "123456", "recovery_code": "abcde-fghjk"},
+    ):
+        resp = await unauthenticated_client.post("/auth/mfa/verify", json=body)
+        assert resp.status_code == 422
+
+
+async def test_locked_account_gets_429(
+    unauthenticated_client: AsyncClient, admin_user: User, session_local_factory
+):
+    secret, _, _ = await _enrol(unauthenticated_client, admin_user)
+    async with session_local_factory() as s:
+        await s.execute(
+            update(UserMfa).values(
+                locked_until=datetime.now(timezone.utc) + timedelta(minutes=5)
+            )
+        )
+        await s.commit()
+    challenge = (await _login(unauthenticated_client, admin_user.email)).json()
+    resp = await unauthenticated_client.post(
+        "/auth/mfa/verify",
+        json={"mfa_token": challenge["mfa_token"], "code": _code(secret, 1)},
+    )
+    assert resp.status_code == 429
+    assert resp.json()["detail"] == "mfa_locked"

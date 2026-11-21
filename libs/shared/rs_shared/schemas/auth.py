@@ -10,6 +10,7 @@ from pydantic import (
     EmailStr,
     Field,
     field_validator,
+    model_validator,
 )
 
 from rs_shared.enums import UserRole
@@ -110,12 +111,25 @@ class MfaRecoveryCodesResponse(BaseModel):
     recovery_codes: list[str]
 
 
+class MfaStatusResponse(BaseModel):
+    """The caller's MFA state, for the profile page."""
+
+    enabled: bool
+    recovery_codes_remaining: int
+
+
 class MfaVerifyRequest(BaseModel):
-    """The code step of a login: the challenge plus one of the two codes."""
+    """The code step of a login: the challenge plus exactly one of the codes."""
 
     mfa_token: str = Field(min_length=1, max_length=128)
-    code: str | None = Field(default=None, max_length=8)
-    recovery_code: str | None = Field(default=None, max_length=16)
+    code: str | None = Field(default=None, min_length=6, max_length=8)
+    recovery_code: str | None = Field(default=None, min_length=10, max_length=16)
+
+    @model_validator(mode="after")
+    def _exactly_one_code(self) -> "MfaVerifyRequest":
+        if (self.code is None) == (self.recovery_code is None):
+            raise ValueError("send exactly one of code / recovery_code")
+        return self
 
 
 class TokenResponse(BaseModel):

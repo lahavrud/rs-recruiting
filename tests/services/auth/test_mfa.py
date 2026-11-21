@@ -1,53 +1,52 @@
-"""Tests for the TOTP second factor (#1177): enrolment, challenge, recovery."""
+"""Tests for TOTP enrolment, recovery-code regeneration and status (#1177)."""
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
 
 import pyotp
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import decrypt_mfa_secret
+from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.models import (
     AuditLog,
-    MfaChallenge,
+    EmailOutbox,
     MfaRecoveryCode,
     RefreshToken,
     User,
     UserMfa,
 )
-from rs_shared.services.auth import mfa
 from rs_shared.services.auth._mfa_codes import RECOVERY_CODE_COUNT
 from rs_shared.services.auth.mfa import (
-    MAX_CHALLENGE_FAILURES,
     confirm_enrolment,
-    create_challenge,
     is_mfa_enabled,
+    mfa_status,
     regenerate_recovery_codes,
     start_enrolment,
-    verify_challenge,
 )
 from rs_shared.services.exceptions import (
-    AccountLockedError,
     InvalidMfaCodeError,
     MfaAlreadyEnabledError,
-    MfaChallengeExpiredError,
     MfaNotEnrolledError,
 )
-
-IP = "203.0.113.5"
 
 
 def _code(secret: str, offset: int = 0) -> str:
     return pyotp.TOTP(secret).at(datetime.now(timezone.utc), counter_offset=offset)
 
 
+def _wrong(secret: str, offset: int = 0) -> str:
+    return "000000" if _code(secret, offset) != "000000" else "111111"
+
+
 async def _enrolled(session: AsyncSession, user: User) -> tuple[str, list[str]]:
     """Enrol ``user`` for real; returns (secret, recovery codes)."""
-    secret, _ = await start_enrolment(session, user)
-    codes = await confirm_enrolment(session, user, _code(secret), keep_session_id=None)
-    await session.commit()
+    async with transactional(session):
+        secret, _ = await start_enrolment(session, user)
+        codes = await confirm_enrolment(
+            session, user, _code(secret), keep_session_id=None
+        )
     return secret, codes
 
 
@@ -65,6 +64,11 @@ async def _refresh_row(session: AsyncSession, user_id: int) -> RefreshToken:
 
 async def _actions(session: AsyncSession) -> list[str]:
     rows = await session.execute(select(AuditLog.action))  # pyright: ignore[reportArgumentType]
+    return [r[0] for r in rows.all()]
+
+
+async def _subjects(session: AsyncSession) -> list[str]:
+    rows = await session.execute(select(EmailOutbox.subject))  # pyright: ignore[reportArgumentType]
     return [r[0] for r in rows.all()]
 
 
@@ -101,9 +105,10 @@ async def test_confirm_with_wrong_code_stays_pending(
     session: AsyncSession, admin_user: User
 ):
     secret, _ = await start_enrolment(session, admin_user)
-    wrong = "000000" if _code(secret) != "000000" else "111111"
     with pytest.raises(InvalidMfaCodeError):
-        await confirm_enrolment(session, admin_user, wrong, keep_session_id=None)
+        await confirm_enrolment(
+            session, admin_user, _wrong(secret), keep_session_id=None
+        )
     assert not await is_mfa_enabled(session, admin_user.id)
 
 
@@ -114,30 +119,31 @@ async def test_confirm_without_start_is_refused(
         await confirm_enrolment(session, admin_user, "123456", keep_session_id=None)
 
 
-async def test_confirm_enables_issues_codes_and_revokes_other_sessions(
+async def test_confirm_enables_verifies_own_session_and_revokes_others(
     session: AsyncSession, admin_user: User
 ):
     assert admin_user.id is not None
     keep = await _refresh_row(session, admin_user.id)
-    other = await _refresh_row(session, admin_user.id)
+    await _refresh_row(session, admin_user.id)  # another session: revoked
 
-    secret, _ = await start_enrolment(session, admin_user)
-    codes = await confirm_enrolment(
-        session, admin_user, _code(secret), keep_session_id=keep.id
-    )
-    await session.commit()
+    async with transactional(session):
+        secret, _ = await start_enrolment(session, admin_user)
+        codes = await confirm_enrolment(
+            session, admin_user, _code(secret), keep_session_id=keep.id
+        )
 
     assert await is_mfa_enabled(session, admin_user.id)
     assert len(codes) == RECOVERY_CODE_COUNT == len(set(codes))
-    stored = (await session.execute(select(MfaRecoveryCode.code_hash))).all()  # pyright: ignore[reportArgumentType]
-    assert len(stored) == RECOVERY_CODE_COUNT
-    assert not any(c in {s[0] for s in stored} for c in codes)  # hashed only
-    remaining = {
+    stored = {
         r[0]
-        for r in (await session.execute(select(RefreshToken.id))).all()  # pyright: ignore[reportArgumentType]
+        for r in (await session.execute(select(MfaRecoveryCode.code_hash))).all()  # pyright: ignore[reportArgumentType]
     }
-    assert keep.id in remaining and other.id not in remaining
+    assert len(stored) == RECOVERY_CODE_COUNT
+    assert not set(codes) & stored  # hashed only
+    rows = (await session.execute(select(RefreshToken))).scalars().all()
+    assert [(r.id, r.mfa_verified) for r in rows] == [(keep.id, True)]
     assert "mfa_enrolled" in await _actions(session)
+    assert any("אימות דו-שלבי הופעל" in s for s in await _subjects(session))
 
 
 async def test_enrolling_twice_is_refused(session: AsyncSession, admin_user: User):
@@ -146,162 +152,19 @@ async def test_enrolling_twice_is_refused(session: AsyncSession, admin_user: Use
         await start_enrolment(session, admin_user)
 
 
-# ── login challenge ──────────────────────────────────────────────────────────
+# ── recovery code regeneration + status ──────────────────────────────────────
 
 
-async def test_verify_with_code_succeeds_once_and_consumes_challenge(
+async def test_regenerate_replaces_all_codes_and_emails(
     session: AsyncSession, admin_user: User
 ):
-    secret, _ = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=True)
-    await session.commit()
-
-    # The confirm step already used the current step; the next one is fresh.
-    user, remember_me = await verify_challenge(
-        session, raw, code=_code(secret, offset=1), client_ip=IP
-    )
-    await session.commit()
-
-    assert user.id == admin_user.id and remember_me is True
-    assert (await session.execute(select(MfaChallenge))).first() is None
-    with pytest.raises(MfaChallengeExpiredError):
-        await verify_challenge(session, raw, code=_code(secret, 1), client_ip=IP)
-
-
-async def test_replayed_code_is_rejected(session: AsyncSession, admin_user: User):
-    secret, _ = await _enrolled(session, admin_user)
-    code = _code(secret, offset=1)
-    first = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    await verify_challenge(session, first, code=code, client_ip=IP)
-    await session.commit()
-
-    second = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    with pytest.raises(InvalidMfaCodeError):
-        await verify_challenge(session, second, code=code, client_ip=IP)
-
-
-async def test_bad_code_counts_on_challenge_audit_and_throttle(
-    session: AsyncSession, admin_user: User
-):
-    secret, _ = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    wrong = "000000" if _code(secret, 1) != "000000" else "111111"
-
-    with patch.object(
-        mfa.login_throttle, "record_login_failure", new_callable=AsyncMock
-    ) as record:
-        with pytest.raises(InvalidMfaCodeError):
-            await verify_challenge(session, raw, code=wrong, client_ip=IP)
-    await session.rollback()
-
-    record.assert_awaited_once_with(admin_user.email, IP)
-    challenge = (await session.execute(select(MfaChallenge))).scalar_one()
-    assert challenge.failed_attempts == 1
-    assert "mfa_verify_failed" in await _actions(session)
-
-
-async def test_challenge_dies_after_max_failures(
-    session: AsyncSession, admin_user: User
-):
-    secret, _ = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.execute(
-        update(MfaChallenge).values(failed_attempts=MAX_CHALLENGE_FAILURES)
-    )
-    await session.commit()
-
-    with pytest.raises(MfaChallengeExpiredError):
-        await verify_challenge(session, raw, code=_code(secret, 1), client_ip=IP)
-
-
-async def test_expired_challenge_is_refused(session: AsyncSession, admin_user: User):
-    secret, _ = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.execute(
-        update(MfaChallenge).values(
-            expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)
-        )
-    )
-    await session.commit()
-
-    with pytest.raises(MfaChallengeExpiredError):
-        await verify_challenge(session, raw, code=_code(secret, 1), client_ip=IP)
-
-
-async def test_unknown_challenge_is_refused(session: AsyncSession):
-    with pytest.raises(MfaChallengeExpiredError):
-        await verify_challenge(session, "nope", code="123456", client_ip=IP)
-
-
-async def test_throttled_pair_is_refused_before_code_check(
-    session: AsyncSession, admin_user: User
-):
-    secret, _ = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-
-    with patch.object(
-        mfa.login_throttle,
-        "check_login_allowed",
-        new=AsyncMock(side_effect=AccountLockedError(1)),
-    ):
-        with pytest.raises(AccountLockedError):
-            await verify_challenge(session, raw, code=_code(secret, 1), client_ip=IP)
-
-
-async def test_recovery_code_works_once_and_is_audited(
-    session: AsyncSession, admin_user: User
-):
-    _, codes = await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-
-    # Codes are accepted regardless of case and dash.
-    typed = codes[0].upper().replace("-", "")
-    user, _ = await verify_challenge(session, raw, recovery_code=typed, client_ip=IP)
-    await session.commit()
-    assert user.id == admin_user.id
-    assert "mfa_recovery_code_used" in await _actions(session)
-
-    again = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    with pytest.raises(InvalidMfaCodeError):
-        await verify_challenge(session, again, recovery_code=codes[0], client_ip=IP)
-
-
-async def test_verify_without_any_code_fails(session: AsyncSession, admin_user: User):
-    await _enrolled(session, admin_user)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    with pytest.raises(InvalidMfaCodeError):
-        await verify_challenge(session, raw, client_ip=IP)
-
-
-async def test_challenge_for_user_without_mfa_is_refused(
-    session: AsyncSession, admin_user: User
-):
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    with pytest.raises(MfaChallengeExpiredError):
-        await verify_challenge(session, raw, code="123456", client_ip=IP)
-
-
-# ── recovery code regeneration ───────────────────────────────────────────────
-
-
-async def test_regenerate_replaces_all_codes(session: AsyncSession, admin_user: User):
     secret, old = await _enrolled(session, admin_user)
-    new = await regenerate_recovery_codes(session, admin_user, _code(secret, 1))
-    await session.commit()
+    async with transactional(session):
+        new = await regenerate_recovery_codes(session, admin_user, _code(secret, 1))
 
     assert len(new) == RECOVERY_CODE_COUNT and not set(new) & set(old)
-    raw = await create_challenge(session, admin_user, remember_me=False)
-    await session.commit()
-    with pytest.raises(InvalidMfaCodeError):
-        await verify_challenge(session, raw, recovery_code=old[0], client_ip=IP)
+    assert "mfa_recovery_codes_regenerated" in await _actions(session)
+    assert any("קודי שחזור חדשים" in s for s in await _subjects(session))
 
 
 async def test_regenerate_requires_mfa_and_a_valid_code(
@@ -311,6 +174,13 @@ async def test_regenerate_requires_mfa_and_a_valid_code(
         await regenerate_recovery_codes(session, admin_user, "123456")
 
     secret, _ = await _enrolled(session, admin_user)
-    wrong = "000000" if _code(secret, 1) != "000000" else "111111"
     with pytest.raises(InvalidMfaCodeError):
-        await regenerate_recovery_codes(session, admin_user, wrong)
+        await regenerate_recovery_codes(session, admin_user, _wrong(secret, 1))
+
+
+async def test_mfa_status_counts_unused_codes(session: AsyncSession, admin_user: User):
+    assert admin_user.id is not None
+    assert await mfa_status(session, admin_user.id) == (False, 0)
+
+    await _enrolled(session, admin_user)
+    assert await mfa_status(session, admin_user.id) == (True, RECOVERY_CODE_COUNT)

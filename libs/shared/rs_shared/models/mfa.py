@@ -20,6 +20,9 @@ class UserMfa(SQLModel, table=True):
     confirmed with a code); only a non-NULL row means MFA is on.
     ``last_used_step`` is the highest TOTP time-step accepted so far: a code
     for that step or an earlier one is a replay and is refused.
+    ``failed_attempts`` counts consecutive wrong login codes from any address
+    and ``locked_until`` is the per-account lock they trigger (the per-IP login
+    throttle alone can't stop a password holder spread over many IPs).
     """
 
     __tablename__ = "user_mfa"
@@ -41,6 +44,12 @@ class UserMfa(SQLModel, table=True):
         default=0,
         sa_column=Column(BigInteger, nullable=False, server_default="0"),
     )
+    failed_attempts: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False, server_default="0")
+    )
+    locked_until: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -48,7 +57,8 @@ class UserMfa(SQLModel, table=True):
 
 
 class MfaRecoveryCode(SQLModel, table=True):
-    """One single-use recovery code, stored only as a SHA-256 hash."""
+    """One single-use recovery code, stored only as a keyed hash
+    (``security.hash_mfa_recovery_code``)."""
 
     __tablename__ = "mfa_recovery_code"
 
@@ -70,8 +80,10 @@ class MfaRecoveryCode(SQLModel, table=True):
 class MfaChallenge(SQLModel, table=True):
     """The pending second step of a login: password already verified.
 
-    Single-use (deleted on success), short-lived, and dead after a few bad
-    codes. Carries ``remember_me`` from the password step so the refresh cookie
+    Single-use (deleted on success), short-lived, and dead after
+    ``MAX_CHALLENGE_ATTEMPTS`` codes: ``attempts`` is reserved atomically
+    *before* a code is checked, so concurrent guesses can't overrun it.
+    Carries ``remember_me`` from the password step so the refresh cookie
     issued after the code matches what the user asked for.
     """
 
@@ -90,7 +102,7 @@ class MfaChallenge(SQLModel, table=True):
     expires_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False, index=True)
     )
-    failed_attempts: int = Field(
+    attempts: int = Field(
         default=0, sa_column=Column(Integer, nullable=False, server_default="0")
     )
     remember_me: bool = Field(default=False)

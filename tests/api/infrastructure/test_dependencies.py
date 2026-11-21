@@ -21,7 +21,7 @@ from rs_shared.core.infrastructure.security import (
     decode_access_token,
 )
 from rs_shared.enums import UserRole
-from rs_shared.models import CandidateProfile, User, UserMfa
+from rs_shared.models import CandidateProfile, RefreshToken, User, UserMfa
 
 
 @pytest.fixture
@@ -105,6 +105,66 @@ async def test_get_current_user_valid_token(session: AsyncSession, active_user: 
     assert user.id == active_user.id
     assert user.email == active_user.email
     assert user.is_active is True
+
+
+async def _session_row(session: AsyncSession, user: User, *, verified: bool) -> int:
+    row = RefreshToken(
+        token_hash=f"dep-{verified}-{user.id}",
+        user_id=user.id,
+        expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+        mfa_verified=verified,
+    )
+    session.add(row)
+    await session.commit()
+    assert row.id is not None
+    return row.id
+
+
+def _payload_for(user: User, sid: int | None) -> dict:
+    data = {"sub": str(user.id), "email": user.email, "role": user.role.value}
+    if sid is not None:
+        data["sid"] = sid
+    return _make_payload(create_access_token(data=data))
+
+
+@pytest.mark.asyncio
+async def test_mfa_user_is_served_only_by_a_verified_session(
+    session: AsyncSession, active_user: User
+):
+    """#1177: with MFA on, a session that never passed the code is refused,
+    however fresh its token, and so is a token with no session at all."""
+    session.add(
+        UserMfa(
+            user_id=active_user.id,
+            secret_encrypted="ct",
+            enabled_at=datetime.now(timezone.utc),
+        )
+    )
+    verified = await _session_row(session, active_user, verified=True)
+    unverified = await _session_row(session, active_user, verified=False)
+
+    user = await get_current_user(
+        payload=_payload_for(active_user, verified), session=session
+    )
+    assert user.id == active_user.id
+    for sid in (unverified, None):
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(
+                payload=_payload_for(active_user, sid), session=session
+            )
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "session_revoked"
+
+
+@pytest.mark.asyncio
+async def test_unverified_session_is_fine_without_mfa(
+    session: AsyncSession, active_user: User
+):
+    sid = await _session_row(session, active_user, verified=False)
+    user = await get_current_user(
+        payload=_payload_for(active_user, sid), session=session
+    )
+    assert user.id == active_user.id
 
 
 @pytest.mark.asyncio

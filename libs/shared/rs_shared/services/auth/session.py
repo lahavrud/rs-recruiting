@@ -71,15 +71,32 @@ async def _nuke_user_refresh_tokens(user_id: int) -> None:
         await nuke_session.commit()
 
 
+def build_access_token(user: User, *, sid: int | None, mfa: bool) -> str:
+    """The access token for one session. ``mfa`` mirrors the session's
+    ``mfa_verified``: the SPA reads it, enforcement reads the session row."""
+    return create_access_token(
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role.value,
+            "sid": sid,
+            "mfa": mfa,
+        }
+    )
+
+
 async def create_user_tokens(
     user: User,
     session: AsyncSession,
     *,
     remember_me: bool = False,
     user_agent: str | None = None,
+    mfa_verified: bool = False,
 ) -> tuple[str, str]:
-    """Issue a new access + refresh token pair.
+    """Issue a new access + refresh token pair (a new session).
 
+    ``mfa_verified`` only when the caller has just checked the second factor;
+    an MFA user's session without it is refused (``get_current_user``).
     Returns (access_token, raw_refresh_token).
     """
     assert user.id is not None
@@ -93,24 +110,14 @@ async def create_user_tokens(
         expires_at=expires_at,
         remember_me=remember_me,
         user_agent=user_agent,
+        mfa_verified=mfa_verified,
     )
     session.add(db_token)
     # Flush to get the auto-generated PK so we can embed it in the JWT.
     # The caller's transactional() context still controls the commit.
     await session.flush()
 
-    # `mfa` is a UI hint only (the SPA routes an unenrolled admin to setup);
-    # enforcement reads user_mfa on every admin request, never this claim.
-    access_token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "email": user.email,
-            "role": user.role.value,
-            "sid": db_token.id,
-            "mfa": await is_mfa_enabled(session, user.id),
-        }
-    )
-
+    access_token = build_access_token(user, sid=db_token.id, mfa=mfa_verified)
     return access_token, raw_refresh
 
 
@@ -178,8 +185,19 @@ async def refresh_user_tokens(
         await _delete_refresh_token(db_token.id)
         raise InvalidCredentialsError("Invalid or expired refresh token")
 
+    # A session that never passed the second factor of a user who now has MFA
+    # on (e.g. it raced the enrolment's revocation) must not be renewed.
+    if not db_token.mfa_verified and await is_mfa_enabled(session, db_token.user_id):
+        assert db_token.id is not None
+        await _delete_refresh_token(db_token.id)
+        logger.warning(
+            "refresh_unverified_mfa_session", extra={"user_id": db_token.user_id}
+        )
+        raise InvalidCredentialsError("Invalid or expired refresh token")
+
     remember_me = db_token.remember_me
     user_agent = db_token.user_agent
+    mfa_verified = db_token.mfa_verified
 
     # Rotate: delete the consumed token and record its hash atomically so a
     # later replay is detected.
@@ -194,7 +212,11 @@ async def refresh_user_tokens(
     await session.flush()
 
     access_token, raw_refresh = await create_user_tokens(
-        user, session, remember_me=remember_me, user_agent=user_agent
+        user,
+        session,
+        remember_me=remember_me,
+        user_agent=user_agent,
+        mfa_verified=mfa_verified,
     )
     return access_token, raw_refresh, remember_me
 

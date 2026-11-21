@@ -18,6 +18,7 @@ async def test_user_mfa_defaults_to_pending(session, admin_user: User):
     assert row is not None
     assert row.enabled_at is None
     assert row.last_used_step == 0
+    assert row.failed_attempts == 0 and row.locked_until is None
 
 
 @pytest.mark.asyncio

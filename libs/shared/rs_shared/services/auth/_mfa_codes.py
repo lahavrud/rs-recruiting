@@ -6,15 +6,21 @@ module holds the parts with sharp edges: constant-time code comparison, the
 """
 
 import hmac
+import logging
 import secrets
 from datetime import datetime, timezone
 
 import pyotp
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.core.infrastructure.security import decrypt_mfa_secret, hash_token
+from rs_shared.core.infrastructure.security import (
+    decrypt_mfa_secret,
+    hash_mfa_recovery_code,
+)
 from rs_shared.models import MfaRecoveryCode, UserMfa
+
+logger = logging.getLogger(__name__)
 
 RECOVERY_CODE_COUNT = 10
 # Unambiguous lowercase alphabet (no 0/o, 1/l/i): codes get read off paper.
@@ -55,7 +61,14 @@ async def _claim_step(session: AsyncSession, user_id: int, step: int) -> bool:
 async def check_totp(
     session: AsyncSession, mfa: UserMfa, code: str, now: datetime | None = None
 ) -> bool:
-    secret = decrypt_mfa_secret(mfa.secret_encrypted)
+    """True if ``code`` is valid now and its time-step was not used before."""
+    try:
+        secret = decrypt_mfa_secret(mfa.secret_encrypted)
+    except ValueError:
+        # MFA_ENCRYPTION_KEY changed under the stored secret: only the
+        # break-glass reset (docs/runbooks/mfa-reset.md) gets this user back in.
+        logger.critical("mfa_secret_undecryptable", extra={"user_id": mfa.user_id})
+        raise
     step = _matching_step(secret, code, now or datetime.now(timezone.utc))
     return step is not None and await _claim_step(session, mfa.user_id, step)
 
@@ -83,7 +96,7 @@ async def replace_recovery_codes(session: AsyncSession, user_id: int) -> list[st
         session.add(
             MfaRecoveryCode(
                 user_id=user_id,
-                code_hash=hash_token(_normalize_recovery_code(code)),
+                code_hash=hash_mfa_recovery_code(_normalize_recovery_code(code)),
             )
         )
     await session.flush()
@@ -97,7 +110,7 @@ async def consume_recovery_code(session: AsyncSession, user_id: int, code: str) 
         .where(
             MfaRecoveryCode.user_id == user_id,  # pyright: ignore[reportArgumentType]
             MfaRecoveryCode.code_hash  # pyright: ignore[reportArgumentType]
-            == hash_token(_normalize_recovery_code(code)),
+            == hash_mfa_recovery_code(_normalize_recovery_code(code)),
             MfaRecoveryCode.used_at.is_(None),  # type: ignore[union-attr]
         )
         .values(used_at=datetime.now(timezone.utc))
@@ -108,9 +121,11 @@ async def consume_recovery_code(session: AsyncSession, user_id: int, code: str) 
 
 async def remaining_recovery_codes(session: AsyncSession, user_id: int) -> int:
     result = await session.execute(
-        select(MfaRecoveryCode.id).where(  # pyright: ignore[reportArgumentType]
+        select(func.count())
+        .select_from(MfaRecoveryCode)
+        .where(
             MfaRecoveryCode.user_id == user_id,  # pyright: ignore[reportArgumentType]
             MfaRecoveryCode.used_at.is_(None),  # type: ignore[union-attr]
         )
     )
-    return len(result.all())
+    return result.scalar_one()
