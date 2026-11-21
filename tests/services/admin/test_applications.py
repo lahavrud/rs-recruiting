@@ -651,6 +651,29 @@ async def test_get_application_activity_no_status_changes_yet(
     assert page.next_cursor is None
 
 
+@pytest.mark.asyncio
+async def test_get_application_activity_stored_creation_row_replaces_synthetic(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """An application with its own application.create row shows it exactly once."""
+    candidate = await _make_candidate(session)
+    app = await _make_application(session, company_with_user, candidate)
+    session.add(
+        AuditLog(
+            action="application.create",
+            target_type="Application",
+            target_id=app.id,
+            detail=f"source=apply,job_id={app.job_id}",
+            created_at=app.created_at,
+        )
+    )
+    await session.commit()
+
+    page = await get_application_activity(app.id, session)
+
+    assert [r.action for r in page.items] == ["application.create"]
+
+
 # ==================== update_application_status ====================
 
 

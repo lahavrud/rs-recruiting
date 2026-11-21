@@ -65,8 +65,24 @@ export default function CandidateActivityPanel({ candidateId }: Props) {
         return t("admin:candidates.activity.actions.delete");
       case "candidate.purge":
         return t("admin:candidates.activity.actions.purge");
+      case "candidate.resume_replace":
+        return t("admin:candidates.activity.actions.resumeReplace");
+      case "candidate.resume_remove":
+        return t("admin:candidates.activity.actions.resumeRemove");
+      case "candidate.data_export_request":
+        return t("admin:candidates.activity.actions.dataExportRequest");
+      case "account_deletion_requested":
+        return t("admin:candidates.activity.actions.deletionRequested");
+      case "account_deleted":
+        return t("admin:candidates.activity.actions.accountDeleted");
+      case "application.create":
+        return event.detail?.includes("source=push_match")
+          ? t("admin:candidates.activity.actions.applicationPushed")
+          : t("admin:candidates.activity.actions.applicationCreated");
+      case "application.edit":
+        return t("admin:candidates.activity.actions.applicationEdited");
       default:
-        return event.action;
+        return t("admin:candidates.activity.actions.unknown");
     }
   }
 
@@ -89,7 +105,10 @@ export default function CandidateActivityPanel({ candidateId }: Props) {
               </div>
             </>
           ) : (
-            <p className="text-sm text-white/75">{describeEvent(event)}</p>
+            <>
+              {event.job_title && <p className="text-xs text-white/60">{event.job_title}</p>}
+              <p className="text-sm text-white/75">{describeEvent(event)}</p>
+            </>
           )
         }
       />

@@ -235,12 +235,11 @@ async def get_application_activity(
     cursor: str | None = None,
     limit: int | None = None,
 ) -> CursorPage[AuditLogRead]:
-    """Activity timeline for an application's record pane (status-change audit rows).
+    """Activity timeline for an application's record pane.
 
-    The application's own creation is never written to the audit log (it
-    isn't an admin action), so a synthetic "submitted" entry is appended on
-    the last page, dated to `Application.created_at`, to anchor the
-    timeline's oldest end.
+    Creation is the oldest event, so the last page holds its
+    `application.create` row if one was written. Applications older than that
+    action get a synthetic "submitted" / "pushed_by_admin" entry instead.
 
     Raises:
         ApplicationNotFoundError: If no application with that id exists.
@@ -258,7 +257,8 @@ async def get_application_activity(
         cursor=cursor,
         limit=limit,
     )
-    if page.next_cursor is None:
+    has_creation_row = any(e.action == "application.create" for e in page.items)
+    if page.next_cursor is None and not has_creation_row:
         action = (
             "application.pushed_by_admin"
             if application.pushed_by_admin_id is not None

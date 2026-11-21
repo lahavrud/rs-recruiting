@@ -384,7 +384,11 @@
     "activity": {
       "actions": {
         "submitted": "הוגשה מועמדות",
-        "pushedByAdmin": "הוגשה על ידי מנהל"
+        "pushedByAdmin": "הוגשה על ידי מנהל",
+        "createdByApply": "הוגשה מועמדות",
+        "createdByMatch": "הוגשה על ידי מנהל מתוך התאמות",
+        "edited": "המועמד/ת עדכן/ה את פרטי המועמדות",
+        "unknown": "פעולה במערכת"
       }
     },
     "errors": {
@@ -530,7 +534,16 @@
         "termsAccept": "אישר/ה את תנאי השימוש",
         "registerViaApply": "פתח/ה חשבון משתמש בעת שליחת המועמדות",
         "delete": "הפרופיל נמחק",
-        "purge": "הפרופיל נמחק במסגרת מחיקה תקופתית"
+        "purge": "הפרופיל נמחק במסגרת מחיקה תקופתית",
+        "applicationCreated": "הגיש/ה מועמדות",
+        "applicationPushed": "הוגשה מועמדות על ידי מנהל מתוך התאמות",
+        "applicationEdited": "עדכן/ה פרטי מועמדות",
+        "resumeReplace": "העלה/תה קורות חיים חדשים",
+        "resumeRemove": "הסיר/ה את קורות החיים",
+        "dataExportRequest": "ביקש/ה עותק של המידע האישי",
+        "deletionRequested": "ביקש/ה למחוק את החשבון",
+        "accountDeleted": "החשבון נמחק לבקשת המועמד/ת",
+        "unknown": "פעולה במערכת"
       }
     },
     "record": {
