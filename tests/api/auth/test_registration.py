@@ -1,15 +1,17 @@
 """Tests for the company registration endpoint (POST /auth/register)."""
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from rs_api.main import app
 from rs_shared.core.infrastructure.database import get_session
-from rs_shared.core.infrastructure.security import is_password_valid
-from rs_shared.models import AuditLog, CompanyProfile, User
+from rs_shared.core.infrastructure.security import hash_token, is_password_valid
+from rs_shared.enums import InviteTokenStatus
+from rs_shared.models import AuditLog, CompanyProfile, InviteToken, User
 from rs_shared.services.exceptions import InvalidInviteTokenError
 from rs_shared.services.utils.legal import (
     CURRENT_PRIVACY_POLICY_VERSION,
@@ -261,6 +263,87 @@ async def test_register_token_validated_on_success(client: AsyncClient):
         )
     assert response.status_code == 201
     mock_validate.assert_awaited_once()
+
+
+# ── invite token, validated for real ─────────────────────────────────────────
+# Everything above runs with the suite-wide any-token-is-valid stub. These run
+# the endpoint's real validate_invite_token + mark_invite_used against invite
+# rows, so dropping either call from the route fails here.
+
+
+async def _user_count(email: str) -> int:
+    async with TestSessionLocal() as session:
+        result = await session.execute(
+            select(func.count()).select_from(User).where(User.email == email)  # pyright: ignore[reportArgumentType]
+        )
+        return result.scalar_one()
+
+
+async def _invite_status(token: str) -> InviteTokenStatus:
+    async with TestSessionLocal() as session:
+        result = await session.execute(
+            select(InviteToken.status).where(
+                InviteToken.token_hash == hash_token(token)  # pyright: ignore[reportArgumentType]
+            )
+        )
+        return result.scalar_one()
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_invite_tokens
+async def test_register_with_pending_invite_consumes_it(
+    client: AsyncClient, make_invite
+):
+    """A valid invite registers once; the same link is then dead."""
+    await make_invite("real-invite")
+
+    first = await client.post(
+        "/auth/register",
+        params={"token": "real-invite"},
+        data=_reg_data(email="first@example.com"),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert first.status_code == 201
+    assert await _invite_status("real-invite") == InviteTokenStatus.USED
+
+    second = await client.post(
+        "/auth/register",
+        params={"token": "real-invite"},
+        data=_reg_data(email="second@example.com"),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+    assert second.status_code == 400
+    assert await _user_count("second@example.com") == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_invite_tokens
+@pytest.mark.parametrize(
+    "fields",
+    [
+        pytest.param(None, id="unknown"),
+        pytest.param({"status": InviteTokenStatus.REVOKED}, id="revoked"),
+        pytest.param(
+            {"expires_at": datetime.now(timezone.utc) - timedelta(minutes=1)},
+            id="expired",
+        ),
+    ],
+)
+async def test_register_with_unusable_invite_creates_no_user(
+    client: AsyncClient, make_invite, fields: dict | None
+):
+    if fields is not None:
+        await make_invite("unusable-invite", **fields)
+
+    response = await client.post(
+        "/auth/register",
+        params={"token": "unusable-invite"},
+        data=_reg_data(email="intruder@example.com"),
+        files={"logo": FAKE_LOGO_FILE},
+    )
+
+    assert response.status_code == 400
+    assert await _user_count("intruder@example.com") == 0
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,7 @@ import os
 import struct as _struct
 import zlib as _zlib
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,9 +36,9 @@ from rs_api.infrastructure.dependencies import (
 from rs_api.main import app
 from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
-from rs_shared.core.infrastructure.security import get_password_hash
+from rs_shared.core.infrastructure.security import get_password_hash, hash_token
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.enums import ApplicationStatus, JobStatus, UserRole
+from rs_shared.enums import ApplicationStatus, InviteTokenStatus, JobStatus, UserRole
 from rs_shared.models import (
     AccountDeletionToken,  # noqa: F401 -- force SQLModel registration before create_all
     ActivationToken,  # noqa: F401  -- force SQLModel registration before create_all
@@ -46,7 +47,7 @@ from rs_shared.models import (
     CandidateProfile,
     CompanyProfile,
     DataExportRequest,  # noqa: F401 -- Sprint 11 / #608
-    InviteToken,  # noqa: F401
+    InviteToken,
     Job,
     PasswordResetToken,  # noqa: F401
     RefreshToken,  # noqa: F401
@@ -236,6 +237,11 @@ def pytest_configure(config):
         "real_login_throttle: record/clear login-throttle rows for real "
         "(default: stubbed; see _login_throttle_uses_test_db)",
     )
+    config.addinivalue_line(
+        "markers",
+        "real_invite_tokens: validate invite tokens against the DB for real "
+        "(default: any token is valid; see mock_invite_tokens)",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -271,27 +277,42 @@ def _login_throttle_uses_test_db(request):
 
 
 @pytest.fixture(autouse=True)
-def mock_invite_tokens():
+def mock_invite_tokens(request):
     """Patch invite token functions for all tests.
 
-    validate_invite_token is a no-op (any token is valid). Tests that want
-    to test rejection configure the mock via the returned fixture value.
+    validate_invite_token is a no-op (any token is valid), so registration
+    tests don't each need an invite row. Tests that want to test rejection
+    configure the mock via the returned fixture value. Tests marked
+    ``@pytest.mark.real_invite_tokens`` validate against the DB for real
+    (build the rows with ``make_invite``); the fixture value is then None.
     """
-    with (
-        patch(
-            "rs_api.api.auth.registration.validate_invite_token", new_callable=AsyncMock
-        ) as mock_validate,
-        patch("rs_api.api.auth.invites.validate_invite_token", new_callable=AsyncMock),
-        patch(
-            "rs_shared.services.admin.invites.generate_invite_token",
-            new_callable=AsyncMock,
-            return_value=(
-                "test-invite-token-raw",
-                "test-invite-token-abc123",
-                datetime(2099, 1, 1, tzinfo=timezone.utc),
-            ),
-        ),
-    ):
+    with ExitStack() as stack:
+        stack.enter_context(
+            patch(
+                "rs_shared.services.admin.invites.generate_invite_token",
+                new_callable=AsyncMock,
+                return_value=(
+                    "test-invite-token-raw",
+                    "test-invite-token-abc123",
+                    datetime(2099, 1, 1, tzinfo=timezone.utc),
+                ),
+            )
+        )
+        if request.node.get_closest_marker("real_invite_tokens"):
+            yield None
+            return
+        mock_validate = stack.enter_context(
+            patch(
+                "rs_api.api.auth.registration.validate_invite_token",
+                new_callable=AsyncMock,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "rs_api.api.auth.invites.validate_invite_token",
+                new_callable=AsyncMock,
+            )
+        )
         yield mock_validate
 
 
@@ -716,6 +737,36 @@ def make_job() -> Callable[..., Job]:
         }
         fields.update(overrides)
         return Job(**fields)
+
+    return _make
+
+
+@pytest.fixture
+def make_invite(admin_user: User) -> Callable[..., Awaitable[InviteToken]]:
+    """Factory for a committed invite whose raw token is *token*.
+
+    Committed (not flushed) because the API clients read through their own
+    sessions. Defaults to a pending invite that never expires; override
+    ``status`` / ``expires_at`` / any other column via keyword arguments.
+    """
+
+    async def _make(token: str, **fields) -> InviteToken:
+        values = {
+            "email": "company@example.com",
+            "status": InviteTokenStatus.PENDING,
+            "expires_at": datetime(2099, 1, 1, tzinfo=timezone.utc),
+            **fields,
+        }
+        async with TestSessionLocal() as session:
+            record = InviteToken(
+                token_hash=hash_token(token),
+                created_by_admin_id=admin_user.id,
+                **values,
+            )
+            session.add(record)
+            await session.commit()
+            await session.refresh(record)
+            return record
 
     return _make
 
