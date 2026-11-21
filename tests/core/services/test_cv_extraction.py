@@ -44,6 +44,18 @@ def test_extract_text_collapses_whitespace():
         assert extract_text(b"%PDF-fake", "pdf") == "Resume text here"
 
 
+def test_extract_text_strips_nul_bytes():
+    # Some PDFs' font encodings make pypdf emit NUL chars. Postgres text
+    # columns reject 0x00, so a NUL in parsed_text fails the whole
+    # match_candidate UPDATE and dead-letters the task on every retry.
+    page = MagicMock()
+    page.extract_text.return_value = "Budgeting\x00 Performance\x00Analysis \x00"
+    reader = MagicMock()
+    reader.pages = [page]
+    with patch("rs_shared.core.services.cv_extraction.PdfReader", return_value=reader):
+        assert extract_text(b"%PDF-fake", "pdf") == "Budgeting Performance Analysis"
+
+
 def test_extract_text_legacy_doc_is_skipped():
     # Legacy binary .doc is unsupported — return "" rather than crashing.
     assert extract_text(b"\xd0\xcf\x11\xe0 legacy doc", "doc") == ""
