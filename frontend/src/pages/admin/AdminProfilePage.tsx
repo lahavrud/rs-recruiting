@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import PageHeader from "@/components/ui/PageHeader";
 import SessionsSection from "@/components/ui/SessionsSection";
 
+import MfaRecoveryCard from "./components/MfaRecoveryCard";
+
 export default function AdminProfilePage() {
   const { t } = useTranslation("admin");
 
@@ -12,8 +14,9 @@ export default function AdminProfilePage() {
         eyebrow={t("admin:profile.eyebrow")}
         subtitle={t("admin:profile.subtitle")}
       />
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <SessionsSection />
+        <MfaRecoveryCard />
       </div>
     </div>
   );
