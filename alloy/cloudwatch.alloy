@@ -10,8 +10,15 @@
 // aws_ecs_cpuutilization_average backs the ecs-cpu-high alert; EC2 is gone. The
 // ECS task role grants cloudwatch:GetMetricData + ListMetrics.
 //
+// Memory is scraped as Maximum as well as Average: a container is OOM-killed by
+// its peak, and a 15m Average hides it (2026-11-21: Mimir showed web at 60%
+// while CloudWatch's Maximum showed 91%). aws_ecs_memory_utilization_maximum
+// backs ecs-memory-high, aws_rds_freeable_memory_minimum backs
+// rds-freeable-memory-low. RDS SwapUsage has no alert; it is there to explain
+// a FreeableMemory page.
+//
 // Cadence is 15m, not 5m: GetMetricData bills per metric requested per scrape,
-// so 7 metrics x N resources at 5m cost ~3x more for series that back alerts
+// so 10 metrics x N resources at 5m cost ~3x more for series that back alerts
 // with >=15m for-durations anyway. The infra alert rules query 30m ranges (2
 // samples at this cadence) and the cloudwatch-metrics-absent watchdog counts
 // samples over 45m (3 scrapes) — if you change the cadence here, re-derive
@@ -31,7 +38,7 @@ prometheus.exporter.cloudwatch "aws" {
     }
     metric {
       name       = "MemoryUtilization"
-      statistics = ["Average"]
+      statistics = ["Average", "Maximum"]
       period     = "15m"
     }
   }
@@ -52,6 +59,16 @@ prometheus.exporter.cloudwatch "aws" {
     metric {
       name       = "FreeStorageSpace"
       statistics = ["Average"]
+      period     = "15m"
+    }
+    metric {
+      name       = "FreeableMemory"
+      statistics = ["Minimum"]
+      period     = "15m"
+    }
+    metric {
+      name       = "SwapUsage"
+      statistics = ["Maximum"]
       period     = "15m"
     }
   }
