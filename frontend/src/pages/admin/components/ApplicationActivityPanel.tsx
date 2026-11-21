@@ -59,8 +59,14 @@ export default function ApplicationActivityPanel({ applicationId }: Props) {
         return t("admin:applications.activity.actions.submitted");
       case "application.pushed_by_admin":
         return t("admin:applications.activity.actions.pushedByAdmin");
+      case "application.create":
+        return event.detail?.includes("source=push_match")
+          ? t("admin:applications.activity.actions.createdByMatch")
+          : t("admin:applications.activity.actions.createdByApply");
+      case "application.edit":
+        return t("admin:applications.activity.actions.edited");
       default:
-        return event.action;
+        return t("admin:applications.activity.actions.unknown");
     }
   }
 

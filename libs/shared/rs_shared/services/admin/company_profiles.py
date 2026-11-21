@@ -147,7 +147,7 @@ async def update_company_profile(
                 session,
                 actor_user_id=actor_user_id,
                 action="user.email_change",
-                target_type="user",
+                target_type="User",
                 target_id=user.id,  # pyright: ignore[reportArgumentType]
                 detail="source=admin_company_profile",
             )

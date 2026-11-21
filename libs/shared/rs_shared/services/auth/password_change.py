@@ -80,7 +80,7 @@ async def change_user_password(
         session,
         actor_user_id=persisted.id,
         action="password_changed",
-        target_type="user",
+        target_type="User",
         target_id=persisted.id,
         detail=f"changed_at={datetime.now(timezone.utc).isoformat()}",
     )

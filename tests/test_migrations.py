@@ -414,3 +414,37 @@ async def test_bootstrap_migration_leaves_existing_tables_untouched(
     columns = await _columns(session, "public", "activationtoken")
     assert {"token_hash", "user_id"} <= columns
     assert "token" not in columns and "company_user_id" not in columns
+
+
+@pytest.mark.asyncio
+async def test_normalize_audit_user_target_type(session: AsyncSession):
+    """c3e9a7d51f20 rewrites 'user' targets to 'User' and touches nothing else."""
+    migration = _load_migration("c3e9a7d51f20")
+    now = datetime.now(timezone.utc)
+    for target_type in ("user", "User", "job"):
+        session.add(
+            AuditLog(
+                actor_user_id=None,
+                action="test.normalize",
+                target_type=target_type,
+                target_id=1,
+                created_at=now,
+            )
+        )
+    await session.commit()
+
+    await session.execute(text(migration.NORMALIZE_SQL))
+    await session.commit()
+
+    types = sorted(
+        (
+            await session.execute(
+                select(AuditLog.target_type).where(
+                    AuditLog.action == "test.normalize"  # pyright: ignore[reportArgumentType]
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert types == ["User", "User", "job"]
