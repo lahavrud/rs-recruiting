@@ -28,7 +28,6 @@ from rs_shared.services.admin.jobs import (
     JobSortColumn,
     admin_create_job,
     delete_job,
-    get_job_candidate_matches,
     list_jobs,
     update_job,
 )
@@ -38,6 +37,7 @@ from rs_shared.services.admin.jobs_workflow import (
     list_pending_jobs,
     reject_job,
 )
+from rs_shared.services.admin.matches import get_job_candidate_matches
 from rs_shared.services.company.jobs import get_job
 from rs_shared.services.exceptions import (
     CompanyNotFoundError,
@@ -169,7 +169,7 @@ async def delete_job_endpoint(
     """Hard-delete a job and cascade through its applications."""
     try:
         async with transactional(session):
-            await delete_job(job_id, session)
+            await delete_job(job_id, session, actor_user_id=current_admin.id)
     except JobNotFoundError as e:
         raise service_exception_to_http(e) from e
 
