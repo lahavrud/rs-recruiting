@@ -37,8 +37,14 @@ _EXTRACTABLE = {"pdf", "docx"}
 
 
 def _normalize(text: str) -> str:
-    """Collapse runs of whitespace and cap length, preserving all scripts."""
-    collapsed = _WHITESPACE_RE.sub(" ", text).strip()
+    """Collapse runs of whitespace and cap length, preserving all scripts.
+
+    NUL chars become spaces first: some PDFs' font encodings make pypdf emit
+    them, and Postgres text columns reject 0x00, so one NUL fails the whole
+    ``parsed_text`` write and dead-letters ``match_candidate`` on every retry.
+    A space (not deletion) keeps a NUL between two words from merging them.
+    """
+    collapsed = _WHITESPACE_RE.sub(" ", text.replace("\x00", " ")).strip()
     return collapsed[:_MAX_TEXT_CHARS]
 
 
