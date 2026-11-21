@@ -883,3 +883,44 @@ async def test_confirmation_emails_capped_per_address_per_day(
         .all()
     )
     assert len(applications) == 6
+
+
+@pytest.mark.asyncio
+@patch("rs_shared.services.public._application_helpers.queue_email")
+@patch("rs_shared.services.public.applications.get_storage_provider")
+async def test_create_candidate_profile_audits_application_create(
+    mock_storage_provider,
+    mock_enqueue_email,
+    session: AsyncSession,
+    company_with_user,
+):
+    """Every apply leaves an application.create row, ids only, with the IP."""
+    from rs_shared.models import AuditLog
+
+    job = await _make_published_job(session, company_with_user)
+
+    candidate = await create_candidate_profile(
+        candidate_data=_default_candidate(),
+        job_id=job.id,
+        session=session,
+        consent_ip="203.0.113.7",
+    )
+
+    application = (
+        await session.execute(
+            select(Application).where(Application.candidate_id == candidate.id)  # pyright: ignore[reportArgumentType]
+        )
+    ).scalar_one()
+    [row] = (
+        (
+            await session.execute(
+                select(AuditLog).where(AuditLog.action == "application.create")  # pyright: ignore[reportArgumentType]
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert (row.target_type, row.target_id) == ("Application", application.id)
+    assert row.actor_user_id is None  # guest apply
+    assert row.detail == f"source=apply,job_id={job.id}"
+    assert row.ip_address == "203.0.113.7"

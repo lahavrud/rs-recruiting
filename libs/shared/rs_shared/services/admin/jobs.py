@@ -12,7 +12,6 @@ from sqlalchemy import case, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database_helpers import get_by_id_or_raise
 from rs_shared.core.infrastructure.pagination import (
     CursorPage,
@@ -22,20 +21,22 @@ from rs_shared.core.infrastructure.pagination import (
     clamp_limit,
 )
 from rs_shared.core.infrastructure.transactions import defer_after_commit
-from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.core.tasks import enqueue_embed_job_task
 from rs_shared.enums import JobStatus
-from rs_shared.models import Application, CandidateProfile, CompanyProfile, Job
+from rs_shared.models import Application, CompanyProfile, Job
 from rs_shared.schemas import (
-    CandidateProfileRead,
     JobAdminCreate,
     JobAdminUpdate,
-    JobCandidateMatchRead,
     JobRead,
 )
 from rs_shared.services.admin._job_close import close_active_applications
 from rs_shared.services.admin._job_emails import FIELD_LABELS, notify_company_of_update
 from rs_shared.services.exceptions import CompanyNotFoundError, JobNotFoundError
+from rs_shared.services.utils.audit import (
+    changed_fields,
+    fields_detail,
+    record_audit_event,
+)
 
 JobSortColumn = Literal["name", "created_at", "status"]
 
@@ -140,42 +141,6 @@ async def list_jobs(
     )
 
 
-async def get_job_candidate_matches(
-    job_id: int, session: AsyncSession
-) -> list[JobCandidateMatchRead]:
-    """Live-ranked candidates for a job, best score first.
-
-    Computed on demand (cosine distance) against every embedded candidate —
-    mirrors ``services.admin.candidates.get_candidate_job_matches``, the
-    reverse direction.
-
-    Raises ``JobNotFoundError`` if the job doesn't exist. Returns an empty
-    list if the job isn't PUBLISHED or has no embedding yet.
-    """
-    job = await get_by_id_or_raise(
-        session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
-    )
-    if job.status != JobStatus.PUBLISHED or job.embedding is None:
-        return []
-
-    distance = CandidateProfile.embedding.cosine_distance(job.embedding)
-    rows = (
-        await session.execute(
-            select(CandidateProfile, distance.label("distance"))
-            .where(CandidateProfile.embedding.is_not(None))
-            .order_by(distance)
-            .limit(settings.embedding_top_matches)
-        )
-    ).all()
-    return [
-        JobCandidateMatchRead(
-            candidate=CandidateProfileRead.model_validate(candidate),
-            score=cosine_similarity_score(dist),
-        )
-        for candidate, dist in rows
-    ]
-
-
 async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRead:
     """Create a job directly under an existing company profile.
 
@@ -245,11 +210,8 @@ async def update_job(
     # to plain dicts, which is exactly what the JSONB column wants.
     payload = data.model_dump(exclude_unset=True)
 
-    changed_labels = [
-        FIELD_LABELS.get(field, field)
-        for field, value in payload.items()
-        if getattr(job, field) != value
-    ]
+    changed = changed_fields(job, payload)
+    changed_labels = [FIELD_LABELS.get(field, field) for field in changed]
     old_title = job.title
     old_status = job.status
     title_changed = "title" in payload and payload["title"] != old_title
@@ -278,6 +240,16 @@ async def update_job(
     announce_closure = is_closing and old_status == JobStatus.PUBLISHED
 
     await session.flush()
+
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="job.update",
+            target_type="job",
+            target_id=job_id,
+            detail=fields_detail(changed),
+        )
 
     await notify_company_of_update(
         session,
@@ -312,7 +284,9 @@ async def update_job(
     return JobRead.model_validate(job)
 
 
-async def delete_job(job_id: int, session: AsyncSession) -> None:
+async def delete_job(
+    job_id: int, session: AsyncSession, *, actor_user_id: int | None = None
+) -> None:
     """Hard-delete a job and cascade through its applications.
 
     Candidate profiles and resume files are preserved — they belong to the
@@ -325,8 +299,17 @@ async def delete_job(job_id: int, session: AsyncSession) -> None:
         session, Job, job_id, lambda pk: JobNotFoundError(f"Job {pk} not found")
     )
 
+    title = job.title
     await session.execute(
         delete(Application).where(Application.job_id == job_id)  # pyright: ignore[reportArgumentType]
     )
     await session.delete(job)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="job.delete",
+        target_type="job",
+        target_id=job_id,
+        detail=f"title={title}",
+    )
