@@ -1218,7 +1218,10 @@ export interface paths {
         head?: never;
         /**
          * Update Job Application Status
-         * @description Update an application's status (HIRED or REJECTED only). Company owner only.
+         * @description Move a visible application through the company's pipeline.
+         *
+         *     Targets: INTERVIEWING, OFFER, HIRED, REJECTED_BY_COMPANY. Company owner
+         *     only; an application the company cannot see in its list is a 404.
          */
         patch: operations["update_job_application_status_api_jobs__job_id__applications__app_id__status_patch"];
         trace?: never;
