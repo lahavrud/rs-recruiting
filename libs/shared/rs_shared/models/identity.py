@@ -98,12 +98,14 @@ class CompanyProfile(SQLModel, table=True):
     )
     name: str
     logo_url: str | None = None
-    company_id: str  # ח.פ — 9-digit Israeli company registration number
+    # Lengths match what the migrations created (and prod enforces);
+    # create_all used to build these unbounded.
+    company_id: str = Field(max_length=9)  # ח.פ — 9-digit Israeli company number
     contact_email: str = Field(index=True, max_length=255)
-    contact_first_name: str
-    contact_last_name: str
-    contact_mobile_phone: str
-    contact_landline_phone: str | None = None
+    contact_first_name: str = Field(max_length=100)
+    contact_last_name: str = Field(max_length=100)
+    contact_mobile_phone: str = Field(max_length=20)
+    contact_landline_phone: str | None = Field(default=None, max_length=20)
     address: str = Field(sa_column=Column(Text, nullable=False))
     agreement_signed_at: datetime | None = Field(
         default=None,

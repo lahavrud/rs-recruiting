@@ -37,6 +37,8 @@ class Application(SQLModel, table=True):
             postgresql_where=text("status != 'WITHDRAWN'"),
             sqlite_where=text("status != 'WITHDRAWN'"),
         ),
+        # Created by migration 6484c273cd57; declared here so create_all has it.
+        Index("ix_application_job_status", "job_id", "status"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
