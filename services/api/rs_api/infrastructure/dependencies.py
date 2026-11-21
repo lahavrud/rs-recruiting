@@ -114,13 +114,10 @@ async def get_current_user_optional(
     """Resolve the current authenticated user when a valid token is present;
     return ``None`` for anonymous requests.
 
-    Differs from ``get_current_user`` in three ways:
+    Differs from ``get_current_user`` in two ways:
 
     * Missing ``Authorization`` header → ``None`` (no 401).
-    * Invalid / expired / blacklisted token → ``None`` (no 401).
-    * Redis outage during blacklist check → ``None`` (degrade open — the
-      caller is a public endpoint, so we'd rather skip personalization
-      than fail closed).
+    * Invalid / expired token → ``None`` (no 401).
 
     For inactive accounts we still return ``None`` rather than 403 — a
     public endpoint that incidentally identifies the requester shouldn't

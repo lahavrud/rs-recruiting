@@ -7,8 +7,8 @@ Security model:
   the caller always sees the same response, and the request only ever writes
   an outbox row — the provider is never called in the request path, so
   timing differences from SMTP cannot leak.
-- Per-email rate limit (3/hour) lives in Redis and protects victims from
-  inbox-spam when the IP rate limit is wide-open.
+- Per-email rate limit (3/hour) counts the user's recent reset-token rows and
+  protects victims from inbox-spam when the IP rate limit is wide-open.
 - Successful reset revokes every refresh token for the user and clears any
   lockout state, so a leaked password can no longer ride existing sessions.
 """

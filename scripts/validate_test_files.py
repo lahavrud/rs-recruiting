@@ -97,11 +97,8 @@ EXCLUDED_SOURCE_FILES: set[str] = {
 
 # Test files allowed to exist without a matching source file.
 # Use this only for cross-cutting behavioral tests that don't map to a single
-# module (e.g. fail-closed behavior that spans multiple infrastructure pieces).
+# module (e.g. integration tests that span a whole package).
 EXCLUDED_TEST_FILES: set[str] = {
-    # Verifies system-wide fail-closed behavior when Redis is unavailable;
-    # exercises code paths across security + dependencies, not a single module.
-    "tests/core/infrastructure/test_redis_fail_closed.py",
     # Integration tests for the src/api/seo/ package — exercises all internal
     # modules via real HTTP. The package's internal _*.py files are listed in
     # EXCLUDED_SOURCE_FILES above for the same reason.
@@ -192,9 +189,28 @@ def check_orphan_test_files() -> list[str]:
     return violations
 
 
+def check_stale_exclusions() -> list[str]:
+    """Find exclusion entries whose file no longer exists.
+
+    An entry for a deleted file silently hides nothing, and its comment keeps
+    claiming coverage or an exemption that is gone (a fail-closed test once
+    stayed "excluded" for months after it was deleted).
+    """
+    return [
+        f"{entry}: excluded in {name}, but the file does not exist"
+        for name, entries in (
+            ("EXCLUDED_SOURCE_FILES", EXCLUDED_SOURCE_FILES),
+            ("EXCLUDED_TEST_FILES", EXCLUDED_TEST_FILES),
+        )
+        for entry in sorted(entries)
+        if not Path(entry).is_file()
+    ]
+
+
 def main() -> None:
     missing = check_missing_test_files()
     orphans = check_orphan_test_files()
+    stale = check_stale_exclusions()
 
     if missing:
         print("❌ Missing test files detected:")
@@ -214,7 +230,15 @@ def main() -> None:
         for v in orphans:
             print(f"  {v}")
 
-    if missing or orphans:
+    if stale:
+        if missing or orphans:
+            print()
+        print("❌ Stale exclusions detected:")
+        print("Remove the entry, or restore the file it names.\n")
+        for v in stale:
+            print(f"  {v}")
+
+    if missing or orphans or stale:
         sys.exit(1)
 
     print("✅ All source files have matching test files (and vice versa)")
