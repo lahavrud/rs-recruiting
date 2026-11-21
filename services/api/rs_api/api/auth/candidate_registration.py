@@ -37,12 +37,12 @@ async def register(
     """
     if not body.privacy_accepted:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="יש לאשר את מדיניות הפרטיות",
         )
     if not body.terms_accepted:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="יש לאשר את תנאי השימוש",
         )
 

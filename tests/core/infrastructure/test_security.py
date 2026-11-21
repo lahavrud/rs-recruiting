@@ -183,7 +183,7 @@ class TestJWTTokenDecoding:
         """Test that a token signed with the wrong secret is rejected."""
         wrong_key_token = jwt.encode(
             {"sub": "123", "exp": datetime.now(timezone.utc) + timedelta(minutes=30)},
-            "wrong_secret_key",
+            "wrong_secret_key_that_is_at_least_32_bytes",
             algorithm=settings.jwt_algorithm,
         )
         payload = decode_access_token(wrong_key_token)
