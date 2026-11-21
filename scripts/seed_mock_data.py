@@ -32,6 +32,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, select
 
+from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import async_session, init_db
 from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.core.services.storage import get_storage_provider
@@ -1097,6 +1098,11 @@ def main() -> None:
         help='קידומת S3 לקו"ח (s3://bucket/prefix/) — מוריד לתיקייה זמנית',
     )
     args = parser.parse_args()
+    # Mock data is for disposable databases. --reset deletes every user and the
+    # whole audit log, and even a plain seed adds fake companies, candidates and
+    # a known-password admin, so refuse outright on production.
+    if settings.environment == "prod":
+        parser.error("refusing to run against ENVIRONMENT=prod")
     resume_fixtures = _resolve_resume_fixtures(args.resumes_dir, args.resumes_s3_prefix)
 
     async def run() -> None:
