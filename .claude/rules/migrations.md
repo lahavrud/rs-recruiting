@@ -3,16 +3,20 @@
 ## How the schema is built (important invariant)
 
 Dev/test/local-compose build the schema from **`SQLModel.metadata.create_all`**
-(`init_db`), NOT by running migrations. The Alembic chain is **not** designed to
-run from an empty database (some migrations reference tables that `create_all`
-already created), so `alembic upgrade head` against a fresh DB will fail — don't
-wire it into local startup. Production applies migrations on top of an existing
-schema.
+(`init_db`), NOT by running migrations. Production applies migrations on top of
+an existing schema. The chain *does* run from an empty database (verified
+2026-11-20, after d84645c6404c, #1058), but no CI job runs it yet (#1057), and
+the result still drifts from `create_all` in places (some VARCHAR lengths,
+`matchsuggestion.status`, three composite indexes), so don't wire it into local
+startup.
 
 Consequence: **every table needs both a SQLModel model AND a migration.** A
 migration-only table is invisible to `create_all` and silently absent in dev
-(this bit us with `email_quota`, now modeled as `EmailQuota`). When you add a
-table via migration, add its model too.
+(this bit us with `email_quota`, now modeled as `EmailQuota`). A model-only
+table exists in dev and test but not on a database built from the chain
+(`activationtoken`, `refreshtoken` and `audit_log` were, until d84645c6404c).
+`test_every_model_table_is_created_by_a_migration` in `tests/test_migrations.py`
+fails on the second case. When you add a table, add both.
 
 The same applies to any schema object that is not a table — indexes are handled
 by SQLModel, but triggers and functions are not. Attach them to the table's

@@ -48,7 +48,7 @@ These principles guide all architectural decisions:
 **Auth mechanics:**
 - JWT access token in `localStorage`; HttpOnly refresh-token cookie set by backend
 - `AuthContext` resolves initial state synchronously from `localStorage`, then verifies via `/api/auth/me` on mount
-- Account lockout after repeated failed logins (`failed_login_attempts` + `locked_until` on `User`)
+- Failed-login throttling per (email, client IP) with capped exponential backoff (`login_throttle` table); never a per-account lock, so an attacker can't lock the owner out. `User.failed_login_attempts` / `locked_until` are deprecated and unused
 - Password reset: `POST /api/auth/forgot-password` → email link → `POST /api/auth/reset-password`
 
 **Related Issues:**

@@ -179,7 +179,7 @@ async def test_reset_password_revokes_all_refresh_tokens(session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_reset_password_clears_lockout_state(session: AsyncSession):
-    """Successful reset must defer a `_clear_failed_attempts` call after commit."""
+    """Successful reset must defer lifting every login throttle on the email."""
     user = await _make_user(session, email="lock@example.com")
     raw_token = "raw-token-lockout"
     session.add(
@@ -193,13 +193,13 @@ async def test_reset_password_clears_lockout_state(session: AsyncSession):
     await session.commit()
 
     with patch(
-        "rs_shared.services.auth.password_reset._clear_failed_attempts",
+        "rs_shared.services.auth.password_reset.clear_all_login_failures",
         new_callable=AsyncMock,
     ) as mock_clear:
         async with transactional(session):
             await reset_password(raw_token, "FreshPass1!", session)
 
-    mock_clear.assert_called_once_with(user.id)
+    mock_clear.assert_called_once_with("lock@example.com")
 
 
 @pytest.mark.asyncio

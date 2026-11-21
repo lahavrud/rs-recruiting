@@ -314,3 +314,24 @@ def test_refresh_request_accepts_token_at_limit():
 def test_refresh_request_rejects_token_over_limit():
     with pytest.raises(ValidationError):
         RefreshRequest(refresh_token="x" * 513)
+
+
+# ── Password byte limit (bcrypt 72 bytes, #1167) ─────────────────────────────
+
+
+class TestPasswordByteLimit:
+    def test_72_bytes_is_accepted(self):
+        from rs_shared.schemas.auth import _validate_password_complexity
+
+        pw = "Aa1!" + "א" * 34  # 4 + 68 = 72 bytes
+        assert len(pw.encode("utf-8")) == 72
+        assert _validate_password_complexity(pw) == pw
+
+    def test_hebrew_passphrase_over_72_bytes_is_rejected(self):
+        """A byte limit, not a character one: 39 characters, 74 bytes."""
+        from rs_shared.schemas.auth import _validate_password_complexity
+
+        pw = "Aa1!" + "א" * 35
+        assert len(pw) < 72 < len(pw.encode("utf-8"))
+        with pytest.raises(ValueError, match="72 bytes"):
+            _validate_password_complexity(pw)

@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getInviteMetadata, register } from "@/services/auth";
 import { errorAlertCls } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { isPasswordTooLong } from "@/utils/passwordComplexity";
 import { COMPANY_ID_RE, EMAIL_RE, MOBILE_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
@@ -29,6 +30,7 @@ function useValidation() {
     validatePassword(v: string): string {
       if (!v) return t("auth:register.validation.passwordRequired");
       if (v.length < 8) return t("auth:register.validation.passwordMin");
+      if (isPasswordTooLong(v)) return t("auth:register.validation.passwordTooLong");
       if (!/[A-Z]/.test(v)) return t("auth:register.validation.passwordUppercase");
       if (!/[a-z]/.test(v)) return t("auth:register.validation.passwordLowercase");
       if (!/\d/.test(v)) return t("auth:register.validation.passwordDigit");

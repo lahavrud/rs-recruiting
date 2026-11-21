@@ -14,11 +14,22 @@ from pydantic import (
 
 from rs_shared.enums import UserRole
 
+# bcrypt's input limit. Kept local (schemas import nothing from core) and
+# asserted equal to security.BCRYPT_MAX_PASSWORD_BYTES by a test.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
 
 def _validate_password_complexity(v: str) -> str:
-    """Enforce password complexity: min 8 chars, upper, lower, digit, special."""
+    """Enforce password complexity: min 8 chars, upper, lower, digit, special.
+
+    Also caps the UTF-8 length at bcrypt's 72-byte limit (bcrypt>=5 raises
+    above it). This is a byte limit, not a character one: Hebrew letters are 2
+    bytes each, so a 40-letter Hebrew passphrase is already too long.
+    """
     if len(v) < 8:
         raise ValueError("Password must be at least 8 characters long")
+    if len(v.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES:
+        raise ValueError("Password must be at most 72 bytes long")
     if not re.search(r"[A-Z]", v):
         raise ValueError("Password must contain at least one uppercase letter")
     if not re.search(r"[a-z]", v):

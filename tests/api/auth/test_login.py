@@ -143,6 +143,19 @@ async def test_login_inactive_user(client: AsyncClient):
 # ==================== Refresh Token Tests ====================
 
 
+@pytest.mark.asyncio
+async def test_login_over_72_byte_password_is_401_not_500(client: AsyncClient):
+    """bcrypt>=5 raises above 72 bytes; login must answer like any wrong
+    password, for both an existing and an unknown email (#1167)."""
+    await _create_active_user(client, "longpw@example.com")
+    over_limit = "Aa1!" + "x" * 96  # 100 bytes
+    for email in ("longpw@example.com", "nobody-longpw@example.com"):
+        response = await client.post(
+            "/auth/login", json={"email": email, "password": over_limit}
+        )
+        assert response.status_code == 401, email
+
+
 async def _create_active_user(client: AsyncClient, email: str) -> dict:
     """Helper: register + activate + login.
 
@@ -229,51 +242,50 @@ async def test_refresh_invalid_token_returns_401(client: AsyncClient):
     assert response.status_code == 401
 
 
-# ==================== Account Lockout Tests ====================
+# ==================== Login throttling (per email + client IP) ====================
+
+
+async def _peer_client(ip: str) -> AsyncClient:
+    """A client whose requests arrive from ``ip`` (the app's overrides apply)."""
+    transport = ASGITransport(app=app, client=(ip, 40000))
+    return AsyncClient(transport=transport, base_url="http://test")
 
 
 @pytest.mark.asyncio
-async def test_account_lockout_after_failed_attempts(client: AsyncClient):
-    """Test that an account is locked after repeated failed logins."""
-    await client.post(
-        "/auth/register",
-        params={"token": "valid-test-token"},
-        data=_reg_data(email="lockme@example.com"),
-        files={"logo": FAKE_LOGO_FILE},
-    )
-    async with TestSessionLocal() as session:
-        result = await session.execute(
-            select(User).where(User.email == "lockme@example.com")  # pyright: ignore[reportArgumentType]
-        )
-        user = result.scalar_one()
-        user.is_active = True
-        await session.commit()
+@pytest.mark.real_login_throttle
+async def test_failed_logins_block_only_the_offending_source(client: AsyncClient):
+    """5 failures from one address block that address (even with the right
+    password), while the account's owner logs in normally from another one.
+    Before, the 5 failures locked the account for everyone."""
+    await _create_active_user(client, "throttle@example.com")
+    bad = {"email": "throttle@example.com", "password": "WrongPass1!"}
+    good = {"email": "throttle@example.com", "password": _STRONG_PASSWORD}
 
-    from rs_shared.services.exceptions import AccountLockedError
+    async with await _peer_client("203.0.113.66") as attacker:
+        statuses = [
+            (await attacker.post("/auth/login", json=bad)).status_code for _ in range(5)
+        ]
+        assert statuses == [401] * 5
+        blocked = await attacker.post("/auth/login", json=good)
+        assert blocked.status_code == 429
+        assert blocked.json()["detail"] == "account_locked"
 
-    attempt_count = 0
+    async with await _peer_client("198.51.100.7") as owner:
+        resp = await owner.post("/auth/login", json=good)
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
 
-    def fake_check_lockout(user, client_ip: str | None = None) -> None:
-        nonlocal attempt_count
-        attempt_count += 1
-        if attempt_count > 5:
-            raise AccountLockedError(minutes_remaining=15)
 
-    with patch(
-        "rs_shared.services.auth.login._check_lockout",
-        side_effect=fake_check_lockout,
-    ):
-        for _ in range(5):
-            await client.post(
-                "/auth/login",
-                json={"email": "lockme@example.com", "password": "WrongPass1!"},
-            )
-        locked_resp = await client.post(
-            "/auth/login",
-            json={"email": "lockme@example.com", "password": "WrongPass1!"},
-        )
-
-    assert locked_resp.status_code == 429
+@pytest.mark.asyncio
+@pytest.mark.real_login_throttle
+async def test_unknown_email_is_throttled_like_a_real_one(client: AsyncClient):
+    """A 429 must not reveal that an account exists."""
+    bad = {"email": "nobody-throttle@example.com", "password": "WrongPass1!"}
+    async with await _peer_client("203.0.113.67") as attacker:
+        statuses = [
+            (await attacker.post("/auth/login", json=bad)).status_code for _ in range(6)
+        ]
+    assert statuses == [401] * 5 + [429]
 
 
 @pytest.mark.asyncio
@@ -284,48 +296,18 @@ async def test_successful_login_clears_failed_attempts(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+@pytest.mark.real_login_throttle
 async def test_login_failed_logs_ip(client: AsyncClient, caplog):
-    """A bad-password login emits a login_failed log record with an ip field.
+    """A bad-password login emits a login_failed record carrying the client IP."""
+    await _create_active_user(client, "logip@example.com")
+    async with await _peer_client("203.0.113.68") as peer:
+        with caplog.at_level(
+            logging.WARNING, logger="rs_shared.services.auth.login_throttle"
+        ):
+            await peer.post(
+                "/auth/login",
+                json={"email": "logip@example.com", "password": "WrongPass1!"},
+            )
 
-    The autouse mock_auth_redis fixture stubs _record_failed_attempt as a no-op
-    so that CI tests never open a Redis connection.  We override it with a thin
-    stub that calls through to the real logger so the WARNING fires without
-    touching Redis.
-    """
-    await client.post(
-        "/auth/register",
-        params={"token": "valid-test-token"},
-        data=_reg_data(email="logip@example.com"),
-        files={"logo": FAKE_LOGO_FILE},
-    )
-    async with TestSessionLocal() as session:
-        result = await session.execute(
-            select(User).where(User.email == "logip@example.com")  # pyright: ignore[reportArgumentType]
-        )
-        user = result.scalar_one()
-        user.is_active = True
-        await session.commit()
-
-    _login_logger = logging.getLogger("rs_shared.services.auth.login")
-
-    async def _stub_record_failed(
-        user_id: int, email: str, client_ip: str | None = None
-    ) -> None:
-        _login_logger.warning(
-            "login_failed",
-            extra={"email_prefix": email[:2] + "***", "attempt": 1, "ip": client_ip},
-        )
-
-    with (
-        patch(
-            "rs_shared.services.auth.login._record_failed_attempt",
-            side_effect=_stub_record_failed,
-        ),
-        caplog.at_level(logging.WARNING, logger="rs_shared.services.auth.login"),
-    ):
-        await client.post(
-            "/auth/login",
-            json={"email": "logip@example.com", "password": "WrongPass1!"},
-        )
-
-    assert any("login_failed" in r.message and hasattr(r, "ip") for r in caplog.records)
+    records = [r for r in caplog.records if r.getMessage() == "login_failed"]
+    assert records and records[0].ip == "203.0.113.68"

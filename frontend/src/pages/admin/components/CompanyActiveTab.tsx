@@ -52,7 +52,12 @@ export default function CompanyActiveTab({
   const toast = useToast();
   const navigate = useNavigate();
 
-  const { sort, order, toggle } = useColumnSort<"name" | "created_at">({
+  const {
+    sort,
+    order,
+    toggle,
+    set: setSort,
+  } = useColumnSort<"name" | "created_at">({
     column: "created_at",
     order: "desc",
   });
@@ -150,7 +155,7 @@ export default function CompanyActiveTab({
             <SortControl
               ariaLabel={t("admin:companies.active.sort.label")}
               value={`${sort}:${order}`}
-              onChange={(col, ord) => toggle(col as "name" | "created_at", ord)}
+              onChange={(col, ord) => setSort(col as "name" | "created_at", ord)}
               options={[
                 {
                   value: "created_at:desc",

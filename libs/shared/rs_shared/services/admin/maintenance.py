@@ -27,6 +27,7 @@ from rs_shared.models import (
     ActivationToken,
     DataExportRequest,
     EmailOutbox,
+    LoginThrottle,
     User,
 )
 
@@ -40,6 +41,10 @@ _USED_EXPORT_GRACE_HOURS = 24
 # Only rows the send path is finished with. PENDING / SENDING rows are still
 # owned by the worker and the sweeper and must never be touched here.
 _TERMINAL_EMAIL_STATUSES = (EmailStatus.SENT, EmailStatus.FAILED)
+# Quiet period after which a login-throttle row is meaningless: the throttle
+# restarts its counter after the same window (services/auth/login_throttle.py
+# DECAY, which this package may not import; a test pins the two together).
+LOGIN_THROTTLE_RETENTION = timedelta(hours=24)
 
 
 async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
@@ -256,4 +261,26 @@ async def purge_expired_email_outbox(session: AsyncSession) -> int:
     count = result.rowcount
     if count:
         _logger.info("purge_expired_email_outbox: removed %d rows", count)
+    return count
+
+
+async def purge_expired_login_throttle(session: AsyncSession) -> int:
+    """Delete login-throttle rows quiet for longer than the decay window.
+
+    They hold a client IP (personal data) and would be reset on the next
+    failure anyway. A row whose block is still running is kept regardless.
+
+    Returns count of rows deleted.
+    """
+    now = datetime.now(timezone.utc)
+    result = await session.execute(
+        delete(LoginThrottle).where(
+            LoginThrottle.last_failure_at < now - LOGIN_THROTTLE_RETENTION,  # type: ignore[arg-type]
+            (LoginThrottle.blocked_until.is_(None))  # type: ignore[union-attr]
+            | (LoginThrottle.blocked_until < now),  # type: ignore[operator]
+        )
+    )
+    count = result.rowcount
+    if count:
+        _logger.info("purge_expired_login_throttle: removed %d rows", count)
     return count
