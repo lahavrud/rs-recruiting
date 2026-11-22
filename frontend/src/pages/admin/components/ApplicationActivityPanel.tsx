@@ -65,6 +65,8 @@ export default function ApplicationActivityPanel({ applicationId }: Props) {
           : t("admin:applications.activity.actions.createdByApply");
       case "application.edit":
         return t("admin:applications.activity.actions.edited");
+      case "application.notes_update":
+        return t("admin:applications.activity.actions.notesUpdated");
       default:
         return t("admin:applications.activity.actions.unknown");
     }
