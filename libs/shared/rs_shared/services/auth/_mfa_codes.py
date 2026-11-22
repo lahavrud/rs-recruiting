@@ -11,7 +11,7 @@ import secrets
 from datetime import datetime, timezone
 
 import pyotp
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import (
@@ -44,13 +44,24 @@ def _matching_step(secret: str, code: str, now: datetime) -> int | None:
     return None
 
 
-async def _claim_step(session: AsyncSession, user_id: int, step: int) -> bool:
-    """Atomically advance ``last_used_step``; False if the step was used."""
+async def _claim_step(
+    session: AsyncSession, user_id: int, step: int, now: datetime
+) -> bool:
+    """Atomically advance ``last_used_step``; False if used or locked.
+
+    The lock is re-checked here, in the same row-locking UPDATE: a burst of
+    guesses that all passed the caller's lock check before the locking
+    failure committed still can't land a code.
+    """
     result = await session.execute(
         update(UserMfa)
         .where(
             UserMfa.user_id == user_id,  # pyright: ignore[reportArgumentType]
             UserMfa.last_used_step < step,  # pyright: ignore[reportArgumentType]
+            or_(
+                UserMfa.locked_until.is_(None),  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
+                UserMfa.locked_until <= now,  # pyright: ignore[reportOptionalOperand, reportOperatorIssue]
+            ),
         )
         .values(last_used_step=step)
         .returning(UserMfa.user_id)  # pyright: ignore[reportArgumentType]
@@ -69,8 +80,9 @@ async def check_totp(
         # break-glass reset (docs/runbooks/mfa-reset.md) gets this user back in.
         logger.critical("mfa_secret_undecryptable", extra={"user_id": mfa.user_id})
         raise
-    step = _matching_step(secret, code, now or datetime.now(timezone.utc))
-    return step is not None and await _claim_step(session, mfa.user_id, step)
+    now = now or datetime.now(timezone.utc)
+    step = _matching_step(secret, code, now)
+    return step is not None and await _claim_step(session, mfa.user_id, step, now)
 
 
 def _normalize_recovery_code(code: str) -> str:

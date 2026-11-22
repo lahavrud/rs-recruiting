@@ -3,10 +3,10 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.models import AuditLog, EmailOutbox, User, UserMfa
+from rs_shared.models import AuditLog, EmailOutbox, MfaChallenge, User, UserMfa
 from rs_shared.services.auth._mfa_lockout import (
     LOCK_FREE_FAILURES,
     MAX_LOCK,
@@ -14,6 +14,7 @@ from rs_shared.services.auth._mfa_lockout import (
     ensure_not_locked,
     lock_duration,
     record_failed_code,
+    reset_mfa_lock,
 )
 from rs_shared.services.exceptions import MfaLockedError
 
@@ -65,12 +66,13 @@ async def test_failures_below_the_threshold_do_not_lock(
 ):
     await _mfa_row(session, admin_user, 0)
     assert admin_user.id is not None
-    await record_failed_code(admin_user.id, admin_user.email, IP)
+    assert await record_failed_code(admin_user.id, admin_user.email, IP) is None
 
     row = await session.get(UserMfa, admin_user.id)
     assert row is not None and row.failed_attempts == 1 and row.locked_until is None
     audit = (await session.execute(select(AuditLog))).scalar_one()
-    assert audit.action == "mfa_verify_failed" and audit.detail == "consecutive=1"
+    assert audit.action == "mfa_verify_failed"
+    assert audit.detail == "consecutive=1 context=login"
     assert (await session.execute(select(EmailOutbox))).first() is None
 
 
@@ -79,9 +81,12 @@ async def test_the_first_lock_emails_the_owner_once(
 ):
     await _mfa_row(session, admin_user, LOCK_FREE_FAILURES - 1)
     assert admin_user.id is not None
-    await record_failed_code(admin_user.id, admin_user.email, IP)
-    await record_failed_code(admin_user.id, admin_user.email, IP)
+    first = await record_failed_code(admin_user.id, admin_user.email, IP)
+    second = await record_failed_code(admin_user.id, admin_user.email, IP)
 
+    # The failure that locks reports it, with the lock's length.
+    assert first is not None and first.minutes_remaining == 5
+    assert second is not None and second.minutes_remaining == 10
     session.expire_all()
     row = await session.get(UserMfa, admin_user.id)
     assert row is not None and row.locked_until is not None
@@ -97,4 +102,41 @@ async def test_record_survives_without_an_mfa_row(
     assert admin_user.id is not None
     await record_failed_code(admin_user.id, admin_user.email, None)
     detail = (await session.execute(select(AuditLog.detail))).scalar_one()  # pyright: ignore[reportArgumentType]
-    assert detail == "consecutive=0"
+    assert detail == "consecutive=0 context=login"
+
+
+async def test_context_is_recorded(session: AsyncSession, admin_user: User):
+    await _mfa_row(session, admin_user, 0)
+    assert admin_user.id is not None
+    await record_failed_code(admin_user.id, admin_user.email, IP, context="regenerate")
+    detail = (await session.execute(select(AuditLog.detail))).scalar_one()  # pyright: ignore[reportArgumentType]
+    assert detail == "consecutive=1 context=regenerate"
+
+
+async def test_reset_mfa_lock_clears_lock_and_pending_challenges(
+    session: AsyncSession, admin_user: User
+):
+    await _mfa_row(session, admin_user, LOCK_FREE_FAILURES + 2)
+    assert admin_user.id is not None
+    session.add(
+        MfaChallenge(
+            token_hash="h",
+            user_id=admin_user.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            remember_me=False,
+        )
+    )
+    await session.execute(
+        update(UserMfa).values(
+            locked_until=datetime.now(timezone.utc) + timedelta(minutes=20)
+        )
+    )
+    await session.commit()
+
+    await reset_mfa_lock(session, admin_user.id)
+    await session.commit()
+
+    session.expire_all()
+    row = await session.get(UserMfa, admin_user.id)
+    assert row is not None and row.failed_attempts == 0 and row.locked_until is None
+    assert (await session.execute(select(MfaChallenge))).first() is None

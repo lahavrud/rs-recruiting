@@ -57,8 +57,17 @@ def _session_factory() -> async_sessionmaker[AsyncSession]:
 async def create_challenge(
     session: AsyncSession, user: User, *, remember_me: bool
 ) -> str:
-    """Start the code step of a login. Returns the raw challenge token."""
+    """Start the code step of a login. Returns the raw challenge token.
+
+    Replaces any earlier challenge of the user's: one live challenge per
+    account, so a password holder can't stockpile them for more guesses.
+    """
     assert user.id is not None
+    await session.execute(
+        delete(MfaChallenge).where(
+            MfaChallenge.user_id == user.id  # pyright: ignore[reportArgumentType]
+        )
+    )
     raw = secrets.token_urlsafe(32)
     session.add(
         MfaChallenge(
@@ -114,8 +123,9 @@ async def verify_challenge(
     ``MfaChallengeExpiredError`` for an unknown, expired, used-up or already
     consumed challenge (the client goes back to the password step),
     ``MfaLockedError`` / ``AccountLockedError`` while the account or the
-    (email, IP) pair is locked, and ``InvalidMfaCodeError`` for a wrong or
-    replayed code. Must run inside ``transactional()`` (it queues email).
+    (email, IP) pair is locked (also for the wrong code that locks it), and
+    ``InvalidMfaCodeError`` for a wrong or replayed code. Must run inside
+    ``transactional()`` (it queues email).
     """
     reserved = await _reserve_attempt(raw_challenge)
     if reserved is None:
@@ -132,19 +142,16 @@ async def verify_challenge(
     # A throttled (email, IP) pair is refused before any code is checked.
     await login_throttle.check_login_allowed(user.email, client_ip)
 
-    used_recovery = False
+    # The request schema guarantees exactly one of code / recovery_code.
+    used_recovery = not code
     if code:
         ok = await check_totp(session, mfa, code, now)
-    elif recovery_code:
-        ok = used_recovery = await consume_recovery_code(
-            session, user_id, recovery_code
-        )
     else:
-        ok = False
+        ok = await consume_recovery_code(session, user_id, recovery_code or "")
 
     if not ok:
-        await record_failed_code(user_id, user.email, client_ip)
-        raise InvalidMfaCodeError("invalid_mfa_code")
+        locked = await record_failed_code(user_id, user.email, client_ip)
+        raise locked or InvalidMfaCodeError("invalid_mfa_code")
 
     # Consume this challenge (and any other pending one of the user's). If a
     # concurrent request already consumed it, this one loses and rolls back

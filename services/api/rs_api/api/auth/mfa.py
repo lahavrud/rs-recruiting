@@ -153,7 +153,7 @@ async def new_recovery_codes(
             codes = await regenerate_recovery_codes(
                 session, user, body.code, client_ip=client_ip(request)
             )
-    except (MfaNotEnrolledError, InvalidMfaCodeError) as e:
+    except (MfaNotEnrolledError, InvalidMfaCodeError, MfaLockedError) as e:
         raise service_exception_to_http(e) from e
     return MfaRecoveryCodesResponse(recovery_codes=codes)
 

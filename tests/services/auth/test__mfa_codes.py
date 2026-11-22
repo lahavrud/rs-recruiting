@@ -1,15 +1,19 @@
 """Tests for the TOTP code primitives (skew window, format, recovery codes)."""
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pyotp
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from rs_shared.core.infrastructure.security import encrypt_mfa_secret
+from rs_shared.models import User, UserMfa
 from rs_shared.services.auth._mfa_codes import (
     _matching_step,
     _new_recovery_code,
     _normalize_recovery_code,
+    check_totp,
 )
 
 # ── step matching (explicit clock, so no boundary flakiness) ─────────────────
@@ -40,6 +44,27 @@ def test_matching_step_tolerates_spaces():
     now = datetime.now(timezone.utc)
     code = pyotp.TOTP(secret).at(now)
     assert _matching_step(secret, f"{code[:3]} {code[3:]}", now) is not None
+
+
+async def test_check_totp_refuses_a_right_code_while_locked(
+    session: AsyncSession, admin_user: User
+):
+    """The claim re-checks the lock: a guess racing the locking failure loses."""
+    secret = pyotp.random_base32()
+    now = datetime.now(timezone.utc)
+    mfa = UserMfa(
+        user_id=admin_user.id,
+        secret_encrypted=encrypt_mfa_secret(secret),
+        locked_until=now + timedelta(minutes=5),
+    )
+    session.add(mfa)
+    await session.commit()
+    totp = pyotp.TOTP(secret)
+
+    assert not await check_totp(session, mfa, totp.at(now), now)
+    # Once the lock is over, a code is accepted again.
+    later = now + timedelta(minutes=5)
+    assert await check_totp(session, mfa, totp.at(later), later)
 
 
 def test_recovery_codes_are_grouped_and_unambiguous():

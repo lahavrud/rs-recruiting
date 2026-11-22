@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 
 from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_shared.services.exceptions import (
+    AccountLockedError,
     CompanyNotFoundError,
     CompanyNotPendingError,
     EmailAlreadyExistsError,
@@ -19,6 +20,7 @@ from rs_shared.services.exceptions import (
     JobNotFoundError,
     JobNotOwnedByCompanyError,
     JobNotPendingError,
+    MfaLockedError,
 )
 
 
@@ -107,3 +109,11 @@ class TestServiceExceptionToHttp:
         http_exception = service_exception_to_http(JobNotFoundError("internal id=42"))
         assert http_exception.detail == "job_not_found"
         assert "42" not in str(http_exception.detail)
+
+
+def test_lock_errors_carry_retry_after_in_seconds():
+    for exc in (AccountLockedError(3), MfaLockedError(10)):
+        http = service_exception_to_http(exc)
+        assert http.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+        assert http.headers == {"Retry-After": str(exc.minutes_remaining * 60)}
+    assert service_exception_to_http(JobNotFoundError("x")).headers is None

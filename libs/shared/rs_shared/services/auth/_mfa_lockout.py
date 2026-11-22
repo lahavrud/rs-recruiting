@@ -3,9 +3,10 @@
 The login throttle counts failures per (email, IP), and a correct password
 clears its pair. Alone, it lets anyone holding the password guess codes from
 many addresses: 5 codes per challenge, a fresh challenge per login. So wrong
-codes also count per *account*, from any address, and only a correct code (or
-the break-glass reset) clears them: ``LOCK_FREE_FAILURES`` free, then the code
-step is locked for 5, 10, 20, 40, then 60 minutes (capped). That bounds a
+codes also count per *account*, from any address, and only a correct code, a
+password reset/change or the break-glass reset clears them:
+``LOCK_FREE_FAILURES`` free, then the code step is locked for 5, 10, 20, 40,
+then 60 minutes (capped). That bounds a
 password holder to ~30 guesses a day (odds ~1e-4 against a 6-digit code).
 
 Locking out the owner takes their password, and the first lock emails them
@@ -17,11 +18,11 @@ import logging
 import math
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.models import UserMfa
+from rs_shared.models import MfaChallenge, UserMfa
 from rs_shared.services.auth import login_throttle
 from rs_shared.services.auth._mfa_notify import MfaEvent, notify_mfa_event
 from rs_shared.services.exceptions import MfaLockedError
@@ -32,6 +33,8 @@ logger = logging.getLogger(__name__)
 LOCK_FREE_FAILURES = 5
 _FIRST_LOCK = timedelta(minutes=5)
 MAX_LOCK = timedelta(minutes=60)
+# 5 min doubled this many times already exceeds MAX_LOCK; caps the exponent.
+_MAX_LOCK_DOUBLINGS = 10
 
 
 def _session_factory() -> async_sessionmaker[AsyncSession]:
@@ -45,15 +48,18 @@ def lock_duration(failures: int) -> timedelta | None:
     """How long ``failures`` consecutive wrong codes lock the code step."""
     if failures < LOCK_FREE_FAILURES:
         return None
-    doublings = min(failures - LOCK_FREE_FAILURES, 10)
+    doublings = min(failures - LOCK_FREE_FAILURES, _MAX_LOCK_DOUBLINGS)
     return min(_FIRST_LOCK * (2**doublings), MAX_LOCK)
+
+
+def _minutes(span: timedelta) -> int:
+    return max(math.ceil(span.total_seconds() / 60), 1)
 
 
 def ensure_not_locked(mfa: UserMfa, now: datetime) -> None:
     """Raise ``MfaLockedError`` while the account's code step is locked."""
     if mfa.locked_until is not None and mfa.locked_until > now:
-        minutes = math.ceil((mfa.locked_until - now).total_seconds() / 60)
-        raise MfaLockedError(max(minutes, 1))
+        raise MfaLockedError(_minutes(mfa.locked_until - now))
 
 
 def clear_failures(mfa: UserMfa) -> None:
@@ -62,8 +68,35 @@ def clear_failures(mfa: UserMfa) -> None:
     mfa.locked_until = None
 
 
-async def record_failed_code(user_id: int, email: str, client_ip: str | None) -> None:
-    """Count a wrong login code: account lock, audit, owner email, IP throttle."""
+async def reset_mfa_lock(session: AsyncSession, user_id: int) -> None:
+    """A new password: clear the code lock and kill pending login challenges.
+
+    The lock and any challenge started with the old password belong to
+    whoever held it; the owner who just proved the reset link shouldn't wait
+    out their lock, and the old password must not finish a login.
+    Caller's session and transaction.
+    """
+    await session.execute(
+        update(UserMfa)
+        .where(UserMfa.user_id == user_id)  # pyright: ignore[reportArgumentType]
+        .values(failed_attempts=0, locked_until=None)
+    )
+    await session.execute(
+        delete(MfaChallenge).where(
+            MfaChallenge.user_id == user_id  # pyright: ignore[reportArgumentType]
+        )
+    )
+
+
+async def record_failed_code(
+    user_id: int, email: str, client_ip: str | None, *, context: str = "login"
+) -> MfaLockedError | None:
+    """Count a wrong code: account lock, audit, owner email, IP throttle.
+
+    ``context`` (login / regenerate) goes to the audit detail and the log.
+    Returns the ``MfaLockedError`` to raise when this failure locked the
+    account, so the caller reports the lock now instead of a plain wrong code.
+    """
     now = datetime.now(timezone.utc)
     async with _session_factory()() as fail_session:
         async with transactional(fail_session):
@@ -89,7 +122,7 @@ async def record_failed_code(user_id: int, email: str, client_ip: str | None) ->
                 action="mfa_verify_failed",
                 target_type="User",
                 target_id=user_id,
-                detail=f"consecutive={failures}",
+                detail=f"consecutive={failures} context={context}",
                 ip_address=client_ip,
             )
             # Only the first lock of a run emails: later ones would just spam.
@@ -101,7 +134,13 @@ async def record_failed_code(user_id: int, email: str, client_ip: str | None) ->
                     fail_session, email, MfaEvent.LOCKED, ip=client_ip
                 )
     logger.warning(
-        "mfa_verify_failed",
-        extra={"user_id": user_id, "ip": client_ip, "consecutive": failures},
+        "mfa_code_rejected",
+        extra={
+            "user_id": user_id,
+            "ip": client_ip,
+            "consecutive": failures,
+            "context": context,
+        },
     )
     await login_throttle.record_login_failure(email, client_ip)
+    return MfaLockedError(_minutes(locked_for)) if locked_for is not None else None

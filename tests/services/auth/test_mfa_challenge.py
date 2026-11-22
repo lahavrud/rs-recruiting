@@ -76,16 +76,31 @@ async def test_code_succeeds_once_and_consumes_challenge(
         await _verify(session, raw, code=_code(secret, 1))
 
 
-async def test_success_consumes_every_pending_challenge(
+async def test_a_new_challenge_replaces_the_earlier_one(
     session: AsyncSession, admin_user: User
 ):
     secret, _ = await _enrolled(session, admin_user)
-    raw = await _challenge(session, admin_user)
-    other = await _challenge(session, admin_user)
+    earlier = await _challenge(session, admin_user)
+    latest = await _challenge(session, admin_user)
 
-    await _verify(session, raw, code=_code(secret, 1))
     with pytest.raises(MfaChallengeExpiredError):
-        await _verify(session, other, code=_code(secret, 1))
+        await _verify(session, earlier, code=_code(secret, 1))
+    user, _ = await _verify(session, latest, code=_code(secret, 1))
+    assert user.id == admin_user.id
+
+
+async def test_the_wrong_code_that_locks_reports_the_lock(
+    session: AsyncSession, admin_user: User
+):
+    secret, _ = await _enrolled(session, admin_user)
+    await session.execute(update(UserMfa).values(failed_attempts=4))
+    await session.commit()
+
+    with pytest.raises(MfaLockedError) as exc:
+        await _verify(
+            session, await _challenge(session, admin_user), code=_wrong(secret)
+        )
+    assert exc.value.minutes_remaining == 5
 
 
 async def test_replayed_code_is_rejected(session: AsyncSession, admin_user: User):
@@ -141,7 +156,11 @@ async def test_concurrent_guesses_cannot_overrun_attempt_cap(
         async with session_local_factory() as s:
             try:
                 await _verify(s, raw, code=_wrong(secret))
-            except (InvalidMfaCodeError, MfaChallengeExpiredError) as exc:
+            except (
+                InvalidMfaCodeError,
+                MfaChallengeExpiredError,
+                MfaLockedError,
+            ) as exc:
                 return exc
         return None
 
@@ -149,8 +168,10 @@ async def test_concurrent_guesses_cannot_overrun_attempt_cap(
         *(guess() for _ in range(2 * MAX_CHALLENGE_ATTEMPTS))
     )
 
-    wrong = [r for r in results if isinstance(r, InvalidMfaCodeError)]
-    assert len(wrong) == MAX_CHALLENGE_ATTEMPTS
+    # Exactly MAX guesses got an attempt; the rest found the challenge used up.
+    # (The 5th account failure locks, so some report the lock instead.)
+    tried = [r for r in results if isinstance(r, (InvalidMfaCodeError, MfaLockedError))]
+    assert len(tried) == MAX_CHALLENGE_ATTEMPTS
     session.expire_all()
     challenge = (await session.execute(select(MfaChallenge))).scalar_one()
     assert challenge.attempts == MAX_CHALLENGE_ATTEMPTS

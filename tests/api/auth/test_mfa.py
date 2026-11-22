@@ -292,3 +292,4 @@ async def test_locked_account_gets_429(
     )
     assert resp.status_code == 429
     assert resp.json()["detail"] == "mfa_locked"
+    assert resp.headers["Retry-After"] == "300"

@@ -32,7 +32,11 @@ from rs_shared.services.auth._mfa_codes import (
     remaining_recovery_codes,
     replace_recovery_codes,
 )
-from rs_shared.services.auth._mfa_lockout import clear_failures
+from rs_shared.services.auth._mfa_lockout import (
+    clear_failures,
+    ensure_not_locked,
+    record_failed_code,
+)
 from rs_shared.services.auth._mfa_notify import MfaEvent, notify_mfa_event
 from rs_shared.services.exceptions import (
     InvalidMfaCodeError,
@@ -110,7 +114,9 @@ async def confirm_enrolment(
     if mfa.enabled_at is not None:
         raise MfaAlreadyEnabledError("mfa_already_enabled")
     if not await check_totp(session, mfa, code):
-        logger.warning("mfa_enrol_code_rejected", extra={"user_id": user.id})
+        logger.warning(
+            "mfa_code_rejected", extra={"user_id": user.id, "context": "enrol"}
+        )
         raise InvalidMfaCodeError("invalid_mfa_code")
 
     mfa.enabled_at = datetime.now(timezone.utc)
@@ -151,14 +157,23 @@ async def confirm_enrolment(
 async def regenerate_recovery_codes(
     session: AsyncSession, user: User, code: str, *, client_ip: str | None = None
 ) -> list[str]:
-    """Replace all recovery codes; requires a current TOTP code."""
+    """Replace all recovery codes; requires a current TOTP code.
+
+    The code counts toward the account lock like a login code: a stolen
+    session must not get unlimited guesses at minting lasting recovery codes.
+    """
     assert user.id is not None
     mfa = await get_user_mfa(session, user.id)
     if mfa is None or mfa.enabled_at is None:
         raise MfaNotEnrolledError("mfa_not_enrolled")
-    if not await check_totp(session, mfa, code):
-        logger.warning("mfa_regenerate_code_rejected", extra={"user_id": user.id})
-        raise InvalidMfaCodeError("invalid_mfa_code")
+    now = datetime.now(timezone.utc)
+    ensure_not_locked(mfa, now)
+    if not await check_totp(session, mfa, code, now):
+        locked = await record_failed_code(
+            user.id, user.email, client_ip, context="regenerate"
+        )
+        raise locked or InvalidMfaCodeError("invalid_mfa_code")
+    clear_failures(mfa)
     codes = await replace_recovery_codes(session, user.id)
     await record_audit_event(
         session,
@@ -176,5 +191,6 @@ async def regenerate_recovery_codes(
 
 async def mfa_status(session: AsyncSession, user_id: int) -> tuple[bool, int]:
     """(MFA enabled, unused recovery codes)."""
-    enabled = await is_mfa_enabled(session, user_id)
-    return enabled, await remaining_recovery_codes(session, user_id) if enabled else 0
+    if not await is_mfa_enabled(session, user_id):
+        return False, 0
+    return True, await remaining_recovery_codes(session, user_id)

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pyotp
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import decrypt_mfa_secret
@@ -18,6 +18,7 @@ from rs_shared.models import (
     UserMfa,
 )
 from rs_shared.services.auth._mfa_codes import RECOVERY_CODE_COUNT
+from rs_shared.services.auth._mfa_lockout import LOCK_FREE_FAILURES
 from rs_shared.services.auth.mfa import (
     confirm_enrolment,
     is_mfa_enabled,
@@ -28,6 +29,7 @@ from rs_shared.services.auth.mfa import (
 from rs_shared.services.exceptions import (
     InvalidMfaCodeError,
     MfaAlreadyEnabledError,
+    MfaLockedError,
     MfaNotEnrolledError,
 )
 
@@ -176,6 +178,38 @@ async def test_regenerate_requires_mfa_and_a_valid_code(
     secret, _ = await _enrolled(session, admin_user)
     with pytest.raises(InvalidMfaCodeError):
         await regenerate_recovery_codes(session, admin_user, _wrong(secret, 1))
+
+
+async def test_regenerate_wrong_codes_count_toward_the_lock(
+    session: AsyncSession, admin_user: User
+):
+    secret, _ = await _enrolled(session, admin_user)
+    for _ in range(LOCK_FREE_FAILURES - 1):
+        with pytest.raises(InvalidMfaCodeError):
+            await regenerate_recovery_codes(session, admin_user, _wrong(secret, 1))
+    with pytest.raises(MfaLockedError):
+        await regenerate_recovery_codes(session, admin_user, _wrong(secret, 1))
+
+    session.expire_all()
+    # Locked: even the right code is refused, before it is checked.
+    with pytest.raises(MfaLockedError):
+        await regenerate_recovery_codes(session, admin_user, _code(secret, 1))
+    details = (await session.execute(select(AuditLog.detail))).scalars().all()  # pyright: ignore[reportArgumentType]
+    assert f"consecutive={LOCK_FREE_FAILURES} context=regenerate" in details
+
+
+async def test_regenerate_success_clears_the_count(
+    session: AsyncSession, admin_user: User
+):
+    secret, _ = await _enrolled(session, admin_user)
+    await session.execute(update(UserMfa).values(failed_attempts=3))
+    await session.commit()
+    async with transactional(session):
+        await regenerate_recovery_codes(session, admin_user, _code(secret, 1))
+
+    session.expire_all()
+    mfa = await session.get(UserMfa, admin_user.id)
+    assert mfa is not None and mfa.failed_attempts == 0
 
 
 async def test_mfa_status_counts_unused_codes(session: AsyncSession, admin_user: User):

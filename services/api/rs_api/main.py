@@ -199,6 +199,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
+    # Lock responses say how long they last; readable cross-origin too.
+    expose_headers=["Retry-After"],
 )
 
 # CloudFront origin verification — registered last so it runs OUTERMOST

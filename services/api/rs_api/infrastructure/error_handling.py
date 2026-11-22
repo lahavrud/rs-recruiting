@@ -175,4 +175,8 @@ def service_exception_to_http(
     exc_type = type(exception)
     status_code = EXCEPTION_STATUS_MAP.get(exc_type, default_status)
     code = EXCEPTION_CODE_MAP.get(exc_type, "internal_error")
-    return HTTPException(status_code=status_code, detail=code)
+    headers = None
+    if isinstance(exception, (AccountLockedError, MfaLockedError)):
+        # Lets the client say how long the lock lasts (RFC 9110 Retry-After).
+        headers = {"Retry-After": str(exception.minutes_remaining * 60)}
+    return HTTPException(status_code=status_code, detail=code, headers=headers)
