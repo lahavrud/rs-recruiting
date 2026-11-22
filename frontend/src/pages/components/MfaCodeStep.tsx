@@ -50,6 +50,7 @@ export default function MfaCodeStep({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (isSubmitting) return; // Enter still submits while the button is disabled
     if (!isComplete) {
       setError(t("auth:login.mfa.errors.required"));
       return;

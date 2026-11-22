@@ -43,6 +43,7 @@ export default function MfaRecoveryCard() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (isSubmitting) return; // Enter still submits while the button is disabled
     setError(null);
     setIsSubmitting(true);
     try {

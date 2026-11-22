@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AuthShell from "@/pages/components/AuthShell";
 import { MFA_SETUP_PATH } from "@/services/api";
 import { confirmMfaEnrolment, startMfaEnrolment } from "@/services/auth";
-import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import { errorAlertCls, INPUT_CLS, warningAlertCls } from "@/styles/forms";
 import type { MfaEnrolmentStart } from "@/types/auth";
 import { apiErrorInfo, normalizeTotp, TOTP_LENGTH } from "@/utils/mfa";
 
@@ -57,9 +57,10 @@ export default function MfaSetupPage() {
     }
   }, [navigate, refreshUserFromToken]);
 
-  // `navigate` changes identity on every navigation, re-running this effect;
-  // only the first live run may act on the start result, or a later run
-  // would put the page back on the scan step and hide the recovery codes.
+  // `navigate` can change identity when the page navigates (the Back hold
+  // below does), re-running this effect; only the first live run may act on
+  // the start result, or a later run would put the page back on the scan
+  // step and hide the recovery codes.
   const isStartSettledRef = useRef(false);
 
   useEffect(() => {
@@ -103,7 +104,13 @@ export default function MfaSetupPage() {
       navigate(MFA_SETUP_PATH, { state: { holdsRecoveryCodes: true } });
       setIsLeaveBlocked(true);
     };
-    navigate(MFA_SETUP_PATH, { state: { holdsRecoveryCodes: true } });
+    // Arm once: unticking and re-ticking "saved" must not stack entries.
+    const usr = (
+      window.history.state as { usr?: { holdsRecoveryCodes?: boolean } } | null
+    )?.usr;
+    if (!usr?.holdsRecoveryCodes) {
+      navigate(MFA_SETUP_PATH, { state: { holdsRecoveryCodes: true } });
+    }
     window.addEventListener("beforeunload", warn);
     window.addEventListener("popstate", holdBack);
     return () => {
@@ -124,6 +131,7 @@ export default function MfaSetupPage() {
 
   async function handleConfirm(e: FormEvent) {
     e.preventDefault();
+    if (isSubmitting) return; // Enter still submits while the button is disabled
     setFormError(null);
     setIsSubmitting(true);
     try {
@@ -169,7 +177,7 @@ export default function MfaSetupPage() {
         </div>
         <PageHeader
           eyebrow={t("admin:mfa.setup.eyebrow")}
-          subtitle={t("admin:mfa.setup.subtitle")}
+          subtitle={state.step === "done" ? undefined : t("admin:mfa.setup.subtitle")}
         />
 
         {state.step === "loading" && <div className="h-64" aria-busy="true" />}
@@ -265,11 +273,11 @@ export default function MfaSetupPage() {
             <p className="text-sm text-white/60">{t("admin:mfa.setup.done.body")}</p>
             <RecoveryCodesList codes={state.recoveryCodes} />
             {isLeaveBlocked && isCodesUnsaved && (
-              <div role="alert" className={errorAlertCls}>
+              <div role="alert" className={warningAlertCls}>
                 {t("admin:mfa.setup.done.saveFirst")}
               </div>
             )}
-            <p className="text-xs text-white/45">
+            <p className="text-sm text-white/70">
               {t("admin:mfa.setup.done.lostBoth")}
             </p>
             <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-white/60">

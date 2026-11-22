@@ -135,7 +135,7 @@ describe("MfaSetupPage", () => {
     });
 
     expect(screen.getByTestId("recovery-codes")).toBeDefined();
-    expect((await screen.findByRole("alert")).textContent).toMatch(/קודם שמרו/);
+    expect((await screen.findByRole("alert")).textContent).toMatch(/עוד לא סימנתם/);
     fireEvent.click(screen.getByRole("checkbox"));
     expect(screen.queryByRole("alert")).toBeNull();
   });

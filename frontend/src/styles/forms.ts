@@ -11,6 +11,10 @@ export const errorAlertBaseCls = "rounded-lg border border-danger/20 bg-danger/1
 
 export const errorAlertCls = `${errorAlertBaseCls} p-3`;
 
+/** Warning box: something needs the user's attention, but nothing failed. */
+export const warningAlertCls =
+  "rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning";
+
 // Larger padding variant used by full-page error states (vs. inline form alerts).
 export const errorAlertClsLg = `${errorAlertBaseCls} p-6`;
 

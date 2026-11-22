@@ -89,8 +89,9 @@ describe("LoginPage with MFA", () => {
 
     submitCode();
 
-    expect(await screen.findByText(/נעולה ל-10 דקות/)).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/נעולה ל-10 דקות/);
     expect(screen.getByLabelText("סיסמה")).toHaveValue("");
+    await waitFor(() => expect(screen.getByLabelText("סיסמה")).toHaveFocus());
     expect(screen.getByText("שכחת סיסמה?")).toBeDefined();
   });
 

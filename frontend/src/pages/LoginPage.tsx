@@ -1,4 +1,11 @@
-import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type FormEvent,
+} from "react";
 
 import axios from "axios";
 import { useTranslation } from "react-i18next";
@@ -39,6 +46,14 @@ export default function LoginPage() {
   );
   // Set after a correct password for an MFA user: the code step replaces the form.
   const [mfaToken, setMfaToken] = useState<string | null>(null);
+  // Back from the code step: refocus the password once its form has remounted.
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const shouldFocusPasswordRef = useRef(false);
+  useEffect(() => {
+    if (mfaToken !== null || !shouldFocusPasswordRef.current) return;
+    shouldFocusPasswordRef.current = false;
+    passwordRef.current?.focus();
+  }, [mfaToken]);
 
   async function handleResendActivation() {
     if (!pendingActivationEmail || resendState === "sending") return;
@@ -90,6 +105,7 @@ export default function LoginPage() {
   function handleMfaRestart(reason: MfaRestartReason, minutes?: number | null) {
     setMfaToken(null);
     setPassword("");
+    shouldFocusPasswordRef.current = true;
     if (reason === "expired") setError(t("auth:login.mfa.errors.expired"));
     else if (reason === "locked" && minutes)
       setError(t("auth:login.mfa.errors.lockedFor", { count: minutes }));
@@ -167,7 +183,7 @@ export default function LoginPage() {
         ) : (
           <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
             {error && (
-              <div className={errorAlertCls}>
+              <div role="alert" className={errorAlertCls}>
                 {error}
                 {pendingActivationEmail && (
                   <div className="mt-2 text-xs text-white/60">
@@ -219,6 +235,7 @@ export default function LoginPage() {
                   {t("auth:login.passwordLabel")}
                 </label>
                 <input
+                  ref={passwordRef}
                   id="password"
                   name="password"
                   type="password"

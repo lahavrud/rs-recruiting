@@ -62,6 +62,19 @@ describe("MfaCodeStep", () => {
     expect(complete).toHaveBeenCalledWith("challenge", { code: "123456" });
   });
 
+  it("sends one request when Enter is pressed again mid-submit", async () => {
+    let finish: () => void = () => {};
+    const complete = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const { onDone } = renderStep(complete);
+
+    submit("123456");
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    finish();
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled());
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps all six digits of a code pasted with a space", () => {
     renderStep(vi.fn());
 
