@@ -11,7 +11,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantCls: Record<Variant, string> = {
   primary:
-    "bg-copper font-medium text-white hover:bg-gold disabled:cursor-not-allowed disabled:opacity-50",
+    // Disabled is a neutral fill, not faded copper: brown-on-brown text read ~2:1.
+    "bg-copper font-medium text-white hover:bg-gold disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/55 disabled:hover:bg-white/10",
   ghost:
     "border border-white/20 text-white/60 hover:border-white/40 hover:text-white/90 disabled:cursor-not-allowed disabled:opacity-60",
   "ghost-dim":
