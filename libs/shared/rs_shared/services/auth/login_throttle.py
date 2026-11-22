@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key
 from rs_shared.services.exceptions import AccountLockedError
+from rs_shared.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -103,11 +104,22 @@ async def check_login_allowed(email: str, client_ip: str | None) -> None:
     raise AccountLockedError(minutes_remaining=math.ceil(ttl / 60))
 
 
-async def record_login_failure(email: str, client_ip: str | None) -> None:
+async def record_login_failure(
+    email: str, client_ip: str | None, *, user_id: int | None = None
+) -> None:
     """Count a failure for the pair; start or extend its block at the threshold.
 
     One atomic upsert (no read-modify-write race); the counter restarts at 1
     when the pair's previous failure is older than ``DECAY``.
+
+    ``user_id`` is set when the email belongs to an account (wrong password):
+    a ``user.login_failed`` audit row is then written in this same transaction.
+    The throttle table is wiped after ``DECAY``; the audit row is the lasting
+    record. It rides on this commit rather than a second one so the wrong-
+    password path costs one INSERT more than the unknown-email path, not a
+    round of connection + commit (``authenticate_user`` equalises timing).
+    Unknown emails get no row: no account to attach it to, and the attempted
+    address must not be stored.
     """
     now = datetime.now(timezone.utc)
     h = _email_hash(email)
@@ -147,6 +159,15 @@ async def record_login_failure(email: str, client_ip: str | None) -> None:
                 {"h": h, "since": now - BACKSTOP_WINDOW},
             )
         ).scalar_one()
+        if user_id is not None:
+            await record_audit_event(
+                session,
+                actor_user_id=None,
+                action="user.login_failed",
+                target_type="User",
+                target_id=user_id,
+                ip_address=client_ip,
+            )
         await session.commit()
 
     prefix = email_prefix(email)

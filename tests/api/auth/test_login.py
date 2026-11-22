@@ -10,7 +10,7 @@ from sqlalchemy import select
 from rs_api.main import app
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.models import User
-from tests.conftest import FAKE_PNG, TestSessionLocal
+from tests.conftest import FAKE_PNG, TestSessionLocal, audit_rows
 from tests.conftest import FAKE_SIG_B64 as _FAKE_SIG_B64
 
 FAKE_LOGO_FILE = ("logo.png", FAKE_PNG, "image/png")
@@ -87,6 +87,15 @@ async def test_login_success(client: AsyncClient):
     assert "refresh_token" not in data  # delivered via HttpOnly cookie
     assert data["token_type"] == "bearer"
     assert response.cookies.get("refresh_token") is not None
+
+    # Every role's login is audited now, not only admins'.
+    [row] = await audit_rows("user.login")
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "User",
+        user.id,
+        user.id,
+    )
+    assert row.detail == "role=COMPANY"
 
 
 @pytest.mark.asyncio

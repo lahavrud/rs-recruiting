@@ -13,7 +13,7 @@ from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.enums import UserRole
 from rs_shared.models import RefreshToken, UsedRefreshToken, User
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 async def _override_session():
@@ -166,6 +166,10 @@ async def test_revoke_session_success(test_db):
         ).scalar_one_or_none()
         assert used is None
 
+    [row] = await audit_rows("user.session_revoke")
+    assert (row.target_id, row.actor_user_id) == (user.id, user.id)
+    assert row.detail == f"session_id={token_id}"
+
 
 @pytest.mark.asyncio
 async def test_revoke_session_not_found(test_db):
@@ -176,6 +180,7 @@ async def test_revoke_session_not_found(test_db):
     async with await _client() as client:
         resp = await client.delete("/api/auth/sessions/99999")
     assert resp.status_code == 404
+    assert await audit_rows("user.session_revoke") == []
 
 
 @pytest.mark.asyncio
@@ -207,3 +212,10 @@ async def test_revoke_all_sessions(test_db):
     async with TestSessionLocal() as session:
         for tid in (t1.id, t2.id):
             assert await session.get(RefreshToken, tid) is None
+
+    [row] = await audit_rows("user.session_revoke_all")
+    assert (row.target_id, row.actor_user_id, row.detail) == (
+        user.id,
+        user.id,
+        "count=2",
+    )

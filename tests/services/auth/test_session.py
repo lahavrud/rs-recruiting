@@ -426,3 +426,32 @@ async def test_get_invite_by_hash_returns_none_for_unknown_token(
     record = await get_invite_by_hash("not-a-real-invite-token", session)
 
     assert record is None
+
+
+@pytest.mark.asyncio
+async def test_nuke_on_replay_writes_an_audit_row(session: AsyncSession):
+    """Replay is the strongest takeover signal; it must outlive the app logs.
+
+    The nuke commits in its own session, so the factory is pointed at the
+    per-run test DB here.
+    """
+    from rs_shared.services.auth.session import _nuke_user_refresh_tokens
+    from tests.conftest import TestSessionLocal, audit_rows
+
+    user = _active_user("nuked@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    assert user.id is not None
+
+    with patch(
+        "rs_shared.core.infrastructure.database.async_session", TestSessionLocal
+    ):
+        await _nuke_user_refresh_tokens(user.id)
+
+    [row] = await audit_rows("user.session_replay")
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "User",
+        user.id,
+        None,
+    )
