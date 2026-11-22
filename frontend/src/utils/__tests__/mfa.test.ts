@@ -39,7 +39,8 @@ describe("apiErrorInfo", () => {
 
 describe("retryAfterMinutes", () => {
   it("rounds Retry-After seconds up to whole minutes", () => {
-    expect(retryAfterMinutes(apiError(429, {}, { "retry-after": "300" }))).toBe(5);
+    const fiveMinutes = 5; // Retry-After 300 s
+    expect(retryAfterMinutes(apiError(429, {}, { "retry-after": "300" }))).toBe(fiveMinutes);
     expect(retryAfterMinutes(apiError(429, {}, { "retry-after": "61" }))).toBe(2);
   });
 

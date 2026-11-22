@@ -133,10 +133,11 @@ describe("MfaCodeStep", () => {
       .fn()
       .mockRejectedValue(apiError(429, "mfa_locked", { "retry-after": "300" }));
     const { onRestart } = renderStep(complete);
+    const lockMinutes = 5; // Retry-After 300 s
 
     submit("123456");
 
-    await waitFor(() => expect(onRestart).toHaveBeenCalledWith("locked", 5));
+    await waitFor(() => expect(onRestart).toHaveBeenCalledWith("locked", lockMinutes));
   });
 
   it("shows the generic throttle message for a plain 429", async () => {
