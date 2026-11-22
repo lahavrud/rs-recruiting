@@ -2,9 +2,9 @@
 
 ## Token model
 - Access token: 10min TTL, stored in `localStorage`
-- Refresh token: 7-day TTL, HttpOnly cookie, **single-use** — deleted on use and on logout
+- Refresh token: 1-day TTL (30 days with "remember me"), HttpOnly cookie, **single-use** — deleted on use and on logout
 - Multi-session: one `RefreshToken` row per session; users list/revoke sessions via `GET/DELETE /api/auth/sessions`. Revoking deletes the row directly (never through the replay-nuke path, which would kill the user's other sessions).
-- Password reset deletes **all** of the user's refresh tokens; password change deletes all **except** the session that submitted the change
+- Password reset deletes **all** of the user's refresh tokens; password change deletes all **except** the session that submitted the change. Both also clear the MFA code lock and delete pending MFA login challenges.
 - No blacklist — short access TTL is the post-logout tolerance window
 - Refresh rotation: delete consumed token, issue new pair; replay of a consumed token nukes all the user's refresh tokens
 
@@ -23,11 +23,12 @@ Admins must have TOTP (#1177): `services/auth/mfa.py` (enrolment, status), `mfa_
 - Confirming enrolment revokes every other session.
 - Challenge attempts are reserved with one conditional UPDATE in their own session *before* the code is checked (cap 5, no concurrent overrun); success consumes the challenge with a conditional DELETE (two right answers can't both log in).
 - Replay: a code's time-step must be greater than `last_used_step`, claimed atomically. ±1 step skew.
-- A wrong code counts per account (5 free, then the code step is locked 5 → 10 → 20 → 40 → 60 min, cleared only by a right code or the reset) and per (email, IP) in the login throttle. The per-IP throttle alone isn't enough: a correct password clears its pair. Writes go through their own sessions (tests point `mfa_challenge._session_factory` and `_mfa_lockout._session_factory` at the test DB).
+- A wrong code counts per account (5 free, then the code step is locked 5 → 10 → 20 → 40 → 60 min, cleared only by a right code, a password reset/change or the break-glass reset) and per (email, IP) in the login throttle. That includes the code for regenerating recovery codes. The wrong code that locks answers 429 `mfa_locked` at once; lock 429s carry `Retry-After` (seconds), which the SPA shows as minutes. The time-step claim re-checks the lock, so a burst can't race past it. A new challenge replaces the user's earlier one. The per-IP throttle alone isn't enough: a correct password clears its pair. Writes go through their own sessions (tests point `mfa_challenge._session_factory` and `_mfa_lockout._session_factory` at the test DB).
 - The owner is emailed on enrolment, recovery-code use (with codes left), regeneration, the first lock of a run, and a break-glass reset.
 - Secrets are Fernet-encrypted and recovery codes HMAC-hashed, with per-purpose keys derived from `MFA_ENCRYPTION_KEY` (SSM, required in prod, not in the DB). Rotating it forces every user to re-enrol.
 - MFA responses and token-issuing responses are `Cache-Control: no-store`.
-- No self-disable. Break-glass is `scripts/reset_mfa.py`: `docs/runbooks/mfa-reset.md`.
+- No self-disable. Break-glass is `scripts/reset_mfa.py --operator … --reason …`: `docs/runbooks/mfa-reset.md`.
+- The nightly cleanup deletes expired challenges and enrolments left unconfirmed for 7 days (`purge_stale_mfa_rows`).
 
 ## Rate limiting (slowapi)
 The `@limiter.limit` decorators in `services/api/rs_api/api/auth/` are the source of truth. Current limits:
