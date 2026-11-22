@@ -77,7 +77,7 @@ async def create_company_directly(
 ) -> CompanyProfileRead:
     """Create a CompanyProfile directly (user_id=null). For pre-onboarding companies."""
     async with transactional(session):
-        return await admin_create_company(data, session)
+        return await admin_create_company(data, session, current_admin.id)
 
 
 @router.get("/companies/profile/{profile_id}", response_model=CompanyProfileRead)

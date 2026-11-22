@@ -318,3 +318,38 @@ async def test_remove_resume_without_a_resume_is_not_audited():
     await remove_resume(profile, AsyncMock(), session, actor_user_id=3)
 
     assert _audit_rows_added(session) == []
+
+
+@pytest.mark.asyncio
+async def test_apply_identity_patch_audits_changed_field_names_only():
+    profile = _make_profile(phone="050-000-0000")
+    profile.id = 7
+    session = _make_session()
+
+    await apply_identity_patch(
+        profile,
+        CandidateMeUpdate(full_name="New Name", phone="050-000-0000"),
+        session,
+        actor_user_id=3,
+        ip_address="203.0.113.9",
+    )
+
+    [row] = _audit_rows_added(session)
+    assert (row.action, row.target_type, row.target_id) == (
+        "candidate.profile_update",
+        "CandidateProfile",
+        7,
+    )
+    # phone was resent unchanged, so only full_name counts; no values stored.
+    assert row.detail == "fields=full_name"
+    assert (row.actor_user_id, row.ip_address) == (3, "203.0.113.9")
+
+
+@pytest.mark.asyncio
+async def test_apply_identity_patch_noop_is_not_audited():
+    profile = _make_profile(full_name="Same")
+    session = _make_session()
+
+    await apply_identity_patch(profile, CandidateMeUpdate(full_name="Same"), session)
+
+    assert _audit_rows_added(session) == []

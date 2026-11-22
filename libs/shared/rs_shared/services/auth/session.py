@@ -24,7 +24,10 @@ from rs_shared.models import (
     User,
 )
 from rs_shared.services.exceptions import InvalidCredentialsError
-from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.audit import (
+    record_audit_event,
+    record_audit_event_best_effort,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +69,17 @@ async def _nuke_user_refresh_tokens(user_id: int) -> None:
             sa_delete(RefreshToken).where(
                 RefreshToken.user_id == user_id  # pyright: ignore[reportArgumentType]
             )
+        )
+        # A replayed token is a stolen-token signal (or two tabs refreshing
+        # at once, see refresh_user_tokens): keep it past the app logs'
+        # retention, next to the user's other auth events. Best-effort: a
+        # failed audit write must not keep the stolen sessions alive.
+        await record_audit_event_best_effort(
+            nuke_session,
+            actor_user_id=None,
+            action="user.session_replay",
+            target_type="User",
+            target_id=user_id,
         )
         await nuke_session.commit()
 

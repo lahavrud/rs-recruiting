@@ -142,7 +142,9 @@ async def list_jobs(
     )
 
 
-async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRead:
+async def admin_create_job(
+    data: JobAdminCreate, session: AsyncSession, *, actor_user_id: int | None = None
+) -> JobRead:
     """Create a job directly under an existing company profile.
 
     Raises:
@@ -170,6 +172,15 @@ async def admin_create_job(data: JobAdminCreate, session: AsyncSession) -> JobRe
     )
     session.add(job)
     await session.flush()
+    # The status shows when a job went live without the approval step.
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="job.create",
+        target_type="job",
+        target_id=job.id,  # pyright: ignore[reportArgumentType]
+        detail=f"source=admin,status={job.status.value}",
+    )
 
     # Admin-created jobs skip the approval flow, so nothing else will embed
     # them — without this they stay unmatchable forever (empty applications /

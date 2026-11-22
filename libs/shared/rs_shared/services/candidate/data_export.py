@@ -46,6 +46,7 @@ from rs_shared.models import (
     DataExportRequest,
     User,
 )
+from rs_shared.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -262,8 +263,50 @@ async def build_and_persist_export(
     )
     session.add(record)
     await session.flush()
+    await _audit_export(session, "candidate.data_export_ready", user_id, profile)
 
     return raw_token, user.email
+
+
+async def _audit_export(
+    session: AsyncSession,
+    action: str,
+    user_id: int,
+    profile: CandidateProfile | None,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
+) -> None:
+    """On the candidate's timeline, or on the User once the profile is gone."""
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action=action,
+        target_type="CandidateProfile" if profile is not None else "User",
+        target_id=profile.id if profile is not None else user_id,  # pyright: ignore[reportArgumentType]
+        ip_address=ip_address,
+    )
+
+
+async def mark_export_downloaded(
+    record: DataExportRequest, session: AsyncSession, *, ip_address: str | None
+) -> None:
+    """Spend the single-use link and record the download, by its owner.
+
+    No login on this route: the emailed token is the proof of who it is.
+    """
+    record.used = True
+    profile = await session.scalar(
+        select(CandidateProfile).where(CandidateProfile.user_id == record.user_id)  # pyright: ignore[reportArgumentType]
+    )
+    await _audit_export(
+        session,
+        "candidate.data_export_download",
+        record.user_id,
+        profile,
+        actor_user_id=record.user_id,
+        ip_address=ip_address,
+    )
 
 
 async def get_export_request_by_token_hash(

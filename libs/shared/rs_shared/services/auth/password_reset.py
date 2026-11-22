@@ -92,6 +92,15 @@ async def request_password_reset(email: str, session: AsyncSession) -> None:
         used=False,
     )
     session.add(token_record)
+    # Only reached for a real account, so the row reveals nothing the response
+    # doesn't; a fresh credential went out, and this says when.
+    await record_audit_event(
+        session,
+        actor_user_id=None,
+        action="user.password_reset_request",
+        target_type="User",
+        target_id=user.id,
+    )
 
     reset_url = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
     recipient = user.email

@@ -5,13 +5,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.enums import ApplicationStatus
-from rs_shared.models import Application, CandidateProfile, Job
+from rs_shared.models import Application, CandidateProfile, Job, User
 from rs_shared.services.admin.matches import (
+    dismiss_match,
     get_global_matches,
     get_hot_applications,
     push_match,
 )
 from rs_shared.services.exceptions import JobNotFoundError, JobNotPublishedError
+from tests.conftest import audit_rows
 
 
 @pytest.mark.asyncio
@@ -105,3 +107,33 @@ async def test_push_match_audits_application_create(
     assert (row.target_type, row.target_id) == ("Application", result.id)
     assert row.actor_user_id == 1
     assert row.detail == f"source=push_match,job_id={published_job.id}"
+
+
+# ── dismiss_match ─────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_dismiss_match_is_audited_once(
+    session: AsyncSession,
+    admin_user: User,
+    candidate_profile: CandidateProfile,
+    published_job: Job,
+):
+    """The decision lands on the candidate's timeline; a repeat adds nothing."""
+    # A second candidate, so its id differs from the job's and the admin's
+    # (all start at 1): a swapped id would then fail the assertions.
+    candidate = CandidateProfile(full_name="Second", email="second@x.com", phone="0")
+    session.add(candidate)
+    await session.commit()
+    assert candidate.id not in (published_job.id, admin_user.id)
+
+    for _ in range(2):
+        await dismiss_match(candidate.id, published_job.id, 0.8, admin_user.id, session)  # pyright: ignore[reportArgumentType]
+        await session.commit()
+
+    [row] = await audit_rows("match.dismiss")
+    assert (row.target_type, row.target_id) == ("CandidateProfile", candidate.id)
+    assert (row.actor_user_id, row.detail) == (
+        admin_user.id,
+        f"job_id={published_job.id}",
+    )

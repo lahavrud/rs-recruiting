@@ -20,7 +20,7 @@ from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.services.storage import StorageProvider
 from rs_shared.models import CandidateProfile
 from rs_shared.schemas import CandidateMeUpdate
-from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.audit import fields_detail, record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +38,16 @@ _SAFE_FILENAME = re.compile(r"^[\w.\-]+$")
 _MAX_DISPLAY_FILENAME_LEN = 100
 
 
+_PATCHABLE_FIELDS = ("full_name", "phone", "linkedin_url", "resume_filename")
+
+
 async def apply_identity_patch(
-    profile: CandidateProfile, patch: CandidateMeUpdate, session: AsyncSession
+    profile: CandidateProfile,
+    patch: CandidateMeUpdate,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> None:
     """Apply only the fields the candidate is allowed to change on themselves.
 
@@ -53,6 +61,7 @@ async def apply_identity_patch(
     the stored file's; raises ValueError on mismatch.
     """
     data = patch.model_dump(exclude_unset=True)
+    before = {f: getattr(profile, f) for f in _PATCHABLE_FIELDS}
     if "full_name" in data and data["full_name"] is not None:
         profile.full_name = data["full_name"]
     # phone and linkedin_url are nullable on the model — explicit-null on the
@@ -64,6 +73,19 @@ async def apply_identity_patch(
     if "resume_filename" in data:
         profile.resume_filename = _resolve_renamed_filename(
             profile=profile, requested=data["resume_filename"]
+        )
+    # Compared after applying, so the normalised values (e.g. a renamed label)
+    # decide what changed. Names only: the values are personal data.
+    changed = sorted(f for f in _PATCHABLE_FIELDS if getattr(profile, f) != before[f])
+    if changed:
+        await record_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="candidate.profile_update",
+            target_type="CandidateProfile",
+            target_id=profile.id,  # pyright: ignore[reportArgumentType]
+            detail=fields_detail(changed),
+            ip_address=ip_address,
         )
     await session.flush()
     await session.refresh(profile)

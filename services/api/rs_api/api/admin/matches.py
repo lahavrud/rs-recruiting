@@ -1,9 +1,9 @@
 """Admin global match feed endpoint."""
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_admin
+from rs_api.infrastructure.dependencies import client_ip, get_current_admin
 from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.transactions import transactional
@@ -81,6 +81,7 @@ async def push_match_endpoint(
 
 @router.post("/matches/dismiss", status_code=status.HTTP_204_NO_CONTENT)
 async def dismiss_match_endpoint(
+    request: Request,
     body: MatchSuggestionActionRequest,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
@@ -93,4 +94,5 @@ async def dismiss_match_endpoint(
             body.score,
             current_admin.id,  # type: ignore[arg-type]
             session,
+            client_ip(request),
         )

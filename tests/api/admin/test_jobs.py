@@ -7,8 +7,8 @@ from httpx import AsyncClient
 from sqlalchemy import select
 
 from rs_shared.enums import JobStatus
-from rs_shared.models import CandidateProfile, CompanyProfile, Job
-from tests.conftest import TestSessionLocal
+from rs_shared.models import CandidateProfile, CompanyProfile, Job, User
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 @pytest.mark.asyncio
@@ -694,3 +694,16 @@ async def test_get_job_candidate_matches_404_for_unknown_job(
 async def test_get_job_candidate_matches_requires_admin(public_client: AsyncClient):
     resp = await public_client.get("/api/admin/jobs/1/candidate-matches")
     assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_create_job_is_audited_with_the_admin(
+    admin_client: AsyncClient, admin_user: User, company_profile: CompanyProfile
+):
+    response = await admin_client.post(
+        "/api/admin/jobs", json=_payload(company_profile.id)
+    )
+
+    assert response.status_code == 201
+    [row] = await audit_rows("job.create")
+    assert (row.target_id, row.actor_user_id) == (response.json()["id"], admin_user.id)

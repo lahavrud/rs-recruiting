@@ -388,6 +388,7 @@
         "createdByApply": "הוגשה מועמדות",
         "createdByMatch": "הוגשה על ידי מנהל מתוך התאמות",
         "edited": "המועמד/ת עדכן/ה את פרטי המועמדות",
+        "notesUpdated": "הערות מנהל עודכנו",
         "unknown": "פעולה במערכת"
       }
     },
@@ -544,6 +545,12 @@
         "dataExportRequest": "ביקש/ה עותק של המידע האישי",
         "deletionRequested": "ביקש/ה למחוק את החשבון",
         "accountDeleted": "החשבון נמחק לבקשת המועמד/ת",
+        "resumeView": "קורות החיים נצפו על ידי מנהל",
+        "profileUpdate": "עדכן/ה את פרטי הפרופיל",
+        "dataExportReady": "עותק המידע האישי מוכן להורדה",
+        "dataExportDownload": "הוריד/ה את עותק המידע האישי",
+        "matchDismissed": "התאמה למשרה נדחתה על ידי מנהל",
+        "applicationNotesUpdated": "הערות מנהל על המועמדות עודכנו",
         "unknown": "פעולה במערכת"
       }
     },

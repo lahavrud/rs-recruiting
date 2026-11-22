@@ -4,8 +4,8 @@ import pytest
 from httpx import AsyncClient
 
 from rs_shared.enums import ApplicationStatus
-from rs_shared.models import Application, CandidateProfile, Job
-from tests.conftest import TestSessionLocal
+from rs_shared.models import Application, CandidateProfile, Job, User
+from tests.conftest import TestSessionLocal, audit_rows
 
 # ==================== GET /api/admin/applications ====================
 
@@ -640,3 +640,21 @@ async def test_update_status_on_withdrawn_does_not_change_db(
             )
         ).scalar_one()
     assert refreshed.status == ApplicationStatus.WITHDRAWN
+
+
+@pytest.mark.asyncio
+async def test_update_application_notes_is_audited_with_admin_and_ip(
+    admin_client: AsyncClient, admin_user: User, application: Application
+):
+    response = await admin_client.put(
+        f"/api/admin/applications/{application.id}/notes",
+        json={"admin_notes": "call back"},
+    )
+
+    assert response.status_code == 200
+    [row] = await audit_rows("application.notes_update")
+    assert (row.target_id, row.actor_user_id, row.ip_address) == (
+        application.id,
+        admin_user.id,
+        "127.0.0.1",
+    )

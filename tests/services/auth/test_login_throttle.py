@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select, update
@@ -21,7 +22,7 @@ from rs_shared.services.auth.login_throttle import (
     record_login_failure,
 )
 from rs_shared.services.exceptions import AccountLockedError
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, audit_rows
 
 # asyncio_mode = "auto" picks up the async tests; a module-wide asyncio mark
 # would also land on the sync ones, which pytest warns about.
@@ -159,3 +160,31 @@ async def test_block_expiry_is_reported_in_minutes(test_db):
     row = await _row()
     assert row is not None and row.blocked_until is not None
     assert row.blocked_until > datetime.now(timezone.utc) + timedelta(minutes=7)
+
+
+async def test_failure_on_a_real_account_writes_a_lasting_audit_row(test_db):
+    """The throttle row decays after 24h; the audit row is the lasting record."""
+    await record_login_failure(EMAIL, ATTACKER, user_id=42)
+
+    [row] = await audit_rows("user.login_failed")
+    assert (row.target_type, row.target_id) == ("User", 42)
+    assert (row.actor_user_id, row.ip_address, row.detail) == (None, ATTACKER, None)
+
+
+async def test_failure_on_an_unknown_email_writes_no_audit_row(test_db):
+    await record_login_failure("nobody@example.com", ATTACKER)
+
+    assert await audit_rows("user.login_failed") == []
+
+
+async def test_a_failed_audit_write_still_counts_the_failure(test_db):
+    """The audit row is best-effort; the throttle count is the security control."""
+    with patch(
+        "rs_shared.services.utils.audit.record_audit_event",
+        new=AsyncMock(side_effect=RuntimeError("audit down")),
+    ):
+        await record_login_failure(EMAIL, ATTACKER, user_id=42)
+
+    row = await _row()
+    assert row is not None and row.failures == 1
+    assert await audit_rows("user.login_failed") == []

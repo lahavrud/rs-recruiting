@@ -12,7 +12,7 @@ from rs_shared.services.auth.registration import (
     CompanyRegistrationData,
     register_company_user,
 )
-from tests.conftest import FAKE_LOGO, FAKE_SIG_B64, TestSessionLocal
+from tests.conftest import FAKE_LOGO, FAKE_SIG_B64, TestSessionLocal, audit_rows
 
 
 @pytest.mark.asyncio
@@ -411,3 +411,16 @@ async def test_company_profile_endpoints_require_admin(public_client: AsyncClien
     assert create_resp.status_code == 401
     assert get_resp.status_code == 401
     assert put_resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_create_company_is_audited_with_the_admin(
+    admin_client: AsyncClient, admin_user: User
+):
+    response = await admin_client.post(
+        "/api/admin/companies", json=_ADMIN_CREATE_PAYLOAD
+    )
+
+    assert response.status_code == 201
+    [row] = await audit_rows("company.create")
+    assert (row.target_id, row.actor_user_id) == (response.json()["id"], admin_user.id)

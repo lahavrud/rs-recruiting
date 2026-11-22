@@ -13,7 +13,6 @@ from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import REFRESH_TTL_LONG
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.enums import UserRole
 from rs_shared.schemas import AccessTokenResponse, LoginRequest
 from rs_shared.services.auth.login import authenticate_user
 from rs_shared.services.auth.session import (
@@ -118,14 +117,15 @@ async def login(
         access_token, refresh_token = await create_user_tokens(
             user, session, remember_me=login_data.remember_me, user_agent=ua
         )
-        if user.role == UserRole.ADMIN:
-            await record_audit_event(
-                session,
-                actor_user_id=user.id,
-                action="admin_login",
-                target_type="User",
-                target_id=user.id,
-            )
+        await record_audit_event(
+            session,
+            actor_user_id=user.id,
+            action="user.login",
+            target_type="User",
+            target_id=user.id,  # pyright: ignore[reportArgumentType]
+            detail=f"role={user.role.value}",
+            ip_address=ip,
+        )
 
     _set_refresh_cookie(response, refresh_token, remember_me=login_data.remember_me)
     return AccessTokenResponse(access_token=access_token)

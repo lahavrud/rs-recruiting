@@ -13,6 +13,7 @@ from rs_shared.models import InviteToken, User
 from rs_shared.schemas import InviteTokenCreate
 from rs_shared.services.admin.invites import (
     create_invite,
+    delete_invite,
     list_invites,
     resend_invite,
     revoke_invite,
@@ -23,6 +24,7 @@ from rs_shared.services.exceptions import (
     InviteNotFoundError,
     InvitePendingForEmailError,
 )
+from tests.conftest import audit_rows
 
 
 async def _make_admin(session: AsyncSession) -> int:
@@ -137,7 +139,9 @@ async def test_revoke_invite_success(session: AsyncSession):
     )
     await session.commit()
 
-    await revoke_invite(created.id, session)
+    await revoke_invite(
+        created.id, session, actor_user_id=admin_id, ip_address="203.0.113.5"
+    )
     await session.commit()
 
     db = (
@@ -146,6 +150,34 @@ async def test_revoke_invite_success(session: AsyncSession):
         )
     ).scalar_one()
     assert db.status == InviteTokenStatus.REVOKED
+    [row] = await audit_rows("invite.revoke")
+    assert (row.target_type, row.target_id) == ("invite", created.id)
+    assert (row.actor_user_id, row.ip_address, row.detail) == (
+        admin_id,
+        "203.0.113.5",
+        None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_invite_leaves_an_audit_row(session: AsyncSession):
+    """Once the invite is gone, its audit row is the only trace (no email in it)."""
+    admin_id = await _make_admin(session)
+    created = await create_invite(
+        admin_user_id=admin_id, data=_invite_data("gone@example.com"), session=session
+    )
+    await session.commit()
+
+    await delete_invite(created.id, session, actor_user_id=admin_id)
+    await session.commit()
+
+    assert await session.get(InviteToken, created.id) is None
+    [row] = await audit_rows("invite.delete")
+    assert (row.target_id, row.actor_user_id, row.detail) == (
+        created.id,
+        admin_id,
+        None,
+    )
 
 
 @pytest.mark.asyncio
@@ -193,7 +225,7 @@ async def test_resend_invite_success(session: AsyncSession):
         )
         await session.commit()
 
-        await resend_invite(created.id, session)
+        await resend_invite(created.id, session, actor_user_id=admin_id)
         await session.commit()
 
     db = (
@@ -203,6 +235,8 @@ async def test_resend_invite_success(session: AsyncSession):
     ).scalar_one()
     assert db.status == InviteTokenStatus.PENDING
     assert db.token_hash == "new-hash"
+    [row] = await audit_rows("invite.resend")
+    assert (row.target_id, row.actor_user_id) == (created.id, admin_id)
 
 
 @pytest.mark.asyncio
