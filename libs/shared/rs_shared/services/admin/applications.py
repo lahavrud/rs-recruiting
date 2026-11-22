@@ -1,6 +1,5 @@
 """Admin service functions for application (match) management."""
 
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 from sqlalchemy import case, or_, select
@@ -18,7 +17,7 @@ from rs_shared.core.infrastructure.pagination import (
 from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.enums import ApplicationStatus
 from rs_shared.models import Application, CandidateProfile, Job
-from rs_shared.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
+from rs_shared.schemas import ApplicationWithDetails, AuditLogRead
 from rs_shared.services.admin._application_status import (
     update_application_status as update_application_status,
 )
@@ -278,34 +277,6 @@ async def get_application_activity(
             )
         )
     return page
-
-
-async def update_application_notes(
-    application_id: int,
-    admin_notes: str | None,
-    session: AsyncSession,
-) -> ApplicationRead:
-    """Distinct from `update_application_status` — skips the status-transition
-    checks, audit event, and rejection email, since notes are an internal
-    admin annotation rather than a candidate-facing state change.
-
-    Raises:
-        ApplicationNotFoundError: If application not found.
-    """
-    result = await session.execute(
-        select(Application).where(Application.id == application_id)  # pyright: ignore[reportArgumentType]
-    )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise ApplicationNotFoundError(
-            f"Application with ID {application_id} not found"
-        )
-
-    application.admin_notes = admin_notes
-    application.updated_at = datetime.now(timezone.utc)
-    await session.flush()
-    await session.refresh(application)
-    return ApplicationRead.model_validate(application)
 
 
 async def delete_application(

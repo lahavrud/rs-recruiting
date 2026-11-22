@@ -169,6 +169,19 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     await session.commit()
 
     assert candidate_email == "build@test.com"
+    [ready] = (
+        (
+            await session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "candidate.data_export_ready"  # pyright: ignore[reportArgumentType]
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert (ready.target_type, ready.target_id) == ("CandidateProfile", profile.id)
+    assert ready.actor_user_id is None
     assert raw_token  # non-empty
 
     # ZIP was uploaded.
