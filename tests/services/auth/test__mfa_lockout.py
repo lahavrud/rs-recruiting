@@ -159,3 +159,20 @@ async def test_a_failed_audit_write_keeps_the_lock_count(
     row = await session.get(UserMfa, admin_user.id)
     assert row is not None and row.failed_attempts == LOCK_FREE_FAILURES
     assert row.locked_until is not None
+
+
+async def test_a_failing_lock_email_keeps_the_lock(
+    session: AsyncSession, admin_user: User
+):
+    await _mfa_row(session, admin_user, LOCK_FREE_FAILURES - 1)
+    assert admin_user.id is not None
+    with patch(
+        "rs_shared.services.auth._mfa_lockout.notify_mfa_event",
+        new=AsyncMock(side_effect=RuntimeError("smtp template broke")),
+    ):
+        locked = await record_failed_code(admin_user.id, admin_user.email, IP)
+
+    assert locked is not None
+    session.expire_all()
+    row = await session.get(UserMfa, admin_user.id)
+    assert row is not None and row.locked_until is not None

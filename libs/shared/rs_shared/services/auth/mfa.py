@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 
 import pyotp
 from sqlalchemy import delete, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import encrypt_mfa_secret
@@ -73,7 +74,9 @@ async def start_enrolment(session: AsyncSession, user: User) -> tuple[str, str]:
     """Issue a (pending) TOTP secret. Returns (secret, otpauth URI).
 
     Calling it again before confirming replaces the pending secret, so a
-    half-finished enrolment can simply be restarted.
+    half-finished enrolment can simply be restarted. One upsert, so two
+    concurrent starts (a double click) can't collide on the primary key;
+    it never touches an enabled row.
     """
     assert user.id is not None
     mfa = await get_user_mfa(session, user.id)
@@ -81,14 +84,25 @@ async def start_enrolment(session: AsyncSession, user: User) -> tuple[str, str]:
         raise MfaAlreadyEnabledError("mfa_already_enabled")
 
     secret = pyotp.random_base32()
-    encrypted = encrypt_mfa_secret(secret)
-    if mfa is None:
-        session.add(UserMfa(user_id=user.id, secret_encrypted=encrypted))
-    else:
-        mfa.secret_encrypted = encrypted
-        mfa.last_used_step = 0
-        mfa.created_at = datetime.now(timezone.utc)
-    await session.flush()
+    pending = {
+        "secret_encrypted": encrypt_mfa_secret(secret),
+        "last_used_step": 0,
+        "created_at": datetime.now(timezone.utc),
+    }
+    stored = await session.execute(
+        pg_insert(UserMfa)
+        .values(user_id=user.id, **pending)
+        .on_conflict_do_update(
+            index_elements=[UserMfa.user_id],
+            set_=pending,
+            where=UserMfa.enabled_at.is_(None),  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
+        )
+        .returning(UserMfa.user_id)  # pyright: ignore[reportArgumentType]
+    )
+    if stored.first() is None:  # enabled by a concurrent confirm
+        raise MfaAlreadyEnabledError("mfa_already_enabled")
+    if mfa is not None:
+        await session.refresh(mfa)  # the identity map still holds the old secret
 
     uri = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=ISSUER)
     return secret, uri

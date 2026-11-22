@@ -34,7 +34,9 @@ _TOTP_DIGITS = 6
 def _matching_step(secret: str, code: str, now: datetime) -> int | None:
     """The time-step ``code`` is valid for (within skew), or None."""
     code = code.strip().replace(" ", "")
-    if len(code) != _TOTP_DIGITS or not code.isdigit():
+    # ASCII only: isdigit() also accepts e.g. Arabic-Indic digits, which
+    # compare_digest refuses with a TypeError (a 500, and an uncounted guess).
+    if len(code) != _TOTP_DIGITS or not (code.isascii() and code.isdigit()):
         return None
     totp = pyotp.TOTP(secret)
     current = totp.timecode(now)

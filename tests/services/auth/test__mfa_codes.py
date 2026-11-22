@@ -32,7 +32,9 @@ def test_matching_step_accepts_one_step_of_skew_only():
         assert _matching_step(secret, totp.generate_otp(current + offset), now) is None
 
 
-@pytest.mark.parametrize("bad", ["", "12345", "1234567", "abcdef", "12 34 5x"])
+@pytest.mark.parametrize(
+    "bad", ["", "12345", "1234567", "abcdef", "12 34 5x", "١٢٣٤٥٦", "１２３４５６"]
+)
 def test_matching_step_rejects_malformed_codes(bad: str):
     assert (
         _matching_step(pyotp.random_base32(), bad, datetime.now(timezone.utc)) is None

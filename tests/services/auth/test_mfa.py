@@ -1,11 +1,12 @@
 """Tests for TOTP enrolment, recovery-code regeneration and status (#1177)."""
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pyotp
 import pytest
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rs_shared.core.infrastructure.security import decrypt_mfa_secret
 from rs_shared.core.infrastructure.transactions import transactional
@@ -101,6 +102,30 @@ async def test_restarting_enrolment_replaces_pending_secret(
     assert first != second
     with pytest.raises(InvalidMfaCodeError):
         await confirm_enrolment(session, admin_user, _code(first), keep_session_id=None)
+
+
+async def test_concurrent_starts_do_not_collide(
+    session: AsyncSession,
+    admin_user: User,
+    session_local_factory: async_sessionmaker[AsyncSession],
+):
+    """A double-clicked start: both succeed (no primary-key 500), one secret kept."""
+    user_id = admin_user.id
+
+    async def start() -> str:
+        async with session_local_factory() as s:
+            user = await s.get(User, user_id)
+            assert user is not None
+            async with transactional(s):
+                secret, _ = await start_enrolment(s, user)
+            return secret
+
+    secrets_issued = await asyncio.gather(start(), start())
+
+    session.expire_all()
+    row = await session.get(UserMfa, user_id)
+    assert row is not None and row.enabled_at is None
+    assert decrypt_mfa_secret(row.secret_encrypted) in secrets_issued
 
 
 async def test_confirm_with_wrong_code_stays_pending(

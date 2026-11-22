@@ -131,9 +131,16 @@ async def record_failed_code(
                 logger.warning(
                     "mfa_account_locked", extra={"user_id": user_id, "ip": client_ip}
                 )
-                await notify_mfa_event(
-                    fail_session, email, MfaEvent.LOCKED, ip=client_ip
-                )
+                # In a savepoint: a failing email must not roll back the lock.
+                try:
+                    async with fail_session.begin_nested():
+                        await notify_mfa_event(
+                            fail_session, email, MfaEvent.LOCKED, ip=client_ip
+                        )
+                except Exception:
+                    logger.exception(
+                        "mfa_lock_email_failed", extra={"user_id": user_id}
+                    )
     logger.warning(
         "mfa_code_rejected",
         extra={

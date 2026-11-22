@@ -206,6 +206,7 @@ async def refresh(
         raise service_exception_to_http(e) from e
 
     _set_refresh_cookie(response, new_refresh_token, remember_me=remember_me)
+    response.headers["Cache-Control"] = "no-store"
     return AccessTokenResponse(access_token=access_token)
 
 
