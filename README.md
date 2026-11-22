@@ -121,7 +121,7 @@ The choices worth explaining — the *why*, not the *what*.
 
 **Three-tier authentication.** Admins, companies, and candidates are all first-class roles. The schema tells authenticated candidates (`user_id` linked) apart from anonymous leads (applications submitted before signup), so a "register and claim" flow reconciles the two without special-casing legacy rows.
 
-**Stateless JWT, short access tokens, no blacklist.** Access tokens live 10 minutes; refresh tokens are single-use and deleted on logout or rotation. The short TTL *is* the post-logout tolerance window, so there's no revocation list to maintain. Replaying a consumed refresh token nukes the whole family. Lockout state rides on the `User` row (`locked_until`).
+**Stateless JWT, short access tokens, no blacklist.** Access tokens live 10 minutes; refresh tokens are single-use and deleted on logout or rotation. The short TTL *is* the post-logout tolerance window, so there's no revocation list to maintain. Replaying a consumed refresh token nukes the whole family. Failed logins are throttled per (email, client IP) in their own `login_throttle` table, never as a per-account lock, so an attacker who knows an email can't lock its owner out.
 
 **Everything external is a provider abstraction.** Storage, email, and embeddings each sit behind an ABC + factory chosen by config. One env var flips storage between local disk and S3, or email between Mailpit and Resend — no code change. Local dev needs zero cloud accounts.
 

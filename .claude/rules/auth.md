@@ -14,7 +14,7 @@ Failed logins are throttled per **(email, client IP)** in the `login_throttle` t
 - Counters reset on success from the pair, on password reset (all pairs), and after 24h quiet; the nightly cleanup deletes stale rows.
 - Cross-IP backstop is **alert-only** (`login_account_under_attack` at ≥100 failures/hour), by design.
 - The throttle writes through its own session; in tests its writes are stubbed unless the test is marked `@pytest.mark.real_login_throttle`.
-- `User.failed_login_attempts` / `locked_until` are unused (to be dropped in a later release).
+- The old `user.failed_login_attempts` / `locked_until` columns are no longer mapped on `User`; the migration that drops them ships one release later (#1186), because the deploy migrates before old tasks stop selecting them.
 
 ## Rate limiting (slowapi)
 The `@limiter.limit` decorators in `services/api/rs_api/api/auth/` are the source of truth. Current limits:
