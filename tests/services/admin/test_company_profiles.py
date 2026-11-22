@@ -8,6 +8,7 @@ from rs_shared.models import CompanyProfile
 from rs_shared.schemas import CompanyProfileAdminCreate, CompanyProfileAdminUpdate
 from rs_shared.services.admin.company_profiles import (
     admin_create_company,
+    delete_orphan_company_profile,
     get_company_profile,
     update_company_profile,
 )
@@ -163,3 +164,29 @@ async def test_update_company_contact_email_audits_login_email_change(
     assert profile_row.detail == "fields=contact_email"
     for row in (email_row, profile_row):
         assert "@" not in (row.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_admin_create_company_is_audited(session: AsyncSession):
+    profile = await admin_create_company(_admin_create_payload(), session, 7)
+    await session.commit()
+
+    [row] = await _audit_rows(session, "company.create")
+    assert (row.target_type, row.target_id) == ("CompanyProfile", profile.id)
+    assert (row.actor_user_id, row.detail) == (7, "source=admin")
+
+
+@pytest.mark.asyncio
+async def test_delete_orphan_company_profile_is_audited(session: AsyncSession):
+    profile = await admin_create_company(_admin_create_payload(), session)
+    await session.commit()
+
+    await delete_orphan_company_profile(profile.id, session, actor_user_id=7)
+    await session.commit()
+
+    [row] = await _audit_rows(session, "company.delete")
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "CompanyProfile",
+        profile.id,
+        7,
+    )

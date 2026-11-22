@@ -44,6 +44,28 @@ async def _send_invite_email(
     )
 
 
+async def _audit_invite(
+    session: AsyncSession,
+    record: InviteToken,
+    action: str,
+    actor_user_id: int | None,
+    ip_address: str | None,
+) -> None:
+    """One row per admin action on an invite, keyed by the invite id.
+
+    No email in ``detail``: the id ties the row to ``invite_created``, and the
+    delete row is all that is left once the invite itself is gone.
+    """
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action=action,
+        target_type="invite",
+        target_id=record.id,  # pyright: ignore[reportArgumentType]
+        ip_address=ip_address,
+    )
+
+
 async def create_invite(
     admin_user_id: int,
     data: InviteTokenCreate,
@@ -136,7 +158,13 @@ async def list_invites(
     )
 
 
-async def revoke_invite(token_id: int, session: AsyncSession) -> None:
+async def revoke_invite(
+    token_id: int,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
+) -> None:
     """Revoke a pending invite: mark as revoked in DB."""
     result = await session.execute(
         select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
@@ -151,9 +179,16 @@ async def revoke_invite(token_id: int, session: AsyncSession) -> None:
 
     record.status = InviteTokenStatus.REVOKED
     await session.flush()
+    await _audit_invite(session, record, "invite.revoke", actor_user_id, ip_address)
 
 
-async def delete_invite(token_id: int, session: AsyncSession) -> None:
+async def delete_invite(
+    token_id: int,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
+) -> None:
     """Hard-delete an invite row.
 
     Distinct from `revoke_invite`: revoke preserves the row with status=REVOKED
@@ -165,11 +200,18 @@ async def delete_invite(token_id: int, session: AsyncSession) -> None:
     record = result.scalar_one_or_none()
     if record is None:
         raise InviteNotFoundError(f"Invite token with ID {token_id} not found")
+    await _audit_invite(session, record, "invite.delete", actor_user_id, ip_address)
     await session.delete(record)
     await session.flush()
 
 
-async def resend_invite(token_id: int, session: AsyncSession) -> None:
+async def resend_invite(
+    token_id: int,
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None = None,
+    ip_address: str | None = None,
+) -> None:
     """Generate a fresh token for an existing invite and resend the email."""
     result = await session.execute(
         select(InviteToken).where(InviteToken.id == token_id)  # type: ignore[arg-type]  # SQLAlchemy column comparison; stubs incomplete
@@ -187,6 +229,8 @@ async def resend_invite(token_id: int, session: AsyncSession) -> None:
     record.expires_at = new_expires_at
     record.status = InviteTokenStatus.PENDING
     await session.flush()
+    # A fresh credential went out; this records who sent it and when.
+    await _audit_invite(session, record, "invite.resend", actor_user_id, ip_address)
 
     registration_url = f"{settings.frontend_base_url}/register?token={new_raw}"
     await _send_invite_email(session, record.email, registration_url)

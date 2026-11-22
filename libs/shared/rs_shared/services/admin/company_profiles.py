@@ -44,7 +44,9 @@ async def get_company_profile(
 
 
 async def admin_create_company(
-    data: CompanyProfileAdminCreate, session: AsyncSession
+    data: CompanyProfileAdminCreate,
+    session: AsyncSession,
+    actor_user_id: int | None = None,
 ) -> CompanyProfileRead:
     """Create a CompanyProfile directly, without a user account.
 
@@ -65,6 +67,14 @@ async def admin_create_company(
     )
     session.add(profile)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="company.create",
+        target_type="CompanyProfile",
+        target_id=profile.id,  # pyright: ignore[reportArgumentType]
+        detail="source=admin",
+    )
     await session.refresh(profile)
     return CompanyProfileRead.model_validate(profile)
 
@@ -105,6 +115,13 @@ async def delete_orphan_company_profile(
     )
     await session.delete(profile)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="company.delete",
+        target_type="CompanyProfile",
+        target_id=profile_id,
+    )
 
 
 async def update_company_profile(
