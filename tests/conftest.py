@@ -43,7 +43,7 @@ from rs_shared.models import (
     AccountDeletionToken,  # noqa: F401 -- force SQLModel registration before create_all
     ActivationToken,  # noqa: F401  -- force SQLModel registration before create_all
     Application,
-    AuditLog,  # noqa: F401
+    AuditLog,
     CandidateProfile,
     CompanyProfile,
     DataExportRequest,  # noqa: F401 -- Sprint 11 / #608
@@ -372,6 +372,17 @@ test_engine = create_async_engine(
 TestSessionLocal = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
 )
+
+
+async def audit_rows(action: str) -> list[AuditLog]:
+    """Committed audit rows with ``action``, oldest first, read in a fresh session."""
+    async with TestSessionLocal() as s:
+        rows = await s.execute(
+            select(AuditLog)
+            .where(AuditLog.action == action)  # pyright: ignore[reportArgumentType]
+            .order_by(AuditLog.id)  # pyright: ignore[reportArgumentType]
+        )
+        return list(rows.scalars().all())
 
 
 @pytest.fixture(autouse=True)
