@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AxiosError, AxiosHeaders } from "axios";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
@@ -40,6 +40,7 @@ async function confirmWith(value: string) {
 
 function renderPage() {
   const refreshUserFromToken = vi.fn();
+  const logout = vi.fn();
   const ctx = {
     user: null,
     isAuthenticated: true,
@@ -48,7 +49,7 @@ function renderPage() {
     login: vi.fn(),
     completeMfaLogin: vi.fn(),
     refreshUserFromToken,
-    logout: vi.fn(),
+    logout,
   } as AuthContextType;
   render(
     <MemoryRouter>
@@ -57,7 +58,7 @@ function renderPage() {
       </AuthContext.Provider>
     </MemoryRouter>,
   );
-  return { refreshUserFromToken };
+  return { refreshUserFromToken, logout };
 }
 
 describe("MfaSetupPage", () => {
@@ -110,6 +111,33 @@ describe("MfaSetupPage", () => {
     const saved = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(saved);
     expect(saved.defaultPrevented).toBe(false);
+  });
+
+  it("offers logout while setting up, but not while the codes are unsaved", async () => {
+    const { logout } = renderPage();
+    await screen.findByTestId("mfa-secret");
+
+    fireEvent.click(screen.getByRole("button", { name: "התנתקות" }));
+    expect(logout).toHaveBeenCalled();
+
+    await confirmWith("123456");
+    await screen.findByTestId("recovery-codes");
+    expect(screen.queryByRole("button", { name: "התנתקות" })).toBeNull();
+  });
+
+  it("holds Back on the page until the codes are saved", async () => {
+    renderPage();
+    await confirmWith("123456");
+    await screen.findByTestId("recovery-codes");
+
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(screen.getByTestId("recovery-codes")).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/קודם שמרו/);
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("keeps the scan step with an error for a wrong code", async () => {
