@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { AxiosError, AxiosHeaders } from "axios";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 
@@ -20,6 +21,22 @@ vi.mock("qrcode", () => ({
 }));
 
 const CODES = ["aaaaa-bbbbb", "ccccc-ddddd"];
+
+function apiError(status: number, detail: string): AxiosError {
+  return new AxiosError("fail", "ERR", undefined, undefined, {
+    status,
+    statusText: "",
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+    data: { detail },
+  });
+}
+
+async function confirmWith(value: string) {
+  await screen.findByTestId("mfa-secret");
+  fireEvent.change(screen.getByRole("textbox"), { target: { value } });
+  fireEvent.click(screen.getByRole("button", { name: /הפעלת אימות/ }));
+}
 
 function renderPage() {
   const refreshUserFromToken = vi.fn();
@@ -59,34 +76,68 @@ describe("MfaSetupPage", () => {
   it("shows the manual key, confirms the code, then shows recovery codes once", async () => {
     const { refreshUserFromToken } = renderPage();
 
-    expect(await screen.findByTestId("mfa-secret")).toHaveTextContent("JBSWY3DPEHPK3PXP");
+    // Grouped in fours for typing by hand.
+    expect(await screen.findByTestId("mfa-secret")).toHaveTextContent(
+      "JBSW Y3DP EHPK 3PXP",
+    );
     expect(mockStart).toHaveBeenCalledTimes(1);
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "123456" } });
-    fireEvent.click(screen.getByRole("button", { name: /הפעלת אימות/ }));
+    await confirmWith("123 456");
 
     const list = await screen.findByTestId("recovery-codes");
     expect(list).toHaveTextContent("aaaaa-bbbbb");
     expect(mockConfirm).toHaveBeenCalledWith("123456");
+    // MFA is on at once: leaving now can't bounce back here and lose the codes.
+    expect(refreshUserFromToken).toHaveBeenCalledTimes(1);
 
     // Continue stays disabled until the codes are acknowledged as saved.
     const proceed = screen.getByRole("button", { name: /המשך/ });
     expect(proceed).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(proceed);
-    expect(refreshUserFromToken).toHaveBeenCalled();
+    expect(proceed).toBeEnabled();
+  });
+
+  it("warns before the tab closes until the codes are saved", async () => {
+    renderPage();
+    await confirmWith("123456");
+    await screen.findByTestId("recovery-codes");
+
+    const unsaved = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unsaved);
+    expect(unsaved.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    const saved = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(saved);
+    expect(saved.defaultPrevented).toBe(false);
   });
 
   it("keeps the scan step with an error for a wrong code", async () => {
-    mockConfirm.mockRejectedValue(new Error("nope"));
+    mockConfirm.mockRejectedValue(apiError(401, "invalid_mfa_code"));
     renderPage();
-    await screen.findByTestId("mfa-secret");
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "000000" } });
-    fireEvent.click(screen.getByRole("button", { name: /הפעלת אימות/ }));
+    await confirmWith("000000");
 
-    expect(await screen.findByText(/הקוד שגוי/)).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/הקוד שגוי/);
     expect(screen.queryByTestId("recovery-codes")).toBeNull();
+  });
+
+  it("does not blame the code for other failures", async () => {
+    mockConfirm.mockRejectedValue(new Error("network"));
+    renderPage();
+
+    await confirmWith("000000");
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/לא הצלחנו להפעיל/);
+  });
+
+  it("explains the hourly limit on a 429", async () => {
+    mockConfirm.mockRejectedValue(apiError(429, "rate_limited"));
+    renderPage();
+
+    await confirmWith("000000");
+
+    expect(await screen.findByText(/יותר מדי ניסיונות/)).toBeDefined();
   });
 
   it("shows an error when enrolment can't start", async () => {

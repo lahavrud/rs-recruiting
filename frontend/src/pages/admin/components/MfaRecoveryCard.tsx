@@ -1,16 +1,20 @@
 import { useEffect, useState, type FormEvent } from "react";
 
-import axios from "axios";
 import { useTranslation } from "react-i18next";
 
 import Button from "@/components/ui/Button";
 import SettingsCard from "@/components/ui/SettingsCard";
 import { getMfaStatus, regenerateRecoveryCodes } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
+import {
+  apiErrorInfo,
+  normalizeTotp,
+  retryAfterMinutes,
+  TOTP_LENGTH,
+} from "@/utils/mfa";
 
 import RecoveryCodesList from "./RecoveryCodesList";
 
-const TOTP_LENGTH = 6;
 // At or below this many unused codes, nudge the admin to issue a new set.
 const LOW_CODES = 3;
 
@@ -42,17 +46,23 @@ export default function MfaRecoveryCard() {
     setError(null);
     setIsSubmitting(true);
     try {
-      const { recovery_codes } = await regenerateRecoveryCodes(code.replace(/\s/g, ""));
+      const { recovery_codes } = await regenerateRecoveryCodes(code);
       setCodes(recovery_codes);
       setRemaining(recovery_codes.length);
       setCode("");
     } catch (err) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      setError(
-        status === 401
-          ? t("admin:mfa.recovery.invalidCode")
-          : t("admin:mfa.recovery.error"),
-      );
+      const { status, detail } = apiErrorInfo(err);
+      const minutes = retryAfterMinutes(err);
+      if (status === 401 && detail === "invalid_mfa_code") {
+        setError(t("admin:mfa.recovery.invalidCode"));
+      } else if (status === 429 && detail === "mfa_locked" && minutes) {
+        setError(t("admin:mfa.recovery.lockedFor", { count: minutes }));
+      } else if (status === 429) {
+        setError(t("admin:mfa.recovery.tooManyAttempts"));
+      } else {
+        setError(t("admin:mfa.recovery.error"));
+      }
+      setCode("");
     } finally {
       setIsSubmitting(false);
     }
@@ -64,12 +74,13 @@ export default function MfaRecoveryCard() {
         <svg
           viewBox="0 0 24 24"
           fill="none"
+          aria-hidden="true"
           stroke="currentColor"
           strokeWidth={1.8}
           className="size-4"
         >
-          <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z" />
-          <path d="m9 12 2 2 4-4" />
+          <circle cx="7.5" cy="15.5" r="4.5" />
+          <path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2" />
         </svg>
       }
       title={t("admin:mfa.recovery.title")}
@@ -77,17 +88,26 @@ export default function MfaRecoveryCard() {
       <p className="mb-3 text-sm text-white/55">{t("admin:mfa.recovery.body")}</p>
       {remaining !== null && !codes && (
         <p
-          className={`mb-3 text-sm ${remaining <= LOW_CODES ? "text-warning" : "text-white/55"}`}
+          className={
+            remaining <= LOW_CODES
+              ? "mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning"
+              : "mb-3 text-sm text-white/55"
+          }
+          role={remaining <= LOW_CODES ? "status" : undefined}
           data-testid="recovery-remaining"
         >
+          {remaining <= LOW_CODES && "⚠ "}
           {t("admin:mfa.recovery.remaining", { count: remaining })}
           {remaining <= LOW_CODES && ` ${t("admin:mfa.recovery.low")}`}
         </p>
       )}
       {codes ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm text-white/70">{t("admin:mfa.recovery.newCodes")}</p>
           <RecoveryCodesList codes={codes} />
+          <Button type="button" size="sm" onClick={() => setCodes(null)}>
+            {t("admin:mfa.recovery.saved")}
+          </Button>
         </div>
       ) : (
         <form
@@ -103,16 +123,17 @@ export default function MfaRecoveryCard() {
               dir="ltr"
               inputMode="numeric"
               autoComplete="one-time-code"
-              maxLength={TOTP_LENGTH}
+              placeholder="123456"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              aria-invalid={error ? true : undefined}
+              onChange={(e) => setCode(normalizeTotp(e.target.value))}
               className={`mt-1 text-center tracking-widest ${INPUT_CLS}`}
             />
           </div>
           <Button
             type="submit"
             size="sm"
-            disabled={isSubmitting || code.trim().length < TOTP_LENGTH}
+            disabled={isSubmitting || code.length < TOTP_LENGTH}
           >
             {isSubmitting
               ? t("admin:mfa.recovery.generating")
@@ -120,7 +141,14 @@ export default function MfaRecoveryCard() {
           </Button>
         </form>
       )}
-      {error && <div className={`mt-2 ${errorAlertCls}`}>{error}</div>}
+      {!codes && (
+        <p className="mt-2 text-xs text-white/45">{t("admin:mfa.recovery.invalidatesOld")}</p>
+      )}
+      {error && (
+        <div role="alert" className={`mt-2 ${errorAlertCls}`}>
+          {error}
+        </div>
+      )}
     </SettingsCard>
   );
 }

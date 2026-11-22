@@ -6,11 +6,15 @@ import "@/i18n";
 import { AuthContext, type AuthContextType } from "@/contexts/AuthContext";
 import MfaCodeStep from "@/pages/components/MfaCodeStep";
 
-function apiError(status: number, detail: string): AxiosError {
+function apiError(
+  status: number,
+  detail: string,
+  headers: Record<string, string> = {},
+): AxiosError {
   return new AxiosError("fail", "ERR", undefined, undefined, {
     status,
     statusText: "",
-    headers: {},
+    headers,
     config: { headers: new AxiosHeaders() },
     data: { detail },
   });
@@ -31,7 +35,12 @@ function renderStep(completeMfaLogin: AuthContextType["completeMfaLogin"]) {
   } as AuthContextType;
   render(
     <AuthContext.Provider value={ctx}>
-      <MfaCodeStep mfaToken="challenge" onDone={onDone} onRestart={onRestart} />
+      <MfaCodeStep
+        mfaToken="challenge"
+        email="admin@example.com"
+        onDone={onDone}
+        onRestart={onRestart}
+      />
     </AuthContext.Provider>,
   );
   return { onDone, onRestart };
@@ -47,10 +56,33 @@ describe("MfaCodeStep", () => {
     const complete = vi.fn().mockResolvedValue(undefined);
     const { onDone } = renderStep(complete);
 
-    submit("123 456");
+    submit("123456");
 
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     expect(complete).toHaveBeenCalledWith("challenge", { code: "123456" });
+  });
+
+  it("keeps all six digits of a code pasted with a space", () => {
+    renderStep(vi.fn());
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "123 456" } });
+
+    expect(screen.getByRole("textbox")).toHaveValue("123456");
+  });
+
+  it("enables the submit button only for a full code", () => {
+    renderStep(vi.fn());
+    const button = screen.getByRole("button", { name: /אימות והתחברות/ });
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "12345" } });
+    expect(button).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "123456" } });
+    expect(button).toBeEnabled();
+  });
+
+  it("shows which account is signing in", () => {
+    renderStep(vi.fn());
+    expect(screen.getByText("admin@example.com")).toBeDefined();
   });
 
   it("sends a recovery code after switching modes", async () => {
@@ -73,9 +105,18 @@ describe("MfaCodeStep", () => {
 
     submit("000000");
 
-    expect(await screen.findByText(/הקוד שגוי/)).toBeDefined();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/הקוד שגוי/);
     expect(onDone).not.toHaveBeenCalled();
     expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it("treats a malformed code (422) as a wrong code", async () => {
+    const complete = vi.fn().mockRejectedValue(apiError(422, "x"));
+    renderStep(complete);
+
+    submit("123456");
+
+    expect(await screen.findByText(/הקוד שגוי/)).toBeDefined();
   });
 
   it("goes back to the password step when the challenge expired", async () => {
@@ -87,13 +128,25 @@ describe("MfaCodeStep", () => {
     await waitFor(() => expect(onRestart).toHaveBeenCalledWith("expired"));
   });
 
-  it("explains an account lock instead of a generic rate limit", async () => {
-    const complete = vi.fn().mockRejectedValue(apiError(429, "mfa_locked"));
-    renderStep(complete);
+  it("sends a locked account back to the password step with the time left", async () => {
+    const complete = vi
+      .fn()
+      .mockRejectedValue(apiError(429, "mfa_locked", { "retry-after": "300" }));
+    const { onRestart } = renderStep(complete);
 
     submit("123456");
 
-    expect(await screen.findByText(/נעולה לכמה דקות/)).toBeDefined();
+    await waitFor(() => expect(onRestart).toHaveBeenCalledWith("locked", 5));
+  });
+
+  it("shows the generic throttle message for a plain 429", async () => {
+    const complete = vi.fn().mockRejectedValue(apiError(429, "account_locked"));
+    const { onRestart } = renderStep(complete);
+
+    submit("123456");
+
+    expect(await screen.findByText(/יותר מדי ניסיונות התחברות/)).toBeDefined();
+    expect(onRestart).not.toHaveBeenCalled();
   });
 
   it("lets the user go back to the password step", () => {

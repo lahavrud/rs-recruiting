@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useTranslation } from "react-i18next";
 
@@ -9,16 +9,22 @@ const COPIED_RESET_MS = 2000;
 /** MFA recovery codes, shown once, with copy and download (#1177). */
 export default function RecoveryCodesList({ codes }: { codes: string[] }) {
   const { t } = useTranslation("admin");
-  const [isCopied, setIsCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const text = codes.join("\n");
+
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = setTimeout(() => setCopyState("idle"), COPIED_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [copyState]);
 
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(text);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), COPIED_RESET_MS);
+      setCopyState("copied");
     } catch {
-      // Clipboard blocked (permissions / insecure context): download still works.
+      // Clipboard blocked (permissions / insecure context): say so; download works.
+      setCopyState("failed");
     }
   }
 
@@ -28,7 +34,8 @@ export default function RecoveryCodesList({ codes }: { codes: string[] }) {
     link.href = url;
     link.download = "rs-recruiting-recovery-codes.txt";
     link.click();
-    URL.revokeObjectURL(url);
+    // Revoke after the click's download has started, not synchronously.
+    setTimeout(() => URL.revokeObjectURL(url));
   }
 
   return (
@@ -44,12 +51,19 @@ export default function RecoveryCodesList({ codes }: { codes: string[] }) {
       </ul>
       <div className="flex gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={handleCopy}>
-          {isCopied ? t("admin:mfa.setup.done.copied") : t("admin:mfa.setup.done.copy")}
+          {copyState === "copied"
+            ? t("admin:mfa.setup.done.copied")
+            : t("admin:mfa.setup.done.copy")}
         </Button>
         <Button type="button" variant="ghost" size="sm" onClick={handleDownload}>
           {t("admin:mfa.setup.done.download")}
         </Button>
       </div>
+      {copyState === "failed" && (
+        <p role="alert" className="text-xs text-warning">
+          {t("admin:mfa.setup.done.copyFailed")}
+        </p>
+      )}
     </div>
   );
 }

@@ -9,10 +9,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { resendCandidateActivation } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { retryAfterMinutes } from "@/utils/mfa";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
-import MfaCodeStep from "./components/MfaCodeStep";
+import MfaCodeStep, { type MfaRestartReason } from "./components/MfaCodeStep";
 
 export default function LoginPage() {
   const { t } = useTranslation('auth');
@@ -86,6 +87,16 @@ export default function LoginPage() {
     if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: "" }));
   }
 
+  function handleMfaRestart(reason: MfaRestartReason, minutes?: number | null) {
+    setMfaToken(null);
+    setPassword("");
+    if (reason === "expired") setError(t("auth:login.mfa.errors.expired"));
+    else if (reason === "locked" && minutes)
+      setError(t("auth:login.mfa.errors.lockedFor", { count: minutes }));
+    else if (reason === "locked") setError(t("auth:login.mfa.errors.locked"));
+    else setError(null);
+  }
+
   if (isInitializing) return null;
   if (isAuthenticated) return <Navigate to={from} replace />;
 
@@ -118,7 +129,12 @@ export default function LoginPage() {
           setError(t("auth:login.errors.loginFailed"));
         }
       } else if (status === 429) {
-        setError(t(apiErrorKey(err, { 429: "auth:login.errors.tooManyAttempts" })));
+        const minutes = retryAfterMinutes(err);
+        setError(
+          minutes
+            ? t("auth:login.errors.tooManyAttemptsFor", { count: minutes })
+            : t(apiErrorKey(err, { 429: "auth:login.errors.tooManyAttempts" })),
+        );
       } else if (status !== undefined) {
         setError(t("auth:login.errors.loginFailed"));
       } else {
@@ -144,12 +160,9 @@ export default function LoginPage() {
         {mfaToken ? (
           <MfaCodeStep
             mfaToken={mfaToken}
+            email={email}
             onDone={() => navigate(from, { replace: true })}
-            onRestart={(reason) => {
-              setMfaToken(null);
-              setPassword("");
-              setError(reason === "expired" ? t("auth:login.mfa.errors.expired") : null);
-            }}
+            onRestart={handleMfaRestart}
           />
         ) : (
           <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
@@ -243,25 +256,28 @@ export default function LoginPage() {
           </form>
         )}
 
-        <div className="space-y-2 px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
-          <p>
-            <Link
-              to="/forgot-password"
-              className="text-copper transition hover:text-gold"
-            >
-              {t("auth:login.forgotPasswordLink")}
-            </Link>
-          </p>
-          <p>
-            {t("auth:login.candidateSignupPrompt")}{" "}
-            <Link
-              to="/register-candidate"
-              className="text-copper transition hover:text-gold"
-            >
-              {t("auth:login.candidateSignupLink")}
-            </Link>
-          </p>
-        </div>
+        {/* On the code step the password is behind the user: no reset or signup. */}
+        {!mfaToken && (
+          <div className="space-y-2 px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
+            <p>
+              <Link
+                to="/forgot-password"
+                className="text-copper transition hover:text-gold"
+              >
+                {t("auth:login.forgotPasswordLink")}
+              </Link>
+            </p>
+            <p>
+              {t("auth:login.candidateSignupPrompt")}{" "}
+              <Link
+                to="/register-candidate"
+                className="text-copper transition hover:text-gold"
+              >
+                {t("auth:login.candidateSignupLink")}
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </AuthShell>
   );

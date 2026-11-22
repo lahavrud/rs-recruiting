@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
-import axios from "axios";
 import QRCode from "qrcode";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -11,11 +10,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { confirmMfaEnrolment, startMfaEnrolment } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import type { MfaEnrolmentStart } from "@/types/auth";
+import { apiErrorInfo, normalizeTotp, TOTP_LENGTH } from "@/utils/mfa";
 
 import RecoveryCodesList from "./components/RecoveryCodesList";
 
-const TOTP_LENGTH = 6;
 const QR_SIZE_PX = 200;
+// Base32 keys are typed by hand from this screen: groups of 4 read easier.
+const KEY_GROUP_RE = /.{1,4}/g;
+const COPIED_RESET_MS = 2000;
 
 type SetupState =
   | { step: "loading" }
@@ -36,9 +38,20 @@ export default function MfaSetupPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAcknowledged, setIsAcknowledged] = useState(false);
+  const [isKeyCopied, setIsKeyCopied] = useState(false);
+  const doneHeadingRef = useRef<HTMLHeadingElement>(null);
   // One enrolment request per page, even when StrictMode runs the effect
   // twice: a second start would replace the secret behind the first QR.
   const startRef = useRef<Promise<MfaEnrolmentStart> | null>(null);
+
+  /** Let the app see the stored token's new mfa claim; a bad one logs out. */
+  const adoptStoredToken = useCallback(() => {
+    try {
+      refreshUserFromToken();
+    } catch {
+      navigate("/login", { replace: true });
+    }
+  }, [navigate, refreshUserFromToken]);
 
   useEffect(() => {
     let isActive = true;
@@ -54,8 +67,8 @@ export default function MfaSetupPage() {
       .catch((err) => {
         if (!isActive) return;
         // Already enrolled (stale token): nothing to set up here.
-        if (axios.isAxiosError(err) && err.response?.status === 409) {
-          refreshUserFromToken();
+        if (apiErrorInfo(err).status === 409) {
+          adoptStoredToken();
           navigate("/dashboard", { replace: true });
           return;
         }
@@ -64,32 +77,59 @@ export default function MfaSetupPage() {
     return () => {
       isActive = false;
     };
-  }, [navigate, refreshUserFromToken]);
+  }, [navigate, adoptStoredToken]);
+
+  // The codes are shown once: until they're saved, warn before the tab closes.
+  const isCodesUnsaved = state.step === "done" && !isAcknowledged;
+  useEffect(() => {
+    if (!isCodesUnsaved) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isCodesUnsaved]);
+
+  useEffect(() => {
+    if (state.step === "done") doneHeadingRef.current?.focus();
+  }, [state.step]);
+
+  useEffect(() => {
+    if (!isKeyCopied) return;
+    const timer = setTimeout(() => setIsKeyCopied(false), COPIED_RESET_MS);
+    return () => clearTimeout(timer);
+  }, [isKeyCopied]);
 
   async function handleConfirm(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
     setIsSubmitting(true);
     try {
-      const { recovery_codes } = await confirmMfaEnrolment(code.replace(/\s/g, ""));
+      const { recovery_codes } = await confirmMfaEnrolment(code);
       setState({ step: "done", recoveryCodes: recovery_codes });
+      // MFA is on now: adopt the token at once, so leaving this page (any
+      // nav link) can't bounce back here and lose the one-time codes.
+      adoptStoredToken();
     } catch (err) {
-      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
-      setFormError(
-        status === 429
-          ? t("admin:mfa.setup.tooManyAttempts")
-          : t("admin:mfa.setup.invalidCode"),
-      );
+      const { status, detail } = apiErrorInfo(err);
+      if (status === 401 && detail === "invalid_mfa_code") {
+        setFormError(t("admin:mfa.setup.invalidCode"));
+      } else if (status === 429) {
+        setFormError(t("admin:mfa.setup.tooManyAttempts"));
+      } else {
+        setFormError(t("admin:mfa.setup.confirmError"));
+      }
       setCode("");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function handleContinue() {
-    // The stored token now carries mfa=true; let the guards see it.
-    refreshUserFromToken();
-    navigate("/dashboard", { replace: true });
+  async function handleCopyKey(secret: string) {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setIsKeyCopied(true);
+    } catch {
+      // Clipboard blocked: the key is on screen to type.
+    }
   }
 
   return (
@@ -102,7 +142,9 @@ export default function MfaSetupPage() {
       {state.step === "loading" && <div className="h-64" aria-busy="true" />}
 
       {state.step === "error" && (
-        <div className={errorAlertCls}>{t("admin:mfa.setup.loadError")}</div>
+        <div role="alert" className={errorAlertCls}>
+          {t("admin:mfa.setup.loadError")}
+        </div>
       )}
 
       {state.step === "scan" && (
@@ -120,13 +162,23 @@ export default function MfaSetupPage() {
               className="mx-auto rounded-md"
             />
             <p className="text-xs text-white/50">{t("admin:mfa.setup.manualKey")}</p>
-            <code
-              dir="ltr"
-              className="block break-all rounded-md bg-well px-3 py-2 text-center font-mono text-sm text-white/85"
-              data-testid="mfa-secret"
-            >
-              {state.secret}
-            </code>
+            <div className="flex items-center gap-2">
+              <code
+                dir="ltr"
+                className="block flex-1 rounded-md bg-well px-3 py-2 text-center font-mono text-sm tracking-wide text-white/85 [overflow-wrap:anywhere]"
+                data-testid="mfa-secret"
+              >
+                {state.secret.match(KEY_GROUP_RE)?.join(" ")}
+              </code>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopyKey(state.secret)}
+              >
+                {isKeyCopied ? t("admin:mfa.setup.done.copied") : t("admin:mfa.setup.copyKey")}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -137,20 +189,25 @@ export default function MfaSetupPage() {
             <input
               id="mfa-setup-code"
               dir="ltr"
+              autoFocus
               inputMode="numeric"
               autoComplete="one-time-code"
-              pattern="[0-9]*"
-              maxLength={TOTP_LENGTH}
+              placeholder="123456"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              aria-invalid={formError ? true : undefined}
+              onChange={(e) => setCode(normalizeTotp(e.target.value))}
               className={`text-center tracking-widest ${INPUT_CLS}`}
             />
-            {formError && <div className={errorAlertCls}>{formError}</div>}
+            {formError && (
+              <div role="alert" className={errorAlertCls}>
+                {formError}
+              </div>
+            )}
           </div>
 
           <Button
             type="submit"
-            disabled={isSubmitting || code.trim().length < TOTP_LENGTH}
+            disabled={isSubmitting || code.length < TOTP_LENGTH}
             className="w-full"
           >
             {isSubmitting ? t("admin:mfa.setup.confirming") : t("admin:mfa.setup.confirm")}
@@ -160,12 +217,18 @@ export default function MfaSetupPage() {
 
       {state.step === "done" && (
         <div className="space-y-5 rounded-xl border border-white/6 bg-card p-6">
-          <h2 className="text-base font-medium text-white/85">
+          <p className="text-sm text-success">{t("admin:mfa.setup.done.enabled")}</p>
+          <h2
+            ref={doneHeadingRef}
+            tabIndex={-1}
+            className="text-base font-medium text-white/85 focus:outline-none"
+          >
             {t("admin:mfa.setup.done.title")}
           </h2>
           <p className="text-sm text-white/60">{t("admin:mfa.setup.done.body")}</p>
           <RecoveryCodesList codes={state.recoveryCodes} />
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-white/60">
+          <p className="text-xs text-white/45">{t("admin:mfa.setup.done.lostBoth")}</p>
+          <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-white/60">
             <input
               type="checkbox"
               checked={isAcknowledged}
@@ -177,7 +240,7 @@ export default function MfaSetupPage() {
           <Button
             type="button"
             disabled={!isAcknowledged}
-            onClick={handleContinue}
+            onClick={() => navigate("/dashboard", { replace: true })}
             className="w-full"
           >
             {t("admin:mfa.setup.done.continue")}
