@@ -14,7 +14,13 @@ from rs_shared.core.infrastructure.security import (
 )
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import UserRole
-from rs_shared.models import PasswordResetToken, RefreshToken, User
+from rs_shared.models import (
+    MfaChallenge,
+    PasswordResetToken,
+    RefreshToken,
+    User,
+    UserMfa,
+)
 from rs_shared.services.auth.password_reset import (
     _EMAIL_RATE_LIMIT_MAX,
     request_password_reset,
@@ -200,6 +206,55 @@ async def test_reset_password_clears_lockout_state(session: AsyncSession):
             await reset_password(raw_token, "FreshPass1!", session)
 
     mock_clear.assert_called_once_with("lock@example.com")
+
+
+async def _locked_mfa_with_challenge(session: AsyncSession, user_id: int) -> None:
+    session.add(
+        UserMfa(
+            user_id=user_id,
+            secret_encrypted="ct",
+            failed_attempts=6,
+            locked_until=datetime.now(timezone.utc) + timedelta(minutes=10),
+        )
+    )
+    session.add(
+        MfaChallenge(
+            token_hash=f"challenge-{user_id}",
+            user_id=user_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+    )
+    await session.commit()
+
+
+async def _assert_mfa_lock_cleared(session: AsyncSession, user_id: int) -> None:
+    session.expire_all()
+    mfa = await session.get(UserMfa, user_id)
+    assert mfa is not None and mfa.failed_attempts == 0 and mfa.locked_until is None
+    assert (await session.execute(select(MfaChallenge))).first() is None
+
+
+async def test_reset_password_ends_mfa_lock_and_pending_challenges(
+    session: AsyncSession,
+):
+    """An old-password challenge can't finish a login after the reset."""
+    user = await _make_user(session, email="mfa-lock@example.com")
+    assert user.id is not None
+    await _locked_mfa_with_challenge(session, user.id)
+    session.add(
+        PasswordResetToken(
+            token_hash=hash_token("raw-token-mfa"),
+            user_id=user.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            used=False,
+        )
+    )
+    await session.commit()
+
+    async with transactional(session):
+        await reset_password("raw-token-mfa", "FreshPass1!", session)
+
+    await _assert_mfa_lock_cleared(session, user.id)
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,7 @@ from rs_shared.core.infrastructure.security import (
 from rs_shared.core.infrastructure.transactions import defer_after_commit
 from rs_shared.core.tasks import queue_email
 from rs_shared.models import PasswordResetToken, RefreshToken, User
+from rs_shared.services.auth._mfa_lockout import reset_mfa_lock
 from rs_shared.services.auth.login_throttle import clear_all_login_failures
 from rs_shared.services.exceptions import InvalidPasswordResetTokenError
 from rs_shared.services.utils.audit import record_audit_event
@@ -178,6 +179,9 @@ async def reset_password(
             RefreshToken.user_id == user.id,  # pyright: ignore[reportArgumentType]
         )
     )
+    # The old password's MFA lock and pending code steps die with it.
+    assert user.id is not None
+    await reset_mfa_lock(session, user.id)
 
     await record_audit_event(
         session,

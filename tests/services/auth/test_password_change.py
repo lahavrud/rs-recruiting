@@ -12,7 +12,7 @@ from rs_shared.core.infrastructure.security import (
     is_password_valid,
 )
 from rs_shared.enums import UserRole
-from rs_shared.models import RefreshToken, User
+from rs_shared.models import MfaChallenge, RefreshToken, User, UserMfa
 from rs_shared.services.auth.password_change import change_user_password
 from rs_shared.services.exceptions import InvalidCredentialsError
 
@@ -131,3 +131,48 @@ async def test_change_password_with_no_current_revokes_all(session: AsyncSession
         .all()
     )
     assert tokens == []
+
+
+async def _locked_mfa_with_challenge(session: AsyncSession, user_id: int) -> None:
+    session.add(
+        UserMfa(
+            user_id=user_id,
+            secret_encrypted="ct",
+            failed_attempts=6,
+            locked_until=datetime.now(timezone.utc) + timedelta(minutes=10),
+        )
+    )
+    session.add(
+        MfaChallenge(
+            token_hash=f"challenge-{user_id}",
+            user_id=user_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        )
+    )
+    await session.commit()
+
+
+async def _assert_mfa_lock_cleared(session: AsyncSession, user_id: int) -> None:
+    session.expire_all()
+    mfa = await session.get(UserMfa, user_id)
+    assert mfa is not None and mfa.failed_attempts == 0 and mfa.locked_until is None
+    assert (await session.execute(select(MfaChallenge))).first() is None
+
+
+async def test_change_password_ends_mfa_lock_and_pending_challenges(
+    session: AsyncSession,
+):
+    user, _ = await _make_user_with_tokens(session, "mfa-change@test.com")
+    assert user.id is not None
+    await _locked_mfa_with_challenge(session, user.id)
+
+    await change_user_password(
+        user,
+        "Original1!",  # pragma: allowlist secret
+        "RotatedMfa1!",  # pragma: allowlist secret
+        current_refresh_token=None,
+        session=session,
+    )
+    await session.commit()
+
+    await _assert_mfa_lock_cleared(session, user.id)
