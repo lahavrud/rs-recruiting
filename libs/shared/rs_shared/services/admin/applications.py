@@ -1,6 +1,5 @@
 """Admin service functions for application (match) management."""
 
-from datetime import datetime, timezone
 from typing import Any, Literal
 
 from sqlalchemy import case, or_, select
@@ -18,13 +17,14 @@ from rs_shared.core.infrastructure.pagination import (
 from rs_shared.core.matching import cosine_similarity_score
 from rs_shared.enums import ApplicationStatus
 from rs_shared.models import Application, CandidateProfile, Job
-from rs_shared.schemas import ApplicationRead, ApplicationWithDetails, AuditLogRead
+from rs_shared.schemas import ApplicationWithDetails, AuditLogRead
 from rs_shared.services.admin._application_status import (
     update_application_status as update_application_status,
 )
 from rs_shared.services.admin._filters import candidate_not_deleted
 from rs_shared.services.exceptions import ApplicationNotFoundError
-from rs_shared.services.utils.audit import list_audit_events, record_audit_event
+from rs_shared.services.utils.application_audit import audit_application_deletes
+from rs_shared.services.utils.audit import list_audit_events
 
 ApplicationSortColumn = Literal["name", "created_at", "status", "score"]
 
@@ -279,34 +279,6 @@ async def get_application_activity(
     return page
 
 
-async def update_application_notes(
-    application_id: int,
-    admin_notes: str | None,
-    session: AsyncSession,
-) -> ApplicationRead:
-    """Distinct from `update_application_status` — skips the status-transition
-    checks, audit event, and rejection email, since notes are an internal
-    admin annotation rather than a candidate-facing state change.
-
-    Raises:
-        ApplicationNotFoundError: If application not found.
-    """
-    result = await session.execute(
-        select(Application).where(Application.id == application_id)  # pyright: ignore[reportArgumentType]
-    )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise ApplicationNotFoundError(
-            f"Application with ID {application_id} not found"
-        )
-
-    application.admin_notes = admin_notes
-    application.updated_at = datetime.now(timezone.utc)
-    await session.flush()
-    await session.refresh(application)
-    return ApplicationRead.model_validate(application)
-
-
 async def delete_application(
     application_id: int,
     session: AsyncSession,
@@ -324,15 +296,10 @@ async def delete_application(
         raise ApplicationNotFoundError(
             f"Application with ID {application_id} not found"
         )
-    # Ids only: the audit outlives the row and possibly the candidate.
-    detail = f"job_id={application.job_id},candidate_id={application.candidate_id}"
-    await record_audit_event(
+    await audit_application_deletes(
         session,
+        Application.id == application_id,  # pyright: ignore[reportArgumentType]
         actor_user_id=actor_user_id,
-        action="application.delete",
-        target_type="Application",
-        target_id=application_id,
-        detail=f"{detail},status={application.status.value}",
         ip_address=ip_address,
     )
     await session.delete(application)

@@ -14,12 +14,15 @@ Failed logins are throttled per **(email, client IP)** in the `login_throttle` t
 - Counters reset on success from the pair, on password reset (all pairs), and after 24h quiet; the nightly cleanup deletes stale rows.
 - Cross-IP backstop is **alert-only** (`login_account_under_attack` at ≥100 failures/hour), by design.
 - The throttle writes through its own session; in tests its writes are stubbed unless the test is marked `@pytest.mark.real_login_throttle`.
+
+## Audit rows
+Every login writes `user.login`; a wrong password on a real account writes `user.login_failed` inside the throttle's own transaction (stubbed with it in tests); refresh-token replay writes `user.session_replay` inside the nuke's session. Those two own-session rows use `record_audit_event_best_effort` (a SAVEPOINT): an audit failure must never undo the nuke or the throttle count. Unknown emails get no row, and no row ever holds an email.
 - The old `user.failed_login_attempts` / `locked_until` columns are no longer mapped on `User`; the migration that drops them ships one release later (#1186), because the deploy migrates before old tasks stop selecting them.
 
 ## Two-factor auth (TOTP, admins)
 Admins must have TOTP (#1177): `services/auth/mfa.py` (enrolment, status), `mfa_challenge.py` (the login code step), `_mfa_codes.py` (code checks, recovery codes), `_mfa_lockout.py` (per-account lock), `_mfa_notify.py` (owner emails); tables `user_mfa`, `mfa_recovery_code`, `mfa_challenge`, plus `refreshtoken.mfa_verified`.
 - **Two checks, both from the DB, never a token claim.** `get_current_user` refuses (401 `session_revoked`) any session of an MFA user whose refresh row isn't `mfa_verified`, and `refresh_user_tokens` won't rotate one. `get_current_admin` 403s `mfa_enrollment_required` until enrolment is confirmed; only the enrolment endpoints use `get_current_admin_pre_mfa`. The JWT `mfa` claim mirrors the session flag for the SPA's routing only.
-- Only the code step (`issue_session(..., mfa_verified=True)` from `/auth/mfa/verify`) and the enrolment (its own session) set `mfa_verified`; rotation carries it. Login for an MFA user returns `mfa_required` + a 5-minute challenge and **no** token or cookie. All login token issuance goes through `issue_session`, so `login_success` and the `admin_login` audit mean "got in".
+- Only the code step (`issue_session(..., mfa_verified=True)` from `/auth/mfa/verify`) and the enrolment (its own session) set `mfa_verified`; rotation carries it. Login for an MFA user returns `mfa_required` + a 5-minute challenge and **no** token or cookie. All login token issuance goes through `issue_session`, so `login_success` and the `user.login` audit mean "got in".
 - Confirming enrolment revokes every other session.
 - Challenge attempts are reserved with one conditional UPDATE in their own session *before* the code is checked (cap 5, no concurrent overrun); success consumes the challenge with a conditional DELETE (two right answers can't both log in).
 - Replay: a code's time-step must be greater than `last_used_step`, claimed atomically. ±1 step skew.

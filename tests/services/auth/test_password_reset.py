@@ -28,6 +28,7 @@ from rs_shared.services.auth.password_reset import (
     validate_password_reset_token,
 )
 from rs_shared.services.exceptions import InvalidPasswordResetTokenError
+from tests.conftest import audit_rows
 
 
 # Pull in the (no-longer-autouse) per-email rate-limit mock for every test in
@@ -67,6 +68,9 @@ async def test_request_password_reset_mints_token_for_known_email(
     assert len(tokens) == 1
     assert tokens[0].used is False
 
+    [row] = await audit_rows("user.password_reset_request")
+    assert (row.target_type, row.target_id, row.detail) == ("User", user.id, None)
+
 
 @pytest.mark.asyncio
 async def test_request_password_reset_silent_for_unknown_email(session: AsyncSession):
@@ -77,6 +81,7 @@ async def test_request_password_reset_silent_for_unknown_email(session: AsyncSes
 
     result = await session.execute(select(PasswordResetToken))
     assert result.scalars().all() == []
+    assert await audit_rows("user.password_reset_request") == []
 
 
 @pytest.mark.asyncio

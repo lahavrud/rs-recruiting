@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_admin
+from rs_api.infrastructure.dependencies import client_ip, get_current_admin
 from rs_api.infrastructure.error_handling import service_exception_to_http
 from rs_api.infrastructure.limiter import get_limiter
 from rs_shared.core.infrastructure.database import get_session
@@ -76,6 +76,7 @@ async def get_company_invites(
     "/companies/invites/{token_id}/revoke", status_code=status.HTTP_204_NO_CONTENT
 )
 async def revoke_company_invite(
+    request: Request,
     token_id: int,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
@@ -83,13 +84,19 @@ async def revoke_company_invite(
     """Revoke a pending invite token (status=REVOKED; row preserved for audit)."""
     try:
         async with transactional(session):
-            await revoke_invite(token_id, session)
+            await revoke_invite(
+                token_id,
+                session,
+                actor_user_id=current_admin.id,
+                ip_address=client_ip(request),
+            )
     except (InviteNotFoundError, InviteAlreadyRevokedError) as e:
         raise service_exception_to_http(e) from e
 
 
 @router.delete("/companies/invites/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_company_invite(
+    request: Request,
     token_id: int,
     current_admin: User = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session),
@@ -97,7 +104,12 @@ async def delete_company_invite(
     """Hard-delete an invite row regardless of status."""
     try:
         async with transactional(session):
-            await delete_invite(token_id, session)
+            await delete_invite(
+                token_id,
+                session,
+                actor_user_id=current_admin.id,
+                ip_address=client_ip(request),
+            )
     except InviteNotFoundError as e:
         raise service_exception_to_http(e) from e
 
@@ -116,6 +128,11 @@ async def resend_company_invite(
     """Regenerate and resend an invite email for an existing invite record."""
     try:
         async with transactional(session):
-            await resend_invite(token_id, session)
+            await resend_invite(
+                token_id,
+                session,
+                actor_user_id=current_admin.id,
+                ip_address=client_ip(request),
+            )
     except (InviteNotFoundError, InviteAlreadyRevokedError) as e:
         raise service_exception_to_http(e) from e

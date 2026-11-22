@@ -77,7 +77,7 @@ async def create_company_directly(
 ) -> CompanyProfileRead:
     """Create a CompanyProfile directly (user_id=null). For pre-onboarding companies."""
     async with transactional(session):
-        return await admin_create_company(data, session)
+        return await admin_create_company(data, session, current_admin.id)
 
 
 @router.get("/companies/profile/{profile_id}", response_model=CompanyProfileRead)
@@ -121,7 +121,7 @@ async def delete_orphan_company(
     """Delete an admin-created CompanyProfile that has no user account."""
     try:
         async with transactional(session):
-            await delete_orphan_company_profile(profile_id, session)
+            await delete_orphan_company_profile(profile_id, session, current_admin.id)
     except (CompanyNotFoundError, CompanyNotPendingError) as e:
         raise service_exception_to_http(e) from e
 

@@ -12,7 +12,7 @@ from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import get_password_hash
 from rs_shared.enums import UserRole
 from rs_shared.models import CandidateProfile, User
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 async def _override_session():
@@ -117,6 +117,15 @@ async def test_patch_me_updates_allowed_fields(test_db):
     body = resp.json()
     assert body["full_name"] == "New Name"
     assert body["phone"] == "052-111-2233"
+
+    # The candidate is the actor; only the field names are recorded.
+    [row] = await audit_rows("candidate.profile_update")
+    assert (row.target_id, row.actor_user_id, row.ip_address) == (
+        profile.id,
+        user.id,
+        "127.0.0.1",
+    )
+    assert row.detail == "fields=full_name,phone"
 
 
 @pytest.mark.asyncio

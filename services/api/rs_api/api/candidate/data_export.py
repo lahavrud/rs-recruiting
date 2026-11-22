@@ -30,6 +30,7 @@ from rs_shared.models import CandidateProfile, User
 from rs_shared.services.candidate.data_export import (
     get_export_request_by_token_hash,
     has_pending_export,
+    mark_export_downloaded,
 )
 from rs_shared.services.utils.audit import record_audit_event
 
@@ -79,6 +80,7 @@ async def request_export(
 
 @router.get("/me/export/{token}")
 async def download_export(
+    request: Request,
     token: str,
     session: AsyncSession = Depends(get_session),
 ) -> Response:
@@ -110,7 +112,7 @@ async def download_export(
         ) from e
 
     async with transactional(session):
-        record.used = True
+        await mark_export_downloaded(record, session, ip_address=client_ip(request))
 
     filename = f"rs-recruiting-export-{record.created_at:%Y%m%d}.zip"
     return Response(

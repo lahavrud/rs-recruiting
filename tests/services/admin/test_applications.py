@@ -18,7 +18,6 @@ from rs_shared.services.admin.applications import (
     get_application,
     get_application_activity,
     list_applications,
-    update_application_notes,
     update_application_status,
 )
 from rs_shared.services.exceptions import ApplicationNotFoundError, InvalidCursorError
@@ -888,45 +887,3 @@ async def test_update_status_company_decline_no_admin_email(
     )
 
     assert email_payloads == []
-
-
-# ==================== update_application_notes ====================
-
-
-@pytest.mark.asyncio
-async def test_update_application_notes_persists_text(
-    session: AsyncSession, company_with_user: CompanyProfile
-):
-    """update_application_notes overwrites admin_notes without changing status."""
-    candidate = await _make_candidate(session)
-    app = await _make_application(session, company_with_user, candidate)
-
-    result = await update_application_notes(
-        app.id, "Looks promising — schedule call.", session
-    )
-    await session.commit()
-
-    assert isinstance(result, ApplicationRead)
-    assert result.admin_notes == "Looks promising — schedule call."
-    assert result.status == ApplicationStatus.PENDING_ADMIN_REVIEW  # untouched
-
-
-@pytest.mark.asyncio
-async def test_update_application_notes_clears_to_none(
-    session: AsyncSession, company_with_user: CompanyProfile
-):
-    """Passing None clears the notes field."""
-    candidate = await _make_candidate(session)
-    app = await _make_application(session, company_with_user, candidate)
-
-    await update_application_notes(app.id, "first pass", session)
-    await session.commit()
-    cleared = await update_application_notes(app.id, None, session)
-    await session.commit()
-    assert cleared.admin_notes is None
-
-
-@pytest.mark.asyncio
-async def test_update_application_notes_not_found(session: AsyncSession):
-    with pytest.raises(ApplicationNotFoundError):
-        await update_application_notes(99999, "x", session)

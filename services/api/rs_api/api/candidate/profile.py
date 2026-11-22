@@ -57,6 +57,7 @@ async def get_me(
 
 @router.patch("/me", response_model=CandidateMeRead)
 async def patch_me(
+    request: Request,
     body: dict[str, Any],
     current: tuple[User, CandidateProfile] = Depends(get_current_candidate),
     session: AsyncSession = Depends(get_session),
@@ -86,7 +87,13 @@ async def patch_me(
     user, profile = current
     try:
         async with transactional(session):
-            await apply_identity_patch(profile, patch, session)
+            await apply_identity_patch(
+                profile,
+                patch,
+                session,
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
+            )
     except ValueError as e:
         # Extension-lock on resume_filename rename + the "rename without
         # a stored resume" guard both raise here.

@@ -124,7 +124,7 @@ async def test_login_with_mfa_needs_code_before_any_token(
     )
     assert overview.status_code == 200
     assert "mfa_verify_failed" in await _audit_actions(session_local_factory)
-    assert "admin_login" in await _audit_actions(session_local_factory)
+    assert "user.login" in await _audit_actions(session_local_factory)
 
 
 async def test_verify_with_recovery_code(

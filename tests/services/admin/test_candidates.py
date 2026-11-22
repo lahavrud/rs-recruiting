@@ -328,6 +328,37 @@ async def test_list_candidate_activity_merges_candidate_and_application_events(
 
 
 @pytest.mark.asyncio
+async def test_list_candidate_activity_keeps_history_of_deleted_application(
+    session: AsyncSession,
+    candidate_profile: CandidateProfile,
+    application: Application,
+):
+    """After an admin deletes an application, its rows stay on the timeline."""
+    from rs_shared.services.admin.applications import delete_application
+
+    session.add(
+        AuditLog(
+            action="application.status_change",
+            target_type="Application",
+            target_id=application.id,
+            detail="PENDING_ADMIN_REVIEW->APPROVED_BY_ADMIN",
+            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        )
+    )
+    await session.commit()
+
+    await delete_application(application.id, session, actor_user_id=1)
+    await session.commit()
+
+    page = await list_candidate_activity(candidate_profile.id, session)
+    assert [r.action for r in page.items] == [
+        "application.delete",
+        "application.status_change",
+    ]
+    assert all(r.target_id == application.id for r in page.items)
+
+
+@pytest.mark.asyncio
 async def test_list_candidate_activity_empty(
     session: AsyncSession, candidate_profile: CandidateProfile
 ):

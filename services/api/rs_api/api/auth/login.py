@@ -13,7 +13,6 @@ from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import REFRESH_TTL_LONG
 from rs_shared.core.infrastructure.transactions import transactional
-from rs_shared.enums import UserRole
 from rs_shared.models import User
 from rs_shared.schemas import AccessTokenResponse, LoginRequest
 from rs_shared.schemas.auth import LoginResponse
@@ -99,7 +98,7 @@ async def issue_session(
     """Issue the access token + refresh cookie for a fully authenticated user.
 
     The only place a login (password, plus the code step for MFA users) turns
-    into tokens, so ``login_success`` and the ``admin_login`` audit always mean
+    into tokens, so ``login_success`` and the ``user.login`` audit always mean
     "got in", never "passed the password step". ``mfa_verified`` only from the
     code step: an MFA user's session without it is refused everywhere.
     """
@@ -120,15 +119,15 @@ async def issue_session(
             user_agent=ua,
             mfa_verified=mfa_verified,
         )
-        if user.role == UserRole.ADMIN:
-            await record_audit_event(
-                session,
-                actor_user_id=user.id,
-                action="admin_login",
-                target_type="User",
-                target_id=user.id,
-                ip_address=ip,
-            )
+        await record_audit_event(
+            session,
+            actor_user_id=user.id,
+            action="user.login",
+            target_type="User",
+            target_id=user.id,  # pyright: ignore[reportArgumentType]
+            detail=f"role={user.role.value}",
+            ip_address=ip,
+        )
 
     _set_refresh_cookie(response, refresh_token, remember_me=remember_me)
     response.headers["Cache-Control"] = "no-store"

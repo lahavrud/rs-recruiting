@@ -24,7 +24,9 @@ from rs_shared.services.candidate.data_export import (
     DATA_EXPORT_TTL_HOURS,
     build_and_persist_export,
     has_pending_export,
+    mark_export_downloaded,
 )
+from tests.conftest import audit_rows
 
 
 async def _seed_candidate(
@@ -169,6 +171,9 @@ async def test_build_and_persist_export_assembles_zip_and_persists_row(
     await session.commit()
 
     assert candidate_email == "build@test.com"
+    [ready] = await audit_rows("candidate.data_export_ready")
+    assert (ready.target_type, ready.target_id) == ("CandidateProfile", profile.id)
+    assert ready.actor_user_id is None
     assert raw_token  # non-empty
 
     # ZIP was uploaded.
@@ -244,3 +249,38 @@ async def test_build_export_continues_when_a_resume_fetch_fails(
         # data.json present, missing resume omitted (not aborted).
         assert "data.json" in zf.namelist()
         assert not any(n.startswith("resumes/") for n in zf.namelist())
+
+
+@pytest.mark.asyncio
+async def test_download_without_a_profile_is_audited_on_the_user(
+    session: AsyncSession,
+):
+    """A profile gone before the download leaves the row on the User instead."""
+    user = User(
+        email="noprofile@test.com",
+        hashed_password=get_password_hash("Secret1!"),  # pragma: allowlist secret
+        role=UserRole.CANDIDATE,
+        is_active=True,
+    )
+    session.add(user)
+    await session.flush()
+    record = DataExportRequest(
+        token_hash="h",
+        user_id=user.id,
+        download_path="exports/x.zip",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    session.add(record)
+    await session.flush()
+
+    await mark_export_downloaded(record, session, ip_address="203.0.113.3")
+    await session.commit()
+
+    assert record.used is True
+    [row] = await audit_rows("candidate.data_export_download")
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "User",
+        user.id,
+        user.id,
+    )
+    assert row.ip_address == "203.0.113.3"

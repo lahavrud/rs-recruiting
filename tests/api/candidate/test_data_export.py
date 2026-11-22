@@ -13,7 +13,7 @@ from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import get_password_hash, hash_token
 from rs_shared.enums import UserRole
 from rs_shared.models import CandidateProfile, DataExportRequest, User
-from tests.conftest import TestSessionLocal
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 async def _override_session():
@@ -111,7 +111,7 @@ async def test_get_export_streams_zip_and_marks_used(test_db):
     """Valid token → ZIP body returned and row.used flips to True."""
     raw_token = "valid-export-token"
     async with TestSessionLocal() as session:
-        user, _ = await _seed_candidate(session, "stream@test.com")
+        user, profile = await _seed_candidate(session, "stream@test.com")
         session.add(
             DataExportRequest(
                 token_hash=hash_token(raw_token),
@@ -146,6 +146,11 @@ async def test_get_export_streams_zip_and_marks_used(test_db):
             )
         ).scalar_one()
         assert record.used is True
+
+    # The candidate downloaded it, proven by the emailed token.
+    [row] = await audit_rows("candidate.data_export_download")
+    assert (row.target_type, row.target_id) == ("CandidateProfile", profile.id)
+    assert row.actor_user_id == user.id
 
 
 @pytest.mark.asyncio

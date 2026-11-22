@@ -71,6 +71,16 @@ export default function CandidateActivityPanel({ candidateId }: Props) {
         return t("admin:candidates.activity.actions.resumeRemove");
       case "candidate.data_export_request":
         return t("admin:candidates.activity.actions.dataExportRequest");
+      case "candidate.data_export_ready":
+        return t("admin:candidates.activity.actions.dataExportReady");
+      case "candidate.data_export_download":
+        return t("admin:candidates.activity.actions.dataExportDownload");
+      case "candidate.resume_view":
+        return t("admin:candidates.activity.actions.resumeView");
+      case "candidate.profile_update":
+        return t("admin:candidates.activity.actions.profileUpdate");
+      case "match.dismiss":
+        return t("admin:candidates.activity.actions.matchDismissed");
       case "account_deletion_requested":
         return t("admin:candidates.activity.actions.deletionRequested");
       case "account_deleted":
@@ -81,6 +91,10 @@ export default function CandidateActivityPanel({ candidateId }: Props) {
           : t("admin:candidates.activity.actions.applicationCreated");
       case "application.edit":
         return t("admin:candidates.activity.actions.applicationEdited");
+      case "application.delete":
+        return t("admin:candidates.activity.actions.applicationDeleted");
+      case "application.notes_update":
+        return t("admin:candidates.activity.actions.applicationNotesUpdated");
       default:
         return t("admin:candidates.activity.actions.unknown");
     }

@@ -8,13 +8,14 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_api.infrastructure.dependencies import get_current_user
+from rs_api.infrastructure.dependencies import client_ip, get_current_user
 from rs_api.infrastructure.limiter import get_limiter
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import hash_token
 from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.models import RefreshToken, User
 from rs_shared.schemas.auth import SessionRead
+from rs_shared.services.utils.audit import record_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,15 @@ async def revoke_session(
     # other sessions are not affected.
     async with transactional(session):
         await session.delete(token)
+        await record_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="user.session_revoke",
+            target_type="User",
+            target_id=current_user.id,  # pyright: ignore[reportArgumentType]
+            detail=f"session_id={session_id}",
+            ip_address=client_ip(request),
+        )
 
     logger.info(
         "session_revoked",
@@ -112,16 +122,22 @@ async def revoke_all_sessions(
 ) -> None:
     """Revoke all sessions for the current user (log out everywhere)."""
     async with transactional(session):
+        # rowcount of the DELETE itself: a separate SELECT could miss a session
+        # created between the two statements.
         result = await session.execute(
-            select(RefreshToken.id).where(
-                RefreshToken.user_id == current_user.id  # type: ignore[arg-type]
-            )
-        )
-        count = len(result.scalars().all())
-        await session.execute(
             sa_delete(RefreshToken).where(
                 RefreshToken.user_id == current_user.id  # type: ignore[arg-type]
             )
+        )
+        count = result.rowcount  # pyright: ignore[reportAttributeAccessIssue]
+        await record_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="user.session_revoke_all",
+            target_type="User",
+            target_id=current_user.id,  # pyright: ignore[reportArgumentType]
+            detail=f"count={count}",
+            ip_address=client_ip(request),
         )
 
     logger.info(

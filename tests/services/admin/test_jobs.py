@@ -22,6 +22,7 @@ from rs_shared.services.exceptions import (
     InvalidCursorError,
     JobNotFoundError,
 )
+from tests.conftest import audit_rows
 
 
 def _payload(company_id: int, title: str = "Backend Engineer") -> JobAdminCreate:
@@ -50,6 +51,21 @@ async def test_admin_create_job_published_by_default(
     assert job.id is not None
     assert job.status == JobStatus.PUBLISHED
     assert job.company_id == company_with_user.id
+
+
+@pytest.mark.asyncio
+async def test_admin_create_job_is_audited_with_its_status(
+    session: AsyncSession, company_with_user: CompanyProfile
+):
+    """The status shows a job that went live without the approval step."""
+    job = await admin_create_job(
+        _payload(company_with_user.id), session, actor_user_id=3
+    )
+    await session.commit()
+
+    [row] = await audit_rows("job.create")
+    assert (row.target_type, row.target_id, row.actor_user_id) == ("job", job.id, 3)
+    assert row.detail == "source=admin,status=PUBLISHED"
 
 
 @pytest.mark.asyncio
@@ -276,6 +292,13 @@ async def test_delete_job_cascades_applications_keeps_candidate(
         select(CandidateProfile).where(CandidateProfile.id == candidate.id)  # pyright: ignore[reportArgumentType]
     )
     assert candidate_row.scalar_one() is not None  # candidate survives
+
+    # Each cascaded application leaves its own delete row, tied to the candidate.
+    [row] = await _audit_rows(session, "application.delete")
+    assert row.detail == (
+        f"job_id={job_id},candidate_id={candidate.id},"
+        "status=PENDING_ADMIN_REVIEW,cause=job_delete"
+    )
 
 
 @pytest.mark.asyncio

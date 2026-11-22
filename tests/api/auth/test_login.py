@@ -10,7 +10,7 @@ from sqlalchemy import select
 from rs_api.main import app
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.models import User
-from tests.conftest import FAKE_PNG, TestSessionLocal
+from tests.conftest import FAKE_PNG, TestSessionLocal, audit_rows
 from tests.conftest import FAKE_SIG_B64 as _FAKE_SIG_B64
 
 FAKE_LOGO_FILE = ("logo.png", FAKE_PNG, "image/png")
@@ -25,7 +25,9 @@ async def override_get_session():
 
 
 @pytest.fixture(scope="function")
-async def client():
+async def client(test_db):
+    # test_db: these tests write real rows (users, audit rows under
+    # real_login_throttle); without it they'd leak into later tests.
     from rs_api.api.auth import login as auth
 
     auth.limiter.enabled = False
@@ -87,6 +89,15 @@ async def test_login_success(client: AsyncClient):
     assert "refresh_token" not in data  # delivered via HttpOnly cookie
     assert data["token_type"] == "bearer"
     assert response.cookies.get("refresh_token") is not None
+
+    # Every role's login is audited now, not only admins'.
+    [row] = [r for r in await audit_rows("user.login") if r.target_id == user.id]
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "User",
+        user.id,
+        user.id,
+    )
+    assert row.detail == "role=COMPANY"
 
 
 @pytest.mark.asyncio
@@ -311,3 +322,34 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
 
     records = [r for r in caplog.records if r.getMessage() == "login_failed"]
     assert records and records[0].ip == "203.0.113.68"
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_login_throttle
+async def test_wrong_password_on_real_account_is_audited_unknown_email_is_not(
+    client: AsyncClient,
+):
+    """authenticate_user passes the account id to the throttle write, end to end."""
+    await _create_active_user(client, "audited@example.com")
+    async with TestSessionLocal() as session:
+        user_id = (
+            await session.execute(
+                select(User.id).where(User.email == "audited@example.com")  # pyright: ignore[reportArgumentType]
+            )
+        ).scalar_one()
+
+    async with await _peer_client("203.0.113.69") as peer:
+        for email in ("audited@example.com", "nobody@example.com"):
+            resp = await peer.post(
+                "/auth/login", json={"email": email, "password": "WrongPass1!"}
+            )
+            assert resp.status_code == 401
+
+    # Scoped to this test's source IP: client-based tests in this file don't
+    # truncate before running, so earlier tests' rows can still be present.
+    rows = [
+        r
+        for r in await audit_rows("user.login_failed")
+        if r.ip_address == "203.0.113.69"
+    ]
+    assert [r.target_id for r in rows] == [user_id]

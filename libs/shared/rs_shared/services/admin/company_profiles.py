@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from rs_shared.core.infrastructure.database_helpers import get_by_id_or_raise
-from rs_shared.models import CompanyProfile
+from rs_shared.models import Application, CompanyProfile, Job
 from rs_shared.schemas import (
     CompanyProfileAdminCreate,
     CompanyProfileAdminUpdate,
@@ -23,6 +23,7 @@ from rs_shared.services.exceptions import (
     CompanyNotPendingError,
     EmailAlreadyExistsError,
 )
+from rs_shared.services.utils.application_audit import audit_application_deletes
 from rs_shared.services.utils.audit import (
     changed_fields,
     fields_detail,
@@ -43,7 +44,9 @@ async def get_company_profile(
 
 
 async def admin_create_company(
-    data: CompanyProfileAdminCreate, session: AsyncSession
+    data: CompanyProfileAdminCreate,
+    session: AsyncSession,
+    actor_user_id: int | None = None,
 ) -> CompanyProfileRead:
     """Create a CompanyProfile directly, without a user account.
 
@@ -64,11 +67,21 @@ async def admin_create_company(
     )
     session.add(profile)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="company.create",
+        target_type="CompanyProfile",
+        target_id=profile.id,  # pyright: ignore[reportArgumentType]
+        detail="source=admin",
+    )
     await session.refresh(profile)
     return CompanyProfileRead.model_validate(profile)
 
 
-async def delete_orphan_company_profile(profile_id: int, session: AsyncSession) -> None:
+async def delete_orphan_company_profile(
+    profile_id: int, session: AsyncSession, actor_user_id: int | None = None
+) -> None:
     """Delete an admin-created CompanyProfile that has no user account.
 
     Only deletes profiles with user_id=None (orphan profiles). Raises
@@ -94,8 +107,21 @@ async def delete_orphan_company_profile(profile_id: int, session: AsyncSession) 
             "use the company-user delete endpoint instead"
         )
 
+    await audit_application_deletes(
+        session,
+        Application.job_id.in_(select(Job.id).where(Job.company_id == profile_id)),  # pyright: ignore[reportAttributeAccessIssue,reportArgumentType]
+        actor_user_id=actor_user_id,
+        cause="company_delete",
+    )
     await session.delete(profile)
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="company.delete",
+        target_type="CompanyProfile",
+        target_id=profile_id,
+    )
 
 
 async def update_company_profile(

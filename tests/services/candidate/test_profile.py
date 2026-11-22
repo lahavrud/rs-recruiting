@@ -27,6 +27,14 @@ def _make_profile(**overrides) -> CandidateProfile:
     return CandidateProfile(**base)
 
 
+async def _run_post_commit_hooks() -> None:
+    """Run what the service deferred, as transactional() does after its commit."""
+    from rs_shared.core.infrastructure.transactions import _post_commit_hooks
+
+    for hook in _post_commit_hooks.get() or []:
+        await hook()
+
+
 def _make_session() -> AsyncMock:
     session = AsyncMock()
     # ``add`` is synchronous on a real AsyncSession (the audit helper calls it).
@@ -148,6 +156,10 @@ async def test_replace_resume_uploads_and_deletes_old_file():
     # The user's original filename is captured as the display label.
     assert profile.resume_filename == "new.pdf"
     storage.upload_file.assert_awaited_once()
+    # The old file goes only after the commit, so a rollback can't leave the
+    # profile pointing at a deleted file.
+    storage.delete_file.assert_not_called()
+    await _run_post_commit_hooks()
     storage.delete_file.assert_awaited_once_with("resumes/old.pdf")
 
 
@@ -235,6 +247,8 @@ async def test_remove_resume_clears_path_and_deletes_file():
 
     await remove_resume(profile, storage, _make_session())
     assert profile.resume_path is None
+    storage.delete_file.assert_not_called()  # deferred until after commit
+    await _run_post_commit_hooks()
     storage.delete_file.assert_awaited_once_with("resumes/keep.pdf")
 
 
@@ -302,5 +316,40 @@ async def test_remove_resume_without_a_resume_is_not_audited():
     session = _make_session()
 
     await remove_resume(profile, AsyncMock(), session, actor_user_id=3)
+
+    assert _audit_rows_added(session) == []
+
+
+@pytest.mark.asyncio
+async def test_apply_identity_patch_audits_changed_field_names_only():
+    profile = _make_profile(phone="050-000-0000")
+    profile.id = 7
+    session = _make_session()
+
+    await apply_identity_patch(
+        profile,
+        CandidateMeUpdate(full_name="New Name", phone="050-000-0000"),
+        session,
+        actor_user_id=3,
+        ip_address="203.0.113.9",
+    )
+
+    [row] = _audit_rows_added(session)
+    assert (row.action, row.target_type, row.target_id) == (
+        "candidate.profile_update",
+        "CandidateProfile",
+        7,
+    )
+    # phone was resent unchanged, so only full_name counts; no values stored.
+    assert row.detail == "fields=full_name"
+    assert (row.actor_user_id, row.ip_address) == (3, "203.0.113.9")
+
+
+@pytest.mark.asyncio
+async def test_apply_identity_patch_noop_is_not_audited():
+    profile = _make_profile(full_name="Same")
+    session = _make_session()
+
+    await apply_identity_patch(profile, CandidateMeUpdate(full_name="Same"), session)
 
     assert _audit_rows_added(session) == []

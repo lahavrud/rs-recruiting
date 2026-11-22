@@ -109,7 +109,7 @@ async def create_job(
     """
     try:
         async with transactional(session):
-            return await admin_create_job(data, session)
+            return await admin_create_job(data, session, actor_user_id=current_admin.id)
     except CompanyNotFoundError as e:
         raise service_exception_to_http(e) from e
 

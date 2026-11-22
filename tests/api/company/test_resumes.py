@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
+from rs_shared.models import CandidateProfile, User
+from tests.conftest import TestSessionLocal, audit_rows
+
 
 @pytest.mark.asyncio
 async def test_download_resume_requires_admin(public_client: AsyncClient):
@@ -91,3 +94,51 @@ async def test_download_resume_s3_proxies(admin_client: AsyncClient):
     assert response.content == fake_pdf
     assert response.headers["content-type"] == "application/pdf"
     assert received_keys == ["resumes/abc123.pdf"]
+
+
+@pytest.mark.asyncio
+async def test_download_resume_audits_the_view(
+    admin_client: AsyncClient,
+    admin_user: User,
+    candidate_profile: CandidateProfile,
+    tmp_path: Path,
+):
+    """A served resume leaves a view row on its candidate."""
+    async with TestSessionLocal() as s:
+        profile = await s.get(CandidateProfile, candidate_profile.id)
+        assert profile is not None
+        profile.resume_path = "resumes/seen.pdf"
+        await s.commit()
+    (tmp_path / "resumes").mkdir()
+    (tmp_path / "resumes" / "seen.pdf").write_bytes(b"%PDF-1.4 x")
+    mock_settings = MagicMock()
+    mock_settings.storage_provider = "local"
+    mock_settings.local_storage_path = str(tmp_path)
+
+    with patch("rs_api.api._resume_streaming.settings", mock_settings):
+        response = await admin_client.get("/api/resumes/seen.pdf")
+
+    assert response.status_code == 200
+    [row] = await audit_rows("candidate.resume_view")
+    assert (row.target_id, row.actor_user_id) == (candidate_profile.id, admin_user.id)
+
+
+@pytest.mark.asyncio
+async def test_download_resume_missing_file_is_not_audited(
+    admin_client: AsyncClient, candidate_profile: CandidateProfile, tmp_path: Path
+):
+    """A 404 is not a view, even when a profile points at the key."""
+    async with TestSessionLocal() as s:
+        profile = await s.get(CandidateProfile, candidate_profile.id)
+        assert profile is not None
+        profile.resume_path = "resumes/gone.pdf"
+        await s.commit()
+    mock_settings = MagicMock()
+    mock_settings.storage_provider = "local"
+    mock_settings.local_storage_path = str(tmp_path)
+
+    with patch("rs_api.api._resume_streaming.settings", mock_settings):
+        response = await admin_client.get("/api/resumes/gone.pdf")
+
+    assert response.status_code == 404
+    assert await audit_rows("candidate.resume_view") == []

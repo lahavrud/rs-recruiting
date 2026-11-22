@@ -8,10 +8,12 @@ from rs_shared.models import CompanyProfile
 from rs_shared.schemas import CompanyProfileAdminCreate, CompanyProfileAdminUpdate
 from rs_shared.services.admin.company_profiles import (
     admin_create_company,
+    delete_orphan_company_profile,
     get_company_profile,
     update_company_profile,
 )
 from rs_shared.services.exceptions import CompanyNotFoundError
+from tests.conftest import audit_rows
 
 
 def _admin_create_payload(name: str = "אדמין-קומפ") -> CompanyProfileAdminCreate:
@@ -92,15 +94,6 @@ async def test_update_company_profile_not_found(session: AsyncSession):
 # ── audit ─────────────────────────────────────────────────────────────────────
 
 
-async def _audit_rows(session: AsyncSession, action: str) -> list:
-    from rs_shared.models import AuditLog
-
-    rows = await session.execute(
-        select(AuditLog).where(AuditLog.action == action)  # pyright: ignore[reportArgumentType]
-    )
-    return list(rows.scalars().all())
-
-
 @pytest.mark.asyncio
 async def test_update_company_profile_audits_changed_field_names(
     session: AsyncSession,
@@ -115,11 +108,11 @@ async def test_update_company_profile_audits_changed_field_names(
     )
     await session.commit()
 
-    [row] = await _audit_rows(session, "company.profile_update")
+    [row] = await audit_rows("company.profile_update")
     assert (row.target_type, row.target_id) == ("CompanyProfile", created.id)
     assert row.detail == "fields=name"
     # No user attached, so no login-email event.
-    assert await _audit_rows(session, "user.email_change") == []
+    assert await audit_rows("user.email_change") == []
 
 
 @pytest.mark.asyncio
@@ -132,7 +125,7 @@ async def test_update_company_profile_noop_writes_no_audit(session: AsyncSession
     )
     await session.commit()
 
-    assert await _audit_rows(session, "company.profile_update") == []
+    assert await audit_rows("company.profile_update") == []
 
 
 @pytest.mark.asyncio
@@ -151,7 +144,7 @@ async def test_update_company_contact_email_audits_login_email_change(
     )
     await session.commit()
 
-    [email_row] = await _audit_rows(session, "user.email_change")
+    [email_row] = await audit_rows("user.email_change")
     assert (email_row.target_type, email_row.target_id) == (
         "User",
         company_with_user.user_id,
@@ -159,7 +152,33 @@ async def test_update_company_contact_email_audits_login_email_change(
     assert email_row.actor_user_id == 4242
     assert email_row.detail == "source=admin_company_profile"
 
-    [profile_row] = await _audit_rows(session, "company.profile_update")
+    [profile_row] = await audit_rows("company.profile_update")
     assert profile_row.detail == "fields=contact_email"
     for row in (email_row, profile_row):
         assert "@" not in (row.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_admin_create_company_is_audited(session: AsyncSession):
+    profile = await admin_create_company(_admin_create_payload(), session, 7)
+    await session.commit()
+
+    [row] = await audit_rows("company.create")
+    assert (row.target_type, row.target_id) == ("CompanyProfile", profile.id)
+    assert (row.actor_user_id, row.detail) == (7, "source=admin")
+
+
+@pytest.mark.asyncio
+async def test_delete_orphan_company_profile_is_audited(session: AsyncSession):
+    profile = await admin_create_company(_admin_create_payload(), session)
+    await session.commit()
+
+    await delete_orphan_company_profile(profile.id, session, actor_user_id=7)
+    await session.commit()
+
+    [row] = await audit_rows("company.delete")
+    assert (row.target_type, row.target_id, row.actor_user_id) == (
+        "CompanyProfile",
+        profile.id,
+        7,
+    )

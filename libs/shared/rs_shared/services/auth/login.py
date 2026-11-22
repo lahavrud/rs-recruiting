@@ -59,7 +59,7 @@ async def authenticate_user(
         raise InvalidCredentialsError("Incorrect email or password")
 
     if not is_password_valid(password, user.hashed_password):
-        await login_throttle.record_login_failure(email, client_ip)
+        await login_throttle.record_login_failure(email, client_ip, user_id=user.id)
         raise InvalidCredentialsError("Incorrect email or password")
 
     if not user.is_active:

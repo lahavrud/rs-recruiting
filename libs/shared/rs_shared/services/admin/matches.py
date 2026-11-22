@@ -201,11 +201,13 @@ async def dismiss_match(
     score: float,
     admin_id: int,
     session: AsyncSession,
+    ip_address: str | None = None,
 ) -> None:
     """Record an admin decision to dismiss a match suggestion.
 
     Inserts a DISMISSED MatchSuggestion so the pair is permanently excluded
-    from the feed on subsequent loads.
+    from the feed on subsequent loads. Audited on the candidate only when the
+    decision is new, so a repeated dismiss adds no row.
     """
     existing_suggestion = (
         await session.execute(
@@ -228,7 +230,18 @@ async def dismiss_match(
     elif existing_suggestion.status != MatchSuggestionStatus.DISMISSED:
         existing_suggestion.status = MatchSuggestionStatus.DISMISSED
         existing_suggestion.acted_by_admin_id = admin_id
+    else:
+        return
     await session.flush()
+    await record_audit_event(
+        session,
+        actor_user_id=admin_id,
+        action="match.dismiss",
+        target_type="CandidateProfile",
+        target_id=candidate_id,
+        detail=f"job_id={job_id}",
+        ip_address=ip_address,
+    )
 
 
 async def get_hot_applications(
