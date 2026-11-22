@@ -1,15 +1,64 @@
 import api from "@/services/api";
-import type { LoginRequest, TokenResponse, UserWithCompanyRead } from "@/types/auth";
+import type {
+  LoginRequest,
+  LoginResponse,
+  MfaEnrolmentConfirm,
+  MfaEnrolmentStart,
+  MfaRecoveryCodes,
+  MfaSecondFactor,
+  MfaStatus,
+  TokenResponse,
+  UserWithCompanyRead,
+} from "@/types/auth";
 import type { InviteMetadataPublic } from "@/types/invites";
 import { getToken, removeToken, setToken } from "@/utils/token";
 
-export async function login(credentials: LoginRequest): Promise<TokenResponse> {
+export async function login(credentials: LoginRequest): Promise<LoginResponse> {
   // withCredentials required cross-origin so the browser stores the Set-Cookie
   // refresh_token from the response (same reasoning as refreshTokens below).
-  const response = await api.post<TokenResponse>("/auth/login", credentials, {
+  // An MFA user gets no token here, only the challenge for verifyMfa.
+  const response = await api.post<LoginResponse>("/auth/login", credentials, {
     withCredentials: true,
   });
+  if (response.data.access_token) setToken(response.data.access_token);
+  return response.data;
+}
+
+/** Finish an MFA login: the challenge from login() plus a code. */
+export async function verifyMfa(
+  mfaToken: string,
+  factor: MfaSecondFactor,
+): Promise<LoginResponse> {
+  const response = await api.post<LoginResponse>(
+    "/auth/mfa/verify",
+    { mfa_token: mfaToken, ...factor },
+    { withCredentials: true },
+  );
+  if (response.data.access_token) setToken(response.data.access_token);
+  return response.data;
+}
+
+export async function startMfaEnrolment(): Promise<MfaEnrolmentStart> {
+  const response = await api.post<MfaEnrolmentStart>("/auth/mfa/enrol/start");
+  return response.data;
+}
+
+/** Confirm enrolment; stores the returned token (its `mfa` claim is now true). */
+export async function confirmMfaEnrolment(code: string): Promise<MfaEnrolmentConfirm> {
+  const response = await api.post<MfaEnrolmentConfirm>("/auth/mfa/enrol/confirm", {
+    code,
+  });
   setToken(response.data.access_token);
+  return response.data;
+}
+
+export async function regenerateRecoveryCodes(code: string): Promise<MfaRecoveryCodes> {
+  const response = await api.post<MfaRecoveryCodes>("/auth/mfa/recovery-codes", { code });
+  return response.data;
+}
+
+export async function getMfaStatus(): Promise<MfaStatus> {
+  const response = await api.get<MfaStatus>("/auth/mfa/status");
   return response.data;
 }
 

@@ -68,12 +68,14 @@ async def record_audit_event_best_effort(
     action: str,
     target_type: str,
     target_id: int,
+    detail: str | None = None,
     ip_address: str | None = None,
 ) -> None:
     """Audit a security action without letting the audit write undo it.
 
     For the writers that commit their own session alongside a security control
-    (the refresh-token nuke on replay, the failed-login throttle count): the
+    (the refresh-token nuke on replay, the failed-login throttle count, the
+    MFA wrong-code lock): the
     row goes in a SAVEPOINT, so if it fails only the row is lost and logged,
     and the caller's commit still applies the control.
     """
@@ -85,6 +87,7 @@ async def record_audit_event_best_effort(
                 action=action,
                 target_type=target_type,
                 target_id=target_id,
+                detail=detail,
                 ip_address=ip_address,
             )
     except Exception:

@@ -172,13 +172,15 @@ Guards live in `components/guards/` — always import from there.
 
 | Condition | Shell |
 |---|---|
-| `/`, auth pages (`/login`, `/register`, …), `/admin/applications/triage` | Bare |
+| `/`, auth pages (`/login`, `/register`, …), `/admin/applications/triage`, `/admin/mfa-setup` | Bare |
 | Authenticated (any role) | Header + Sidebar + `bg-page` |
 | Unauthenticated (public) | `PublicHeader` + `bg-page` |
 
 `/admin/applications/triage` is bare because it renders `fixed inset-0`; the
 authenticated shell's `page-enter` `transform` would create a containing block
-and clip the overlay.
+and clip the overlay. `/admin/mfa-setup` is bare so no nav can leave the
+one-time recovery codes behind; it also holds Back until they're saved
+(`BrowserRouter` has no `useBlocker`).
 
 `/jobs/*` always renders the public shell regardless of auth state.
 

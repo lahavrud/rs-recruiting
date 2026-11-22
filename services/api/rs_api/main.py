@@ -50,6 +50,7 @@ from rs_api.api.auth import (
 from rs_api.api.auth import (
     login as auth,
 )
+from rs_api.api.auth import mfa as auth_mfa
 from rs_api.api.auth import sessions as auth_sessions
 from rs_api.api.candidate import account_deletion as candidate_account_deletion
 from rs_api.api.candidate import applications as candidate_applications
@@ -198,6 +199,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
+    # Lock responses say how long they last; readable cross-origin too.
+    expose_headers=["Retry-After"],
 )
 
 # CloudFront origin verification — registered last so it runs OUTERMOST
@@ -217,6 +220,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(auth_sessions.router)
+app.include_router(auth_mfa.router)
 app.include_router(registration.router)
 app.include_router(candidate_registration.router)
 app.include_router(activation.router)

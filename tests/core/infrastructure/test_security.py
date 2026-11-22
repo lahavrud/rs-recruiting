@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 import jwt
+import pytest
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key, settings
 from rs_shared.core.infrastructure.security import (
@@ -234,3 +235,29 @@ class TestBcryptByteLimit:
         )
 
         assert BCRYPT_MAX_PASSWORD_BYTES == SCHEMA_LIMIT == 72
+
+
+# ── MFA secret encryption ────────────────────────────────────────────────────
+
+
+def test_mfa_secret_round_trips_and_hides_plaintext():
+    from rs_shared.core.infrastructure.security import (
+        decrypt_mfa_secret,
+        encrypt_mfa_secret,
+    )
+
+    ciphertext = encrypt_mfa_secret("JBSWY3DPEHPK3PXP")
+    assert "JBSWY3DPEHPK3PXP" not in ciphertext
+    assert decrypt_mfa_secret(ciphertext) == "JBSWY3DPEHPK3PXP"
+
+
+def test_mfa_secret_under_another_key_is_undecryptable():
+    from unittest.mock import patch as _patch
+
+    from rs_shared.core.infrastructure import security
+
+    with _patch.object(security.settings, "mfa_encryption_key", "k" * 40):
+        ciphertext = security.encrypt_mfa_secret("JBSWY3DPEHPK3PXP")
+    with _patch.object(security.settings, "mfa_encryption_key", "z" * 40):
+        with pytest.raises(ValueError, match="mfa_secret_undecryptable"):
+            security.decrypt_mfa_secret(ciphertext)

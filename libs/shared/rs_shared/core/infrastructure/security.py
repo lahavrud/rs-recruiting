@@ -1,11 +1,14 @@
 """Security utilities for password hashing and JWT tokens."""
 
+import base64
 import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import bcrypt
 import jwt
+from cryptography.fernet import Fernet, InvalidToken
 from jwt import InvalidTokenError
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key, settings
@@ -84,3 +87,54 @@ def create_refresh_token(*, remember_me: bool = False) -> tuple[str, str, dateti
     ttl = REFRESH_TTL_LONG if remember_me else _REFRESH_TTL_SHORT
     expires_at = datetime.now(timezone.utc) + ttl
     return raw, hash_token(raw), expires_at
+
+
+# ── MFA secret encryption ────────────────────────────────────────────────────
+
+
+def _mfa_subkey(label: bytes) -> bytes:
+    """A 32-byte key for one MFA purpose, derived from MFA_ENCRYPTION_KEY.
+
+    The setting is any 32+ char random string (Tofu's random_password); HMAC
+    with a per-purpose label gives independent keys for the secret encryption
+    and the recovery-code hashes. Outside prod/staging (validate_settings
+    requires the real key there) an unset key falls back to one derived from
+    the JWT secret, labelled so the two never coincide.
+    """
+    raw = settings.mfa_encryption_key or f"mfa-dev-fallback:{get_jwt_secret_key()}"
+    return hmac.new(raw.encode("utf-8"), label, hashlib.sha256).digest()
+
+
+def _mfa_fernet() -> Fernet:
+    return Fernet(base64.urlsafe_b64encode(_mfa_subkey(b"totp-secret-encryption")))
+
+
+def hash_mfa_recovery_code(normalized_code: str) -> str:
+    """Keyed hash of a recovery code for storage.
+
+    A plain SHA-256 of a ~50-bit code can be brute-forced offline from a DB
+    dump in hours; keyed with a secret that lives in SSM (not the DB), a dump
+    alone is useless.
+    """
+    return hmac.new(
+        _mfa_subkey(b"recovery-code-hash"),
+        normalized_code.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def encrypt_mfa_secret(secret: str) -> str:
+    """Encrypt a TOTP secret for storage (authenticated, so tampering fails)."""
+    return _mfa_fernet().encrypt(secret.encode("utf-8")).decode("ascii")
+
+
+def decrypt_mfa_secret(token: str) -> str:
+    """Decrypt a stored TOTP secret.
+
+    Raises ``ValueError`` if the ciphertext was written under another key (the
+    key was rotated) or altered: the user must be reset and re-enrol.
+    """
+    try:
+        return _mfa_fernet().decrypt(token.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        raise ValueError("mfa_secret_undecryptable") from exc

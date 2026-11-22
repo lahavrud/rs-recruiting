@@ -4,7 +4,9 @@ Role-agnostic. Distinct from the forgot-password flow:
 * this requires the existing session's access token AND the user's current
   password (defense against session-hijack-then-takeover);
 * it revokes every refresh token except the current one, so leaked
-  credentials can no longer ride parallel sessions.
+  credentials can no longer ride parallel sessions;
+* it clears the MFA code lock and pending login challenges (see
+  ``_mfa_lockout.reset_mfa_lock``).
 """
 
 import logging
@@ -19,6 +21,7 @@ from rs_shared.core.infrastructure.security import (
     is_password_valid,
 )
 from rs_shared.models import RefreshToken, User
+from rs_shared.services.auth._mfa_lockout import reset_mfa_lock
 from rs_shared.services.exceptions import InvalidCredentialsError
 from rs_shared.services.utils.audit import record_audit_event
 
@@ -75,6 +78,9 @@ async def change_user_password(
             RefreshToken.token_hash != hash_token(current_refresh_token)
         )
     await session.execute(query)
+    # The old password's MFA lock and pending code steps die with it.
+    assert persisted.id is not None
+    await reset_mfa_lock(session, persisted.id)
 
     await record_audit_event(
         session,

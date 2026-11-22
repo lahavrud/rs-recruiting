@@ -411,3 +411,17 @@ def build_account_deletion_confirmation_html(confirm_url: str) -> str:
         preheader="קיבלנו בקשה למחיקת חשבונכם. לחצו לאישור — הפעולה בלתי הפיכה.",
         confirm_url=confirm_url,
     )
+
+
+def build_mfa_security_notice_html(
+    *, title: str, message: str, occurred_at: str, ip: str | None
+) -> str:
+    return _render(
+        "mfa_security_notice.html",
+        subject=f"{title} — RS Recruiting",
+        preheader=message,
+        title=title,
+        message=message,
+        occurred_at=occurred_at,
+        ip=ip,
+    )

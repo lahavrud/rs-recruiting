@@ -3621,6 +3621,45 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LoginResponse": {
+        "description": "Login response: tokens, or the start of the second-factor step.\n\nFor a user with MFA on, a correct password returns ``mfa_required=True``\nand a short-lived ``mfa_token`` instead of an access token, and no refresh\ncookie is set; ``POST /auth/mfa/verify`` completes the login.",
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
+          },
+          "mfa_required": {
+            "default": false,
+            "title": "Mfa Required",
+            "type": "boolean"
+          },
+          "mfa_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Token"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "title": "LoginResponse",
+        "type": "object"
+      },
       "MatchSuggestionActionRequest": {
         "description": "Request body for push/dismiss actions on an AI match suggestion.",
         "properties": {
@@ -3643,6 +3682,146 @@
           "score"
         ],
         "title": "MatchSuggestionActionRequest",
+        "type": "object"
+      },
+      "MfaCodeRequest": {
+        "description": "A current 6-digit TOTP code.",
+        "properties": {
+          "code": {
+            "maxLength": 8,
+            "minLength": 6,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "MfaCodeRequest",
+        "type": "object"
+      },
+      "MfaEnrolmentConfirmResponse": {
+        "description": "MFA is on: recovery codes (shown once) + an access token whose\n``mfa`` claim reflects it.",
+        "properties": {
+          "access_token": {
+            "title": "Access Token",
+            "type": "string"
+          },
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          },
+          "token_type": {
+            "default": "bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recovery_codes",
+          "access_token"
+        ],
+        "title": "MfaEnrolmentConfirmResponse",
+        "type": "object"
+      },
+      "MfaEnrolmentStartResponse": {
+        "description": "A pending TOTP secret: the QR is rendered client-side from the URI.",
+        "properties": {
+          "otpauth_uri": {
+            "title": "Otpauth Uri",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "otpauth_uri"
+        ],
+        "title": "MfaEnrolmentStartResponse",
+        "type": "object"
+      },
+      "MfaRecoveryCodesResponse": {
+        "description": "A fresh set of recovery codes; the old ones no longer work.",
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "MfaRecoveryCodesResponse",
+        "type": "object"
+      },
+      "MfaStatusResponse": {
+        "description": "The caller's MFA state, for the profile page.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "recovery_codes_remaining": {
+            "title": "Recovery Codes Remaining",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "recovery_codes_remaining"
+        ],
+        "title": "MfaStatusResponse",
+        "type": "object"
+      },
+      "MfaVerifyRequest": {
+        "description": "The code step of a login: the challenge plus exactly one of the codes.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "minLength": 6,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "mfa_token": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Mfa Token",
+            "type": "string"
+          },
+          "recovery_code": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "minLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Code"
+          }
+        },
+        "required": [
+          "mfa_token"
+        ],
+        "title": "MfaVerifyRequest",
         "type": "object"
       },
       "MyApplicationInfo": {
@@ -8356,7 +8535,7 @@
     },
     "/auth/login": {
       "post": {
-        "description": "Login \u2014 access token in body, refresh token in HttpOnly cookie.",
+        "description": "Login \u2014 access token in body, refresh token in HttpOnly cookie.\n\nFor a user with MFA on, a correct password returns ``mfa_required`` and a\n5-minute ``mfa_token`` instead (no cookie); ``POST /auth/mfa/verify``\nfinishes the login.",
         "operationId": "login_auth_login_post",
         "requestBody": {
           "content": {
@@ -8373,7 +8552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AccessTokenResponse"
+                  "$ref": "#/components/schemas/LoginResponse"
                 }
               }
             },
@@ -8451,6 +8630,196 @@
           }
         ],
         "summary": "Change Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/enrol/confirm": {
+      "post": {
+        "description": "Confirm enrolment with a code: MFA on, recovery codes, other sessions out.\n\nReturns a fresh access token for the same session, no re-login needed.",
+        "operationId": "enrol_confirm_auth_mfa_enrol_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrolmentConfirmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enrol Confirm",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/enrol/start": {
+      "post": {
+        "description": "Issue a pending TOTP secret (QR rendered client-side from the URI).",
+        "operationId": "enrol_start_auth_mfa_enrol_start_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrolmentStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Enrol Start",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/recovery-codes": {
+      "post": {
+        "description": "Replace the recovery codes (requires a current code).",
+        "operationId": "new_recovery_codes_auth_mfa_recovery_codes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaRecoveryCodesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "New Recovery Codes",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/status": {
+      "get": {
+        "description": "MFA on/off and how many recovery codes are left.",
+        "operationId": "get_status_auth_mfa_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/verify": {
+      "post": {
+        "description": "Finish a login: challenge + TOTP (or a recovery code) \u2192 tokens.",
+        "operationId": "verify_auth_mfa_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify",
         "tags": [
           "auth"
         ]

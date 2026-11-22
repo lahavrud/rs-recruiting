@@ -211,6 +211,7 @@ async def test_refresh_returns_new_tokens(client: AsyncClient):
     # Access token may be identical if issued within the same second (no JTI);
     # what matters is that the refresh-token cookie is rotated.
     assert response.cookies.get("refresh_token") != old_refresh_cookie  # rotated
+    assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.asyncio

@@ -10,8 +10,13 @@ import {
 
 import * as Sentry from "@sentry/react";
 
-import { login as loginService, logout as logoutService, refreshTokens } from "@/services/auth";
-import type { LoginRequest } from "@/types/auth";
+import {
+  login as loginService,
+  logout as logoutService,
+  refreshTokens,
+  verifyMfa,
+} from "@/services/auth";
+import type { JwtPayload, LoginRequest, MfaSecondFactor } from "@/types/auth";
 import type { UserRole } from "@/types/enums";
 import { getToken, inspectToken, removeToken } from "@/utils/token";
 
@@ -19,7 +24,12 @@ export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
+  /** From the token's `mfa` claim; routes an unenrolled admin to setup. */
+  mfaEnabled?: boolean;
 }
+
+/** `null` = logged in. An MFA user gets the challenge for the code step. */
+export type LoginOutcome = { mfaToken: string } | null;
 
 export interface AuthContextType {
   user: AuthUser | null;
@@ -30,19 +40,24 @@ export interface AuthContextType {
   /** True while logout is in progress. Route guards render null instead of
    *  redirecting so the page-replacement completes without a /login flash. */
   isLoggingOut: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<LoginOutcome>;
+  /** Second step of an MFA login. */
+  completeMfaLogin: (mfaToken: string, factor: MfaSecondFactor) => Promise<void>;
+  /** Re-read the stored access token (after MFA enrolment replaced it). */
+  refreshUserFromToken: () => void;
   logout: () => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-function payloadToUser(payload: {
-  sub: string;
-  email: string;
-  role: UserRole;
-}): AuthUser {
-  return { id: payload.sub, email: payload.email, role: payload.role };
+function payloadToUser(payload: JwtPayload): AuthUser {
+  return {
+    id: payload.sub,
+    email: payload.email,
+    role: payload.role,
+    mfaEnabled: payload.mfa === true,
+  };
 }
 
 /**
@@ -139,17 +154,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const login = useCallback(async (credentials: LoginRequest) => {
-    const response = await loginService(credentials);
-    const inspection = inspectToken(response.access_token);
-
-    if (inspection.status !== "valid") {
+  const adoptToken = useCallback((accessToken: string | null | undefined) => {
+    const inspection = accessToken ? inspectToken(accessToken) : null;
+    if (!inspection || inspection.status !== "valid") {
       logoutService();
       throw new Error("Authentication failed: invalid access token");
     }
-
     setUser(payloadToUser(inspection.payload));
   }, []);
+
+  const login = useCallback(
+    async (credentials: LoginRequest): Promise<LoginOutcome> => {
+      const response = await loginService(credentials);
+      if (response.mfa_required && response.mfa_token) {
+        return { mfaToken: response.mfa_token };
+      }
+      adoptToken(response.access_token);
+      return null;
+    },
+    [adoptToken],
+  );
+
+  const completeMfaLogin = useCallback(
+    async (mfaToken: string, factor: MfaSecondFactor) => {
+      const response = await verifyMfa(mfaToken, factor);
+      adoptToken(response.access_token);
+    },
+    [adoptToken],
+  );
+
+  const refreshUserFromToken = useCallback(() => {
+    adoptToken(getToken());
+  }, [adoptToken]);
 
   const logout = useCallback(() => {
     // Set isLoggingOut first so route guards render null instead of redirecting to
@@ -172,9 +208,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isInitializing,
       isLoggingOut,
       login,
+      completeMfaLogin,
+      refreshUserFromToken,
       logout,
     }),
-    [user, isInitializing, isLoggingOut, login, logout],
+    [user, isInitializing, isLoggingOut, login, completeMfaLogin, refreshUserFromToken, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

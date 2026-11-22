@@ -11,6 +11,15 @@ export type TokenResponse = Schemas["AccessTokenResponse"];
 export type UserRead = Schemas["UserRead"];
 export type CompanyProfileRead = Schemas["CompanyProfileRead"];
 export type UserWithCompanyRead = Schemas["UserWithCompanyRead"];
+/** Login: tokens, or `mfa_required` + `mfa_token` for the code step. */
+export type LoginResponse = Schemas["LoginResponse"];
+export type MfaEnrolmentStart = Schemas["MfaEnrolmentStartResponse"];
+export type MfaEnrolmentConfirm = Schemas["MfaEnrolmentConfirmResponse"];
+export type MfaRecoveryCodes = Schemas["MfaRecoveryCodesResponse"];
+export type MfaStatus = Schemas["MfaStatusResponse"];
+
+/** The second factor for a login: a TOTP code or a recovery code. */
+export type MfaSecondFactor = { code: string } | { recovery_code: string };
 
 export interface LoginRequest {
   email: string;
@@ -24,6 +33,8 @@ export interface JwtPayload {
   email: string;
   role: UserRole;
   exp: number;
+  /** MFA enrolled. A UI hint only: the backend enforces it on every request. */
+  mfa?: boolean;
 }
 
 /** Company fields nested in the register request body — not a standalone backend

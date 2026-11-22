@@ -1,4 +1,11 @@
-import { useState, type ChangeEvent, type FocusEvent, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type FormEvent,
+} from "react";
 
 import axios from "axios";
 import { useTranslation } from "react-i18next";
@@ -9,9 +16,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { resendCandidateActivation } from "@/services/auth";
 import { errorAlertCls, INPUT_CLS } from "@/styles/forms";
 import { apiErrorKey } from "@/utils/apiError";
+import { retryAfterMinutes } from "@/utils/mfa";
 import { EMAIL_RE } from "@/utils/validators";
 
 import AuthShell from "./components/AuthShell";
+import MfaCodeStep, { type MfaRestartReason } from "./components/MfaCodeStep";
 
 export default function LoginPage() {
   const { t } = useTranslation('auth');
@@ -35,6 +44,16 @@ export default function LoginPage() {
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">(
     "idle",
   );
+  // Set after a correct password for an MFA user: the code step replaces the form.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  // Back from the code step: refocus the password once its form has remounted.
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const shouldFocusPasswordRef = useRef(false);
+  useEffect(() => {
+    if (mfaToken !== null || !shouldFocusPasswordRef.current) return;
+    shouldFocusPasswordRef.current = false;
+    passwordRef.current?.focus();
+  }, [mfaToken]);
 
   async function handleResendActivation() {
     if (!pendingActivationEmail || resendState === "sending") return;
@@ -83,6 +102,17 @@ export default function LoginPage() {
     if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: "" }));
   }
 
+  function handleMfaRestart(reason: MfaRestartReason, minutes?: number | null) {
+    setMfaToken(null);
+    setPassword("");
+    shouldFocusPasswordRef.current = true;
+    if (reason === "expired") setError(t("auth:login.mfa.errors.expired"));
+    else if (reason === "locked" && minutes)
+      setError(t("auth:login.mfa.errors.lockedFor", { count: minutes }));
+    else if (reason === "locked") setError(t("auth:login.mfa.errors.locked"));
+    else setError(null);
+  }
+
   if (isInitializing) return null;
   if (isAuthenticated) return <Navigate to={from} replace />;
 
@@ -94,7 +124,11 @@ export default function LoginPage() {
     if (!validateForm()) return;
     setIsSubmitting(true);
     try {
-      await login({ email, password, remember_me: isRememberMeChecked });
+      const outcome = await login({ email, password, remember_me: isRememberMeChecked });
+      if (outcome) {
+        setMfaToken(outcome.mfaToken);
+        return;
+      }
       navigate(from, { replace: true });
     } catch (err) {
       const status = axios.isAxiosError(err) ? err.response?.status : undefined;
@@ -111,7 +145,12 @@ export default function LoginPage() {
           setError(t("auth:login.errors.loginFailed"));
         }
       } else if (status === 429) {
-        setError(t(apiErrorKey(err, { 429: "auth:login.errors.tooManyAttempts" })));
+        const minutes = retryAfterMinutes(err);
+        setError(
+          minutes
+            ? t("auth:login.errors.tooManyAttemptsFor", { count: minutes })
+            : t(apiErrorKey(err, { 429: "auth:login.errors.tooManyAttempts" })),
+        );
       } else if (status !== undefined) {
         setError(t("auth:login.errors.loginFailed"));
       } else {
@@ -134,115 +173,128 @@ export default function LoginPage() {
           </h1>
         </div>
 
-        <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
-          {error && (
-            <div className={errorAlertCls}>
-              {error}
-              {pendingActivationEmail && (
-                <div className="mt-2 text-xs text-white/60">
-                  {resendState === "sent" ? (
-                    <span>{t("auth:login.resendActivation.sent")}</span>
-                  ) : resendState === "error" ? (
-                    <span>{t("auth:login.resendActivation.error")}</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleResendActivation}
-                      disabled={resendState === "sending"}
-                      className="text-copper underline transition hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {resendState === "sending"
-                        ? t("auth:login.resendActivation.sending")
-                        : t("auth:login.resendActivation.cta")}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+        {mfaToken ? (
+          <MfaCodeStep
+            mfaToken={mfaToken}
+            email={email}
+            onDone={() => navigate(from, { replace: true })}
+            onRestart={handleMfaRestart}
+          />
+        ) : (
+          <form className="space-y-5 px-6 sm:px-8" onSubmit={handleSubmit}>
+            {error && (
+              <div role="alert" className={errorAlertCls}>
+                {error}
+                {pendingActivationEmail && (
+                  <div className="mt-2 text-xs text-white/60">
+                    {resendState === "sent" ? (
+                      <span>{t("auth:login.resendActivation.sent")}</span>
+                    ) : resendState === "error" ? (
+                      <span>{t("auth:login.resendActivation.error")}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResendActivation}
+                        disabled={resendState === "sending"}
+                        className="text-copper underline transition hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {resendState === "sending"
+                          ? t("auth:login.resendActivation.sending")
+                          : t("auth:login.resendActivation.cta")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm text-white/50">
-                {t("auth:login.emailLabel")}
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={handleEmailChange}
-                onBlur={handleBlur}
-                className={`mt-1 ${INPUT_CLS}`}
-                placeholder={t("auth:login.emailPlaceholder")}
-                autoComplete="email"
-              />
-              {fieldErrors.email && (
-                <p className="mt-1 text-xs text-danger">{fieldErrors.email}</p>
-              )}
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm text-white/50">
+                  {t("auth:login.emailLabel")}
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={handleEmailChange}
+                  onBlur={handleBlur}
+                  className={`mt-1 ${INPUT_CLS}`}
+                  placeholder={t("auth:login.emailPlaceholder")}
+                  autoComplete="email"
+                />
+                {fieldErrors.email && (
+                  <p className="mt-1 text-xs text-danger">{fieldErrors.email}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm text-white/50">
+                  {t("auth:login.passwordLabel")}
+                </label>
+                <input
+                  ref={passwordRef}
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={handlePasswordChange}
+                  onBlur={handleBlur}
+                  className={`mt-1 ${INPUT_CLS}`}
+                  placeholder={t("auth:login.passwordPlaceholder")}
+                  autoComplete="current-password"
+                />
+                {fieldErrors.password && (
+                  <p className="mt-1 text-xs text-danger">{fieldErrors.password}</p>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm text-white/50">
-                {t("auth:login.passwordLabel")}
-              </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-white/50">
               <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={handlePasswordChange}
-                onBlur={handleBlur}
-                className={`mt-1 ${INPUT_CLS}`}
-                placeholder={t("auth:login.passwordPlaceholder")}
-                autoComplete="current-password"
+                type="checkbox"
+                checked={isRememberMeChecked}
+                onChange={(e) => setIsRememberMeChecked(e.target.checked)}
+                className="h-4 w-4 cursor-pointer rounded border-white/20 bg-well accent-copper"
               />
-              {fieldErrors.password && (
-                <p className="mt-1 text-xs text-danger">{fieldErrors.password}</p>
-              )}
-            </div>
+              {t("auth:login.rememberMe")}
+            </label>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isSubmitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
+            </button>
+          </form>
+        )}
+
+        {/* On the code step the password is behind the user: no reset or signup. */}
+        {!mfaToken && (
+          <div className="space-y-2 px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
+            <p>
+              <Link
+                to="/forgot-password"
+                className="text-copper transition hover:text-gold"
+              >
+                {t("auth:login.forgotPasswordLink")}
+              </Link>
+            </p>
+            <p>
+              {t("auth:login.candidateSignupPrompt")}{" "}
+              <Link
+                to="/register-candidate"
+                className="text-copper transition hover:text-gold"
+              >
+                {t("auth:login.candidateSignupLink")}
+              </Link>
+            </p>
           </div>
-
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-white/50">
-            <input
-              type="checkbox"
-              checked={isRememberMeChecked}
-              onChange={(e) => setIsRememberMeChecked(e.target.checked)}
-              className="h-4 w-4 cursor-pointer rounded border-white/20 bg-well accent-copper"
-            />
-            {t("auth:login.rememberMe")}
-          </label>
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-sm bg-copper px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gold focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isSubmitting ? t("auth:login.submittingText") : t("auth:login.submitText")}
-          </button>
-        </form>
-
-        <div className="space-y-2 px-6 pb-8 text-center text-sm text-white/35 sm:px-8">
-          <p>
-            <Link
-              to="/forgot-password"
-              className="text-copper transition hover:text-gold"
-            >
-              {t("auth:login.forgotPasswordLink")}
-            </Link>
-          </p>
-          <p>
-            {t("auth:login.candidateSignupPrompt")}{" "}
-            <Link
-              to="/register-candidate"
-              className="text-copper transition hover:text-gold"
-            >
-              {t("auth:login.candidateSignupLink")}
-            </Link>
-          </p>
-        </div>
+        )}
       </div>
     </AuthShell>
   );

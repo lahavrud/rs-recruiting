@@ -49,6 +49,7 @@ These principles guide all architectural decisions:
 - JWT access token in `localStorage`; HttpOnly refresh-token cookie set by backend
 - `AuthContext` resolves initial state synchronously from `localStorage`, then verifies via `/api/auth/me` on mount
 - Failed-login throttling per (email, client IP) with capped exponential backoff (`login_throttle` table); never a per-account lock, so an attacker can't lock the owner out. (the old `User` lockout columns are gone, #1186)
+- Admin accounts require TOTP two-factor auth (#1177): no token before the code step; enforcement from the DB on every request (`get_current_admin` reads `user_mfa`, `get_current_user` requires an MFA user's session to be `mfa_verified`); a per-account lock on wrong codes; encrypted secrets and keyed recovery-code hashes (key in SSM); owner emails on every MFA change; break-glass via `docs/runbooks/mfa-reset.md`. Rules: `.claude/rules/auth.md`.
 - Password reset: `POST /api/auth/forgot-password` → email link → `POST /api/auth/reset-password`
 
 **Related Issues:**

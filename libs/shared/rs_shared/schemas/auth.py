@@ -10,6 +10,7 @@ from pydantic import (
     EmailStr,
     Field,
     field_validator,
+    model_validator,
 )
 
 from rs_shared.enums import UserRole
@@ -66,6 +67,69 @@ class AccessTokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class LoginResponse(BaseModel):
+    """Login response: tokens, or the start of the second-factor step.
+
+    For a user with MFA on, a correct password returns ``mfa_required=True``
+    and a short-lived ``mfa_token`` instead of an access token, and no refresh
+    cookie is set; ``POST /auth/mfa/verify`` completes the login.
+    """
+
+    access_token: str | None = None
+    token_type: str = "bearer"
+    mfa_required: bool = False
+    mfa_token: str | None = None
+
+
+class MfaEnrolmentStartResponse(BaseModel):
+    """A pending TOTP secret: the QR is rendered client-side from the URI."""
+
+    secret: str
+    otpauth_uri: str
+
+
+class MfaCodeRequest(BaseModel):
+    """A current 6-digit TOTP code."""
+
+    code: str = Field(min_length=6, max_length=8)
+
+
+class MfaEnrolmentConfirmResponse(BaseModel):
+    """MFA is on: recovery codes (shown once) + an access token whose
+    ``mfa`` claim reflects it."""
+
+    recovery_codes: list[str]
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MfaRecoveryCodesResponse(BaseModel):
+    """A fresh set of recovery codes; the old ones no longer work."""
+
+    recovery_codes: list[str]
+
+
+class MfaStatusResponse(BaseModel):
+    """The caller's MFA state, for the profile page."""
+
+    enabled: bool
+    recovery_codes_remaining: int
+
+
+class MfaVerifyRequest(BaseModel):
+    """The code step of a login: the challenge plus exactly one of the codes."""
+
+    mfa_token: str = Field(min_length=1, max_length=128)
+    code: str | None = Field(default=None, min_length=6, max_length=8)
+    recovery_code: str | None = Field(default=None, min_length=10, max_length=16)
+
+    @model_validator(mode="after")
+    def _exactly_one_code(self) -> "MfaVerifyRequest":
+        if (self.code is None) == (self.recovery_code is None):
+            raise ValueError("send exactly one of code / recovery_code")
+        return self
 
 
 class TokenResponse(BaseModel):

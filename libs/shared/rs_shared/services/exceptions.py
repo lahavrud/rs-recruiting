@@ -67,6 +67,38 @@ class AccountLockedError(AuthError):
         )
 
 
+class InvalidMfaCodeError(AuthError):
+    """A TOTP or recovery code was wrong, replayed, or malformed."""
+
+    pass
+
+
+class MfaChallengeExpiredError(AuthError):
+    """The login's code step is unknown, expired or used up; start over."""
+
+    pass
+
+
+class MfaLockedError(AuthError):
+    """Too many wrong login codes for this account (from any address)."""
+
+    def __init__(self, minutes_remaining: int) -> None:
+        self.minutes_remaining = minutes_remaining
+        super().__init__(f"Too many wrong codes. Try again in {minutes_remaining} min.")
+
+
+class MfaAlreadyEnabledError(AuthError):
+    """Enrolment was requested for a user who already has MFA on."""
+
+    pass
+
+
+class MfaNotEnrolledError(AuthError):
+    """An MFA action needs an enrolment (pending or enabled) that isn't there."""
+
+    pass
+
+
 class CompanyNotFoundError(Exception):
     """Raised when a company user is not found."""
 

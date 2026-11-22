@@ -51,6 +51,29 @@ class TestValidateSettings:
             with pytest.raises(ValueError, match="JWT_SECRET_KEY must be set"):
                 validate_settings()
 
+    @pytest.mark.parametrize("key", [None, "short"])
+    def test_validate_settings_prod_requires_mfa_key(self, key):
+        """Deployed envs must encrypt TOTP secrets with a real key (#1177)."""
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
+            mock_settings.testing = False
+            mock_settings.jwt_secret_key = "a" * 32
+            mock_settings.environment = "prod"
+            mock_settings.mfa_encryption_key = key
+
+            with pytest.raises(ValueError, match="MFA_ENCRYPTION_KEY"):
+                validate_settings()
+
+    def test_validate_settings_prod_accepts_mfa_key(self):
+        with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:
+            mock_settings.testing = False
+            mock_settings.jwt_secret_key = "a" * 32
+            mock_settings.environment = "prod"
+            mock_settings.mfa_encryption_key = "m" * 64
+            mock_settings.email_provider = "smtp"
+            mock_settings.frontend_base_url = "https://rs-recruiting.com"
+
+            validate_settings()
+
     def test_validate_settings_testing_mode_skips_validation(self):
         """Test that testing mode skips validation."""
         with patch("rs_shared.core.infrastructure.config.settings") as mock_settings:

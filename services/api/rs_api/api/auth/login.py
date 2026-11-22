@@ -13,8 +13,12 @@ from rs_shared.core.infrastructure.config import settings
 from rs_shared.core.infrastructure.database import get_session
 from rs_shared.core.infrastructure.security import REFRESH_TTL_LONG
 from rs_shared.core.infrastructure.transactions import transactional
+from rs_shared.models import User
 from rs_shared.schemas import AccessTokenResponse, LoginRequest
+from rs_shared.schemas.auth import LoginResponse
 from rs_shared.services.auth.login import authenticate_user
+from rs_shared.services.auth.mfa import is_mfa_enabled
+from rs_shared.services.auth.mfa_challenge import create_challenge
 from rs_shared.services.auth.session import (
     create_user_tokens,
     logout_user,
@@ -82,15 +86,68 @@ def _clear_refresh_cookie(response: Response) -> None:
     )
 
 
-@router.post("/login", response_model=AccessTokenResponse)
+async def issue_session(
+    request: Request,
+    response: Response,
+    session: AsyncSession,
+    user: User,
+    *,
+    remember_me: bool,
+    mfa_verified: bool = False,
+) -> str:
+    """Issue the access token + refresh cookie for a fully authenticated user.
+
+    The only place a login (password, plus the code step for MFA users) turns
+    into tokens, so ``login_success`` and the ``user.login`` audit always mean
+    "got in", never "passed the password step". ``mfa_verified`` only from the
+    code step: an MFA user's session without it is refused everywhere.
+    """
+    ip = client_ip(request)
+    logger.info(
+        "login_success",
+        extra={"user_id": str(user.id), "role": user.role.value, "ip": ip},
+    )
+
+    raw_ua = request.headers.get("user-agent", "")
+    ua = raw_ua[:512] or None
+
+    async with transactional(session):
+        access_token, refresh_token = await create_user_tokens(
+            user,
+            session,
+            remember_me=remember_me,
+            user_agent=ua,
+            mfa_verified=mfa_verified,
+        )
+        await record_audit_event(
+            session,
+            actor_user_id=user.id,
+            action="user.login",
+            target_type="User",
+            target_id=user.id,  # pyright: ignore[reportArgumentType]
+            detail=f"role={user.role.value}",
+            ip_address=ip,
+        )
+
+    _set_refresh_cookie(response, refresh_token, remember_me=remember_me)
+    response.headers["Cache-Control"] = "no-store"
+    return access_token
+
+
+@router.post("/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 async def login(
     request: Request,
     response: Response,
     login_data: LoginRequest,
     session: AsyncSession = Depends(get_session),
-) -> AccessTokenResponse:
-    """Login — access token in body, refresh token in HttpOnly cookie."""
+) -> LoginResponse:
+    """Login — access token in body, refresh token in HttpOnly cookie.
+
+    For a user with MFA on, a correct password returns ``mfa_required`` and a
+    5-minute ``mfa_token`` instead (no cookie); ``POST /auth/mfa/verify``
+    finishes the login.
+    """
     ip = client_ip(request)
     try:
         user = await authenticate_user(
@@ -105,30 +162,20 @@ async def login(
     ) as e:
         raise service_exception_to_http(e) from e
 
-    logger.info(
-        "login_success",
-        extra={"user_id": str(user.id), "role": user.role.value, "ip": ip},
+    assert user.id is not None
+    if await is_mfa_enabled(session, user.id):
+        async with transactional(session):
+            mfa_token = await create_challenge(
+                session, user, remember_me=login_data.remember_me
+            )
+        logger.info("login_mfa_challenge_issued", extra={"user_id": user.id, "ip": ip})
+        response.headers["Cache-Control"] = "no-store"
+        return LoginResponse(mfa_required=True, mfa_token=mfa_token)
+
+    access_token = await issue_session(
+        request, response, session, user, remember_me=login_data.remember_me
     )
-
-    raw_ua = request.headers.get("user-agent", "")
-    ua = raw_ua[:512] or None
-
-    async with transactional(session):
-        access_token, refresh_token = await create_user_tokens(
-            user, session, remember_me=login_data.remember_me, user_agent=ua
-        )
-        await record_audit_event(
-            session,
-            actor_user_id=user.id,
-            action="user.login",
-            target_type="User",
-            target_id=user.id,  # pyright: ignore[reportArgumentType]
-            detail=f"role={user.role.value}",
-            ip_address=ip,
-        )
-
-    _set_refresh_cookie(response, refresh_token, remember_me=login_data.remember_me)
-    return AccessTokenResponse(access_token=access_token)
+    return LoginResponse(access_token=access_token)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
@@ -159,6 +206,7 @@ async def refresh(
         raise service_exception_to_http(e) from e
 
     _set_refresh_cookie(response, new_refresh_token, remember_me=remember_me)
+    response.headers["Cache-Control"] = "no-store"
     return AccessTokenResponse(access_token=access_token)
 
 

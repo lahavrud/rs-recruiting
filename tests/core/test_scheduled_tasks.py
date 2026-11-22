@@ -1,5 +1,6 @@
 """Tests for the nightly cleanup and admin digest tasks (core/scheduled_tasks.py)."""
 
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -83,6 +84,10 @@ def _patch_all_subtasks_returning(counts: dict[str, int]):
             f"{base}.maintenance.purge_expired_login_throttle",
             new=AsyncMock(return_value=counts.get("purge_login_throttle", 0)),
         ),
+        patch(
+            f"{base}.maintenance.purge_stale_mfa_rows",
+            new=AsyncMock(return_value=counts.get("purge_mfa", 0)),
+        ),
     ]
 
 
@@ -111,6 +116,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     outbox_redacted_counter = MagicMock()
     outbox_purged_counter = MagicMock()
     login_throttle_counter = MagicMock()
+    mfa_counter = MagicMock()
     gauge = MagicMock()
 
     counts = {
@@ -122,50 +128,54 @@ async def test_nightly_cleanup_records_otel_metrics():
         "redact_email_outbox": 6,
         "purge_email_outbox": 8,
         "purge_login_throttle": 9,
+        "purge_mfa": 10,
     }
     s_patch, t_patch = _patch_session_noop()
-    p0, p1, p2, p3, p4, p5, p6, p7 = _patch_all_subtasks_returning(counts)
-    with (
-        p0,
-        p1,
-        p2,
-        p3,
-        p4,
-        p5,
-        p6,
-        p7,
-        s_patch,
-        t_patch,
-        patch("rs_shared.core.scheduled_tasks._purged_counter", purged_counter),
-        patch(
-            "rs_shared.core.scheduled_tasks._unactivated_users_counter",
-            unactivated_counter,
-        ),
-        patch("rs_shared.core.scheduled_tasks._export_zips_counter", export_counter),
-        patch(
-            "rs_shared.core.scheduled_tasks._deletion_tokens_counter", deletion_counter
-        ),
-        patch(
-            "rs_shared.core.scheduled_tasks._activation_tokens_counter",
-            activation_counter,
-        ),
-        patch(
-            "rs_shared.core.scheduled_tasks._outbox_redacted_counter",
-            outbox_redacted_counter,
-        ),
-        patch(
-            "rs_shared.core.scheduled_tasks._outbox_purged_counter",
-            outbox_purged_counter,
-        ),
-        patch(
-            "rs_shared.core.scheduled_tasks._login_throttle_purged_counter",
-            login_throttle_counter,
-        ),
-        patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge", gauge),
-        patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
-    ):
-        mock_settings.environment = "production"
-        result = await nightly_cleanup_task()
+    # Sub-task patches go through an ExitStack: one `with` holding them all
+    # plus the counters exceeds Python's limit of 20 nested blocks.
+    with ExitStack() as subtasks:
+        for p in _patch_all_subtasks_returning(counts):
+            subtasks.enter_context(p)
+        with (
+            s_patch,
+            t_patch,
+            patch("rs_shared.core.scheduled_tasks._purged_counter", purged_counter),
+            patch(
+                "rs_shared.core.scheduled_tasks._unactivated_users_counter",
+                unactivated_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._export_zips_counter", export_counter
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._deletion_tokens_counter",
+                deletion_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._activation_tokens_counter",
+                activation_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._outbox_redacted_counter",
+                outbox_redacted_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._outbox_purged_counter",
+                outbox_purged_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._login_throttle_purged_counter",
+                login_throttle_counter,
+            ),
+            patch(
+                "rs_shared.core.scheduled_tasks._mfa_purged_counter",
+                mfa_counter,
+            ),
+            patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge", gauge),
+            patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
+        ):
+            mock_settings.environment = "production"
+            result = await nightly_cleanup_task()
 
     attrs = {"environment": "production"}
     assert result["purge_expired_candidates"] == 3
@@ -178,6 +188,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     outbox_redacted_counter.add.assert_called_once_with(6, attrs)
     outbox_purged_counter.add.assert_called_once_with(8, attrs)
     login_throttle_counter.add.assert_called_once_with(9, attrs)
+    mfa_counter.add.assert_called_once_with(10, attrs)
     gauge.set.assert_called_once()
 
 
@@ -189,54 +200,37 @@ async def test_nightly_cleanup_continues_after_subtask_failure():
     failing = AsyncMock(side_effect=RuntimeError("DB error"))
     succeeding = AsyncMock(return_value=7)
 
-    with (
-        patch(
-            "rs_shared.services.admin._candidates_purge.purge_expired_candidates",
-            new=failing,
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_unactivated_candidate_users",
-            new=succeeding,
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_expired_data_export_zips",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_expired_account_deletion_tokens",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_expired_activation_tokens",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.redact_expired_email_outbox",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_expired_email_outbox",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "rs_shared.services.admin.maintenance.purge_expired_login_throttle",
-            new=AsyncMock(return_value=0),
-        ),
-        s_patch,
-        t_patch,
-        patch("rs_shared.core.scheduled_tasks._purged_counter"),
-        patch("rs_shared.core.scheduled_tasks._unactivated_users_counter"),
-        patch("rs_shared.core.scheduled_tasks._export_zips_counter"),
-        patch("rs_shared.core.scheduled_tasks._deletion_tokens_counter"),
-        patch("rs_shared.core.scheduled_tasks._activation_tokens_counter"),
-        patch("rs_shared.core.scheduled_tasks._outbox_redacted_counter"),
-        patch("rs_shared.core.scheduled_tasks._outbox_purged_counter"),
-        patch("rs_shared.core.scheduled_tasks._login_throttle_purged_counter"),
-        patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge"),
-        patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
-    ):
-        mock_settings.environment = "test"
-        result = await nightly_cleanup_task()
+    # Every sub-task returns 0 by default (ExitStack: see the test above);
+    # the first two are then overridden with a failing and a succeeding one.
+    with ExitStack() as subtasks:
+        for p in _patch_all_subtasks_returning({}):
+            subtasks.enter_context(p)
+        with (
+            patch(
+                "rs_shared.services.admin._candidates_purge.purge_expired_candidates",
+                new=failing,
+            ),
+            patch(
+                "rs_shared.services.admin.maintenance."
+                "purge_unactivated_candidate_users",
+                new=succeeding,
+            ),
+            s_patch,
+            t_patch,
+            patch("rs_shared.core.scheduled_tasks._purged_counter"),
+            patch("rs_shared.core.scheduled_tasks._unactivated_users_counter"),
+            patch("rs_shared.core.scheduled_tasks._export_zips_counter"),
+            patch("rs_shared.core.scheduled_tasks._deletion_tokens_counter"),
+            patch("rs_shared.core.scheduled_tasks._activation_tokens_counter"),
+            patch("rs_shared.core.scheduled_tasks._outbox_redacted_counter"),
+            patch("rs_shared.core.scheduled_tasks._outbox_purged_counter"),
+            patch("rs_shared.core.scheduled_tasks._login_throttle_purged_counter"),
+            patch("rs_shared.core.scheduled_tasks._mfa_purged_counter"),
+            patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge"),
+            patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
+        ):
+            mock_settings.environment = "test"
+            result = await nightly_cleanup_task()
 
     # A failed sub-task records None — distinct from 0, which means "ran and
     # purged nothing". Succeeding sub-tasks still return their count.

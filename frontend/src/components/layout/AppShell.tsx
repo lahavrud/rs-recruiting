@@ -8,6 +8,7 @@ import Logo from "@/components/ui/Logo";
 import Toaster from "@/components/ui/Toaster";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { useAuth } from "@/hooks/useAuth";
+import { MFA_SETUP_PATH } from "@/services/api";
 
 import Header from "./Header";
 import Sidebar from "./Sidebar";
@@ -371,7 +372,10 @@ function ShellContent({ children }: Props) {
     // so a signed-in candidate confirms deletion inside the dashboard chrome —
     // sidebar, and a "log out" button, wrapped around a full-screen auth card.
     pathname === "/candidate/delete-account" ||
-    pathname === "/admin/applications/triage"
+    pathname === "/admin/applications/triage" ||
+    // The forced MFA enrolment is a gate, not a page among others: no nav
+    // that could leave the one-time recovery codes behind (#1177).
+    pathname === MFA_SETUP_PATH
   ) {
     return <>{children}</>;
   }

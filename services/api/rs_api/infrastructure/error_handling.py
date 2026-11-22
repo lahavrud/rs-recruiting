@@ -30,6 +30,7 @@ from rs_shared.services.exceptions import (
     InvalidCredentialsError,
     InvalidCursorError,
     InvalidInviteTokenError,
+    InvalidMfaCodeError,
     InvalidPasswordResetTokenError,
     InviteAlreadyRevokedError,
     InviteNotFoundError,
@@ -40,6 +41,10 @@ from rs_shared.services.exceptions import (
     JobNotOwnedByCompanyError,
     JobNotPendingError,
     JobNotPublishedError,
+    MfaAlreadyEnabledError,
+    MfaChallengeExpiredError,
+    MfaLockedError,
+    MfaNotEnrolledError,
     PendingActivationError,
     PendingApprovalError,
 )
@@ -77,6 +82,12 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     PendingActivationError: status.HTTP_401_UNAUTHORIZED,
     # Too many requests (429)
     AccountLockedError: status.HTTP_429_TOO_MANY_REQUESTS,
+    # Second factor
+    InvalidMfaCodeError: status.HTTP_401_UNAUTHORIZED,
+    MfaChallengeExpiredError: status.HTTP_401_UNAUTHORIZED,
+    MfaLockedError: status.HTTP_429_TOO_MANY_REQUESTS,
+    MfaAlreadyEnabledError: status.HTTP_409_CONFLICT,
+    MfaNotEnrolledError: status.HTTP_409_CONFLICT,
     # Bad request errors (400)
     InvalidInviteTokenError: status.HTTP_400_BAD_REQUEST,
     InviteAlreadyRevokedError: status.HTTP_400_BAD_REQUEST,
@@ -125,6 +136,12 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     PendingActivationError: "account_pending_activation",
     # Lockout
     AccountLockedError: "account_locked",
+    # Second factor
+    InvalidMfaCodeError: "invalid_mfa_code",
+    MfaChallengeExpiredError: "mfa_challenge_expired",
+    MfaLockedError: "mfa_locked",
+    MfaAlreadyEnabledError: "mfa_already_enabled",
+    MfaNotEnrolledError: "mfa_not_enrolled",
     # Invite lifecycle
     InvalidInviteTokenError: "invalid_invite_token",
     InviteAlreadyRevokedError: "invite_revoked",
@@ -155,4 +172,8 @@ def service_exception_to_http(
     exc_type = type(exception)
     status_code = EXCEPTION_STATUS_MAP.get(exc_type, default_status)
     code = EXCEPTION_CODE_MAP.get(exc_type, "internal_error")
-    return HTTPException(status_code=status_code, detail=code)
+    headers = None
+    if isinstance(exception, (AccountLockedError, MfaLockedError)):
+        # Lets the client say how long the lock lasts (RFC 9110 Retry-After).
+        headers = {"Retry-After": str(exception.minutes_remaining * 60)}
+    return HTTPException(status_code=status_code, detail=code, headers=headers)

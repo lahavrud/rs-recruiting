@@ -29,6 +29,8 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.42.0,<2",
     "opentelemetry-instrumentation-sqlalchemy>=0.63b0,<1",
     "opentelemetry-instrumentation-logging>=0.63b0,<1",
+    "pyotp>=2.9",
+    "cryptography>=46",
 ]
 
 [build-system]

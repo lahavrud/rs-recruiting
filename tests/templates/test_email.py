@@ -4,6 +4,7 @@ from rs_shared.templates.email import (
     build_admin_application_digest_html,
     build_approval_html,
     build_invite_html,
+    build_mfa_security_notice_html,
 )
 
 
@@ -59,3 +60,12 @@ def test_build_admin_application_digest_html_lists_jobs_and_overflow():
     assert "ועוד 11" in html
     assert "ועוד 0" not in html
     assert "https://rs.test/login?redirect=/admin/applications" in html
+
+
+def test_build_mfa_security_notice_html_escapes_and_shows_ip():
+    html = build_mfa_security_notice_html(
+        title="כותרת", message="<b>x</b>", occurred_at="21/11/2026 10:00", ip="1.2.3.4"
+    )
+    assert 'dir="rtl"' in html and "כותרת" in html
+    assert "&lt;b&gt;x&lt;/b&gt;" in html
+    assert "21/11/2026 10:00" in html and "1.2.3.4" in html

@@ -256,9 +256,15 @@ def _login_throttle_uses_test_db(request):
     throttling itself opt in with ``@pytest.mark.real_login_throttle`` (rows
     are wiped by the ``test_db`` TRUNCATE).
     """
-    from rs_shared.services.auth import login_throttle
+    from rs_shared.services.auth import _mfa_lockout, login_throttle, mfa_challenge
 
-    with patch.object(login_throttle, "_session_factory", lambda: TestSessionLocal):
+    with (
+        patch.object(login_throttle, "_session_factory", lambda: TestSessionLocal),
+        # The MFA code step reserves attempts and counts wrong codes through
+        # its own sessions too.
+        patch.object(mfa_challenge, "_session_factory", lambda: TestSessionLocal),
+        patch.object(_mfa_lockout, "_session_factory", lambda: TestSessionLocal),
+    ):
         if request.node.get_closest_marker("real_login_throttle"):
             yield
             return

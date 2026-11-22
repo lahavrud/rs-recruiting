@@ -61,6 +61,10 @@ _login_throttle_purged_counter = _meter.create_counter(
     description="Stale login_throttle rows deleted by the nightly cleanup",
     unit="1",
 )
+_mfa_purged_counter = _meter.create_counter(
+    name="purged_mfa_rows",
+    description="Expired MFA challenges and abandoned enrolments deleted nightly",
+)
 _last_purge_ran_gauge = _meter.create_gauge(
     name="last_purge_ran_at",
     description="Unix timestamp of the last successful nightly cleanup run",
@@ -71,7 +75,7 @@ _last_purge_ran_gauge = _meter.create_gauge(
 async def nightly_cleanup_task() -> dict:
     """Nightly data-hygiene dispatcher.
 
-    Runs eight independent sub-tasks in sequence; a failure in one does not
+    Runs nine independent sub-tasks in sequence; a failure in one does not
     abort the rest. Each sub-task is wrapped in its own transaction.
 
     Triggered nightly by EventBridge Scheduler → SQS (message task key:
@@ -87,6 +91,7 @@ async def nightly_cleanup_task() -> dict:
         purge_expired_data_export_zips,
         purge_expired_email_outbox,
         purge_expired_login_throttle,
+        purge_stale_mfa_rows,
         purge_unactivated_candidate_users,
         redact_expired_email_outbox,
     )
@@ -126,6 +131,7 @@ async def nightly_cleanup_task() -> dict:
     results["purge_login_throttle"] = await _run(
         "purge_login_throttle", purge_expired_login_throttle
     )
+    results["purge_mfa"] = await _run("purge_mfa", purge_stale_mfa_rows)
 
     attrs_env = {"environment": settings.environment}
     _purged_counter.add(results["purge_expired_candidates"] or 0, attrs_env)
@@ -136,6 +142,7 @@ async def nightly_cleanup_task() -> dict:
     _outbox_redacted_counter.add(results["redact_email_outbox"] or 0, attrs_env)
     _outbox_purged_counter.add(results["purge_email_outbox"] or 0, attrs_env)
     _login_throttle_purged_counter.add(results["purge_login_throttle"] or 0, attrs_env)
+    _mfa_purged_counter.add(results["purge_mfa"] or 0, attrs_env)
     if any(v is not None for v in results.values()):
         _last_purge_ran_gauge.set(time.time(), attrs_env)
 
