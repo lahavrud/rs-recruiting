@@ -538,6 +538,7 @@
         "applicationCreated": "הגיש/ה מועמדות",
         "applicationPushed": "הוגשה מועמדות על ידי מנהל מתוך התאמות",
         "applicationEdited": "עדכן/ה פרטי מועמדות",
+        "applicationDeleted": "המועמדות נמחקה",
         "resumeReplace": "העלה/תה קורות חיים חדשים",
         "resumeRemove": "הסיר/ה את קורות החיים",
         "dataExportRequest": "ביקש/ה עותק של המידע האישי",

@@ -30,6 +30,7 @@ from rs_shared.core.infrastructure.pagination import (
     MAX_LIMIT,
     CursorPage,
 )
+from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.core.services.storage import get_storage_provider
 from rs_shared.models import CandidateProfile, User
 from rs_shared.schemas import (
@@ -139,22 +140,23 @@ async def edit_application(
 
     user, profile = current
     try:
-        return await edit_my_application(
-            session,
-            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
-            application_id=application_id,
-            data=ApplicationEditData(
-                service_concept=service_concept,
-                salary_expectations=salary_expectations,
-                strength=strength,
-                growth_area=growth_area,
-                resume_bytes=resume_bytes,
-                resume_filename=resume_filename,
-            ),
-            actor_user_id=user.id,
-            ip_address=client_ip(request),
-            storage=get_storage_provider(),
-        )
+        async with transactional(session):
+            return await edit_my_application(
+                session,
+                candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
+                application_id=application_id,
+                data=ApplicationEditData(
+                    service_concept=service_concept,
+                    salary_expectations=salary_expectations,
+                    strength=strength,
+                    growth_area=growth_area,
+                    resume_bytes=resume_bytes,
+                    resume_filename=resume_filename,
+                ),
+                actor_user_id=user.id,
+                ip_address=client_ip(request),
+                storage=get_storage_provider(),
+            )
     except ApplicationNotFoundError as exc:
         raise service_exception_to_http(exc) from exc
     except ApplicationNotEditableError as exc:
@@ -175,13 +177,14 @@ async def withdraw_application(
     """Withdraw the application — only allowed when ``status == NEW``."""
     user, profile = current
     try:
-        await withdraw_my_application(
-            session,
-            candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
-            application_id=application_id,
-            actor_user_id=user.id,  # type: ignore[arg-type]
-            ip_address=client_ip(request),
-        )
+        async with transactional(session):
+            await withdraw_my_application(
+                session,
+                candidate_id=profile.id,  # type: ignore[arg-type]  # model id is int | None pre-flush; always set once persisted
+                application_id=application_id,
+                actor_user_id=user.id,  # type: ignore[arg-type]
+                ip_address=client_ip(request),
+            )
     except ApplicationNotFoundError as exc:
         raise service_exception_to_http(exc) from exc
     except ApplicationNotEditableError as exc:

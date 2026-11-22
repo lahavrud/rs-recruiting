@@ -38,6 +38,7 @@ from rs_shared.services.exceptions import (
     CandidateAlreadyDeletedError,
     CandidateNotFoundError,
 )
+from rs_shared.services.utils.application_audit import deleted_application_ids
 from rs_shared.services.utils.audit import record_audit_event
 from rs_shared.services.utils.candidate_profiles import scrub_candidate_pii
 
@@ -165,7 +166,12 @@ async def list_candidate_activity(
             ),
             and_(
                 AuditLog.target_type == "Application",  # pyright: ignore[reportArgumentType]
-                AuditLog.target_id.in_(application_ids),  # pyright: ignore[reportArgumentType]
+                or_(
+                    AuditLog.target_id.in_(application_ids),  # pyright: ignore[reportArgumentType]
+                    # Deleted applications are gone from Application; their
+                    # delete rows still tie them to this candidate.
+                    AuditLog.target_id.in_(deleted_application_ids(candidate_id)),  # pyright: ignore[reportArgumentType]
+                ),
             ),
         )
     )

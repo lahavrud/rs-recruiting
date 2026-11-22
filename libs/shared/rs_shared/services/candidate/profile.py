@@ -169,9 +169,10 @@ async def replace_resume(
     profile.resume_hash = hashlib.sha256(content).hexdigest()
 
     if old_key and old_key != new_key:
-        # Best-effort cleanup — leaving a stale file behind is preferable
-        # to blocking the candidate's update on a storage outage.
-        await delete_file_best_effort(storage, old_key, logger)
+        # Best-effort and after commit: a stale file is preferable to blocking
+        # the update on a storage outage, and to a rolled-back row that still
+        # points at a file already deleted.
+        defer_after_commit(lambda: delete_file_best_effort(storage, old_key, logger))
 
     await record_audit_event(
         session,
@@ -216,7 +217,13 @@ async def remove_resume(
     profile.parsed_text = None
     profile.embedding = None
     if old_key:
-        await delete_file_best_effort(storage, old_key, logger, context="remove_resume")
+        # After commit, so a rollback never leaves the row pointing at a
+        # deleted file.
+        defer_after_commit(
+            lambda: delete_file_best_effort(
+                storage, old_key, logger, context="remove_resume"
+            )
+        )
         await record_audit_event(
             session,
             actor_user_id=actor_user_id,
