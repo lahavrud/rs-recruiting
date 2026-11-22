@@ -16,7 +16,7 @@ Failed logins are throttled per **(email, client IP)** in the `login_throttle` t
 - The throttle writes through its own session; in tests its writes are stubbed unless the test is marked `@pytest.mark.real_login_throttle`.
 
 ## Audit rows
-Every login writes `user.login`; a wrong password on a real account writes `user.login_failed` inside the throttle's own transaction (stubbed with it in tests); refresh-token replay writes `user.session_replay` inside the nuke's session. Those two own-session rows use `record_audit_event_best_effort` (a SAVEPOINT): an audit failure must never undo the nuke or the throttle count. Unknown emails get no row, and no row ever holds an email.
+Every login writes `user.login`; a wrong password on a real account writes `user.login_failed` inside the throttle's own transaction (stubbed with it in tests); refresh-token replay writes `user.session_replay` inside the nuke's session; a wrong MFA code writes `mfa_verify_failed` inside the lock count's session. Those own-session rows use `record_audit_event_best_effort` (a SAVEPOINT): an audit failure must never undo the nuke or the throttle count. Unknown emails get no row, and no row ever holds an email.
 - The old `user.failed_login_attempts` / `locked_until` columns are no longer mapped on `User`; the migration that drops them ships one release later (#1186), because the deploy migrates before old tasks stop selecting them.
 
 ## Two-factor auth (TOTP, admins)

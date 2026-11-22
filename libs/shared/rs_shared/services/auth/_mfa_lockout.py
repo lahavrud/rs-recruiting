@@ -26,7 +26,7 @@ from rs_shared.models import MfaChallenge, UserMfa
 from rs_shared.services.auth import login_throttle
 from rs_shared.services.auth._mfa_notify import MfaEvent, notify_mfa_event
 from rs_shared.services.exceptions import MfaLockedError
-from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.audit import record_audit_event_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,8 @@ async def record_failed_code(
                     .where(UserMfa.user_id == user_id)  # pyright: ignore[reportArgumentType]
                     .values(locked_until=now + locked_for)
                 )
-            await record_audit_event(
+            # Best effort: a failed audit write must not undo the lock count.
+            await record_audit_event_best_effort(
                 fail_session,
                 actor_user_id=user_id,
                 action="mfa_verify_failed",

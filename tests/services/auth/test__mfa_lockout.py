@@ -1,6 +1,7 @@
 """Tests for the per-account lock on wrong login codes."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select, update
@@ -140,3 +141,21 @@ async def test_reset_mfa_lock_clears_lock_and_pending_challenges(
     row = await session.get(UserMfa, admin_user.id)
     assert row is not None and row.failed_attempts == 0 and row.locked_until is None
     assert (await session.execute(select(MfaChallenge))).first() is None
+
+
+async def test_a_failed_audit_write_keeps_the_lock_count(
+    session: AsyncSession, admin_user: User
+):
+    await _mfa_row(session, admin_user, LOCK_FREE_FAILURES - 1)
+    assert admin_user.id is not None
+    with patch(
+        "rs_shared.services.utils.audit.record_audit_event",
+        new=AsyncMock(side_effect=RuntimeError("audit down")),
+    ):
+        locked = await record_failed_code(admin_user.id, admin_user.email, IP)
+
+    assert locked is not None
+    session.expire_all()
+    row = await session.get(UserMfa, admin_user.id)
+    assert row is not None and row.failed_attempts == LOCK_FREE_FAILURES
+    assert row.locked_until is not None
