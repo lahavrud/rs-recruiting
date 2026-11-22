@@ -1,11 +1,16 @@
 """Tests for the admin resume-view audit."""
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.models import Application, AuditLog, CandidateProfile
-from rs_shared.services.admin.resume_access import audit_resume_view
+from rs_shared.services.admin.resume_access import (
+    VIEW_DEDUPE_WINDOW,
+    audit_resume_view,
+)
 
 
 async def _view_rows(session: AsyncSession) -> list[AuditLog]:
@@ -97,3 +102,53 @@ async def test_two_profiles_with_one_key_do_not_fail_the_view(session: AsyncSess
 
     [row] = await _view_rows(session)
     assert row.target_id == min(first.id, second.id)  # pyright: ignore[reportArgumentType]
+
+
+async def _profile_with_resume(session: AsyncSession, profile: CandidateProfile):
+    profile.resume_path = "resumes/repeat.pdf"
+    session.add(profile)
+    await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_repeat_views_by_one_admin_within_the_window_write_one_row(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    await _profile_with_resume(session, candidate_profile)
+
+    for _ in range(3):
+        await audit_resume_view(session, "repeat.pdf", actor_user_id=4)
+        await session.commit()
+
+    assert len(await _view_rows(session)) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_different_admin_still_writes_a_row(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    await _profile_with_resume(session, candidate_profile)
+
+    await audit_resume_view(session, "repeat.pdf", actor_user_id=4)
+    await audit_resume_view(session, "repeat.pdf", actor_user_id=5)
+    await session.commit()
+
+    assert sorted(r.actor_user_id for r in await _view_rows(session)) == [4, 5]
+
+
+@pytest.mark.asyncio
+async def test_a_view_after_the_window_writes_a_new_row(
+    session: AsyncSession, candidate_profile: CandidateProfile
+):
+    await _profile_with_resume(session, candidate_profile)
+    await audit_resume_view(session, "repeat.pdf", actor_user_id=4)
+    await session.commit()
+    [first] = await _view_rows(session)
+    first.created_at = datetime.now(timezone.utc) - VIEW_DEDUPE_WINDOW * 2
+    session.add(first)
+    await session.commit()
+
+    await audit_resume_view(session, "repeat.pdf", actor_user_id=4)
+    await session.commit()
+
+    assert len(await _view_rows(session)) == 2
