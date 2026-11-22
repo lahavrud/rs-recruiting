@@ -67,8 +67,9 @@ async def _nuke_user_refresh_tokens(user_id: int) -> None:
                 RefreshToken.user_id == user_id  # pyright: ignore[reportArgumentType]
             )
         )
-        # The strongest account-takeover signal we have: keep it past the
-        # app logs' retention, next to the user's other auth events.
+        # A replayed token is a stolen-token signal (or two tabs refreshing
+        # at once, see refresh_user_tokens): keep it past the app logs'
+        # retention, next to the user's other auth events.
         await record_audit_event(
             nuke_session,
             actor_user_id=None,

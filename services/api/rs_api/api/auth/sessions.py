@@ -122,17 +122,14 @@ async def revoke_all_sessions(
 ) -> None:
     """Revoke all sessions for the current user (log out everywhere)."""
     async with transactional(session):
+        # rowcount of the DELETE itself: a separate SELECT could miss a session
+        # created between the two statements.
         result = await session.execute(
-            select(RefreshToken.id).where(
-                RefreshToken.user_id == current_user.id  # type: ignore[arg-type]
-            )
-        )
-        count = len(result.scalars().all())
-        await session.execute(
             sa_delete(RefreshToken).where(
                 RefreshToken.user_id == current_user.id  # type: ignore[arg-type]
             )
         )
+        count = result.rowcount  # pyright: ignore[reportAttributeAccessIssue]
         await record_audit_event(
             session,
             actor_user_id=current_user.id,

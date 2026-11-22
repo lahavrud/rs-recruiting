@@ -16,6 +16,7 @@ async def update_application_notes(
     admin_notes: str | None,
     session: AsyncSession,
     actor_user_id: int | None = None,
+    ip_address: str | None = None,
 ) -> ApplicationRead:
     """Distinct from `update_application_status` — skips the status-transition
     checks and rejection email, since notes are an internal admin annotation
@@ -41,6 +42,7 @@ async def update_application_notes(
             action="application.notes_update",
             target_type="Application",
             target_id=application_id,
+            ip_address=ip_address,
         )
     application.admin_notes = admin_notes
     application.updated_at = datetime.now(timezone.utc)

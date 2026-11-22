@@ -89,7 +89,7 @@ async def test_login_success(client: AsyncClient):
     assert response.cookies.get("refresh_token") is not None
 
     # Every role's login is audited now, not only admins'.
-    [row] = await audit_rows("user.login")
+    [row] = [r for r in await audit_rows("user.login") if r.target_id == user.id]
     assert (row.target_type, row.target_id, row.actor_user_id) == (
         "User",
         user.id,
@@ -320,3 +320,34 @@ async def test_login_failed_logs_ip(client: AsyncClient, caplog):
 
     records = [r for r in caplog.records if r.getMessage() == "login_failed"]
     assert records and records[0].ip == "203.0.113.68"
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_login_throttle
+async def test_wrong_password_on_real_account_is_audited_unknown_email_is_not(
+    client: AsyncClient,
+):
+    """authenticate_user passes the account id to the throttle write, end to end."""
+    await _create_active_user(client, "audited@example.com")
+    async with TestSessionLocal() as session:
+        user_id = (
+            await session.execute(
+                select(User.id).where(User.email == "audited@example.com")  # pyright: ignore[reportArgumentType]
+            )
+        ).scalar_one()
+
+    async with await _peer_client("203.0.113.69") as peer:
+        for email in ("audited@example.com", "nobody@example.com"):
+            resp = await peer.post(
+                "/auth/login", json={"email": email, "password": "WrongPass1!"}
+            )
+            assert resp.status_code == 401
+
+    # Scoped to this test's source IP: client-based tests in this file don't
+    # truncate before running, so earlier tests' rows can still be present.
+    rows = [
+        r
+        for r in await audit_rows("user.login_failed")
+        if r.ip_address == "203.0.113.69"
+    ]
+    assert [r.target_id for r in rows] == [user_id]

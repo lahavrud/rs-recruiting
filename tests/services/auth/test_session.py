@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from rs_shared.core.infrastructure.security import get_password_hash, hash_token
+from rs_shared.core.infrastructure.transactions import transactional
 from rs_shared.enums import InviteTokenStatus, UserRole
 from rs_shared.models import InviteToken, RefreshToken, UsedRefreshToken, User
 from rs_shared.services.auth.session import (
@@ -20,6 +21,7 @@ from rs_shared.services.auth.session import (
     refresh_user_tokens,
 )
 from rs_shared.services.exceptions import InvalidCredentialsError
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 def _active_user(email: str = "session-test@example.com") -> User:
@@ -429,29 +431,51 @@ async def test_get_invite_by_hash_returns_none_for_unknown_token(
 
 
 @pytest.mark.asyncio
-async def test_nuke_on_replay_writes_an_audit_row(session: AsyncSession):
-    """Replay is the strongest takeover signal; it must outlive the app logs.
-
-    The nuke commits in its own session, so the factory is pointed at the
-    per-run test DB here.
+async def test_replay_audit_row_survives_the_request_rollback(session: AsyncSession):
+    """The replay raises inside transactional(), which rolls the request back;
+    the nuke's own session must still commit the audit row and the delete.
     """
-    from rs_shared.services.auth.session import _nuke_user_refresh_tokens
-    from tests.conftest import TestSessionLocal, audit_rows
-
     user = _active_user("nuked@example.com")
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    assert user.id is not None
+    # The rollback below expires every loaded object; keep the id as a plain int.
+    user_id = user.id
+    assert user_id is not None
+    raw_token = "replayed-raw-token"
+    session.add(
+        UsedRefreshToken(
+            token_hash=hash_token(raw_token),
+            user_id=user_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+    )
+    session.add(
+        RefreshToken(
+            token_hash="live-session",
+            user_id=user_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+    )
+    await session.commit()
 
-    with patch(
-        "rs_shared.core.infrastructure.database.async_session", TestSessionLocal
+    # The nuke opens its own session from the app factory; point it at the
+    # per-run test DB.
+    with (
+        patch("rs_shared.core.infrastructure.database.async_session", TestSessionLocal),
+        pytest.raises(InvalidCredentialsError),
     ):
-        await _nuke_user_refresh_tokens(user.id)
+        async with transactional(session):
+            await refresh_user_tokens(raw_token, session)
 
     [row] = await audit_rows("user.session_replay")
     assert (row.target_type, row.target_id, row.actor_user_id) == (
         "User",
-        user.id,
+        user_id,
         None,
     )
+    async with TestSessionLocal() as fresh:
+        remaining = await fresh.execute(
+            select(RefreshToken).where(RefreshToken.user_id == user_id)  # pyright: ignore[reportArgumentType]
+        )
+        assert remaining.scalars().all() == []

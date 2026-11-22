@@ -201,6 +201,7 @@ async def dismiss_match(
     score: float,
     admin_id: int,
     session: AsyncSession,
+    ip_address: str | None = None,
 ) -> None:
     """Record an admin decision to dismiss a match suggestion.
 
@@ -239,6 +240,7 @@ async def dismiss_match(
         target_type="CandidateProfile",
         target_id=candidate_id,
         detail=f"job_id={job_id}",
+        ip_address=ip_address,
     )
 
 

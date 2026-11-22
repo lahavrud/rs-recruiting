@@ -23,15 +23,20 @@ async def _resume_owner(
     """``(candidate_id, application_id)`` for the file, or None if no row has it.
 
     The profile's current resume wins. Otherwise the file is a snapshot taken
-    for one application, and that application is named too.
+    for an application, and that application is named too (the earliest one,
+    when several applications reuse the same snapshot).
     """
+    # Keys are minted per upload, so a key maps to one candidate; limit(1)
+    # rather than scalar_one_or_none() keeps a duplicate from turning a served
+    # CV into a 500.
     candidate_id = (
         await session.execute(
-            select(CandidateProfile.id).where(
-                CandidateProfile.resume_path == storage_key  # pyright: ignore[reportArgumentType]
-            )
+            select(CandidateProfile.id)
+            .where(CandidateProfile.resume_path == storage_key)  # pyright: ignore[reportArgumentType]
+            .order_by(CandidateProfile.id)
+            .limit(1)
         )
-    ).scalar_one_or_none()
+    ).scalar()
     if candidate_id is not None:
         return candidate_id, None
 

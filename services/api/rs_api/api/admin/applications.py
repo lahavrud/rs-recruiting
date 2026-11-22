@@ -160,6 +160,7 @@ async def update_application_status_endpoint(
     status_code=status.HTTP_200_OK,
 )
 async def update_application_notes_endpoint(
+    request: Request,
     application_id: int,
     body: ApplicationNotesUpdate,
     current_admin: User = Depends(get_current_admin),
@@ -169,7 +170,11 @@ async def update_application_notes_endpoint(
     try:
         async with transactional(session):
             return await update_application_notes(
-                application_id, body.admin_notes, session, current_admin.id
+                application_id,
+                body.admin_notes,
+                session,
+                current_admin.id,
+                client_ip(request),
             )
     except ApplicationNotFoundError as e:
         raise service_exception_to_http(e) from e

@@ -388,7 +388,7 @@
         "createdByApply": "הוגשה מועמדות",
         "createdByMatch": "הוגשה על ידי מנהל מתוך התאמות",
         "edited": "המועמד/ת עדכן/ה את פרטי המועמדות",
-        "notesUpdated": "הערות המנהל עודכנו",
+        "notesUpdated": "הערות מנהל עודכנו",
         "unknown": "פעולה במערכת"
       }
     },
@@ -550,7 +550,7 @@
         "dataExportReady": "עותק המידע האישי מוכן להורדה",
         "dataExportDownload": "הוריד/ה את עותק המידע האישי",
         "matchDismissed": "התאמה למשרה נדחתה על ידי מנהל",
-        "applicationNotesUpdated": "הערות המנהל על המועמדות עודכנו",
+        "applicationNotesUpdated": "הערות מנהל על המועמדות עודכנו",
         "unknown": "פעולה במערכת"
       }
     },
