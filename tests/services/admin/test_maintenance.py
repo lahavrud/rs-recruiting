@@ -21,6 +21,7 @@ from rs_shared.models import (
     LoginThrottle,
     MfaChallenge,
     User,
+    UserMfa,
 )
 from rs_shared.services.admin.maintenance import (
     purge_expired_account_deletion_tokens,
@@ -28,7 +29,7 @@ from rs_shared.services.admin.maintenance import (
     purge_expired_data_export_zips,
     purge_expired_email_outbox,
     purge_expired_login_throttle,
-    purge_expired_mfa_challenges,
+    purge_stale_mfa_rows,
     purge_unactivated_candidate_users,
     redact_expired_email_outbox,
 )
@@ -633,7 +634,7 @@ async def test_purge_login_throttle_removes_only_stale_rows(session):
     assert remaining == {"203.0.113.2", "203.0.113.3"}
 
 
-# ── purge_expired_mfa_challenges ─────────────────────────────────────────────
+# ── purge_stale_mfa_rows ─────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
@@ -650,8 +651,35 @@ async def test_purge_mfa_challenges_removes_only_expired(session, admin_user):
         )
     await session.flush()
 
-    assert await purge_expired_mfa_challenges(session) == 1
+    assert await purge_stale_mfa_rows(session) == 1
     remaining = [
         c.token_hash for c in (await session.execute(select(MfaChallenge))).scalars()
     ]
     assert remaining == ["e" * 64]
+
+
+@pytest.mark.asyncio
+async def test_purge_mfa_removes_only_stale_pending_enrolments(
+    session, admin_user, company_user, approved_company_user
+):
+    """Old unconfirmed enrolment goes; a fresh one and an enabled one stay."""
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(days=8)
+    for user, created_at, enabled_at in (
+        (admin_user, old, None),
+        (company_user, now - timedelta(days=1), None),
+        (approved_company_user, old, old),
+    ):
+        session.add(
+            UserMfa(
+                user_id=user.id,
+                secret_encrypted="ct",
+                created_at=created_at,
+                enabled_at=enabled_at,
+            )
+        )
+    await session.flush()
+
+    assert await purge_stale_mfa_rows(session) == 1
+    kept = {m.user_id for m in (await session.execute(select(UserMfa))).scalars()}
+    assert kept == {company_user.id, approved_company_user.id}

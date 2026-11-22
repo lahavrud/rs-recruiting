@@ -169,9 +169,7 @@ async def login(
             mfa_token = await create_challenge(
                 session, user, remember_me=login_data.remember_me
             )
-        logger.info(
-            "login_mfa_challenge_issued", extra={"user_id": str(user.id), "ip": ip}
-        )
+        logger.info("login_mfa_challenge_issued", extra={"user_id": user.id, "ip": ip})
         response.headers["Cache-Control"] = "no-store"
         return LoginResponse(mfa_required=True, mfa_token=mfa_token)
 

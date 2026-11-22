@@ -43,7 +43,6 @@ from rs_shared.services.exceptions import (
     JobNotPublishedError,
     MfaAlreadyEnabledError,
     MfaChallengeExpiredError,
-    MfaEnrollmentRequiredError,
     MfaLockedError,
     MfaNotEnrolledError,
     PendingActivationError,
@@ -89,7 +88,6 @@ EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     MfaLockedError: status.HTTP_429_TOO_MANY_REQUESTS,
     MfaAlreadyEnabledError: status.HTTP_409_CONFLICT,
     MfaNotEnrolledError: status.HTTP_409_CONFLICT,
-    MfaEnrollmentRequiredError: status.HTTP_403_FORBIDDEN,
     # Bad request errors (400)
     InvalidInviteTokenError: status.HTTP_400_BAD_REQUEST,
     InviteAlreadyRevokedError: status.HTTP_400_BAD_REQUEST,
@@ -144,7 +142,6 @@ EXCEPTION_CODE_MAP: dict[type[Exception], str] = {
     MfaLockedError: "mfa_locked",
     MfaAlreadyEnabledError: "mfa_already_enabled",
     MfaNotEnrolledError: "mfa_not_enrolled",
-    MfaEnrollmentRequiredError: "mfa_enrollment_required",
     # Invite lifecycle
     InvalidInviteTokenError: "invalid_invite_token",
     InviteAlreadyRevokedError: "invite_revoked",

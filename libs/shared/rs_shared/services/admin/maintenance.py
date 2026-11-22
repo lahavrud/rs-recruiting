@@ -30,6 +30,7 @@ from rs_shared.models import (
     LoginThrottle,
     MfaChallenge,
     User,
+    UserMfa,
 )
 
 _logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ _TERMINAL_EMAIL_STATUSES = (EmailStatus.SENT, EmailStatus.FAILED)
 # restarts its counter after the same window (services/auth/login_throttle.py
 # DECAY, which this package may not import; a test pins the two together).
 LOGIN_THROTTLE_RETENTION = timedelta(hours=24)
+MFA_PENDING_ENROLMENT_RETENTION = timedelta(days=7)
 
 
 async def purge_unactivated_candidate_users(session: AsyncSession) -> int:
@@ -287,20 +289,29 @@ async def purge_expired_login_throttle(session: AsyncSession) -> int:
     return count
 
 
-async def purge_expired_mfa_challenges(session: AsyncSession) -> int:
-    """Delete MFA login challenges past their expiry.
+async def purge_stale_mfa_rows(session: AsyncSession) -> int:
+    """Delete expired MFA login challenges and abandoned MFA enrolments.
 
-    A challenge lives 5 minutes; an expired one can never be completed, so
-    the row is dead weight (an abandoned or failed second step).
+    A challenge lives 5 minutes; an expired one can never be completed. An
+    enrolment never confirmed within ``MFA_PENDING_ENROLMENT_RETENTION`` was
+    abandoned, and its row would keep an (encrypted) secret forever; the
+    user simply starts over with a new one.
 
     Returns count of rows deleted.
     """
-    result = await session.execute(
+    now = datetime.now(timezone.utc)
+    challenges = await session.execute(
         delete(MfaChallenge).where(
-            MfaChallenge.expires_at < datetime.now(timezone.utc)  # type: ignore[arg-type]
+            MfaChallenge.expires_at < now  # type: ignore[arg-type]
         )
     )
-    count = result.rowcount
+    enrolments = await session.execute(
+        delete(UserMfa).where(
+            UserMfa.enabled_at.is_(None),  # type: ignore[union-attr]
+            UserMfa.created_at < now - MFA_PENDING_ENROLMENT_RETENTION,  # type: ignore[arg-type]
+        )
+    )
+    count = challenges.rowcount + enrolments.rowcount
     if count:
-        _logger.info("purge_expired_mfa_challenges: removed %d rows", count)
+        _logger.info("purge_stale_mfa_rows: removed %d rows", count)
     return count

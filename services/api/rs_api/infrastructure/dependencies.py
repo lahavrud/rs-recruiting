@@ -93,7 +93,7 @@ async def get_current_user(
 
     # Per-session revocation: `sid` = RefreshToken.id embedded in the JWT.
     # If the session was revoked its row is gone → 401 forces the browser out.
-    # Tokens without `sid` (pre-feature) are allowed — they expire within 10 min.
+    # No `sid` (pre-feature token): allowed only for users without MFA, below.
     sid = payload.get("sid")
     mfa_verified = False
     if sid is not None:

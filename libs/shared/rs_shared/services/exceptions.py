@@ -99,12 +99,6 @@ class MfaNotEnrolledError(AuthError):
     pass
 
 
-class MfaEnrollmentRequiredError(AuthError):
-    """An admin without MFA tried to use an admin-only endpoint."""
-
-    pass
-
-
 class CompanyNotFoundError(Exception):
     """Raised when a company user is not found."""
 

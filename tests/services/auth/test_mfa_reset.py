@@ -1,6 +1,7 @@
 """Tests for the break-glass MFA reset (scripts/reset_mfa.py's service)."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,19 +41,30 @@ async def test_reset_wipes_mfa_and_sessions_and_audits(
     )
     await session.commit()
 
-    async with transactional(session):
-        assert await reset_user_mfa(session, " Admin@Test.com ", reason="lost phone")
+    with patch(
+        "rs_shared.services.auth.mfa_reset.clear_all_login_failures",
+        new_callable=AsyncMock,
+    ) as clear_throttle:
+        async with transactional(session):
+            assert await reset_user_mfa(
+                session, " Admin@Test.com ", reason="lost phone", operator="lahav"
+            )
 
+    clear_throttle.assert_awaited_once_with(admin_user.email)
     for model in (UserMfa, MfaRecoveryCode, MfaChallenge, RefreshToken):
         assert (await session.execute(select(model))).first() is None
     audit = (await session.execute(select(AuditLog))).scalar_one()
     assert audit.action == "mfa_reset_break_glass"
-    assert audit.target_id == admin_user.id and audit.detail == "lost phone"
+    assert audit.target_id == admin_user.id and (
+        audit.detail == "operator=lahav; reason=lost phone"
+    )
     email = (await session.execute(select(EmailOutbox))).scalar_one()
     assert email.to_addrs == [admin_user.email] and "אופס" in email.subject
 
 
 async def test_reset_unknown_email_changes_nothing(session: AsyncSession):
-    assert not await reset_user_mfa(session, "nobody@example.com", reason="x")
+    assert not await reset_user_mfa(
+        session, "nobody@example.com", reason="x", operator="y"
+    )
     assert (await session.execute(select(AuditLog))).first() is None
     assert (await session.execute(select(EmailOutbox))).first() is None

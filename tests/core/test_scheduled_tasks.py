@@ -85,8 +85,8 @@ def _patch_all_subtasks_returning(counts: dict[str, int]):
             new=AsyncMock(return_value=counts.get("purge_login_throttle", 0)),
         ),
         patch(
-            f"{base}.maintenance.purge_expired_mfa_challenges",
-            new=AsyncMock(return_value=counts.get("purge_mfa_challenges", 0)),
+            f"{base}.maintenance.purge_stale_mfa_rows",
+            new=AsyncMock(return_value=counts.get("purge_mfa", 0)),
         ),
     ]
 
@@ -116,7 +116,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     outbox_redacted_counter = MagicMock()
     outbox_purged_counter = MagicMock()
     login_throttle_counter = MagicMock()
-    mfa_challenges_counter = MagicMock()
+    mfa_counter = MagicMock()
     gauge = MagicMock()
 
     counts = {
@@ -128,7 +128,7 @@ async def test_nightly_cleanup_records_otel_metrics():
         "redact_email_outbox": 6,
         "purge_email_outbox": 8,
         "purge_login_throttle": 9,
-        "purge_mfa_challenges": 10,
+        "purge_mfa": 10,
     }
     s_patch, t_patch = _patch_session_noop()
     # Sub-task patches go through an ExitStack: one `with` holding them all
@@ -168,8 +168,8 @@ async def test_nightly_cleanup_records_otel_metrics():
                 login_throttle_counter,
             ),
             patch(
-                "rs_shared.core.scheduled_tasks._mfa_challenges_purged_counter",
-                mfa_challenges_counter,
+                "rs_shared.core.scheduled_tasks._mfa_purged_counter",
+                mfa_counter,
             ),
             patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge", gauge),
             patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
@@ -188,7 +188,7 @@ async def test_nightly_cleanup_records_otel_metrics():
     outbox_redacted_counter.add.assert_called_once_with(6, attrs)
     outbox_purged_counter.add.assert_called_once_with(8, attrs)
     login_throttle_counter.add.assert_called_once_with(9, attrs)
-    mfa_challenges_counter.add.assert_called_once_with(10, attrs)
+    mfa_counter.add.assert_called_once_with(10, attrs)
     gauge.set.assert_called_once()
 
 
@@ -225,7 +225,7 @@ async def test_nightly_cleanup_continues_after_subtask_failure():
             patch("rs_shared.core.scheduled_tasks._outbox_redacted_counter"),
             patch("rs_shared.core.scheduled_tasks._outbox_purged_counter"),
             patch("rs_shared.core.scheduled_tasks._login_throttle_purged_counter"),
-            patch("rs_shared.core.scheduled_tasks._mfa_challenges_purged_counter"),
+            patch("rs_shared.core.scheduled_tasks._mfa_purged_counter"),
             patch("rs_shared.core.scheduled_tasks._last_purge_ran_gauge"),
             patch("rs_shared.core.scheduled_tasks.settings") as mock_settings,
         ):
