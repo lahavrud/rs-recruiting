@@ -8,6 +8,7 @@ it records. `list_audit_events` powers the admin query endpoint.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -21,6 +22,13 @@ from rs_shared.core.infrastructure.pagination import (
 )
 from rs_shared.models import AuditLog
 from rs_shared.schemas import AuditLogRead
+
+_logger = logging.getLogger(__name__)
+
+# AuditLog.ip_address is String(45), the longest IPv6 text form. client_ip()
+# can pass through a raw forwarded value from a trusted proxy; an over-long one
+# must not fail the write (and with it the change being recorded).
+_IP_MAX_LEN = 45
 
 
 async def record_audit_event(
@@ -46,11 +54,43 @@ async def record_audit_event(
             target_type=target_type,
             target_id=target_id,
             detail=detail,
-            ip_address=ip_address,
+            ip_address=ip_address[:_IP_MAX_LEN] if ip_address else ip_address,
             created_at=created_at or datetime.now(timezone.utc),
         )
     )
     await session.flush()
+
+
+async def record_audit_event_best_effort(
+    session: AsyncSession,
+    *,
+    actor_user_id: int | None,
+    action: str,
+    target_type: str,
+    target_id: int,
+    ip_address: str | None = None,
+) -> None:
+    """Audit a security action without letting the audit write undo it.
+
+    For the writers that commit their own session alongside a security control
+    (the refresh-token nuke on replay, the failed-login throttle count): the
+    row goes in a SAVEPOINT, so if it fails only the row is lost and logged,
+    and the caller's commit still applies the control.
+    """
+    try:
+        async with session.begin_nested():
+            await record_audit_event(
+                session,
+                actor_user_id=actor_user_id,
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                ip_address=ip_address,
+            )
+    except Exception:
+        _logger.exception(
+            "audit_write_failed", extra={"action": action, "target_id": target_id}
+        )
 
 
 async def list_audit_events(

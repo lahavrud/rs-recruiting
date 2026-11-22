@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 
 from rs_shared.models import CandidateProfile, Job, User
-from tests.conftest import audit_rows
+from tests.conftest import TestSessionLocal, audit_rows
 
 
 @pytest.mark.asyncio
@@ -37,10 +37,18 @@ async def test_dismiss_match_is_audited_with_admin_and_ip(
     candidate_profile: CandidateProfile,
     published_job: Job,
 ):
+    # A second candidate, so the target id differs from the job's and the
+    # admin's (all start at 1) and a swapped id fails the assertion.
+    async with TestSessionLocal() as s:
+        candidate = CandidateProfile(full_name="Second", email="s@x.com", phone="0")
+        s.add(candidate)
+        await s.commit()
+    assert candidate.id not in (published_job.id, admin_user.id)
+
     response = await admin_client.post(
         "/api/admin/matches/dismiss",
         json={
-            "candidate_id": candidate_profile.id,
+            "candidate_id": candidate.id,
             "job_id": published_job.id,
             "score": 0.7,
         },
@@ -49,7 +57,7 @@ async def test_dismiss_match_is_audited_with_admin_and_ip(
     assert response.status_code == 204
     [row] = await audit_rows("match.dismiss")
     assert (row.target_id, row.actor_user_id, row.ip_address) == (
-        candidate_profile.id,
+        candidate.id,
         admin_user.id,
         "127.0.0.1",
     )

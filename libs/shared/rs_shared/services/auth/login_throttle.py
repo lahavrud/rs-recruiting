@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from rs_shared.core.infrastructure.config import get_jwt_secret_key
 from rs_shared.services.exceptions import AccountLockedError
-from rs_shared.services.utils.audit import record_audit_event
+from rs_shared.services.utils.audit import record_audit_event_best_effort
 
 logger = logging.getLogger(__name__)
 
@@ -115,9 +115,10 @@ async def record_login_failure(
     ``user_id`` is set when the email belongs to an account (wrong password):
     a ``user.login_failed`` audit row is then written in this same transaction.
     The throttle table is wiped after ``DECAY``; the audit row is the lasting
-    record. It rides on this commit rather than a second one so the wrong-
-    password path costs one INSERT more than the unknown-email path, not a
-    round of connection + commit (``authenticate_user`` equalises timing).
+    record. It rides on this commit rather than a second one, so the wrong-
+    password path costs a few extra statements over the unknown-email path
+    rather than a second connection and commit; ``authenticate_user`` pads the
+    bcrypt timing, and this keeps the remaining gap small.
     Unknown emails get no row: no account to attach it to, and the attempted
     address must not be stored.
     """
@@ -160,7 +161,8 @@ async def record_login_failure(
             )
         ).scalar_one()
         if user_id is not None:
-            await record_audit_event(
+            # Best-effort: a failed audit write must not uncount the failure.
+            await record_audit_event_best_effort(
                 session,
                 actor_user_id=None,
                 action="user.login_failed",

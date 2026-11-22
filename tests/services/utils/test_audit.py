@@ -1,13 +1,19 @@
 """Tests for the audit service helpers."""
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from rs_shared.models import AuditLog
-from rs_shared.services.utils.audit import list_audit_events, record_audit_event
+from rs_shared.models import AuditLog, LoginThrottle
+from rs_shared.services.utils.audit import (
+    list_audit_events,
+    record_audit_event,
+    record_audit_event_best_effort,
+)
+from tests.conftest import audit_rows
 
 
 @pytest.mark.asyncio
@@ -138,3 +144,64 @@ def test_changed_fields_empty_when_nothing_differs():
     from rs_shared.services.utils.audit import changed_fields
 
     assert changed_fields(SimpleNamespace(title="Same"), {"title": "Same"}) == []
+
+
+@pytest.mark.asyncio
+async def test_record_audit_event_truncates_an_overlong_ip(session: AsyncSession):
+    """A malformed forwarded value must not fail the write it rides on."""
+    await record_audit_event(
+        session,
+        actor_user_id=None,
+        action="t.ip",
+        target_type="User",
+        target_id=1,
+        ip_address="2001:db8::1, " * 10,
+    )
+    await session.commit()
+
+    [row] = await audit_rows("t.ip")
+    assert row.ip_address is not None and len(row.ip_address) == 45
+
+
+@pytest.mark.asyncio
+async def test_best_effort_audit_failure_keeps_the_callers_change(
+    session: AsyncSession,
+):
+    """The savepoint drops only the audit row; the caller's write still commits."""
+    session.add(
+        LoginThrottle(
+            email_hash="h",
+            client_ip="ip",
+            failures=1,
+            last_failure_at=datetime.now(timezone.utc),
+        )
+    )
+    with patch(
+        "rs_shared.services.utils.audit.record_audit_event",
+        new=AsyncMock(side_effect=RuntimeError("audit down")),
+    ):
+        await record_audit_event_best_effort(
+            session,
+            actor_user_id=None,
+            action="t.best_effort",
+            target_type="User",
+            target_id=1,
+        )
+    await session.commit()
+
+    kept = await session.execute(
+        select(LoginThrottle).where(LoginThrottle.email_hash == "h")  # pyright: ignore[reportArgumentType]
+    )
+    assert kept.scalar_one_or_none() is not None
+    assert await audit_rows("t.best_effort") == []
+
+
+@pytest.mark.asyncio
+async def test_best_effort_audit_writes_the_row_when_healthy(session: AsyncSession):
+    await record_audit_event_best_effort(
+        session, actor_user_id=None, action="t.ok", target_type="User", target_id=2
+    )
+    await session.commit()
+
+    [row] = await audit_rows("t.ok")
+    assert row.target_id == 2

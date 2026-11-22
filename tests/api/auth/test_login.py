@@ -25,7 +25,9 @@ async def override_get_session():
 
 
 @pytest.fixture(scope="function")
-async def client():
+async def client(test_db):
+    # test_db: these tests write real rows (users, audit rows under
+    # real_login_throttle); without it they'd leak into later tests.
     from rs_api.api.auth import login as auth
 
     auth.limiter.enabled = False

@@ -23,8 +23,8 @@ async def download_resume(
 ) -> Response:
     """Secure proxy: streams resume bytes from local storage or S3.
 
-    Each successful view is audited against the candidate; a rejected key or a
-    missing file raises first, so it is never recorded as a view.
+    Each view is audited against the candidate once the file is resolved; a
+    rejected key or a missing file raises first, so it is never recorded.
     """
     response = await stream_resume(file_key)
     async with transactional(session):

@@ -1318,8 +1318,8 @@ export interface paths {
          * Download Resume
          * @description Secure proxy: streams resume bytes from local storage or S3.
          *
-         *     Each successful view is audited against the candidate; a rejected key or a
-         *     missing file raises first, so it is never recorded as a view.
+         *     Each view is audited against the candidate once the file is resolved; a
+         *     rejected key or a missing file raises first, so it is never recorded.
          */
         get: operations["download_resume_api_resumes__file_key__get"];
         put?: never;

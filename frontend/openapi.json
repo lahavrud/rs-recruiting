@@ -8068,7 +8068,7 @@
     },
     "/api/resumes/{file_key}": {
       "get": {
-        "description": "Secure proxy: streams resume bytes from local storage or S3.\n\nEach successful view is audited against the candidate; a rejected key or a\nmissing file raises first, so it is never recorded as a view.",
+        "description": "Secure proxy: streams resume bytes from local storage or S3.\n\nEach view is audited against the candidate once the file is resolved; a\nrejected key or a missing file raises first, so it is never recorded.",
         "operationId": "download_resume_api_resumes__file_key__get",
         "parameters": [
           {

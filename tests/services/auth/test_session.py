@@ -479,3 +479,39 @@ async def test_replay_audit_row_survives_the_request_rollback(session: AsyncSess
             select(RefreshToken).where(RefreshToken.user_id == user_id)  # pyright: ignore[reportArgumentType]
         )
         assert remaining.scalars().all() == []
+
+
+@pytest.mark.asyncio
+async def test_replay_nuke_survives_a_failed_audit_write(session: AsyncSession):
+    """Killing the stolen sessions must not depend on the audit row landing."""
+    from rs_shared.services.auth.session import _nuke_user_refresh_tokens
+
+    user = _active_user("nuke-noaudit@example.com")
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    user_id = user.id
+    assert user_id is not None
+    session.add(
+        RefreshToken(
+            token_hash="stolen-session",
+            user_id=user_id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+    )
+    await session.commit()
+
+    with (
+        patch("rs_shared.core.infrastructure.database.async_session", TestSessionLocal),
+        patch(
+            "rs_shared.services.utils.audit.record_audit_event",
+            new=AsyncMock(side_effect=RuntimeError("audit down")),
+        ),
+    ):
+        await _nuke_user_refresh_tokens(user_id)
+
+    async with TestSessionLocal() as fresh:
+        remaining = await fresh.execute(
+            select(RefreshToken).where(RefreshToken.user_id == user_id)  # pyright: ignore[reportArgumentType]
+        )
+        assert remaining.scalars().all() == []

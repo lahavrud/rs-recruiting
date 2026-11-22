@@ -120,17 +120,19 @@ async def test_dismiss_match_is_audited_once(
     published_job: Job,
 ):
     """The decision lands on the candidate's timeline; a repeat adds nothing."""
+    # A second candidate, so its id differs from the job's and the admin's
+    # (all start at 1): a swapped id would then fail the assertions.
+    candidate = CandidateProfile(full_name="Second", email="second@x.com", phone="0")
+    session.add(candidate)
+    await session.commit()
+    assert candidate.id not in (published_job.id, admin_user.id)
+
     for _ in range(2):
-        await dismiss_match(
-            candidate_profile.id, published_job.id, 0.8, admin_user.id, session
-        )
+        await dismiss_match(candidate.id, published_job.id, 0.8, admin_user.id, session)  # pyright: ignore[reportArgumentType]
         await session.commit()
 
     [row] = await audit_rows("match.dismiss")
-    assert (row.target_type, row.target_id) == (
-        "CandidateProfile",
-        candidate_profile.id,
-    )
+    assert (row.target_type, row.target_id) == ("CandidateProfile", candidate.id)
     assert (row.actor_user_id, row.detail) == (
         admin_user.id,
         f"job_id={published_job.id}",
