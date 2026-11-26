@@ -44,5 +44,5 @@ Images are built once into the **ops account** ECR and pulled cross-account by p
 
 ## Observability
 - Sentry: backend DSN in SSM, frontend DSN in build args
-- CloudWatch alarms → SNS `ops-alerts` topic
+- Alerting is Grafana Cloud: rules, dashboards and the uptime probe are code in the infra repo (`tofu/modules/observability`). The only CloudWatch alarms are the two the worker's SQS-depth autoscaling policy creates; they scale, they don't page.
 - Inspector2 scans ECR images on push

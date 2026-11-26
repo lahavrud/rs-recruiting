@@ -46,8 +46,8 @@ Under the hood, a **résumé-matching engine** embeds jobs and résumés (Cohere
 | Matching | Cohere multilingual embeddings · pgvector cosine similarity |
 | Storage / Email | S3 (prod) & local FS (dev) · Resend over SMTP (prod) & Mailpit (dev) — both behind provider factories · 18 transactional HTML templates |
 | Auth | PyJWT · bcrypt · HttpOnly refresh cookie · slowapi rate limiting |
-| Observability | Sentry (backend + frontend source maps) · Grafana (Loki / Tempo / Mimir) · CloudWatch alarms → SNS |
-| Infrastructure | ECS Fargate · RDS · S3 · SQS · ECR · SSM · CloudFront · Cloudflare (DNS only) |
+| Observability | Sentry (backend + frontend source maps) · Grafana Cloud (Loki / Tempo / Mimir, alerting + uptime checks) |
+| Infrastructure | ECS Fargate · RDS · S3 · SQS · ECR · SSM · CloudFront · API Gateway · Route 53 |
 | CI/CD | GitHub Actions — OIDC (no stored keys), change detection, Pytest on real PostgreSQL, continuous delivery to ECS with a manual prod gate |
 | Quality gates | Ruff · ESLint · TypeScript strict · 5 custom validators · import-linter · weekly pip-audit |
 
@@ -57,7 +57,7 @@ Under the hood, a **résumé-matching engine** embeds jobs and résumés (Cohere
 
 <img src="docs/screenshots/aws-architecture.png" width="750" alt="AWS architecture diagram" />
 
-<p><em>Request path: Users → Cloudflare (DNS only) → CloudFront → S3 (frontend SPA) or the ECS Fargate API service via API/auth/health behaviors (Lambda@Edge handles bot detection for OG prerender). Background: SQS → ECS Fargate worker. CI/CD: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: CloudWatch alarms → SNS ops-alerts; Inspector2 scans ECR on push. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
+<p><em>Request path: Users → Route 53 → CloudFront → S3 (frontend SPA) or, for the API/auth/health behaviors, API Gateway → the ECS Fargate API service (Lambda@Edge handles bot detection for OG prerender). Background: SQS → ECS Fargate worker. CI/CD: GitHub Actions → S3 (frontend bundle) + ECR (Docker images, ops account) → ECS deploy. Observability: Grafana Cloud alerting and uptime checks; Inspector2 scans ECR on push. All secrets live in SSM Parameter Store as SecureStrings.</em></p>
 
 The backend is a **uv workspace** of three members that deploy as two images:
 

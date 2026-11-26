@@ -611,38 +611,39 @@ erDiagram
 ```
 Internet (HTTPS)
       │
-Cloudflare (DNS only, grey-cloud — no proxy)
+Route 53 (hosted zone in the prod account)
       │
 CloudFront distribution (d2ghcom3efd3zg.cloudfront.net)
   ├── Lambda@Edge viewer-request  ← bot/crawler detection → FastAPI OG prerender
-  ├── Default behavior            ← S3 origin (frontend SPA bundle, 3-day lifecycle)
-  └── /api/* /auth/* /health      ← ECS web service origin
+  ├── Default behavior            ← S3 origin (frontend SPA bundle, no age-based expiry)
+  └── /api/* /auth/* /health      ← API Gateway HTTP API → VPC link → Cloud Map
         │
 ECS Fargate (cluster rs-recruiting-prod, us-east-1)
   ├── web service     ← FastAPI + alloy sidecar (image from ops-account ECR)
   └── worker service  ← SQS worker, same image family (python -m rs_worker.worker)
         │
-RDS PostgreSQL db.t3.micro  ← private subnets, encrypted at rest
+RDS PostgreSQL 16          ← private subnets, encrypted at rest
 S3 rs-recruiting-app       ← file uploads
 S3 rs-recruiting-frontend  ← SPA bundle (CloudFront default origin)
 ECR (ops account)          ← Docker image registry, pulled cross-account
 AWS SQS rs-recruiting-tasks ← async task queue (email sends, data exports, retention purge)
 ```
 
-**AWS Resources:** (conceptual — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the authoritative inventory, which is pending its post-ECS audit pass)
+**AWS Resources:** (conceptual — see [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md) for the inventory; `rs-recruiting-infra` is the source of truth)
 
 | Resource | Identifier | Purpose |
 |---|---|---|
-| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + ECS origins |
+| CloudFront | `d2ghcom3efd3zg.cloudfront.net` | CDN + TLS termination, S3 + API Gateway origins |
+| API Gateway | HTTP API + VPC link | Routes API traffic to the web tasks via Cloud Map |
 | ACM | `arn:aws:acm:us-east-1:892512306022:certificate/d0e1d1f5-…` | TLS cert for rs-recruiting.com + www |
 | ECS Fargate | cluster `rs-recruiting-prod` (`-web` / `-worker` services) | API + worker, behind CloudFront |
 | RDS | `rs-recruiting-prod-db` | PostgreSQL 16, private subnets |
 | S3 | `<APP_BUCKET>` + `rs-recruiting-frontend` | Uploads + frontend bundle |
-| ECR (ops account) | `rs-recruiting/{api,worker,alloy}` | Docker images, pulled cross-account |
+| ECR (ops account) | `rs-recruiting/{api,worker,base,alloy}` | Docker images, pulled cross-account |
 | SQS | `rs-recruiting-tasks` | Async task queue for worker |
 | IAM Role (CI) | per-environment OIDC deploy roles | ECR push (ops), ECS deploy, S3/CloudFront |
 
-**Domain:** `rs-recruiting.com` — DNS in Cloudflare (grey-cloud, DNS only). TLS terminates at CloudFront via ACM certificate (`us-east-1`). Cloudflare proxying intentionally disabled — CloudFront handles CDN and certificate.
+**Domain:** `rs-recruiting.com` — registered and hosted in Route 53 (`mgmt/domain-registration`, `prod/dns` in the infra repo). TLS terminates at CloudFront via an ACM certificate (`us-east-1`).
 
 **Configuration:** Runtime secrets in AWS SSM Parameter Store under `/rs-recruiting/prod/`, read by the ECS task at startup (no `.env` materialized on a host). Non-secret config rides the task definition.
 
